@@ -1,0 +1,45 @@
+# ---> Go
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+.directory
+
+# Test binary, build with `go test -c`
+*.test
+*.cover.out
+coverage.out
+*.report
+*.html
+
+
+# IDE shenanigans
+*.iml
+.idea/
+
+# build output
+dist/
+# local builds
+./dashi
+
+# application data
+/data
+
+# SPA
+app/spa/files/ui/*
+!app/spa/files/ui/.gitkeep
+
+# project databases
+**/__tests__
+**/testdbs_sqlite
+
+# local env (secrets, API keys)
+.env
+config.yaml
+
+# AI stuff
+.playwright-mcp/
+docs/superpowers
+.superpowers

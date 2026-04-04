@@ -1,0 +1,59 @@
+package handlers
+
+import (
+	"encoding/json"
+	"mime"
+	"net/http"
+	"path/filepath"
+	"strings"
+
+	"github.com/andresbott/dashi/internal/themes"
+	"github.com/gorilla/mux"
+)
+
+type ThemeHandler struct {
+	store *themes.Store
+}
+
+func NewThemeHandler(store *themes.Store) *ThemeHandler {
+	return &ThemeHandler{store: store}
+}
+
+func (h *ThemeHandler) List(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(h.store.List())
+}
+
+func (h *ThemeHandler) GetIcon(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	themeName := vars["name"]
+	iconName := vars["icon"]
+
+	if strings.ContainsAny(iconName, "/\\") || strings.Contains(iconName, "..") {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid icon name"})
+		return
+	}
+
+	resolved, err := h.store.ResolveIcon(themeName, iconName)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	switch resolved.Type {
+	case themes.ThemeTypeFont:
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"class": resolved.CSSClass})
+	case themes.ThemeTypeImage:
+		contentType := mime.TypeByExtension(filepath.Ext(resolved.FilePath))
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+		w.Header().Set("Content-Type", contentType)
+		http.ServeFile(w, r, resolved.FilePath)
+	}
+}
