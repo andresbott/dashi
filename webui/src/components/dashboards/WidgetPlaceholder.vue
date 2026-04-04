@@ -6,7 +6,6 @@ defineProps<{
 
 <template>
     <div class="widget-placeholder">
-        <span class="widget-placeholder-title">{{ title }}</span>
     </div>
 </template>
 

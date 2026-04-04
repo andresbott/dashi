@@ -31,3 +31,21 @@ export const deletePreviews = async (): Promise<{ deleted: number }> => {
     const { data } = await apiClient.delete<{ deleted: number }>(`${DASHBOARD_PATH}/previews`)
     return data
 }
+
+export const getCustomCSS = async (id: string): Promise<string> => {
+    try {
+        const { data } = await apiClient.get<string>(`${DASHBOARD_PATH}/${id}/assets/custom.css`, {
+            responseType: 'text',
+            transformResponse: [(d) => d],
+        })
+        return data
+    } catch {
+        return ''
+    }
+}
+
+export const saveCustomCSS = async (id: string, css: string): Promise<void> => {
+    await apiClient.post(`${DASHBOARD_PATH}/${id}/assets/custom.css`, css, {
+        headers: { 'Content-Type': 'text/css' },
+    })
+}

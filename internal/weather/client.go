@@ -9,16 +9,18 @@ import (
 )
 
 const (
-	defaultBaseURL    = "https://api.open-meteo.com"
-	defaultGeoBaseURL = "https://geocoding-api.open-meteo.com"
-	defaultCacheTTL   = 30 * time.Minute
+	defaultBaseURL           = "https://api.open-meteo.com"
+	defaultGeoBaseURL        = "https://geocoding-api.open-meteo.com"
+	defaultAirQualityBaseURL = "https://air-quality-api.open-meteo.com"
+	defaultCacheTTL          = 30 * time.Minute
 )
 
 type Client struct {
-	httpClient *http.Client
-	baseURL    string
-	geoBaseURL string
-	cache      *cache
+	httpClient        *http.Client
+	baseURL           string
+	geoBaseURL        string
+	airQualityBaseURL string
+	cache             *cache
 }
 
 type Option func(*Client)
@@ -31,15 +33,20 @@ func WithGeoBaseURL(url string) Option {
 	return func(c *Client) { c.geoBaseURL = url }
 }
 
+func WithAirQualityBaseURL(url string) Option {
+	return func(c *Client) { c.airQualityBaseURL = url }
+}
+
 func NewClient(httpClient *http.Client, opts ...Option) *Client {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 10 * time.Second}
 	}
 	c := &Client{
-		httpClient: httpClient,
-		baseURL:    defaultBaseURL,
-		geoBaseURL: defaultGeoBaseURL,
-		cache:      newCache(defaultCacheTTL),
+		httpClient:        httpClient,
+		baseURL:           defaultBaseURL,
+		geoBaseURL:        defaultGeoBaseURL,
+		airQualityBaseURL: defaultAirQualityBaseURL,
+		cache:             newCache(defaultCacheTTL),
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -53,7 +60,7 @@ func (c *Client) GetWeather(lat, lon float64) (WeatherData, error) {
 	}
 
 	url := fmt.Sprintf(
-		"%s/v1/forecast?latitude=%f&longitude=%f&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&hourly=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=7",
+		"%s/v1/forecast?latitude=%f&longitude=%f&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,surface_pressure&hourly=temperature_2m,weather_code,visibility&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max&timezone=auto&forecast_days=7",
 		c.baseURL, lat, lon,
 	)
 
@@ -73,8 +80,33 @@ func (c *Client) GetWeather(lat, lon float64) (WeatherData, error) {
 	}
 
 	data := c.transformForecast(raw)
+	data.AirQuality = c.fetchAirQuality(lat, lon)
 	c.cache.set(lat, lon, data)
 	return data, nil
+}
+
+func (c *Client) fetchAirQuality(lat, lon float64) *AirQuality {
+	url := fmt.Sprintf(
+		"%s/v1/air-quality?latitude=%f&longitude=%f&current=european_aqi",
+		c.airQualityBaseURL, lat, lon,
+	)
+
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	var raw openMeteoAirQualityResponse
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil
+	}
+
+	return &AirQuality{EuropeanAQI: raw.Current.EuropeanAQI}
 }
 
 func (c *Client) transformForecast(raw openMeteoForecastResponse) WeatherData {
@@ -84,15 +116,32 @@ func (c *Client) transformForecast(raw openMeteoForecastResponse) WeatherData {
 		FeelsLike:   raw.Current.ApparentTemp,
 		Humidity:    raw.Current.Humidity,
 		WindSpeed:   raw.Current.WindSpeed,
+		Pressure:    raw.Current.Pressure,
 		WeatherCode: raw.Current.WeatherCode,
 		Description: desc,
 		Icon:        icon,
 	}
 
+	// Derive visibility from first future hourly entry
+	now := time.Now()
+	for i := range raw.Hourly.Time {
+		t, err := time.Parse("2006-01-02T15:04", raw.Hourly.Time[i])
+		if err != nil {
+			continue
+		}
+		if t.Before(now) {
+			continue
+		}
+		if i < len(raw.Hourly.Visibility) {
+			current.Visibility = raw.Hourly.Visibility[i] / 1000.0
+		}
+		break
+	}
+
 	forecast := make([]DailyForecast, len(raw.Daily.Time))
 	for i := range raw.Daily.Time {
 		d, ic := weatherCodeInfo(raw.Daily.WeatherCode[i])
-		forecast[i] = DailyForecast{
+		f := DailyForecast{
 			Date:        raw.Daily.Time[i],
 			TempMin:     raw.Daily.TempMin[i],
 			TempMax:     raw.Daily.TempMax[i],
@@ -100,9 +149,18 @@ func (c *Client) transformForecast(raw openMeteoForecastResponse) WeatherData {
 			Description: d,
 			Icon:        ic,
 		}
+		if i < len(raw.Daily.Sunrise) {
+			f.Sunrise = raw.Daily.Sunrise[i]
+		}
+		if i < len(raw.Daily.Sunset) {
+			f.Sunset = raw.Daily.Sunset[i]
+		}
+		if i < len(raw.Daily.UVIndexMax) {
+			f.UVIndex = raw.Daily.UVIndexMax[i]
+		}
+		forecast[i] = f
 	}
 
-	now := time.Now()
 	var hourly []HourlyForecast
 	for i := range raw.Hourly.Time {
 		t, err := time.Parse("2006-01-02T15:04", raw.Hourly.Time[i])

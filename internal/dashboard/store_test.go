@@ -18,7 +18,7 @@ func TestStore_Create(t *testing.T) {
 			VerticalAlign:   "top",
 			HorizontalAlign: "center",
 		},
-		Rows: []Row{},
+		Pages: []Page{},
 	}
 
 	created, err := store.Create(d)
@@ -53,7 +53,7 @@ func TestStore_Get(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 
-	created, err := store.Create(Dashboard{Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Rows: []Row{}})
+	created, err := store.Create(Dashboard{Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -81,9 +81,11 @@ func TestStore_List(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 
-	_, _ = store.Create(Dashboard{Name: "A", Icon: "ti-a", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Rows: []Row{}})
-	_, _ = store.Create(Dashboard{Name: "B", Icon: "ti-b", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Rows: []Row{
-		{ID: "r1", Height: "100px", Width: "100%", Widgets: []Widget{{ID: "w1", Type: "placeholder", Title: "W", Width: 12}}},
+	_, _ = store.Create(Dashboard{Name: "A", Icon: "ti-a", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
+	_, _ = store.Create(Dashboard{Name: "B", Icon: "ti-b", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{
+		{Rows: []Row{
+			{ID: "r1", Height: "100px", Width: "100%", Widgets: []Widget{{ID: "w1", Type: "placeholder", Title: "W", Width: 12}}},
+		}},
 	}})
 
 	list, err := store.List()
@@ -104,11 +106,13 @@ func TestStore_Update(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 
-	created, _ := store.Create(Dashboard{Name: "Old", Icon: "ti-old", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Rows: []Row{}})
+	created, _ := store.Create(Dashboard{Name: "Old", Icon: "ti-old", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
 
 	created.Name = "New"
-	created.Rows = []Row{
-		{ID: "r1", Height: "200px", Width: "100%", Widgets: []Widget{}},
+	created.Pages = []Page{
+		{Rows: []Row{
+			{ID: "r1", Height: "200px", Width: "100%", Widgets: []Widget{}},
+		}},
 	}
 
 	updated, err := store.Update(created)
@@ -120,8 +124,8 @@ func TestStore_Update(t *testing.T) {
 	}
 
 	got, _ := store.Get(created.ID)
-	if len(got.Rows) != 1 {
-		t.Fatalf("expected 1 row, got %d", len(got.Rows))
+	if len(got.Pages) != 1 || len(got.Pages[0].Rows) != 1 {
+		t.Fatalf("expected 1 page with 1 row, got %d pages", len(got.Pages))
 	}
 }
 
@@ -139,7 +143,7 @@ func TestStore_Delete(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 
-	created, _ := store.Create(Dashboard{Name: "Bye", Icon: "ti-bye", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Rows: []Row{}})
+	created, _ := store.Create(Dashboard{Name: "Bye", Icon: "ti-bye", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
 
 	err := store.Delete(created.ID)
 	if err != nil {
@@ -208,7 +212,7 @@ func TestStore_SaveAndGetAsset(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 
-	_, err := store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Rows: []Row{}})
+	_, err := store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -235,7 +239,7 @@ func TestStore_SaveAsset_NestedPath(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 
-	_, _ = store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Rows: []Row{}})
+	_, _ = store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
 
 	err := store.SaveAsset("test01", "icons/16x16/home.png", []byte("icon"))
 	if err != nil {
@@ -255,7 +259,7 @@ func TestStore_SaveAsset_Rejected(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 
-	_, _ = store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Rows: []Row{}})
+	_, _ = store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
 
 	err := store.SaveAsset("test01", "../escape.png", []byte("bad"))
 	if err == nil {
@@ -277,7 +281,7 @@ func TestStore_GetAsset_NotFound(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 
-	_, _ = store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Rows: []Row{}})
+	_, _ = store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
 
 	_, _, err := store.GetAsset("test01", "nonexistent.png")
 	if err == nil {
@@ -289,7 +293,7 @@ func TestStore_DeleteAsset(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 
-	_, _ = store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Rows: []Row{}})
+	_, _ = store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
 	_ = store.SaveAsset("test01", "logo.png", []byte("content"))
 
 	err := store.DeleteAsset("test01", "logo.png")
@@ -307,7 +311,7 @@ func TestStore_DeleteAsset_CleansEmptyDirs(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 
-	_, _ = store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Rows: []Row{}})
+	_, _ = store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
 	_ = store.SaveAsset("test01", "icons/16x16/home.png", []byte("icon"))
 
 	err := store.DeleteAsset("test01", "icons/16x16/home.png")
@@ -325,7 +329,7 @@ func TestStore_ListAssets(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 
-	_, _ = store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Rows: []Row{}})
+	_, _ = store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
 	_ = store.SaveAsset("test01", "logo.png", []byte("a"))
 	_ = store.SaveAsset("test01", "custom.css", []byte("b"))
 	_ = store.SaveAsset("test01", "icons/16x16/home.png", []byte("c"))
@@ -349,7 +353,7 @@ func TestStore_ListAssets_Empty(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 
-	_, _ = store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Rows: []Row{}})
+	_, _ = store.Create(Dashboard{ID: "test01", Name: "Test", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
 
 	assets, err := store.ListAssets("test01")
 	if err != nil {

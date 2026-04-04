@@ -14,7 +14,7 @@ const resolvedThemeName = computed(() => props.themeName || 'default')
 
 const themeType = computed(() => {
     if (!props.themes) return 'font'
-    return props.themes.find(t => t.name === resolvedThemeName.value)?.type ?? 'font'
+    return props.themes.find(t => t.name === resolvedThemeName.value)?.iconType ?? 'font'
 })
 
 const isFontTheme = computed(() => themeType.value === 'font')

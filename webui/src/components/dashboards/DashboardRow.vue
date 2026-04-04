@@ -59,8 +59,10 @@ const addWidgetDialogVisible = ref(false)
 const widgetTypeOptions = [
     { value: 'placeholder', label: 'Placeholder', icon: 'ti-layout-grid', description: 'Empty placeholder widget' },
     { value: 'weather', label: 'Weather', icon: 'ti-sun', description: 'Current conditions and forecast' },
+    { value: 'weather-compact', label: 'Weather (Compact)', icon: 'ti-cloud', description: 'Compact weather display' },
     { value: 'bookmark', label: 'Bookmark', icon: 'ti-bookmark', description: 'Link to an external website' },
     { value: 'clock', label: 'Clock', icon: 'ti-clock', description: 'Digital clock with date' },
+    { value: 'battery', label: 'Battery', icon: 'ti-battery-2', description: 'Battery status from query parameter' },
 ]
 
 const addWidget = (type: string) => {
@@ -124,7 +126,9 @@ const getWidgetClass = (element: Widget, index: number) => {
 
 <template>
     <div class="dashboard-row-editor">
-        <div class="row-controls flex align-items-center justify-content-end gap-2 mb-2">
+        <div class="row-controls flex align-items-center gap-2 mb-2">
+            <span v-if="row.title" class="row-title flex-grow-1">{{ row.title }}</span>
+            <span v-else class="flex-grow-1"></span>
             <Button
                 icon="ti ti-arrow-up"
                 text
@@ -250,7 +254,14 @@ const getWidgetClass = (element: Widget, index: number) => {
 </template>
 
 <style scoped>
+.row-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--p-text-color);
+}
+
 .dashboard-row-editor {
+    background: var(--p-surface-50);
     border: 1px solid var(--p-surface-200);
     border-radius: 8px;
     padding: 0.75rem;

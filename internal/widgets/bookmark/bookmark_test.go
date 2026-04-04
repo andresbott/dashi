@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/andresbott/dashi/internal/widgets"
 )
 
 func TestRenderStatic_FullConfig(t *testing.T) {
@@ -15,7 +17,7 @@ func TestRenderStatic_FullConfig(t *testing.T) {
 	}`)
 
 	renderer := NewStaticRenderer()
-	got, err := renderer(config)
+	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -41,7 +43,7 @@ func TestRenderStatic_NoSubtitle(t *testing.T) {
 	}`)
 
 	renderer := NewStaticRenderer()
-	got, err := renderer(config)
+	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

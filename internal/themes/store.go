@@ -8,20 +8,25 @@ import (
 	"sort"
 	"strings"
 
+	"golang.org/x/image/font/gofont/gomono"
 	"gopkg.in/yaml.v3"
 )
 
 //go:embed defaults/theme.yaml
 var defaultThemeYAML []byte
 
-// Store manages theme loading and icon resolution.
+//go:embed defaults/tabler-icons.ttf
+var defaultFontTTF []byte
+
+var embeddedFonts = map[string][]byte{
+	"tabler-icons.ttf": defaultFontTTF,
+	"gomono.ttf":       gomono.TTF,
+}
+
 type Store struct {
 	themes map[string]*theme
 }
 
-// NewStore creates a Store, loading the embedded default theme
-// and any user themes found in themesDir.
-// If themesDir is empty, only the embedded default is loaded.
 func NewStore(themesDir string) *Store {
 	s := &Store{themes: make(map[string]*theme)}
 	s.loadEmbeddedDefault()
@@ -42,7 +47,7 @@ func (s *Store) loadEmbeddedDefault() {
 func (s *Store) loadUserThemes(dir string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return // directory doesn't exist or unreadable — no user themes
+		return
 	}
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -52,25 +57,33 @@ func (s *Store) loadUserThemes(dir string) {
 		manifestPath := filepath.Join(themeDir, "theme.yaml")
 		data, err := os.ReadFile(manifestPath)
 		if err != nil {
-			continue // no manifest — skip
+			continue
 		}
 		var m themeManifest
 		if err := yaml.Unmarshal(data, &m); err != nil {
-			continue // invalid manifest — skip
+			continue
 		}
-		// Use directory name as theme key (overrides embedded if same name)
 		s.themes[entry.Name()] = &theme{manifest: m, dir: themeDir}
 	}
 }
 
-// List returns metadata for all loaded themes, sorted by name.
 func (s *Store) List() []ThemeInfo {
 	result := make([]ThemeInfo, 0, len(s.themes))
 	for name, th := range s.themes {
+		fonts := make([]FontInfo, len(th.manifest.Fonts))
+		for i, f := range th.manifest.Fonts {
+			fonts[i] = FontInfo{Name: f.Name}
+		}
+		iconType := ""
+		if ic := th.icons(); ic != nil {
+			iconType = ic.Type
+		}
 		result = append(result, ThemeInfo{
 			Name:        name,
 			Description: th.manifest.Description,
-			Type:        th.manifest.Type,
+			Fonts:       fonts,
+			HasIcons:    th.hasIcons(),
+			IconType:    iconType,
 		})
 	}
 	sort.Slice(result, func(i, j int) bool {
@@ -79,47 +92,65 @@ func (s *Store) List() []ThemeInfo {
 	return result
 }
 
-// Get returns the theme info for the given name.
 func (s *Store) Get(name string) (ThemeInfo, bool) {
 	th, ok := s.themes[name]
 	if !ok {
 		return ThemeInfo{}, false
 	}
+	fonts := make([]FontInfo, len(th.manifest.Fonts))
+	for i, f := range th.manifest.Fonts {
+		fonts[i] = FontInfo{Name: f.Name}
+	}
+	iconType := ""
+	if ic := th.icons(); ic != nil {
+		iconType = ic.Type
+	}
 	return ThemeInfo{
 		Name:        name,
 		Description: th.manifest.Description,
-		Type:        th.manifest.Type,
+		Fonts:       fonts,
+		HasIcons:    th.hasIcons(),
+		IconType:    iconType,
 	}, true
 }
 
-// ResolveIcon resolves a canonical icon name to a concrete icon reference.
 func (s *Store) ResolveIcon(themeName, canonicalName string) (ResolvedIcon, error) {
 	th, ok := s.themes[themeName]
 	if !ok {
 		return ResolvedIcon{}, fmt.Errorf("theme %q not found", themeName)
 	}
-
-	switch th.manifest.Type {
+	ic := th.icons()
+	if ic == nil {
+		return ResolvedIcon{}, fmt.Errorf("theme %q has no icon config", themeName)
+	}
+	switch ic.Type {
 	case ThemeTypeFont:
-		return s.resolveFontIcon(th, canonicalName)
+		return s.resolveFontIcon(th, ic, canonicalName)
 	case ThemeTypeImage:
 		return s.resolveImageIcon(th, canonicalName)
 	default:
-		return ResolvedIcon{}, fmt.Errorf("theme %q has unknown type %q", themeName, th.manifest.Type)
+		return ResolvedIcon{}, fmt.Errorf("theme %q has unknown icon type %q", themeName, ic.Type)
 	}
 }
 
-func (s *Store) resolveFontIcon(th *theme, canonicalName string) (ResolvedIcon, error) {
-	if th.manifest.Font == nil {
-		return ResolvedIcon{}, fmt.Errorf("font theme missing font config")
-	}
-	suffix, ok := th.manifest.Font.Icons[canonicalName]
+func (s *Store) resolveFontIcon(th *theme, ic *manifestIcons, canonicalName string) (ResolvedIcon, error) {
+	icon, ok := ic.Icons[canonicalName]
 	if !ok {
 		return ResolvedIcon{}, fmt.Errorf("icon %q not found in font theme", canonicalName)
 	}
+	fontFile := ""
+	if ic.FontFile != "" {
+		if th.dir != "" {
+			fontFile = filepath.Join(th.dir, ic.FontFile)
+		} else {
+			fontFile = "embedded:default"
+		}
+	}
 	return ResolvedIcon{
-		Type:     ThemeTypeFont,
-		CSSClass: th.manifest.Font.ClassPrefix + suffix,
+		Type:      ThemeTypeFont,
+		CSSClass:  ic.ClassPrefix + icon.Class,
+		Codepoint: icon.Codepoint,
+		FontFile:  fontFile,
 	}, nil
 }
 
@@ -141,4 +172,43 @@ func (s *Store) resolveImageIcon(th *theme, canonicalName string) (ResolvedIcon,
 		}
 	}
 	return ResolvedIcon{}, fmt.Errorf("icon %q not found in image theme %q", canonicalName, th.manifest.Name)
+}
+
+func (s *Store) GetFontData(themeName string) ([]byte, error) {
+	th, ok := s.themes[themeName]
+	if !ok {
+		return nil, fmt.Errorf("theme %q not found", themeName)
+	}
+	ic := th.icons()
+	if ic == nil || ic.Type != ThemeTypeFont || ic.FontFile == "" {
+		return nil, fmt.Errorf("theme %q has no icon font file", themeName)
+	}
+	if th.dir == "" {
+		if data, ok := embeddedFonts[ic.FontFile]; ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf("embedded font %q not found", ic.FontFile)
+	}
+	fontPath := filepath.Join(th.dir, ic.FontFile)
+	return os.ReadFile(fontPath)
+}
+
+func (s *Store) GetDisplayFontData(themeName, fontName string) ([]byte, error) {
+	th, ok := s.themes[themeName]
+	if !ok {
+		return nil, fmt.Errorf("theme %q not found", themeName)
+	}
+	for _, f := range th.manifest.Fonts {
+		if f.Name == fontName {
+			if th.dir == "" {
+				if data, ok := embeddedFonts[f.File]; ok {
+					return data, nil
+				}
+				return nil, fmt.Errorf("embedded font file %q not found", f.File)
+			}
+			fontPath := filepath.Join(th.dir, f.File)
+			return os.ReadFile(fontPath)
+		}
+	}
+	return nil, fmt.Errorf("font %q not found in theme %q", fontName, themeName)
 }

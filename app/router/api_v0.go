@@ -43,6 +43,7 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router, dashStore *dashboard.Store, 
 	th := handlers.NewThemeHandler(themeStore)
 	r.Path("/themes").Methods(http.MethodGet).HandlerFunc(th.List)
 	r.Path("/themes/{name}/icons/{icon}").Methods(http.MethodGet).HandlerFunc(th.GetIcon)
+	r.Path("/themes/{name}/fonts/{font}").Methods(http.MethodGet).HandlerFunc(th.GetFont)
 
 	return nil
 }

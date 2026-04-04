@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/andresbott/dashi/internal/widgets"
 )
 
 func TestRenderStatic_24h(t *testing.T) {
@@ -12,7 +14,7 @@ func TestRenderStatic_24h(t *testing.T) {
 	now := time.Date(2026, 4, 3, 14, 30, 45, 0, time.UTC)
 
 	renderer := NewStaticRenderer(func() time.Time { return now })
-	got, err := renderer(config)
+	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -31,7 +33,7 @@ func TestRenderStatic_12h_WithSeconds(t *testing.T) {
 	now := time.Date(2026, 4, 3, 14, 30, 45, 0, time.UTC)
 
 	renderer := NewStaticRenderer(func() time.Time { return now })
-	got, err := renderer(config)
+	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -47,7 +49,7 @@ func TestRenderStatic_WithDate(t *testing.T) {
 	now := time.Date(2026, 4, 3, 14, 30, 45, 0, time.UTC)
 
 	renderer := NewStaticRenderer(func() time.Time { return now })
-	got, err := renderer(config)
+	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -65,7 +67,7 @@ func TestRenderStatic_EmptyConfig(t *testing.T) {
 	renderer := NewStaticRenderer(func() time.Time {
 		return time.Date(2026, 4, 3, 9, 5, 0, 0, time.UTC)
 	})
-	got, err := renderer(json.RawMessage(`{}`))
+	got, err := renderer(json.RawMessage(`{}`), widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -73,5 +75,33 @@ func TestRenderStatic_EmptyConfig(t *testing.T) {
 	html := string(got)
 	if !strings.Contains(html, "09:05") {
 		t.Errorf("expected 24h default time, got: %s", html)
+	}
+}
+
+func TestRenderStatic_WithFont(t *testing.T) {
+	now := time.Date(2026, 4, 3, 14, 30, 45, 0, time.UTC)
+	renderer := NewStaticRenderer(func() time.Time { return now })
+	config := json.RawMessage(`{"hour12": false, "showSeconds": false, "showDate": false, "font": "Go Mono"}`)
+	got, err := renderer(config, widgets.RenderContext{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	html := string(got)
+	if !strings.Contains(html, "font-family: 'Go Mono';") {
+		t.Errorf("expected font-family in output, got: %s", html)
+	}
+}
+
+func TestRenderStatic_NoFont(t *testing.T) {
+	now := time.Date(2026, 4, 3, 14, 30, 45, 0, time.UTC)
+	renderer := NewStaticRenderer(func() time.Time { return now })
+	config := json.RawMessage(`{"hour12": false, "showSeconds": false, "showDate": false}`)
+	got, err := renderer(config, widgets.RenderContext{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	html := string(got)
+	if strings.Contains(html, "font-family") {
+		t.Errorf("expected no font-family when font not set, got: %s", html)
 	}
 }

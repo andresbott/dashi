@@ -28,6 +28,7 @@ applyTheme()
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme)
 
 app.use(PrimeVue, {
+    ripple: true,
     theme: {
         preset: CustomTheme,
         options: {

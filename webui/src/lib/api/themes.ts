@@ -16,3 +16,7 @@ export const getFontIcon = async (themeName: string, iconName: string): Promise<
 export const getIconUrl = (themeName: string, iconName: string): string => {
     return `/api/v0${THEMES_PATH}/${themeName}/icons/${iconName}`
 }
+
+export const getFontUrl = (themeName: string, fontName: string): string => {
+    return `/api/v0${THEMES_PATH}/${encodeURIComponent(themeName)}/fonts/${encodeURIComponent(fontName)}`
+}

@@ -7,16 +7,16 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/andresbott/dashi/internal/dashboard"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
-func TestStaticDashboardMiddleware_StaticDashboard(t *testing.T) {
+func TestStaticDashboardMiddleware_StaticDashboardFallsThrough(t *testing.T) {
 	dir := t.TempDir()
 	store := dashboard.NewStore(dir)
 
@@ -29,13 +29,17 @@ func TestStaticDashboardMiddleware_StaticDashboard(t *testing.T) {
 			VerticalAlign:   "top",
 			HorizontalAlign: "center",
 		},
-		Rows: []dashboard.Row{
+		Pages: []dashboard.Page{
 			{
-				ID:     "r1",
-				Height: "auto",
-				Width:  "100%",
-				Widgets: []dashboard.Widget{
-					{ID: "w1", Type: "test", Title: "W", Width: 12, Config: json.RawMessage(`{}`)},
+				Rows: []dashboard.Row{
+					{
+						ID:     "r1",
+						Height: "auto",
+						Width:  "100%",
+						Widgets: []dashboard.Widget{
+							{ID: "w1", Type: "test", Title: "W", Width: 12, Config: json.RawMessage(`{}`)},
+						},
+					},
 				},
 			},
 		},
@@ -45,7 +49,7 @@ func TestStaticDashboardMiddleware_StaticDashboard(t *testing.T) {
 	}
 
 	reg := widgets.NewRegistry()
-	reg.Register("test", func(config json.RawMessage) (template.HTML, error) {
+	reg.Register("test", func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
 		return template.HTML("<p>static-content</p>"), nil
 	})
 	renderer := dashstatic.NewRenderer(reg)
@@ -55,26 +59,15 @@ func TestStaticDashboardMiddleware_StaticDashboard(t *testing.T) {
 	})
 
 	imageRenderer := dashimage.NewRenderer()
-	mid := NewStaticDashboardMiddleware(store, renderer, imageRenderer)
+	mid := NewStaticDashboardMiddleware(store, renderer, imageRenderer, themes.NewStore(""))
 	handler := mid(spaHandler)
 
 	req := httptest.NewRequest("GET", "/abc123", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
-	}
-	body := rec.Body.String()
-	if !strings.Contains(body, "static-content") {
-		t.Errorf("expected static HTML, got: %s", body)
-	}
-	if strings.Contains(body, "SPA") {
-		t.Error("should not fall through to SPA")
-	}
-	ct := rec.Header().Get("Content-Type")
-	if !strings.Contains(ct, "text/html") {
-		t.Errorf("expected text/html content type, got: %s", ct)
+	if rec.Body.String() != "SPA" {
+		t.Errorf("expected SPA fallthrough for static dashboard, got: %s", rec.Body.String())
 	}
 }
 
@@ -89,7 +82,7 @@ func TestStaticDashboardMiddleware_InteractiveDashboard(t *testing.T) {
 		Container: dashboard.Container{
 			MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center",
 		},
-		Rows: []dashboard.Row{},
+		Pages: []dashboard.Page{},
 	})
 	if err != nil {
 		t.Fatalf("create dashboard: %v", err)
@@ -103,7 +96,7 @@ func TestStaticDashboardMiddleware_InteractiveDashboard(t *testing.T) {
 	})
 
 	imageRenderer := dashimage.NewRenderer()
-	mid := NewStaticDashboardMiddleware(store, renderer, imageRenderer)
+	mid := NewStaticDashboardMiddleware(store, renderer, imageRenderer, themes.NewStore(""))
 	handler := mid(spaHandler)
 
 	req := httptest.NewRequest("GET", "/xyz789", nil)
@@ -127,7 +120,7 @@ func TestStaticDashboardMiddleware_NonDashboardPath(t *testing.T) {
 	})
 
 	imageRenderer := dashimage.NewRenderer()
-	mid := NewStaticDashboardMiddleware(store, renderer, imageRenderer)
+	mid := NewStaticDashboardMiddleware(store, renderer, imageRenderer, themes.NewStore(""))
 	handler := mid(spaHandler)
 
 	req := httptest.NewRequest("GET", "/dashboards", nil)
@@ -151,7 +144,7 @@ func TestStaticDashboardMiddleware_APIPath(t *testing.T) {
 	})
 
 	imageRenderer := dashimage.NewRenderer()
-	mid := NewStaticDashboardMiddleware(store, renderer, imageRenderer)
+	mid := NewStaticDashboardMiddleware(store, renderer, imageRenderer, themes.NewStore(""))
 	handler := mid(spaHandler)
 
 	req := httptest.NewRequest("GET", "/api/v0/health", nil)
@@ -180,13 +173,17 @@ func TestStaticDashboardMiddleware_ImageDashboard(t *testing.T) {
 			Width:  400,
 			Height: 0,
 		},
-		Rows: []dashboard.Row{
+		Pages: []dashboard.Page{
 			{
-				ID:     "r1",
-				Height: "auto",
-				Width:  "100%",
-				Widgets: []dashboard.Widget{
-					{ID: "w1", Type: "test", Title: "W", Width: 12, Config: json.RawMessage(`{}`)},
+				Rows: []dashboard.Row{
+					{
+						ID:     "r1",
+						Height: "auto",
+						Width:  "100%",
+						Widgets: []dashboard.Widget{
+							{ID: "w1", Type: "test", Title: "W", Width: 12, Config: json.RawMessage(`{}`)},
+						},
+					},
 				},
 			},
 		},
@@ -196,7 +193,7 @@ func TestStaticDashboardMiddleware_ImageDashboard(t *testing.T) {
 	}
 
 	reg := widgets.NewRegistry()
-	reg.Register("test", func(config json.RawMessage) (template.HTML, error) {
+	reg.Register("test", func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
 		return template.HTML("<p>image-content</p>"), nil
 	})
 	staticRenderer := dashstatic.NewRenderer(reg)
@@ -206,7 +203,7 @@ func TestStaticDashboardMiddleware_ImageDashboard(t *testing.T) {
 		w.Write([]byte("SPA"))
 	})
 
-	mid := NewStaticDashboardMiddleware(store, staticRenderer, imageRenderer)
+	mid := NewStaticDashboardMiddleware(store, staticRenderer, imageRenderer, themes.NewStore(""))
 	handler := mid(spaHandler)
 
 	req := httptest.NewRequest("GET", "/img123", nil)
@@ -225,5 +222,132 @@ func TestStaticDashboardMiddleware_ImageDashboard(t *testing.T) {
 	_, err = png.Decode(bytes.NewReader(rec.Body.Bytes()))
 	if err != nil {
 		t.Fatalf("response is not a valid PNG: %v", err)
+	}
+}
+
+func TestStaticDashboardMiddleware_ImageDashboardPageSelection(t *testing.T) {
+	dir := t.TempDir()
+	store := dashboard.NewStore(dir)
+
+	_, err := store.Create(dashboard.Dashboard{
+		ID:   "pgtest",
+		Name: "Page Test",
+		Type: "image",
+		Container: dashboard.Container{
+			MaxWidth:        "100%",
+			VerticalAlign:   "top",
+			HorizontalAlign: "center",
+		},
+		ImageConfig: &dashboard.ImageConfig{
+			Width:  400,
+			Height: 0,
+		},
+		Pages: []dashboard.Page{
+			{
+				Name: "Page 0",
+				Rows: []dashboard.Row{
+					{
+						ID:     "r1",
+						Height: "auto",
+						Width:  "100%",
+						Widgets: []dashboard.Widget{
+							{ID: "w1", Type: "test", Title: "Page 0", Width: 12, Config: json.RawMessage(`{}`)},
+						},
+					},
+				},
+			},
+			{
+				Name: "Page 1",
+				Rows: []dashboard.Row{
+					{
+						ID:     "r2",
+						Height: "auto",
+						Width:  "100%",
+						Widgets: []dashboard.Widget{
+							{ID: "w2", Type: "test", Title: "Page 1", Width: 12, Config: json.RawMessage(`{}`)},
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create dashboard: %v", err)
+	}
+
+	reg := widgets.NewRegistry()
+	reg.Register("test", func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
+		return template.HTML("<p>test-content</p>"), nil
+	})
+	staticRenderer := dashstatic.NewRenderer(reg)
+	imageRenderer := dashimage.NewRenderer()
+
+	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("SPA"))
+	})
+
+	mid := NewStaticDashboardMiddleware(store, staticRenderer, imageRenderer, themes.NewStore(""))
+	handler := mid(spaHandler)
+
+	tests := []struct {
+		name           string
+		url            string
+		expectedStatus int
+		expectPNG      bool
+	}{
+		{
+			name:           "default page 0",
+			url:            "/pgtest",
+			expectedStatus: http.StatusOK,
+			expectPNG:      true,
+		},
+		{
+			name:           "explicit page 1",
+			url:            "/pgtest?page=1",
+			expectedStatus: http.StatusOK,
+			expectPNG:      true,
+		},
+		{
+			name:           "out of range page returns 404",
+			url:            "/pgtest?page=5",
+			expectedStatus: http.StatusNotFound,
+			expectPNG:      false,
+		},
+		{
+			name:           "negative page returns 404",
+			url:            "/pgtest?page=-1",
+			expectedStatus: http.StatusNotFound,
+			expectPNG:      false,
+		},
+		{
+			name:           "non-numeric page returns 404",
+			url:            "/pgtest?page=abc",
+			expectedStatus: http.StatusNotFound,
+			expectPNG:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tt.url, nil)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != tt.expectedStatus {
+				t.Fatalf("expected status %d, got %d", tt.expectedStatus, rec.Code)
+			}
+
+			if tt.expectPNG {
+				ct := rec.Header().Get("Content-Type")
+				if ct != "image/png" {
+					t.Errorf("expected image/png content type, got: %s", ct)
+				}
+
+				_, err = png.Decode(bytes.NewReader(rec.Body.Bytes()))
+				if err != nil {
+					t.Fatalf("response is not a valid PNG: %v", err)
+				}
+			}
+		})
 	}
 }

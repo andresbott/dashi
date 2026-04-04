@@ -38,6 +38,14 @@ var canonicalIcons = []string{
 	"thunderstorm-hail-slight",
 	"thunderstorm-hail-heavy",
 	"unknown",
+	"sunrise",
+	"sunset",
+	"wind",
+	"humidity",
+	"pressure",
+	"uv-index",
+	"visibility",
+	"air-quality",
 }
 
 func themeCmd() *cobra.Command {
@@ -167,6 +175,14 @@ font:
     thunderstorm-hail-slight: ""
     thunderstorm-hail-heavy: ""
     unknown: ""
+    sunrise: ""
+    sunset: ""
+    wind: ""
+    humidity: ""
+    pressure: ""
+    uv-index: ""
+    visibility: ""
+    air-quality: ""
 `, name)
 
 	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o644); err != nil {

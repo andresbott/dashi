@@ -14,8 +14,11 @@ const config = computed<ClockWidgetConfig>(() => {
         hour12: c.hour12 ?? false,
         showSeconds: c.showSeconds ?? true,
         showDate: c.showDate ?? true,
+        font: c.font,
     }
 })
+
+const clockFont = computed(() => config.value.font || undefined)
 
 const time = ref('')
 const date = ref('')
@@ -47,7 +50,7 @@ onUnmounted(() => {
 
 <template>
     <div class="clock-widget">
-        <div class="clock-time">{{ time }}</div>
+        <div class="clock-time" :style="{ fontFamily: clockFont }">{{ time }}</div>
         <div v-if="config.showDate" class="clock-date">{{ date }}</div>
     </div>
 </template>

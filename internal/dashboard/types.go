@@ -16,15 +16,22 @@ type Container struct {
 	ShowBoxes       bool   `json:"showBoxes,omitempty"`
 }
 
+// Page represents a single page within a dashboard, containing its own rows.
+type Page struct {
+	Name string `json:"name"`
+	Rows []Row  `json:"rows"`
+}
+
 // Dashboard represents a user-defined dashboard with a layout of widgets in rows.
 type Dashboard struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Icon        string      `json:"icon"`
-	Type        string      `json:"type"`
-	Container   Container   `json:"container"`
+	ID          string       `json:"id"`
+	Name        string       `json:"name"`
+	Icon        string       `json:"icon"`
+	Type        string       `json:"type"`
+	Container   Container    `json:"container"`
 	ImageConfig *ImageConfig `json:"imageConfig,omitempty"`
-	Rows        []Row       `json:"rows"`
+	Theme       string       `json:"theme,omitempty"`
+	Pages       []Page       `json:"pages"`
 }
 
 // DashboardMeta is the lightweight listing representation (no rows).

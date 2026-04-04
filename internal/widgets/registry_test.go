@@ -8,11 +8,11 @@ import (
 
 func TestRegistry_Render_KnownType(t *testing.T) {
 	reg := NewRegistry()
-	reg.Register("test", func(config json.RawMessage) (template.HTML, error) {
+	reg.Register("test", func(config json.RawMessage, _ RenderContext) (template.HTML, error) {
 		return template.HTML("<p>hello</p>"), nil
 	})
 
-	got, err := reg.Render("test", json.RawMessage(`{}`))
+	got, err := reg.Render("test", json.RawMessage(`{}`), RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -25,7 +25,7 @@ func TestRegistry_Render_KnownType(t *testing.T) {
 func TestRegistry_Render_UnknownType(t *testing.T) {
 	reg := NewRegistry()
 
-	got, err := reg.Render("nonexistent", json.RawMessage(`{}`))
+	got, err := reg.Render("nonexistent", json.RawMessage(`{}`), RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

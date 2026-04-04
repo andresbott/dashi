@@ -13,6 +13,7 @@ import (
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/weather"
 	"github.com/andresbott/dashi/internal/widgets"
+	batterywidget "github.com/andresbott/dashi/internal/widgets/battery"
 	bookmarkwidget "github.com/andresbott/dashi/internal/widgets/bookmark"
 	clockwidget "github.com/andresbott/dashi/internal/widgets/clock"
 	weatherwidget "github.com/andresbott/dashi/internal/widgets/weather"
@@ -67,11 +68,32 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 	// Static dashboard rendering
 	registry := widgets.NewRegistry()
 	registry.Register("weather", weatherwidget.NewStaticRenderer(weatherClient, themeStore))
+	registry.Register("weather-compact", weatherwidget.NewStaticCompactRenderer(weatherClient, themeStore))
 	registry.Register("bookmark", bookmarkwidget.NewStaticRenderer())
 	registry.Register("clock", clockwidget.NewStaticRenderer(nil))
+	registry.Register("battery", batterywidget.NewStaticRenderer())
 	staticRenderer := dashstatic.NewRenderer(registry)
 	imageRenderer := dashimage.NewRenderer()
-	staticMid := NewStaticDashboardMiddleware(dashStore, staticRenderer, imageRenderer)
+	for _, themeInfo := range themeStore.List() {
+		if themeInfo.HasIcons && themeInfo.IconType == themes.ThemeTypeFont {
+			fontData, err := themeStore.GetFontData(themeInfo.Name)
+			if err != nil {
+				continue
+			}
+			imageRenderer.RegisterFont("icon-font-"+themeInfo.Name, fontData)
+		}
+	}
+	// Register display fonts for image rendering
+	for _, themeInfo := range themeStore.List() {
+		for _, font := range themeInfo.Fonts {
+			fontData, err := themeStore.GetDisplayFontData(themeInfo.Name, font.Name)
+			if err != nil {
+				continue
+			}
+			imageRenderer.RegisterFont(font.Name, fontData)
+		}
+	}
+	staticMid := NewStaticDashboardMiddleware(dashStore, staticRenderer, imageRenderer, themeStore)
 
 	// SPA serving — with static dashboard middleware applied before it
 	spaRouter := app.router.PathPrefix("/").Subrouter()

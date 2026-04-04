@@ -14,7 +14,7 @@ export interface Row {
     widgets: Widget[]
 }
 
-export type DashboardType = 'interactive' | 'static' | 'image'
+export type DashboardType = 'interactive' | 'image'
 
 export interface Container {
     maxWidth: string
@@ -28,6 +28,11 @@ export interface ImageConfig {
     height: number
 }
 
+export interface Page {
+    name: string
+    rows: Row[]
+}
+
 export interface Dashboard {
     id: string
     name: string
@@ -35,7 +40,8 @@ export interface Dashboard {
     type: DashboardType
     container: Container
     imageConfig?: ImageConfig
-    rows: Row[]
+    theme?: string
+    pages: Page[]
 }
 
 export interface DashboardMeta {
@@ -52,5 +58,6 @@ export interface CreateDashboardDTO {
     type: DashboardType
     container: Container
     imageConfig?: ImageConfig
-    rows: Row[]
+    theme?: string
+    pages: Page[]
 }

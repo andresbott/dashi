@@ -239,6 +239,18 @@ func (s *Store) DeletePreviews() (int, error) {
 	return count, nil
 }
 
+const customCSSFile = "custom.css"
+
+// GetCustomCSS reads the custom.css sidecar file for a dashboard.
+// Returns an empty string if the file does not exist.
+func (s *Store) GetCustomCSS(id string) string {
+	data, err := os.ReadFile(filepath.Join(s.dashDir(id), customCSSFile))
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
 func (s *Store) SaveAsset(id string, assetPath string, data []byte) error {
 	if !isValidID(id) {
 		return fmt.Errorf("invalid dashboard ID: %s", id)

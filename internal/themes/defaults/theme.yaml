@@ -1,35 +1,118 @@
 name: "default"
-description: "Default weather icons (Tabler)"
-type: font
-font:
-  css: ""
+description: "Default theme with Go Mono font and Tabler weather icons"
+fonts:
+  - name: "Go Mono"
+    file: "gomono.ttf"
+icons:
+  type: font
   classPrefix: "ti ti-"
+  fontFile: "tabler-icons.ttf"
   icons:
-    clear-sky: "sun"
-    mainly-clear: "sun"
-    partly-cloudy: "sun-low"
-    overcast: "cloud"
-    foggy: "cloud-fog"
-    drizzle-light: "cloud-rain"
-    drizzle-moderate: "cloud-rain"
-    drizzle-dense: "cloud-rain"
-    freezing-drizzle-light: "cloud-snow"
-    freezing-drizzle-dense: "cloud-snow"
-    rain-slight: "cloud-rain"
-    rain-moderate: "cloud-rain"
-    rain-heavy: "cloud-rain"
-    freezing-rain-light: "cloud-snow"
-    freezing-rain-heavy: "cloud-snow"
-    snow-slight: "snowflake"
-    snow-moderate: "snowflake"
-    snow-heavy: "snowflake"
-    snow-grains: "snowflake"
-    rain-showers-slight: "cloud-rain"
-    rain-showers-moderate: "cloud-rain"
-    rain-showers-violent: "cloud-rain"
-    snow-showers-slight: "cloud-snow"
-    snow-showers-heavy: "cloud-snow"
-    thunderstorm: "cloud-storm"
-    thunderstorm-hail-slight: "cloud-storm"
-    thunderstorm-hail-heavy: "cloud-storm"
-    unknown: "cloud-question"
+    clear-sky:
+      class: "sun"
+      codepoint: "eb30"
+    mainly-clear:
+      class: "sun"
+      codepoint: "eb30"
+    partly-cloudy:
+      class: "sun-low"
+      codepoint: "f237"
+    overcast:
+      class: "cloud"
+      codepoint: "ea76"
+    foggy:
+      class: "cloud-fog"
+      codepoint: "ecd9"
+    drizzle-light:
+      class: "cloud-rain"
+      codepoint: "ea72"
+    drizzle-moderate:
+      class: "cloud-rain"
+      codepoint: "ea72"
+    drizzle-dense:
+      class: "cloud-rain"
+      codepoint: "ea72"
+    freezing-drizzle-light:
+      class: "cloud-snow"
+      codepoint: "ea73"
+    freezing-drizzle-dense:
+      class: "cloud-snow"
+      codepoint: "ea73"
+    rain-slight:
+      class: "cloud-rain"
+      codepoint: "ea72"
+    rain-moderate:
+      class: "cloud-rain"
+      codepoint: "ea72"
+    rain-heavy:
+      class: "cloud-rain"
+      codepoint: "ea72"
+    freezing-rain-light:
+      class: "cloud-snow"
+      codepoint: "ea73"
+    freezing-rain-heavy:
+      class: "cloud-snow"
+      codepoint: "ea73"
+    snow-slight:
+      class: "snowflake"
+      codepoint: "ec0b"
+    snow-moderate:
+      class: "snowflake"
+      codepoint: "ec0b"
+    snow-heavy:
+      class: "snowflake"
+      codepoint: "ec0b"
+    snow-grains:
+      class: "snowflake"
+      codepoint: "ec0b"
+    rain-showers-slight:
+      class: "cloud-rain"
+      codepoint: "ea72"
+    rain-showers-moderate:
+      class: "cloud-rain"
+      codepoint: "ea72"
+    rain-showers-violent:
+      class: "cloud-rain"
+      codepoint: "ea72"
+    snow-showers-slight:
+      class: "cloud-snow"
+      codepoint: "ea73"
+    snow-showers-heavy:
+      class: "cloud-snow"
+      codepoint: "ea73"
+    thunderstorm:
+      class: "cloud-storm"
+      codepoint: "ea74"
+    thunderstorm-hail-slight:
+      class: "cloud-storm"
+      codepoint: "ea74"
+    thunderstorm-hail-heavy:
+      class: "cloud-storm"
+      codepoint: "ea74"
+    unknown:
+      class: "cloud-question"
+      codepoint: "f858"
+    sunrise:
+      class: "sunrise"
+      codepoint: "ef1c"
+    sunset:
+      class: "sunset"
+      codepoint: "ef1d"
+    wind:
+      class: "wind"
+      codepoint: "ec34"
+    humidity:
+      class: "droplet"
+      codepoint: "ea51"
+    pressure:
+      class: "gauge"
+      codepoint: "ea6b"
+    uv-index:
+      class: "sun-high"
+      codepoint: "f236"
+    visibility:
+      class: "eye"
+      codepoint: "ea5e"
+    air-quality:
+      class: "leaf"
+      codepoint: "eabc"

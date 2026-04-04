@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject, ref } from 'vue'
+import type { Ref } from 'vue'
 import { useWeather } from '@/composables/useWeather'
 import { useThemes } from '@/composables/useThemes'
 import WeatherIcon from '@/components/dashboards/WeatherIcon.vue'
@@ -17,7 +18,6 @@ const config = computed<WeatherWidgetConfig | null>(() => {
     return c
 })
 
-const isCompact = computed(() => config.value?.compact ?? false)
 const showCurrent = computed(() => config.value?.showCurrent ?? true)
 const showDetails = computed(() => config.value?.showDetails ?? true)
 const showForecast = computed(() => config.value?.showForecast ?? true)
@@ -25,7 +25,27 @@ const forecastDays = computed(() => config.value?.forecastDays ?? 7)
 const showHourly = computed(() => config.value?.showHourly ?? false)
 const hourlyCount = computed(() => config.value?.hourlyCount ?? 12)
 const hourlySlots = computed(() => config.value?.hourlySlots ?? 6)
-const iconTheme = computed(() => config.value?.iconTheme ?? 'default')
+const iconTheme = inject<Ref<string>>('dashboardTheme', ref('default'))
+
+const showSunrise = computed(() => config.value?.showSunrise ?? false)
+const showSunset = computed(() => config.value?.showSunset ?? false)
+const showWind = computed(() => config.value?.showWind ?? false)
+const showHumidity = computed(() => config.value?.showHumidity ?? false)
+const showPressure = computed(() => config.value?.showPressure ?? false)
+const showUV = computed(() => config.value?.showUV ?? false)
+const showVisibility = computed(() => config.value?.showVisibility ?? false)
+const showAirQuality = computed(() => config.value?.showAirQuality ?? false)
+
+const hasExtraInfo = computed(() =>
+    showSunrise.value || showSunset.value || showWind.value || showHumidity.value ||
+    showPressure.value || showUV.value || showVisibility.value || showAirQuality.value
+)
+
+const formatTime = (isoTime: string) => {
+    if (!isoTime) return ''
+    const parts = isoTime.split('T')
+    return parts.length > 1 ? parts[1] : isoTime
+}
 
 const lat = computed(() => config.value?.latitude)
 const lon = computed(() => config.value?.longitude)
@@ -59,7 +79,6 @@ const hourlySlice = computed(() => {
     return result
 })
 
-const cityName = computed(() => config.value?.city?.split(',')[0] ?? '')
 </script>
 
 <template>
@@ -78,23 +97,7 @@ const cityName = computed(() => config.value?.city?.split(',')[0] ?? '')
             <span>Failed to load weather</span>
         </div>
 
-        <template v-else-if="weather">
-            <!-- Compact layout -->
-            <div v-if="isCompact" class="weather-compact-content">
-                <span class="weather-compact-icon">
-                    <WeatherIcon :icon-name="weather.current.icon" :theme-name="iconTheme" :themes="themes" />
-                </span>
-                <div class="weather-compact-info">
-                    <div class="weather-compact-top">
-                        <span class="weather-compact-city">{{ cityName }}</span>
-                        <span class="weather-compact-temp">{{ formatTemp(weather.current.temperature) }}</span>
-                    </div>
-                    <div class="weather-compact-desc">{{ weather.current.description }}</div>
-                </div>
-            </div>
-
-            <!-- Full layout -->
-            <template v-else>
+        <div v-else-if="weather">
                 <div v-if="showCurrent" class="weather-current">
                     <div class="weather-main">
                         <span class="weather-icon">
@@ -108,6 +111,48 @@ const cityName = computed(() => config.value?.city?.split(',')[0] ?? '')
                         <span>Feels like {{ formatTemp(weather.current.feelsLike) }}</span>
                         <span>Humidity {{ weather.current.humidity }}%</span>
                         <span>Wind {{ weather.current.windSpeed }} km/h</span>
+                    </div>
+                </div>
+                <div v-if="hasExtraInfo && weather" class="weather-extra-info">
+                    <div v-if="showSunrise && weather.forecast.length" class="extra-info-item">
+                        <span class="extra-info-icon"><WeatherIcon icon-name="sunrise" :theme-name="iconTheme" :themes="themes" /></span>
+                        <span class="extra-info-title">Sunrise</span>
+                        <span class="extra-info-value">{{ formatTime(weather.forecast[0].sunrise) }}</span>
+                    </div>
+                    <div v-if="showSunset && weather.forecast.length" class="extra-info-item">
+                        <span class="extra-info-icon"><WeatherIcon icon-name="sunset" :theme-name="iconTheme" :themes="themes" /></span>
+                        <span class="extra-info-title">Sunset</span>
+                        <span class="extra-info-value">{{ formatTime(weather.forecast[0].sunset) }}</span>
+                    </div>
+                    <div v-if="showWind" class="extra-info-item">
+                        <span class="extra-info-icon"><WeatherIcon icon-name="wind" :theme-name="iconTheme" :themes="themes" /></span>
+                        <span class="extra-info-title">Wind</span>
+                        <span class="extra-info-value">{{ Math.round(weather.current.windSpeed) }} km/h</span>
+                    </div>
+                    <div v-if="showHumidity" class="extra-info-item">
+                        <span class="extra-info-icon"><WeatherIcon icon-name="humidity" :theme-name="iconTheme" :themes="themes" /></span>
+                        <span class="extra-info-title">Humidity</span>
+                        <span class="extra-info-value">{{ weather.current.humidity }}%</span>
+                    </div>
+                    <div v-if="showPressure" class="extra-info-item">
+                        <span class="extra-info-icon"><WeatherIcon icon-name="pressure" :theme-name="iconTheme" :themes="themes" /></span>
+                        <span class="extra-info-title">Pressure</span>
+                        <span class="extra-info-value">{{ Math.round(weather.current.pressure) }} hPa</span>
+                    </div>
+                    <div v-if="showUV && weather.forecast.length" class="extra-info-item">
+                        <span class="extra-info-icon"><WeatherIcon icon-name="uv-index" :theme-name="iconTheme" :themes="themes" /></span>
+                        <span class="extra-info-title">UV Index</span>
+                        <span class="extra-info-value">{{ weather.forecast[0].uvIndex.toFixed(1) }}</span>
+                    </div>
+                    <div v-if="showVisibility" class="extra-info-item">
+                        <span class="extra-info-icon"><WeatherIcon icon-name="visibility" :theme-name="iconTheme" :themes="themes" /></span>
+                        <span class="extra-info-title">Visibility</span>
+                        <span class="extra-info-value">{{ Math.round(weather.current.visibility) }} km</span>
+                    </div>
+                    <div v-if="showAirQuality && weather.airQuality" class="extra-info-item">
+                        <span class="extra-info-icon"><WeatherIcon icon-name="air-quality" :theme-name="iconTheme" :themes="themes" /></span>
+                        <span class="extra-info-title">AQI</span>
+                        <span class="extra-info-value">{{ weather.airQuality.europeanAqi }}</span>
                     </div>
                 </div>
                 <div v-if="showHourly && hourlySlice.length" class="weather-hourly">
@@ -135,8 +180,7 @@ const cityName = computed(() => config.value?.city?.split(',')[0] ?? '')
                         </span>
                     </div>
                 </div>
-            </template>
-        </template>
+        </div>
     </div>
 </template>
 
@@ -212,6 +256,41 @@ const cityName = computed(() => config.value?.city?.split(',')[0] ?? '')
     margin-top: 0.5rem;
 }
 
+.weather-extra-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 0.5rem;
+    border-top: 1px solid var(--p-surface-200);
+    padding-top: 0.5rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.extra-info-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.125rem;
+    text-align: center;
+}
+
+.extra-info-icon {
+    font-size: 1.25rem;
+    color: var(--p-primary-color);
+}
+
+.extra-info-title {
+    font-size: 0.65rem;
+    color: var(--p-text-muted-color);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.extra-info-value {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
 .weather-forecast {
     display: flex;
     justify-content: space-between;
@@ -261,47 +340,5 @@ const cityName = computed(() => config.value?.city?.split(',')[0] ?? '')
 
 .hourly-temp {
     color: var(--p-text-muted-color);
-}
-
-/* Compact layout */
-.weather-compact-content {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.weather-compact-icon {
-    font-size: 2.5rem;
-    color: var(--p-primary-color);
-    flex-shrink: 0;
-}
-
-.weather-compact-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.weather-compact-top {
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
-}
-
-.weather-compact-city {
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.weather-compact-temp {
-    font-size: 1.25rem;
-    font-weight: 700;
-    flex-shrink: 0;
-}
-
-.weather-compact-desc {
-    color: var(--p-text-muted-color);
-    font-size: 0.875rem;
 }
 </style>

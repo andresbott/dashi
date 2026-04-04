@@ -48,7 +48,7 @@ const isCreating = ref(false)
 const handleCreate = async ({ name, type, container }) => {
     isCreating.value = true
     try {
-        const created = await createDashboard({ name, icon: '', type, container, rows: [] })
+        const created = await createDashboard({ name, icon: '', type, container, pages: [{ name: '', rows: [] }] })
         createDialogVisible.value = false
         router.push({ name: 'dashboard-edit', params: { id: created.id } })
     } catch (err) {

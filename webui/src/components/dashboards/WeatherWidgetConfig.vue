@@ -3,10 +3,8 @@ import { ref, watch } from 'vue'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
-import Select from 'primevue/select'
 import Slider from 'primevue/slider'
 import { useGeocode } from '@/composables/useWeather'
-import { useThemes } from '@/composables/useThemes'
 import type { WeatherWidgetConfig } from '@/types/weather'
 
 const props = defineProps<{
@@ -17,11 +15,8 @@ const emit = defineEmits<{
     'update:config': [config: WeatherWidgetConfig]
 }>()
 
-const { data: themes } = useThemes()
-
 function initFromConfig(cfg: WeatherWidgetConfig | null) {
     return {
-        selectedLayout: cfg?.compact ? 'compact' : 'normal',
         showCurrent: cfg?.showCurrent ?? true,
         showDetails: cfg?.showDetails ?? true,
         showForecast: cfg?.showForecast ?? true,
@@ -29,12 +24,18 @@ function initFromConfig(cfg: WeatherWidgetConfig | null) {
         showHourly: cfg?.showHourly ?? false,
         hourlyCount: cfg?.hourlyCount ?? 12,
         hourlySlots: cfg?.hourlySlots ?? 6,
-        iconTheme: cfg?.iconTheme ?? 'default',
+        showSunrise: cfg?.showSunrise ?? false,
+        showSunset: cfg?.showSunset ?? false,
+        showWind: cfg?.showWind ?? false,
+        showHumidity: cfg?.showHumidity ?? false,
+        showPressure: cfg?.showPressure ?? false,
+        showUV: cfg?.showUV ?? false,
+        showVisibility: cfg?.showVisibility ?? false,
+        showAirQuality: cfg?.showAirQuality ?? false,
     }
 }
 
 const init = initFromConfig(props.config)
-const selectedLayout = ref(init.selectedLayout)
 const showCurrent = ref(init.showCurrent)
 const showDetails = ref(init.showDetails)
 const showForecast = ref(init.showForecast)
@@ -42,7 +43,14 @@ const forecastDays = ref(init.forecastDays)
 const showHourly = ref(init.showHourly)
 const hourlyCount = ref(init.hourlyCount)
 const hourlySlots = ref(init.hourlySlots)
-const iconTheme = ref(init.iconTheme)
+const showSunrise = ref(init.showSunrise)
+const showSunset = ref(init.showSunset)
+const showWind = ref(init.showWind)
+const showHumidity = ref(init.showHumidity)
+const showPressure = ref(init.showPressure)
+const showUV = ref(init.showUV)
+const showVisibility = ref(init.showVisibility)
+const showAirQuality = ref(init.showAirQuality)
 const initialized = ref(props.config !== null)
 
 watch(() => props.config, (val, oldVal) => {
@@ -52,7 +60,6 @@ watch(() => props.config, (val, oldVal) => {
         return
     }
     const s = initFromConfig(val)
-    selectedLayout.value = s.selectedLayout
     showCurrent.value = s.showCurrent
     showDetails.value = s.showDetails
     showForecast.value = s.showForecast
@@ -60,22 +67,21 @@ watch(() => props.config, (val, oldVal) => {
     showHourly.value = s.showHourly
     hourlyCount.value = s.hourlyCount
     hourlySlots.value = s.hourlySlots
-    iconTheme.value = s.iconTheme
+    showSunrise.value = s.showSunrise
+    showSunset.value = s.showSunset
+    showWind.value = s.showWind
+    showHumidity.value = s.showHumidity
+    showPressure.value = s.showPressure
+    showUV.value = s.showUV
+    showVisibility.value = s.showVisibility
+    showAirQuality.value = s.showAirQuality
     initialized.value = true
 })
-
-const themeOptions = ref<{ label: string; value: string }[]>([])
-watch(themes, (val) => {
-    if (val) {
-        themeOptions.value = val.map(t => ({ label: t.name, value: t.name }))
-    }
-}, { immediate: true })
 
 const emitUpdate = () => {
     if (!props.config) return
     emit('update:config', {
         ...props.config,
-        compact: selectedLayout.value === 'compact',
         showCurrent: showCurrent.value,
         showDetails: showDetails.value,
         showForecast: showForecast.value,
@@ -83,7 +89,15 @@ const emitUpdate = () => {
         showHourly: showHourly.value,
         hourlyCount: hourlyCount.value,
         hourlySlots: hourlySlots.value,
-        iconTheme: iconTheme.value,
+
+        showSunrise: showSunrise.value,
+        showSunset: showSunset.value,
+        showWind: showWind.value,
+        showHumidity: showHumidity.value,
+        showPressure: showPressure.value,
+        showUV: showUV.value,
+        showVisibility: showVisibility.value,
+        showAirQuality: showAirQuality.value,
     })
 }
 
@@ -105,7 +119,6 @@ const selectLocation = (loc: { name: string; country: string; latitude: number; 
         city: `${loc.name}, ${loc.country}`,
         latitude: loc.latitude,
         longitude: loc.longitude,
-        compact: selectedLayout.value === 'compact',
         showCurrent: showCurrent.value,
         showDetails: showDetails.value,
         showForecast: showForecast.value,
@@ -113,7 +126,15 @@ const selectLocation = (loc: { name: string; country: string; latitude: number; 
         showHourly: showHourly.value,
         hourlyCount: hourlyCount.value,
         hourlySlots: hourlySlots.value,
-        iconTheme: iconTheme.value,
+
+        showSunrise: showSunrise.value,
+        showSunset: showSunset.value,
+        showWind: showWind.value,
+        showHumidity: showHumidity.value,
+        showPressure: showPressure.value,
+        showUV: showUV.value,
+        showVisibility: showVisibility.value,
+        showAirQuality: showAirQuality.value,
     })
     searchQuery.value = ''
     debouncedQuery.value = ''
@@ -164,32 +185,6 @@ const selectLocation = (loc: { name: string; country: string; latitude: number; 
 
         <div class="flex flex-column gap-3 mt-3">
             <label class="text-sm font-semibold">Display</label>
-            <div class="flex flex-column gap-1">
-                <label class="text-sm">Layout</label>
-                <Select
-                    v-model="selectedLayout"
-                    :options="[
-                        { label: 'Normal', value: 'normal' },
-                        { label: 'Compact', value: 'compact' },
-                    ]"
-                    optionLabel="label"
-                    optionValue="value"
-                    class="w-full"
-                    @update:modelValue="emitUpdate"
-                />
-            </div>
-            <div class="flex flex-column gap-1">
-                <label class="text-sm">Icon theme</label>
-                <Select
-                    v-model="iconTheme"
-                    :options="themeOptions"
-                    optionLabel="label"
-                    optionValue="value"
-                    class="w-full"
-                    @update:modelValue="emitUpdate"
-                />
-            </div>
-            <template v-if="selectedLayout === 'normal'">
                 <div class="flex align-items-center gap-2">
                     <Checkbox v-model="showCurrent" :binary="true" inputId="weatherShowCurrent" @update:modelValue="emitUpdate" />
                     <label for="weatherShowCurrent" class="text-sm">Show current weather</label>
@@ -198,6 +193,41 @@ const selectLocation = (loc: { name: string; country: string; latitude: number; 
                     <Checkbox v-model="showDetails" :binary="true" inputId="weatherDetails" @update:modelValue="emitUpdate" />
                     <label for="weatherDetails" class="text-sm">Show details (feels like, humidity, wind)</label>
                 </div>
+                <div class="config-divider" />
+                <label class="text-sm font-semibold">Extra Info</label>
+                <div class="flex align-items-center gap-2">
+                    <Checkbox v-model="showSunrise" :binary="true" inputId="weatherSunrise" @update:modelValue="emitUpdate" />
+                    <label for="weatherSunrise" class="text-sm">Sunrise</label>
+                </div>
+                <div class="flex align-items-center gap-2">
+                    <Checkbox v-model="showSunset" :binary="true" inputId="weatherSunset" @update:modelValue="emitUpdate" />
+                    <label for="weatherSunset" class="text-sm">Sunset</label>
+                </div>
+                <div class="flex align-items-center gap-2">
+                    <Checkbox v-model="showWind" :binary="true" inputId="weatherWind" @update:modelValue="emitUpdate" />
+                    <label for="weatherWind" class="text-sm">Wind speed</label>
+                </div>
+                <div class="flex align-items-center gap-2">
+                    <Checkbox v-model="showHumidity" :binary="true" inputId="weatherHumidity" @update:modelValue="emitUpdate" />
+                    <label for="weatherHumidity" class="text-sm">Humidity</label>
+                </div>
+                <div class="flex align-items-center gap-2">
+                    <Checkbox v-model="showPressure" :binary="true" inputId="weatherPressure" @update:modelValue="emitUpdate" />
+                    <label for="weatherPressure" class="text-sm">Pressure</label>
+                </div>
+                <div class="flex align-items-center gap-2">
+                    <Checkbox v-model="showUV" :binary="true" inputId="weatherUV" @update:modelValue="emitUpdate" />
+                    <label for="weatherUV" class="text-sm">UV Index</label>
+                </div>
+                <div class="flex align-items-center gap-2">
+                    <Checkbox v-model="showVisibility" :binary="true" inputId="weatherVisibility" @update:modelValue="emitUpdate" />
+                    <label for="weatherVisibility" class="text-sm">Visibility</label>
+                </div>
+                <div class="flex align-items-center gap-2">
+                    <Checkbox v-model="showAirQuality" :binary="true" inputId="weatherAirQuality" @update:modelValue="emitUpdate" />
+                    <label for="weatherAirQuality" class="text-sm">Air Quality (AQI)</label>
+                </div>
+                <div class="config-divider" />
                 <div class="flex align-items-center gap-2">
                     <Checkbox v-model="showHourly" :binary="true" inputId="weatherHourly" @update:modelValue="emitUpdate" />
                     <label for="weatherHourly" class="text-sm">Show hourly forecast</label>
@@ -220,7 +250,6 @@ const selectLocation = (loc: { name: string; country: string; latitude: number; 
                     <label class="text-sm">Days to show: {{ forecastDays }}</label>
                     <Slider v-model="forecastDays" :min="1" :max="7" :step="1" class="w-full" @slideend="emitUpdate" />
                 </div>
-            </template>
         </div>
     </div>
 </template>
@@ -250,5 +279,10 @@ const selectLocation = (loc: { name: string; country: string; latitude: number; 
 
 .weather-config-spinner {
     animation: spin 1s linear infinite;
+}
+
+.config-divider {
+    border-top: 1px solid var(--p-surface-200, #e5e7eb);
+    margin: 0.25rem 0;
 }
 </style>

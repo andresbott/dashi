@@ -17,7 +17,6 @@ const isSaving = defineModel<boolean>('saving', { default: false })
 
 const typeOptions = [
     { label: 'Interactive', value: 'interactive' },
-    { label: 'Static', value: 'static' },
     { label: 'Image', value: 'image' },
 ]
 

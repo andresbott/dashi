@@ -19,7 +19,7 @@ func TestDashboard_ImageConfigSerialization(t *testing.T) {
 			Width:  1920,
 			Height: 1080,
 		},
-		Rows: []Row{},
+		Pages: []Page{},
 	}
 
 	data, err := json.Marshal(d)
@@ -50,7 +50,7 @@ func TestDashboard_ImageConfigOmittedWhenEmpty(t *testing.T) {
 			VerticalAlign:   "top",
 			HorizontalAlign: "center",
 		},
-		Rows: []Row{},
+		Pages: []Page{},
 	}
 
 	data, err := json.Marshal(d)

@@ -7,6 +7,8 @@ import (
 	"html/template"
 
 	_ "embed"
+
+	"github.com/andresbott/dashi/internal/widgets"
 )
 
 //go:embed bookmark.html
@@ -28,8 +30,8 @@ type bookmarkData struct {
 }
 
 // NewStaticRenderer returns a StaticRenderer for bookmark widgets.
-func NewStaticRenderer() func(json.RawMessage) (template.HTML, error) {
-	return func(config json.RawMessage) (template.HTML, error) {
+func NewStaticRenderer() func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+	return func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
 		var cfg bookmarkConfig
 		if len(config) > 0 {
 			if err := json.Unmarshal(config, &cfg); err != nil {

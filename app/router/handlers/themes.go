@@ -57,3 +57,21 @@ func (h *ThemeHandler) GetIcon(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, resolved.FilePath)
 	}
 }
+
+func (h *ThemeHandler) GetFont(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	themeName := vars["name"]
+	fontName := vars["font"]
+
+	data, err := h.store.GetDisplayFontData(themeName, fontName)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "font/ttf")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Write(data)
+}

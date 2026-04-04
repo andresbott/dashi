@@ -5,8 +5,14 @@ import (
 	"html/template"
 )
 
+// RenderContext provides dashboard-level settings to widget renderers.
+type RenderContext struct {
+	Theme       string            // dashboard theme name
+	QueryParams map[string]string // URL query parameters from the HTTP request
+}
+
 // StaticRenderer renders a widget's HTML fragment from its JSON config.
-type StaticRenderer func(config json.RawMessage) (template.HTML, error)
+type StaticRenderer func(config json.RawMessage, ctx RenderContext) (template.HTML, error)
 
 // Registry maps widget type strings to their static renderers.
 type Registry struct {
@@ -25,10 +31,10 @@ func (r *Registry) Register(widgetType string, renderer StaticRenderer) {
 
 // Render calls the registered renderer for widgetType.
 // If the type is not registered, it returns an empty placeholder div.
-func (r *Registry) Render(widgetType string, config json.RawMessage) (template.HTML, error) {
+func (r *Registry) Render(widgetType string, config json.RawMessage, ctx RenderContext) (template.HTML, error) {
 	renderer, ok := r.renderers[widgetType]
 	if !ok {
-		return template.HTML(`<div class="widget-placeholder"></div>`), nil
+		return template.HTML(`<div class="widget-placeholder">&nbsp;</div>`), nil
 	}
-	return renderer(config)
+	return renderer(config, ctx)
 }

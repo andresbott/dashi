@@ -15,11 +15,21 @@ import (
 const defaultWidth = 1024
 
 // Renderer converts HTML to PNG images using litehtml-go.
-type Renderer struct{}
+type Renderer struct {
+	customFonts map[string][]byte
+}
 
 // NewRenderer creates an image Renderer.
 func NewRenderer() *Renderer {
-	return &Renderer{}
+	return &Renderer{
+		customFonts: make(map[string][]byte),
+	}
+}
+
+// RegisterFont registers a custom TTF font that will be available
+// to the litehtml container when rendering HTML.
+func (r *Renderer) RegisterFont(family string, ttfData []byte) {
+	r.customFonts[family] = ttfData
 }
 
 // Render converts the given HTML string to a PNG image.
@@ -36,6 +46,9 @@ func (r *Renderer) Render(html string, width, height int) ([]byte, error) {
 	}
 
 	container := newPNGContainer(width, initialHeight)
+	for family, ttfData := range r.customFonts {
+		container.registerCustomFont(family, ttfData)
+	}
 
 	doc, err := litehtml.NewDocument(html, container, "", "")
 	if err != nil {

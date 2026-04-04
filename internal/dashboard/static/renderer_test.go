@@ -13,19 +13,17 @@ import (
 
 func TestRenderer_Render(t *testing.T) {
 	reg := widgets.NewRegistry()
-	reg.Register("test", func(config json.RawMessage) (template.HTML, error) {
+	reg.Register("test", func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
 		return template.HTML("<p>test-widget</p>"), nil
 	})
 
 	renderer := NewRenderer(reg)
 
-	dash := dashboard.Dashboard{
-		Name: "Test Dashboard",
-		Container: dashboard.Container{
-			MaxWidth:        "800px",
-			VerticalAlign:   "top",
-			HorizontalAlign: "center",
-		},
+	data := RenderData{
+		Name:     "Test Dashboard",
+		MaxWidth: "800px",
+		HAlign:   "center",
+		VAlign:   "top",
 		Rows: []dashboard.Row{
 			{
 				ID:     "row-1",
@@ -52,7 +50,7 @@ func TestRenderer_Render(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := renderer.Render(&buf, dash)
+	err := renderer.Render(&buf, data)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -74,8 +72,8 @@ func TestRenderer_Render(t *testing.T) {
 	if !strings.Contains(html, "widget-placeholder") {
 		t.Error("expected placeholder for unknown widget")
 	}
-	if !strings.Contains(html, "grid-column: span 6") {
-		t.Error("expected grid-column span")
+	if !strings.Contains(html, "width: 50.0000%") {
+		t.Error("expected percentage width for span-6 widget")
 	}
 	if !strings.Contains(html, "max-width: 800px") {
 		t.Error("expected container max-width in CSS")
@@ -86,18 +84,16 @@ func TestRenderer_Render_EmptyDashboard(t *testing.T) {
 	reg := widgets.NewRegistry()
 	renderer := NewRenderer(reg)
 
-	dash := dashboard.Dashboard{
-		Name: "Empty",
-		Container: dashboard.Container{
-			MaxWidth:        "100%",
-			VerticalAlign:   "top",
-			HorizontalAlign: "center",
-		},
-		Rows: []dashboard.Row{},
+	data := RenderData{
+		Name:     "Empty",
+		MaxWidth: "100%",
+		HAlign:   "center",
+		VAlign:   "top",
+		Rows:     []dashboard.Row{},
 	}
 
 	var buf bytes.Buffer
-	err := renderer.Render(&buf, dash)
+	err := renderer.Render(&buf, data)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

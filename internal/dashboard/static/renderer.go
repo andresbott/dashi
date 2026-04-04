@@ -25,55 +25,98 @@ func NewRenderer(registry *widgets.Registry) *Renderer {
 	return &Renderer{registry: registry}
 }
 
+// RenderData holds the data needed to render a dashboard page as HTML.
+type RenderData struct {
+	Name        string
+	MaxWidth    string
+	HAlign      string
+	VAlign      string
+	Theme       string
+	FontFamily  string
+	CustomCSS   string
+	QueryParams map[string]string
+	Rows        []dashboard.Row
+}
+
 type pageData struct {
-	Name     string
-	MaxWidth string
-	HAlign   string
-	VAlign   string
-	Rows     []rowData
+	Name       string
+	MaxWidth   string
+	HAlign     string
+	VAlign     string
+	FontFamily string
+	CustomCSS  template.CSS
+	Rows       []rowData
 }
 
 type rowData struct {
-	Title   string
-	Height  string
-	Width   string
-	Widgets []widgetData
+	Title             string
+	Height            string
+	Width             string
+	HasExplicitHeight bool
+	Widgets           []widgetData
 }
 
 type widgetData struct {
-	Width int
-	HTML  template.HTML
+	Width        int
+	WidthPercent float64
+	HTML         template.HTML
+	DebugColor   string
 }
 
-// Render writes the complete HTML page for the given dashboard to w.
-func (r *Renderer) Render(w io.Writer, dash dashboard.Dashboard) error {
-	data := pageData{
-		Name:     dash.Name,
-		MaxWidth: dash.Container.MaxWidth,
-		HAlign:   mapHAlign(dash.Container.HorizontalAlign),
-		VAlign:   mapVAlign(dash.Container.VerticalAlign),
+var debugColors = []string{"#ffcccc", "#ccffcc", "#ccccff", "#ffffcc", "#ffccff", "#ccffff"}
+
+// Render writes the complete HTML page for the given data to w.
+func (r *Renderer) Render(w io.Writer, data RenderData) error {
+	pData := pageData{
+		Name:       data.Name,
+		MaxWidth:   data.MaxWidth,
+		HAlign:     mapHAlign(data.HAlign),
+		VAlign:     mapVAlign(data.VAlign),
+		FontFamily: data.FontFamily,
+		CustomCSS:  template.CSS(data.CustomCSS),
 	}
 
-	for _, row := range dash.Rows {
-		rd := rowData{
-			Title:  row.Title,
-			Height: row.Height,
-			Width:  row.Width,
+	for _, row := range data.Rows {
+		hasExplicitHeight := row.Height != "" && row.Height != "auto"
+
+		// Skip empty rows with auto height — they should not add any space.
+		if len(row.Widgets) == 0 && !hasExplicitHeight {
+			continue
 		}
+
+		rd := rowData{
+			Title:             row.Title,
+			Height:            row.Height,
+			Width:             row.Width,
+			HasExplicitHeight: hasExplicitHeight,
+		}
+		ctx := widgets.RenderContext{Theme: data.Theme, QueryParams: data.QueryParams}
+		debug := data.QueryParams["debug"] == "1"
+		colorIdx := 0
 		for _, widget := range row.Widgets {
-			rendered, err := r.registry.Render(widget.Type, widget.Config)
+			rendered, err := r.registry.Render(widget.Type, widget.Config, ctx)
 			if err != nil {
 				return fmt.Errorf("render widget %s (%s): %w", widget.ID, widget.Type, err)
 			}
-			rd.Widgets = append(rd.Widgets, widgetData{
-				Width: widget.Width,
-				HTML:  rendered,
-			})
+			w := widget.Width
+			if w < 1 {
+				w = 12
+			}
+			wd := widgetData{
+				Width:        w,
+				WidthPercent: float64(w) / 12.0 * 100.0,
+				HTML:         rendered,
+			}
+			if debug {
+				wd.DebugColor = debugColors[colorIdx%len(debugColors)]
+				colorIdx++
+			}
+			rd.Widgets = append(rd.Widgets, wd)
 		}
-		data.Rows = append(data.Rows, rd)
+		pData.Rows = append(pData.Rows, rd)
 	}
 
-	return masterTmpl.Execute(w, data)
+	return masterTmpl.Execute(w, pData)
 }
 
 func mapHAlign(align string) string {

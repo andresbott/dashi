@@ -1,7 +1,12 @@
+export interface AirQuality {
+    europeanAqi: number
+}
+
 export interface WeatherData {
     current: CurrentWeather
     hourly: HourlyForecast[]
     forecast: DailyForecast[]
+    airQuality?: AirQuality
 }
 
 export interface CurrentWeather {
@@ -9,6 +14,8 @@ export interface CurrentWeather {
     feelsLike: number
     humidity: number
     windSpeed: number
+    pressure: number
+    visibility: number
     weatherCode: number
     description: string
     icon: string
@@ -26,6 +33,9 @@ export interface DailyForecast {
     date: string
     tempMin: number
     tempMax: number
+    sunrise: string
+    sunset: string
+    uvIndex: number
     weatherCode: number
     description: string
     icon: string
@@ -43,6 +53,9 @@ export interface WeatherWidgetConfig {
     latitude: number
     longitude: number
     compact?: boolean
+    compactCity?: boolean
+    compactFeelsLike?: boolean
+    compactDescription?: boolean
     showCurrent?: boolean
     showDetails?: boolean
     showHourly?: boolean
@@ -50,5 +63,12 @@ export interface WeatherWidgetConfig {
     hourlySlots?: number
     showForecast?: boolean
     forecastDays?: number
-    iconTheme?: string
+    showSunrise?: boolean
+    showSunset?: boolean
+    showWind?: boolean
+    showHumidity?: boolean
+    showPressure?: boolean
+    showUV?: boolean
+    showVisibility?: boolean
+    showAirQuality?: boolean
 }
