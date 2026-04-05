@@ -30,10 +30,11 @@ func newTestWeatherServer() (*httptest.Server, *httptest.Server) {
 				"surface_pressure":     1013.25,
 			},
 			"hourly": map[string]any{
-				"time":           []string{"2099-01-01T12:00", "2099-01-01T13:00", "2099-01-01T14:00"},
-				"temperature_2m": []float64{18.0, 19.0, 20.0},
-				"weather_code":   []int{2, 3, 61},
-				"visibility":     []float64{24000.0, 20000.0, 15000.0},
+				"time":                       []string{"2099-01-01T12:00", "2099-01-01T13:00", "2099-01-01T14:00"},
+				"temperature_2m":             []float64{18.0, 19.0, 20.0},
+				"weather_code":               []int{2, 3, 61},
+				"visibility":                 []float64{24000.0, 20000.0, 15000.0},
+				"precipitation_probability":  []float64{10.0, 30.0, 80.0},
 			},
 			"daily": map[string]any{
 				"time":               []string{"2026-04-03", "2026-04-04"},
@@ -476,6 +477,67 @@ func TestRenderStatic_ImageThemeWithExtraInfo(t *testing.T) {
 		if !strings.Contains(html, icon+".svg") {
 			t.Errorf("expected image path for %q icon in output", icon)
 		}
+	}
+}
+
+func TestRenderStatic_WithGraph(t *testing.T) {
+	forecastSrv, aqSrv := newTestWeatherServer()
+	defer forecastSrv.Close()
+	defer aqSrv.Close()
+
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	themeStore := themes.NewStore("")
+	config := json.RawMessage(`{
+		"city": "Basel",
+		"latitude": 47.558,
+		"longitude": 7.573,
+		"showCurrent": false,
+		"showGraph": true,
+		"graphHours": 3
+	}`)
+
+	renderer := NewStaticRenderer(client, themeStore)
+	got, err := renderer(config, widgets.RenderContext{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	html := string(got)
+	if !strings.Contains(html, "weather-graph-container") {
+		t.Error("expected weather-graph-container class")
+	}
+	if !strings.Contains(html, "data:image/png;base64,") {
+		t.Error("expected base64-encoded PNG in output")
+	}
+	if !strings.Contains(html, "100%") {
+		t.Error("expected rain scale label")
+	}
+}
+
+func TestRenderStatic_GraphCompactDisabled(t *testing.T) {
+	forecastSrv, aqSrv := newTestWeatherServer()
+	defer forecastSrv.Close()
+	defer aqSrv.Close()
+
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	themeStore := themes.NewStore("")
+	config := json.RawMessage(`{
+		"city": "Basel",
+		"latitude": 47.558,
+		"longitude": 7.573,
+		"compact": true,
+		"showGraph": true
+	}`)
+
+	renderer := NewStaticRenderer(client, themeStore)
+	got, err := renderer(config, widgets.RenderContext{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	html := string(got)
+	if strings.Contains(html, "weather-graph-container") {
+		t.Error("compact mode should not contain graph")
 	}
 }
 

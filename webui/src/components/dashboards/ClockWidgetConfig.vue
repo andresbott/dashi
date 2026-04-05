@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, inject } from 'vue'
+import type { ComputedRef } from 'vue'
 import Checkbox from 'primevue/checkbox'
 import Select from 'primevue/select'
 import type { ClockWidgetConfig } from '@/types/clock'
@@ -16,18 +17,20 @@ const emit = defineEmits<{
 const hour12 = ref(props.config?.hour12 ?? false)
 const showSeconds = ref(props.config?.showSeconds ?? true)
 const showDate = ref(props.config?.showDate ?? true)
-const font = ref(props.config?.font ?? '')
 const { data: themesData } = useThemes()
+const dashboardTheme = inject<ComputedRef<string>>('dashboardTheme', computed(() => 'default'))
 
 const fontOptions = computed(() => {
-    if (!themesData.value) return [{ label: 'Default', value: '' }]
-    const opts: { label: string; value: string }[] = [{ label: 'Default', value: '' }]
-    for (const theme of themesData.value) {
-        for (const f of theme.fonts ?? []) {
-            opts.push({ label: f.name, value: f.name })
-        }
-    }
-    return opts
+    const selectedTheme = themesData.value?.find(t => t.name === dashboardTheme.value)
+    const fonts = selectedTheme?.fonts ?? []
+    return fonts.map(f => ({ label: f.name, value: f.name }))
+})
+
+const defaultFont = computed(() => fontOptions.value[0]?.value ?? '')
+const font = ref(props.config?.font || defaultFont.value)
+
+watch(defaultFont, (val) => {
+    if (!font.value) font.value = val
 })
 
 watch(() => props.config, (val) => {
@@ -35,7 +38,7 @@ watch(() => props.config, (val) => {
         hour12.value = val.hour12
         showSeconds.value = val.showSeconds
         showDate.value = val.showDate
-        font.value = val.font ?? ''
+        font.value = val.font || defaultFont.value
     }
 })
 
@@ -44,7 +47,7 @@ const emitUpdate = () => {
         hour12: hour12.value,
         showSeconds: showSeconds.value,
         showDate: showDate.value,
-        font: font.value || undefined,
+        font: font.value || defaultFont.value || undefined,
     })
 }
 </script>

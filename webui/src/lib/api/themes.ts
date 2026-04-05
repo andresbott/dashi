@@ -20,3 +20,7 @@ export const getIconUrl = (themeName: string, iconName: string): string => {
 export const getFontUrl = (themeName: string, fontName: string): string => {
     return `/api/v0${THEMES_PATH}/${encodeURIComponent(themeName)}/fonts/${encodeURIComponent(fontName)}`
 }
+
+export const getThemeBackgroundUrl = (themeName: string, fileName: string): string => {
+    return `/api/v0${THEMES_PATH}/${encodeURIComponent(themeName)}/backgrounds/${encodeURIComponent(fileName)}`
+}

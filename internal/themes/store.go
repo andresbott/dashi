@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"golang.org/x/image/font/gofont/gomono"
 	"gopkg.in/yaml.v3"
 )
 
@@ -18,9 +17,21 @@ var defaultThemeYAML []byte
 //go:embed defaults/tabler-icons.ttf
 var defaultFontTTF []byte
 
+//go:embed defaults/Inter-Regular.ttf
+var interRegularTTF []byte
+
+//go:embed defaults/Inter-Bold.ttf
+var interBoldTTF []byte
+
+//go:embed defaults/Inter-Italic.ttf
+var interItalicTTF []byte
+
+//go:embed defaults/Inter-BoldItalic.ttf
+var interBoldItalicTTF []byte
+
 var embeddedFonts = map[string][]byte{
-	"tabler-icons.ttf": defaultFontTTF,
-	"gomono.ttf":       gomono.TTF,
+	"tabler-icons.ttf":  defaultFontTTF,
+	"Inter-Regular.ttf": interRegularTTF,
 }
 
 type Store struct {
@@ -211,4 +222,45 @@ func (s *Store) GetDisplayFontData(themeName, fontName string) ([]byte, error) {
 		}
 	}
 	return nil, fmt.Errorf("font %q not found in theme %q", fontName, themeName)
+}
+
+// ListBackgrounds returns the filenames of background images in a theme's backgrounds/ directory.
+func (s *Store) ListBackgrounds(themeName string) []string {
+	th, ok := s.themes[themeName]
+	if !ok || th.dir == "" {
+		return nil
+	}
+	bgDir := filepath.Join(th.dir, "backgrounds")
+	entries, err := os.ReadDir(bgDir)
+	if err != nil {
+		return nil
+	}
+	imageExts := map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".webp": true, ".svg": true}
+	var result []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(e.Name()))
+		if imageExts[ext] {
+			result = append(result, e.Name())
+		}
+	}
+	return result
+}
+
+// GetBackgroundData returns the raw bytes of a background image file.
+func (s *Store) GetBackgroundData(themeName, fileName string) ([]byte, error) {
+	th, ok := s.themes[themeName]
+	if !ok || th.dir == "" {
+		return nil, fmt.Errorf("theme %q not found or has no directory", themeName)
+	}
+	if strings.ContainsAny(fileName, "/\\") || strings.Contains(fileName, "..") {
+		return nil, fmt.Errorf("invalid filename %q", fileName)
+	}
+	bgPath := filepath.Join(th.dir, "backgrounds", fileName)
+	if !strings.HasPrefix(bgPath, filepath.Join(th.dir, "backgrounds")+string(filepath.Separator)) {
+		return nil, fmt.Errorf("invalid filename %q", fileName)
+	}
+	return os.ReadFile(bgPath)
 }

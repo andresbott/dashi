@@ -27,25 +27,31 @@ func NewRenderer(registry *widgets.Registry) *Renderer {
 
 // RenderData holds the data needed to render a dashboard page as HTML.
 type RenderData struct {
-	Name        string
-	MaxWidth    string
-	HAlign      string
-	VAlign      string
-	Theme       string
-	FontFamily  string
-	CustomCSS   string
-	QueryParams map[string]string
-	Rows        []dashboard.Row
+	Name          string
+	MaxWidth      string
+	HAlign        string
+	VAlign        string
+	Theme         string
+	ColorMode     string
+	FontFamily    string
+	CustomCSS     string
+	BackgroundCSS string
+	QueryParams   map[string]string
+	Rows          []dashboard.Row
+	PageIndex     int
+	TotalPages    int
 }
 
 type pageData struct {
-	Name       string
-	MaxWidth   string
-	HAlign     string
-	VAlign     string
-	FontFamily string
-	CustomCSS  template.CSS
-	Rows       []rowData
+	Name               string
+	MaxWidth           string
+	HAlign             string
+	VAlign             string
+	IsDark             bool
+	FontFamily         string
+	CustomCSS     template.CSS
+	BackgroundCSS template.CSS
+	Rows          []rowData
 }
 
 type rowData struct {
@@ -68,12 +74,14 @@ var debugColors = []string{"#ffcccc", "#ccffcc", "#ccccff", "#ffffcc", "#ffccff"
 // Render writes the complete HTML page for the given data to w.
 func (r *Renderer) Render(w io.Writer, data RenderData) error {
 	pData := pageData{
-		Name:       data.Name,
-		MaxWidth:   data.MaxWidth,
-		HAlign:     mapHAlign(data.HAlign),
-		VAlign:     mapVAlign(data.VAlign),
-		FontFamily: data.FontFamily,
-		CustomCSS:  template.CSS(data.CustomCSS),
+		Name:               data.Name,
+		MaxWidth:           data.MaxWidth,
+		HAlign:             mapHAlign(data.HAlign),
+		VAlign:             mapVAlign(data.VAlign),
+		IsDark:             data.ColorMode == "dark",
+		FontFamily:         data.FontFamily,
+		CustomCSS:     template.CSS(data.CustomCSS),
+		BackgroundCSS: template.CSS(data.BackgroundCSS),
 	}
 
 	for _, row := range data.Rows {
@@ -90,7 +98,7 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 			Width:             row.Width,
 			HasExplicitHeight: hasExplicitHeight,
 		}
-		ctx := widgets.RenderContext{Theme: data.Theme, QueryParams: data.QueryParams}
+		ctx := widgets.RenderContext{Theme: data.Theme, QueryParams: data.QueryParams, PageIndex: data.PageIndex, TotalPages: data.TotalPages}
 		debug := data.QueryParams["debug"] == "1"
 		colorIdx := 0
 		for _, widget := range row.Widgets {

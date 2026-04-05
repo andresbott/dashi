@@ -28,10 +28,17 @@ export interface ImageConfig {
     height: number
 }
 
+export interface Background {
+    type: 'none' | 'image' | 'color' | 'gradient'
+    value: string
+}
+
 export interface Page {
     name: string
     rows: Row[]
 }
+
+export type ColorMode = 'auto' | 'light' | 'dark'
 
 export interface Dashboard {
     id: string
@@ -41,6 +48,9 @@ export interface Dashboard {
     container: Container
     imageConfig?: ImageConfig
     theme?: string
+    colorMode?: ColorMode
+    accentColor?: string
+    background?: Background
     pages: Page[]
 }
 
@@ -59,5 +69,8 @@ export interface CreateDashboardDTO {
     container: Container
     imageConfig?: ImageConfig
     theme?: string
+    colorMode?: ColorMode
+    accentColor?: string
+    background?: Background
     pages: Page[]
 }

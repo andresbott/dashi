@@ -24,6 +24,7 @@ export interface CurrentWeather {
 export interface HourlyForecast {
     time: string
     temperature: number
+    precipitationProbability: number
     weatherCode: number
     description: string
     icon: string
@@ -71,4 +72,12 @@ export interface WeatherWidgetConfig {
     showUV?: boolean
     showVisibility?: boolean
     showAirQuality?: boolean
+    showGraph?: boolean
+    graphHours?: number
+    graphTempColor?: string
+    graphRainColor?: string
+    graphBgColor?: string
+    graphHeight?: number
+    graphShowTemp?: boolean
+    graphShowRain?: boolean
 }

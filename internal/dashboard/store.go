@@ -9,15 +9,24 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"sync"
+	"unicode"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 type Store struct {
-	dir string
+	dir   string
+	mu    sync.RWMutex
+	index map[string]string // id -> folder name
 }
 
 func NewStore(dir string) *Store {
-	return &Store{dir: dir}
+	s := &Store{dir: dir, index: make(map[string]string)}
+	s.buildIndex()
+	return s
 }
 
 func (s *Store) ensureDir() error {
@@ -27,11 +36,17 @@ func (s *Store) ensureDir() error {
 const dashboardFile = "dashboard.json"
 
 func (s *Store) dashDir(id string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if folder, ok := s.index[id]; ok {
+		return filepath.Join(s.dir, folder)
+	}
+	// Fallback for legacy folders named by ID
 	return filepath.Join(s.dir, id)
 }
 
 func (s *Store) filePath(id string) string {
-	return filepath.Join(s.dir, id, dashboardFile)
+	return filepath.Join(s.dashDir(id), dashboardFile)
 }
 
 const idChars = "abcdefghijklmnopqrstuvwxyz0123456789"
@@ -99,6 +114,69 @@ func validateAssetPath(assetPath string) error {
 	return nil
 }
 
+// buildIndex scans the store directory and populates the id -> folder mapping.
+func (s *Store) buildIndex() {
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		fp := filepath.Join(s.dir, entry.Name(), dashboardFile)
+		data, err := os.ReadFile(fp)
+		if err != nil {
+			continue
+		}
+		var d Dashboard
+		if err := json.Unmarshal(data, &d); err != nil {
+			continue
+		}
+		if d.ID != "" {
+			s.index[d.ID] = entry.Name()
+		}
+	}
+}
+
+// toSnakeCase converts a dashboard name to a filesystem-safe snake_case string.
+var nonAlphaNum = regexp.MustCompile(`[^a-z0-9]+`)
+
+func toSnakeCase(name string) string {
+	// Normalize unicode and lowercase
+	s := strings.ToLower(norm.NFKD.String(name))
+	// Strip non-ASCII (accents etc.)
+	var buf strings.Builder
+	for _, r := range s {
+		if r < unicode.MaxASCII {
+			buf.WriteRune(r)
+		}
+	}
+	s = buf.String()
+	// Replace non-alphanumeric runs with underscore
+	s = nonAlphaNum.ReplaceAllString(s, "_")
+	s = strings.Trim(s, "_")
+	if s == "" {
+		s = "dashboard"
+	}
+	return s
+}
+
+// uniqueFolder returns a folder name based on the snake_case dashboard name,
+// ensuring it doesn't collide with existing folders in the store directory.
+func (s *Store) uniqueFolder(base string) string {
+	candidate := base
+	i := 2
+	for {
+		path := filepath.Join(s.dir, candidate)
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return candidate
+		}
+		candidate = fmt.Sprintf("%s_%d", base, i)
+		i++
+	}
+}
+
 func (s *Store) Create(d Dashboard) (Dashboard, error) {
 	if err := s.ensureDir(); err != nil {
 		return Dashboard{}, fmt.Errorf("create dir: %w", err)
@@ -108,9 +186,15 @@ func (s *Store) Create(d Dashboard) (Dashboard, error) {
 		d.ID = randomID()
 	}
 
-	if err := os.MkdirAll(s.dashDir(d.ID), 0o755); err != nil {
+	folder := s.uniqueFolder(toSnakeCase(d.Name))
+	dirPath := filepath.Join(s.dir, folder)
+	if err := os.MkdirAll(dirPath, 0o755); err != nil {
 		return Dashboard{}, fmt.Errorf("create dashboard dir: %w", err)
 	}
+
+	s.mu.Lock()
+	s.index[d.ID] = folder
+	s.mu.Unlock()
 
 	if err := s.writeToDisk(d); err != nil {
 		return Dashboard{}, err
@@ -160,12 +244,16 @@ func (s *Store) List() ([]DashboardMeta, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		id := entry.Name()
-		if isPreviewID(id) {
+		fp := filepath.Join(s.dir, entry.Name(), dashboardFile)
+		data, err := os.ReadFile(fp)
+		if err != nil {
 			continue
 		}
-		d, err := s.Get(id)
-		if err != nil {
+		var d Dashboard
+		if err := json.Unmarshal(data, &d); err != nil {
+			continue
+		}
+		if isPreviewID(d.ID) {
 			continue
 		}
 		result = append(result, DashboardMeta{
@@ -183,12 +271,33 @@ func (s *Store) Update(d Dashboard) (Dashboard, error) {
 	if !isValidID(d.ID) {
 		return Dashboard{}, fmt.Errorf("invalid dashboard ID: %s", d.ID)
 	}
-	if _, err := os.Stat(s.dashDir(d.ID)); err != nil {
+
+	oldDir := s.dashDir(d.ID)
+	if _, err := os.Stat(oldDir); err != nil {
 		if os.IsNotExist(err) {
 			return Dashboard{}, fmt.Errorf("dashboard %s not found", d.ID)
 		}
 		return Dashboard{}, fmt.Errorf("stat dashboard %s: %w", d.ID, err)
 	}
+
+	// Rename folder if the dashboard name changed
+	newFolder := toSnakeCase(d.Name)
+	s.mu.RLock()
+	currentFolder := s.index[d.ID]
+	s.mu.RUnlock()
+
+	if currentFolder != "" && newFolder != currentFolder {
+		newPath := filepath.Join(s.dir, newFolder)
+		if _, err := os.Stat(newPath); os.IsNotExist(err) {
+			if err := os.Rename(oldDir, newPath); err == nil {
+				s.mu.Lock()
+				s.index[d.ID] = newFolder
+				s.mu.Unlock()
+			}
+		}
+		// If new path already exists, keep the old folder name
+	}
+
 	if err := s.writeToDisk(d); err != nil {
 		return Dashboard{}, err
 	}
@@ -210,6 +319,11 @@ func (s *Store) Delete(id string) error {
 	if err := os.RemoveAll(dir); err != nil {
 		return fmt.Errorf("delete dashboard %s: %w", id, err)
 	}
+
+	s.mu.Lock()
+	delete(s.index, id)
+	s.mu.Unlock()
+
 	return nil
 }
 
@@ -228,12 +342,25 @@ func (s *Store) DeletePreviews() (int, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		if !isPreviewID(entry.Name()) {
+		// Read the dashboard.json to check if it's a preview
+		fp := filepath.Join(s.dir, entry.Name(), dashboardFile)
+		data, err := os.ReadFile(fp)
+		if err != nil {
+			continue
+		}
+		var d Dashboard
+		if err := json.Unmarshal(data, &d); err != nil {
+			continue
+		}
+		if !isPreviewID(d.ID) {
 			continue
 		}
 		if err := os.RemoveAll(filepath.Join(s.dir, entry.Name())); err != nil {
 			return count, fmt.Errorf("delete preview %s: %w", entry.Name(), err)
 		}
+		s.mu.Lock()
+		delete(s.index, d.ID)
+		s.mu.Unlock()
 		count++
 	}
 	return count, nil

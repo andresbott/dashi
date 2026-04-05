@@ -32,20 +32,24 @@ export const deletePreviews = async (): Promise<{ deleted: number }> => {
     return data
 }
 
-export const getCustomCSS = async (id: string): Promise<string> => {
-    try {
-        const { data } = await apiClient.get<string>(`${DASHBOARD_PATH}/${id}/assets/custom.css`, {
-            responseType: 'text',
-            transformResponse: [(d) => d],
-        })
-        return data
-    } catch {
-        return ''
-    }
+export interface BackgroundOption {
+    name: string
+    value: string
 }
 
-export const saveCustomCSS = async (id: string, css: string): Promise<void> => {
-    await apiClient.post(`${DASHBOARD_PATH}/${id}/assets/custom.css`, css, {
-        headers: { 'Content-Type': 'text/css' },
+export interface BackgroundsResponse {
+    theme: BackgroundOption[]
+    dashboard: BackgroundOption[]
+}
+
+export const getDashboardAssets = async (dashboardId: string): Promise<string[]> => {
+    const { data } = await apiClient.get<{ items: string[] }>(`${DASHBOARD_PATH}/${dashboardId}/assets`)
+    return data.items ?? []
+}
+
+export const getBackgrounds = async (dashboardId: string): Promise<BackgroundsResponse> => {
+    const { data } = await apiClient.get<BackgroundsResponse>('/backgrounds', {
+        params: { dashboard: dashboardId },
     })
+    return data
 }

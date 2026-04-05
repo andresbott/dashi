@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import Button from 'primevue/button'
 import Popover from 'primevue/popover'
 import InputText from 'primevue/inputtext'
+import { tablerIcons } from '@/data/tablerIcons'
 
 const props = defineProps<{
     modelValue: string
@@ -15,24 +16,18 @@ const emit = defineEmits<{
 const popover = ref()
 const search = ref('')
 
-const icons = [
-    'ti-layout-dashboard', 'ti-home', 'ti-chart-bar', 'ti-chart-line',
-    'ti-chart-pie', 'ti-server', 'ti-database', 'ti-cloud',
-    'ti-shield', 'ti-lock', 'ti-users', 'ti-settings',
-    'ti-bell', 'ti-mail', 'ti-calendar', 'ti-clock',
-    'ti-bookmark', 'ti-star', 'ti-heart', 'ti-flag',
-    'ti-folder', 'ti-file', 'ti-code', 'ti-terminal',
-    'ti-bug', 'ti-rocket', 'ti-bolt', 'ti-flame',
-    'ti-world', 'ti-map', 'ti-compass', 'ti-sun',
-    'ti-moon', 'ti-eye', 'ti-camera', 'ti-music',
-    'ti-microphone', 'ti-video', 'ti-phone', 'ti-message',
-    'ti-brand-github', 'ti-brand-docker', 'ti-cpu', 'ti-device-desktop',
-    'ti-wifi', 'ti-battery', 'ti-plug', 'ti-palette'
-]
+const MAX_DISPLAY = 150
 
 const filteredIcons = computed(() => {
-    if (!search.value) return icons
-    return icons.filter(i => i.includes(search.value.toLowerCase()))
+    if (!search.value) return tablerIcons.slice(0, MAX_DISPLAY)
+    const q = search.value.toLowerCase()
+    const matched = tablerIcons.filter(i => i.includes(q))
+    return matched.slice(0, MAX_DISPLAY)
+})
+
+const totalMatches = computed(() => {
+    if (!search.value) return tablerIcons.length
+    return tablerIcons.filter(i => i.includes(search.value.toLowerCase())).length
 })
 
 const toggle = (event: Event) => {
@@ -56,14 +51,14 @@ const selectIcon = (icon: string) => {
             v-tooltip.top="'Select icon'"
         />
         <Popover ref="popover">
-            <div style="width: 280px">
+            <div style="width: 300px">
                 <InputText
                     v-model="search"
-                    placeholder="Search icons..."
+                    placeholder="Search 5000+ icons..."
                     size="small"
                     class="w-full mb-2"
                 />
-                <div class="flex flex-wrap gap-1" style="max-height: 200px; overflow-y: auto">
+                <div class="flex flex-wrap gap-1" style="max-height: 250px; overflow-y: auto">
                     <Button
                         v-for="icon in filteredIcons"
                         :key="icon"
@@ -73,7 +68,11 @@ const selectIcon = (icon: string) => {
                         class="p-1"
                         :severity="icon === modelValue ? 'primary' : 'secondary'"
                         @click="selectIcon(icon)"
+                        v-tooltip.top="icon.replace('ti-', '')"
                     />
+                </div>
+                <div v-if="totalMatches > MAX_DISPLAY" class="text-xs text-color-secondary mt-1">
+                    Showing {{ MAX_DISPLAY }} of {{ totalMatches }} matches. Refine your search.
                 </div>
             </div>
         </Popover>

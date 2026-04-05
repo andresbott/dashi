@@ -9,12 +9,13 @@ import (
 )
 
 type AppCfg struct {
-	Server  serverCfg
-	Obs     serverCfg `config:"Observability"`
-	Auth    authConfig
-	Env     Env
-	Msgs    []Msg
-	DataDir string
+	Server   serverCfg
+	Obs      serverCfg `config:"Observability"`
+	Auth     authConfig
+	Env      Env
+	Msgs     []Msg
+	DataDir  string
+	ReadOnly bool
 }
 
 type Env struct {

@@ -21,11 +21,12 @@ type CurrentWeather struct {
 }
 
 type HourlyForecast struct {
-	Time        string  `json:"time"`
-	Temperature float64 `json:"temperature"`
-	WeatherCode int     `json:"weatherCode"`
-	Description string  `json:"description"`
-	Icon        string  `json:"icon"`
+	Time                     string  `json:"time"`
+	Temperature              float64 `json:"temperature"`
+	PrecipitationProbability float64 `json:"precipitationProbability"`
+	WeatherCode              int     `json:"weatherCode"`
+	Description              string  `json:"description"`
+	Icon                     string  `json:"icon"`
 }
 
 type DailyForecast struct {
@@ -70,10 +71,11 @@ type openMeteoCurrent struct {
 }
 
 type openMeteoHourly struct {
-	Time        []string  `json:"time"`
-	Temperature []float64 `json:"temperature_2m"`
-	WeatherCode []int     `json:"weather_code"`
-	Visibility  []float64 `json:"visibility"`
+	Time                     []string  `json:"time"`
+	Temperature              []float64 `json:"temperature_2m"`
+	WeatherCode              []int     `json:"weather_code"`
+	Visibility               []float64 `json:"visibility"`
+	PrecipitationProbability []float64 `json:"precipitation_probability"`
 }
 
 type openMeteoDaily struct {

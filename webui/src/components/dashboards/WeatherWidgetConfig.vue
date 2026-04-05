@@ -4,6 +4,7 @@ import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import Slider from 'primevue/slider'
+import ColorPicker from 'primevue/colorpicker'
 import { useGeocode } from '@/composables/useWeather'
 import type { WeatherWidgetConfig } from '@/types/weather'
 
@@ -32,6 +33,14 @@ function initFromConfig(cfg: WeatherWidgetConfig | null) {
         showUV: cfg?.showUV ?? false,
         showVisibility: cfg?.showVisibility ?? false,
         showAirQuality: cfg?.showAirQuality ?? false,
+        showGraph: cfg?.showGraph ?? false,
+        graphHours: cfg?.graphHours ?? 24,
+        graphTempColor: cfg?.graphTempColor ?? '#FF8C42',
+        graphRainColor: cfg?.graphRainColor ?? '#4A90D9',
+        graphBgColor: cfg?.graphBgColor ?? '',
+        graphHeight: cfg?.graphHeight ?? 250,
+        graphShowTemp: cfg?.graphShowTemp ?? true,
+        graphShowRain: cfg?.graphShowRain ?? true,
     }
 }
 
@@ -51,6 +60,14 @@ const showPressure = ref(init.showPressure)
 const showUV = ref(init.showUV)
 const showVisibility = ref(init.showVisibility)
 const showAirQuality = ref(init.showAirQuality)
+const showGraph = ref(init.showGraph)
+const graphHours = ref(init.graphHours)
+const graphTempColor = ref(init.graphTempColor)
+const graphRainColor = ref(init.graphRainColor)
+const graphBgColor = ref(init.graphBgColor)
+const graphHeight = ref(init.graphHeight)
+const graphShowTemp = ref(init.graphShowTemp)
+const graphShowRain = ref(init.graphShowRain)
 const initialized = ref(props.config !== null)
 
 watch(() => props.config, (val, oldVal) => {
@@ -75,6 +92,14 @@ watch(() => props.config, (val, oldVal) => {
     showUV.value = s.showUV
     showVisibility.value = s.showVisibility
     showAirQuality.value = s.showAirQuality
+    showGraph.value = s.showGraph
+    graphHours.value = s.graphHours
+    graphTempColor.value = s.graphTempColor
+    graphRainColor.value = s.graphRainColor
+    graphBgColor.value = s.graphBgColor
+    graphHeight.value = s.graphHeight
+    graphShowTemp.value = s.graphShowTemp
+    graphShowRain.value = s.graphShowRain
     initialized.value = true
 })
 
@@ -98,7 +123,22 @@ const emitUpdate = () => {
         showUV: showUV.value,
         showVisibility: showVisibility.value,
         showAirQuality: showAirQuality.value,
+        showGraph: showGraph.value,
+        graphHours: graphHours.value,
+        graphTempColor: graphTempColor.value,
+        graphRainColor: graphRainColor.value,
+        graphBgColor: graphBgColor.value,
+        graphHeight: graphHeight.value,
+        graphShowTemp: graphShowTemp.value,
+        graphShowRain: graphShowRain.value,
     })
+}
+
+const emitColorUpdate = (field: string, val: string) => {
+    if (field === 'graphTempColor') graphTempColor.value = '#' + val
+    else if (field === 'graphRainColor') graphRainColor.value = '#' + val
+    else if (field === 'graphBgColor') graphBgColor.value = '#' + val
+    emitUpdate()
 }
 
 const searchQuery = ref('')
@@ -135,6 +175,14 @@ const selectLocation = (loc: { name: string; country: string; latitude: number; 
         showUV: showUV.value,
         showVisibility: showVisibility.value,
         showAirQuality: showAirQuality.value,
+        showGraph: showGraph.value,
+        graphHours: graphHours.value,
+        graphTempColor: graphTempColor.value,
+        graphRainColor: graphRainColor.value,
+        graphBgColor: graphBgColor.value,
+        graphHeight: graphHeight.value,
+        graphShowTemp: graphShowTemp.value,
+        graphShowRain: graphShowRain.value,
     })
     searchQuery.value = ''
     debouncedQuery.value = ''
@@ -249,6 +297,37 @@ const selectLocation = (loc: { name: string; country: string; latitude: number; 
                 <div v-if="showForecast" class="flex flex-column gap-1 ml-4">
                     <label class="text-sm">Days to show: {{ forecastDays }}</label>
                     <Slider v-model="forecastDays" :min="1" :max="7" :step="1" class="w-full" @slideend="emitUpdate" />
+                </div>
+                <div class="config-divider" />
+                <div class="flex align-items-center gap-2">
+                    <Checkbox v-model="showGraph" :binary="true" inputId="weatherGraph" @update:modelValue="emitUpdate" />
+                    <label for="weatherGraph" class="text-sm">Show forecast graph</label>
+                </div>
+                <div v-if="showGraph" class="flex flex-column gap-2 ml-4">
+                    <div class="flex align-items-center gap-2">
+                        <Checkbox v-model="graphShowTemp" :binary="true" inputId="weatherGraphShowTemp" @update:modelValue="emitUpdate" />
+                        <label for="weatherGraphShowTemp" class="text-sm">Show temperature labels</label>
+                    </div>
+                    <div class="flex align-items-center gap-2">
+                        <Checkbox v-model="graphShowRain" :binary="true" inputId="weatherGraphShowRain" @update:modelValue="emitUpdate" />
+                        <label for="weatherGraphShowRain" class="text-sm">Show rain labels</label>
+                    </div>
+                    <div class="flex flex-column gap-1">
+                        <label class="text-sm">Hours to show: {{ graphHours }}</label>
+                        <Slider v-model="graphHours" :min="3" :max="24" :step="1" class="w-full" @slideend="emitUpdate" />
+                    </div>
+                    <div class="flex align-items-center gap-2">
+                        <label class="text-sm" style="min-width: 100px">Temp color</label>
+                        <ColorPicker :modelValue="graphTempColor.replace('#', '')" @update:modelValue="emitColorUpdate('graphTempColor', $event)" />
+                    </div>
+                    <div class="flex align-items-center gap-2">
+                        <label class="text-sm" style="min-width: 100px">Rain color</label>
+                        <ColorPicker :modelValue="graphRainColor.replace('#', '')" @update:modelValue="emitColorUpdate('graphRainColor', $event)" />
+                    </div>
+                    <div class="flex flex-column gap-1">
+                        <label class="text-sm">Height (px): {{ graphHeight }}</label>
+                        <Slider v-model="graphHeight" :min="100" :max="600" :step="10" class="w-full" @slideend="emitUpdate" />
+                    </div>
                 </div>
         </div>
     </div>

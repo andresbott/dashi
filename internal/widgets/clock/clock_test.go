@@ -81,13 +81,13 @@ func TestRenderStatic_EmptyConfig(t *testing.T) {
 func TestRenderStatic_WithFont(t *testing.T) {
 	now := time.Date(2026, 4, 3, 14, 30, 45, 0, time.UTC)
 	renderer := NewStaticRenderer(func() time.Time { return now })
-	config := json.RawMessage(`{"hour12": false, "showSeconds": false, "showDate": false, "font": "Go Mono"}`)
+	config := json.RawMessage(`{"hour12": false, "showSeconds": false, "showDate": false, "font": "Inter"}`)
 	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	html := string(got)
-	if !strings.Contains(html, "font-family: 'Go Mono';") {
+	if !strings.Contains(html, "font-family: 'Inter';") {
 		t.Errorf("expected font-family in output, got: %s", html)
 	}
 }

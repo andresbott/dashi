@@ -229,7 +229,6 @@ const hourlySlice = computed(() => {
 
 .weather-icon {
     font-size: 2rem;
-    color: var(--p-primary-color);
 }
 
 .weather-temp {
@@ -276,7 +275,6 @@ const hourlySlice = computed(() => {
 
 .extra-info-icon {
     font-size: 1.25rem;
-    color: var(--p-primary-color);
 }
 
 .extra-info-title {

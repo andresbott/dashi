@@ -32,8 +32,8 @@ func TestStore_Create(t *testing.T) {
 		t.Fatalf("expected name 'Test Dashboard', got %q", created.Name)
 	}
 
-	// Directory should exist
-	dashDir := filepath.Join(dir, created.ID)
+	// Directory should exist with snake_case name
+	dashDir := filepath.Join(dir, "test_dashboard")
 	info, err := os.Stat(dashDir)
 	if err != nil {
 		t.Fatalf("expected directory %s to exist: %v", dashDir, err)
@@ -319,7 +319,7 @@ func TestStore_DeleteAsset_CleansEmptyDirs(t *testing.T) {
 		t.Fatalf("delete nested asset: %v", err)
 	}
 
-	iconsDir := filepath.Join(dir, "test01", "icons")
+	iconsDir := filepath.Join(dir, "test", "icons")
 	if _, err := os.Stat(iconsDir); !os.IsNotExist(err) {
 		t.Fatalf("expected icons directory to be removed, but it still exists")
 	}

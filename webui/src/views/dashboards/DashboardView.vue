@@ -7,9 +7,12 @@ import WeatherWidget from '@/components/dashboards/WeatherWidget.vue'
 import WeatherCompactWidget from '@/components/dashboards/WeatherCompactWidget.vue'
 import BookmarkWidget from '@/components/dashboards/BookmarkWidget.vue'
 import ClockWidget from '@/components/dashboards/ClockWidget.vue'
+import SearchWidget from '@/components/dashboards/SearchWidget.vue'
+import PageIndicatorWidget from '@/components/dashboards/PageIndicatorWidget.vue'
+import MarketWidget from '@/components/dashboards/MarketWidget.vue'
 import { useGetDashboard } from '@/composables/useDashboards'
 import { useThemes } from '@/composables/useThemes'
-import { getFontUrl } from '@/lib/api/themes'
+import { getFontUrl, getThemeBackgroundUrl } from '@/lib/api/themes'
 
 const route = useRoute()
 const router = useRouter()
@@ -46,6 +49,7 @@ watch([() => dashboard.value, () => themesData.value], injectFonts, { immediate:
 
 const dashboardTheme = computed(() => dashboard.value?.theme || 'default')
 provide('dashboardTheme', dashboardTheme)
+provide('dashboardId', id)
 
 const themeFontFamily = computed(() => {
     if (!dashboard.value || !themesData.value) return undefined
@@ -53,6 +57,61 @@ const themeFontFamily = computed(() => {
     const themeInfo = themesData.value.find(t => t.name === themeName)
     if (!themeInfo?.fonts?.length) return undefined
     return themeInfo.fonts[0].name
+})
+
+const colorMode = computed(() => dashboard.value?.colorMode || 'auto')
+
+const colorSchemeStyle = computed(() => {
+    switch (colorMode.value) {
+        case 'light':
+            return { colorScheme: 'light' }
+        case 'dark':
+            return { colorScheme: 'dark' }
+        default:
+            return { colorScheme: 'light dark' }
+    }
+})
+
+const accentColorStyle = computed(() => {
+    const color = dashboard.value?.accentColor
+    if (!color) return {}
+    return { '--p-primary-color': color }
+})
+
+const backgroundStyle = computed(() => {
+    const bg = dashboard.value?.background
+    if (!bg || bg.type === 'none' || !bg.value) return {}
+
+    switch (bg.type) {
+        case 'color':
+            return { background: bg.value }
+        case 'gradient':
+            return { background: bg.value }
+        case 'image': {
+            let url: string
+            if (bg.value.startsWith('theme:')) {
+                // "theme:themename/filename.jpg"
+                const rest = bg.value.slice(6)
+                const slashIdx = rest.indexOf('/')
+                const themeName = rest.slice(0, slashIdx)
+                const fileName = rest.slice(slashIdx + 1)
+                url = getThemeBackgroundUrl(themeName, fileName)
+            } else if (bg.value.startsWith('dashboard:')) {
+                // "dashboard:filename.jpg"
+                // For preview dashboards (id ending in -prev), use the base dashboard's assets
+                const assetDashId = id.value.endsWith('-prev') ? id.value.slice(0, -5) : id.value
+                const fileName = bg.value.slice(10)
+                url = `/api/v0/dashboards/${assetDashId}/assets/${encodeURIComponent(fileName)}`
+            } else {
+                return {}
+            }
+            return {
+                background: `url('${url}') center/cover no-repeat`,
+            }
+        }
+        default:
+            return {}
+    }
 })
 
 onUnmounted(() => {
@@ -69,6 +128,10 @@ const activePage = computed(() => {
     const maxIndex = dashboard.value.pages.length - 1
     return Math.max(0, Math.min(pageIndex, maxIndex))
 })
+
+const totalPages = computed(() => dashboard.value ? dashboard.value.pages.length : 1)
+provide('activePage', activePage)
+provide('totalPages', totalPages)
 
 const showTabs = computed(() => {
     return dashboard.value ? dashboard.value.pages.length > 1 : false
@@ -88,6 +151,30 @@ function pageName(index: number) {
 function switchPage(index: number) {
     router.replace({ query: { ...route.query, page: String(index) } })
 }
+
+const isImageDashboard = computed(() => dashboard.value?.type === 'image')
+
+const imageUrl = computed(() => {
+    if (!isImageDashboard.value) return ''
+    const base = `/${id.value}`
+    const params = new URLSearchParams()
+    if (activePage.value > 0) {
+        params.set('page', String(activePage.value))
+    }
+    // Cache-buster so the browser refetches on page change
+    params.set('_t', String(Date.now()))
+    return `${base}?${params.toString()}`
+})
+
+// Debug mode: ?debug=1 shows random background colors on containers, rows, widgets
+const isDebug = computed(() => route.query.debug === '1')
+
+const debugColors = ['#ffcccc', '#ccffcc', '#ccccff', '#ffffcc', '#ffccff', '#ccffff']
+
+function debugColor(index: number): string | undefined {
+    if (!isDebug.value) return undefined
+    return debugColors[index % debugColors.length]
+}
 </script>
 
 <template>
@@ -98,7 +185,7 @@ function switchPage(index: number) {
         <p>The dashboard you're looking for doesn't exist.</p>
         <Button label="Go to Dashboards" icon="ti ti-arrow-left" @click="router.push({ name: 'dashboards' })" />
     </div>
-    <div v-else-if="dashboard" class="dashboard-view" :class="{ 'show-boxes': dashboard.container.showBoxes }" :style="{ fontFamily: themeFontFamily }">
+    <div v-else-if="dashboard && isImageDashboard" class="dashboard-image-view" :class="{ 'dark-mode': colorMode === 'dark' }" :style="colorSchemeStyle">
         <div v-if="showTabs" class="dashboard-tabs">
             <button
                 v-for="(page, index) in dashboard.pages"
@@ -110,6 +197,11 @@ function switchPage(index: number) {
                 {{ pageName(index) }}
             </button>
         </div>
+        <div class="dashboard-image-container">
+            <img :src="imageUrl" :alt="dashboard.name" class="dashboard-rendered-image" />
+        </div>
+    </div>
+    <div v-else-if="dashboard" class="dashboard-view" :class="{ 'show-boxes': dashboard.container.showBoxes || isDebug, 'dark-mode': colorMode === 'dark' }" :style="{ fontFamily: themeFontFamily, ...backgroundStyle, ...colorSchemeStyle, ...accentColorStyle }">
         <div
             class="dashboard-container"
             :style="{
@@ -118,6 +210,17 @@ function switchPage(index: number) {
                 marginRight: dashboard.container.horizontalAlign === 'left' ? 'auto' : dashboard.container.horizontalAlign === 'center' ? 'auto' : undefined,
             }"
         >
+            <div v-if="showTabs" class="dashboard-tabs">
+                <button
+                    v-for="(page, index) in dashboard.pages"
+                    :key="index"
+                    class="dashboard-tab"
+                    :class="{ active: activePage === index }"
+                    @click="switchPage(index)"
+                >
+                    {{ pageName(index) }}
+                </button>
+            </div>
             <div
                 class="dashboard-rows"
                 :style="{
@@ -136,14 +239,18 @@ function switchPage(index: number) {
                     <h3 v-if="row.title" class="row-title">{{ row.title }}</h3>
                     <div class="grid">
                         <div
-                            v-for="widget in row.widgets"
+                            v-for="(widget, widgetIdx) in row.widgets"
                             :key="widget.id"
                             :class="'col-' + widget.width"
+                            :style="{ background: debugColor(widgetIdx) }"
                         >
                             <WeatherWidget v-if="widget.type === 'weather'" :widget="widget" />
                             <WeatherCompactWidget v-else-if="widget.type === 'weather-compact'" :widget="widget" />
                             <BookmarkWidget v-else-if="widget.type === 'bookmark'" :widget="widget" />
                             <ClockWidget v-else-if="widget.type === 'clock'" :widget="widget" />
+                            <SearchWidget v-else-if="widget.type === 'search'" :widget="widget" />
+                            <PageIndicatorWidget v-else-if="widget.type === 'page-indicator'" />
+                            <MarketWidget v-else-if="widget.type === 'market'" :widget="widget" />
                             <WidgetPlaceholder v-else :title="widget.title" />
                         </div>
                     </div>
@@ -154,11 +261,33 @@ function switchPage(index: number) {
 </template>
 
 <style scoped>
+.dashboard-image-view {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.dashboard-image-container {
+    display: flex;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.dashboard-rendered-image {
+    max-width: 100%;
+    height: auto;
+}
+
+.dashboard-view {
+    min-height: 100vh;
+}
+
 .dashboard-tabs {
     display: flex;
     gap: 0.5rem;
     padding: 1rem 1rem 0 1rem;
-    border-bottom: 1px solid var(--p-surface-border);
+    border-bottom: none;
 }
 
 .dashboard-tab {
@@ -221,5 +350,13 @@ function switchPage(index: number) {
 
 .show-boxes .grid > div {
     border: 1px dotted var(--p-text-muted-color);
+}
+
+.dark-mode {
+    --p-text-color: #e0e0e0;
+    --p-text-muted-color: #bbb;
+    --p-surface-border: #444;
+    background-color: #1a1a2e;
+    color: var(--p-text-color);
 }
 </style>

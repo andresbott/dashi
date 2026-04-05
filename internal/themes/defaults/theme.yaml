@@ -1,8 +1,8 @@
 name: "default"
-description: "Default theme with Go Mono font and Tabler weather icons"
+description: "Default theme with Inter font and Tabler weather icons"
 fonts:
-  - name: "Go Mono"
-    file: "gomono.ttf"
+  - name: "Inter"
+    file: "Inter-Regular.ttf"
 icons:
   type: font
   classPrefix: "ti ti-"

@@ -88,11 +88,17 @@ func NewStaticDashboardMiddleware(store *dashboard.Store, staticRenderer *dashst
 					HAlign:      dash.Container.HorizontalAlign,
 					VAlign:      dash.Container.VerticalAlign,
 					Theme:       theme,
+					ColorMode:   dash.ColorMode,
 					FontFamily:  fontFamily,
 					CustomCSS:   store.GetCustomCSS(dash.ID),
 					QueryParams: queryParams,
 					Rows:        dash.Pages[pageIdx].Rows,
+					PageIndex:   pageIdx,
+					TotalPages:  len(dash.Pages),
 				}
+
+				bgCSS, bgImageData := buildBackground(dash, store, themeStore)
+				renderData.BackgroundCSS = bgCSS
 
 				var buf bytes.Buffer
 				if err := staticRenderer.Render(&buf, renderData); err != nil {
@@ -129,7 +135,7 @@ func NewStaticDashboardMiddleware(store *dashboard.Store, staticRenderer *dashst
 					return
 				}
 
-				pngData, err := imageRenderer.Render(buf.String(), width, height)
+				pngData, err := imageRenderer.Render(buf.String(), width, height, bgImageData)
 				if err != nil {
 					http.Error(w, "failed to render dashboard image", http.StatusInternalServerError)
 					return
@@ -142,6 +148,55 @@ func NewStaticDashboardMiddleware(store *dashboard.Store, staticRenderer *dashst
 				next.ServeHTTP(w, r)
 			}
 		})
+	}
+}
+
+// buildBackground returns the CSS background value and, for image backgrounds,
+// the raw image bytes (since litehtml doesn't support CSS background-image).
+func buildBackground(dash dashboard.Dashboard, dashStore *dashboard.Store, themeStore *themes.Store) (css string, imageData []byte) {
+	bg := dash.Background
+	if bg == nil || bg.Type == "none" || bg.Value == "" {
+		return "", nil
+	}
+	switch bg.Type {
+	case "color":
+		return bg.Value, nil
+	case "gradient":
+		return bg.Value, nil
+	case "image":
+		var data []byte
+		var fileName string
+		if strings.HasPrefix(bg.Value, "theme:") {
+			rest := bg.Value[6:]
+			slashIdx := strings.Index(rest, "/")
+			if slashIdx < 0 {
+				return "", nil
+			}
+			themeName := rest[:slashIdx]
+			fileName = rest[slashIdx+1:]
+			var err error
+			data, err = themeStore.GetBackgroundData(themeName, fileName)
+			if err != nil {
+				return "", nil
+			}
+		} else if strings.HasPrefix(bg.Value, "dashboard:") {
+			fileName = bg.Value[len("dashboard:"):]
+			var err error
+			data, _, err = dashStore.GetAsset(dash.ID, fileName)
+			if err != nil {
+				return "", nil
+			}
+		} else {
+			return "", nil
+		}
+		mimeType := mime.TypeByExtension(filepath.Ext(fileName))
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
+		dataURI := "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data)
+		return "url('" + dataURI + "') center/cover no-repeat", data
+	default:
+		return "", nil
 	}
 }
 

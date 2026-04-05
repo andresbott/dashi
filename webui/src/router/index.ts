@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { apiClient } from '@/lib/api/client'
 
 const router = createRouter({
     history: createWebHistory('/'),
@@ -23,6 +24,19 @@ const router = createRouter({
             component: () => import('@/views/dashboards/DashboardView.vue')
         }
     ]
+})
+
+router.beforeEach(async (to) => {
+    if (to.name === 'dashboard-edit') {
+        try {
+            const { data } = await apiClient.get<{ readOnly: boolean }>('/settings')
+            if (data.readOnly) {
+                return { name: 'dashboards' }
+            }
+        } catch {
+            // allow navigation if settings fetch fails
+        }
+    }
 })
 
 export default router

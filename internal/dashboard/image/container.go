@@ -1,29 +1,42 @@
 package image
 
 import (
+	"bytes"
+	"encoding/base64"
 	"image"
 	"image/color"
 	stddraw "image/draw"
 	_ "image/jpeg"
+	_ "image/png"
 	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
+	_ "embed"
+
 	litehtml "github.com/andresbott/litehtml-go"
 
 	"golang.org/x/image/draw"
 	"golang.org/x/image/font"
-	"golang.org/x/image/font/gofont/gobold"
-	"golang.org/x/image/font/gofont/gobolditalic"
-	"golang.org/x/image/font/gofont/goitalic"
 	"golang.org/x/image/font/gofont/gomono"
-	"golang.org/x/image/font/gofont/go
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
 	_ "golang.org/x/image/webp"
 )
+
+//go:embed Inter-Regular.ttf
+var interRegularTTF []byte
+
+//go:embed Inter-Bold.ttf
+var interBoldTTF []byte
+
+//go:embed Inter-Italic.ttf
+var interItalicTTF []byte
+
+//go:embed Inter-BoldItalic.ttf
+var interBoldItalicTTF []byte
 
 type fontEntry struct {
 	face    font.Face
@@ -55,10 +68,10 @@ func newPNGContainer(w, h int) *pngContainer {
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	stddraw.Draw(img, img.Bounds(), &image.Uniform{color.White}, image.Point{}, stddraw.Src)
 
-	reg, _ := opentype.Parse(goregular.TTF)
-	bld, _ := opentype.Parse(gobold.TTF)
-	ita, _ := opentype.Parse(goitalic.TTF)
-	bi, _ := opentype.Parse(gobolditalic.TTF)
+	reg, _ := opentype.Parse(interRegularTTF)
+	bld, _ := opentype.Parse(interBoldTTF)
+	ita, _ := opentype.Parse(interItalicTTF)
+	bi, _ := opentype.Parse(interBoldItalicTTF)
 	mon, _ := opentype.Parse(gomono.TTF)
 
 	return &pngContainer{
@@ -418,6 +431,26 @@ func (c *pngContainer) LoadImage(src, baseurl string, redrawOnReady bool) {
 	if src == "" {
 		return
 	}
+
+	// Handle data: URIs (e.g. data:image/png;base64,...)
+	if strings.HasPrefix(src, "data:") {
+		idx := strings.Index(src, ",")
+		if idx < 0 {
+			return
+		}
+		encoded := src[idx+1:]
+		decoded, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil {
+			return
+		}
+		img, _, err := image.Decode(bytes.NewReader(decoded))
+		if err != nil {
+			return
+		}
+		c.images[src] = img
+		return
+	}
+
 	ext := strings.ToLower(filepath.Ext(src))
 	switch ext {
 	case ".png", ".jpg", ".jpeg", ".webp":

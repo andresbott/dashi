@@ -63,6 +63,8 @@ const widgetTypeOptions = [
     { value: 'bookmark', label: 'Bookmark', icon: 'ti-bookmark', description: 'Link to an external website' },
     { value: 'clock', label: 'Clock', icon: 'ti-clock', description: 'Digital clock with date' },
     { value: 'battery', label: 'Battery', icon: 'ti-battery-2', description: 'Battery status from query parameter' },
+    { value: 'search', label: 'Search', icon: 'ti-search', description: 'Search engine input' },
+    { value: 'page-indicator', label: 'Page Indicator', icon: 'ti-circles', description: 'Shows dots for each page' },
 ]
 
 const addWidget = (type: string) => {

@@ -1,74 +1,65 @@
 # dashi
 
-A user-defined landing page dashboard application. Users can create personalized dashboards with configurable widgets such as weather, bookmarks, stock tickers, and more.
+A self-hosted personal landing page with a built-in visual editor, theme support,
+and server-side PNG rendering for e-ink displays and home dashboards.
+No database required -- all configuration and assets are stored as plain files on disk.
+
+## Quick Start
+
+```bash
+# Generate a default config file
+dashi generate-config > config.yaml
+
+# Start the server
+dashi start --config config.yaml
+```
+
+Open `http://localhost:8087` in your browser. From there you can create
+dashboards, add widgets, and configure them through the built-in editor.
+
+
+## Features
+
+### Dashboard Management
+
+- **Multi-page dashboards** with tab navigation
+- **Two rendering modes:**
+  - **Interactive** -- live Vue.js web app with real-time data
+  - **Image** -- server-side PNG for e-ink displays, status monitors, etc.
+- **Flexible layout** -- 12-column grid, configurable rows, alignment, max width
+- **Backgrounds** -- solid color, gradient, or image (from theme or uploads)
+- **Color modes** -- auto (follows OS preference), light, or dark
+- **Themes** -- customizable fonts and icon sets (default: Inter + Tabler icons)
+- **Custom CSS** -- per-dashboard sidecar files for advanced styling
+- **Widgets:**
+  - **Weather** -- current conditions, hourly/7-day forecast, graph (Open-Meteo)
+  - **Market** -- stock/ETF/crypto/FX prices with chart (Yahoo Finance)
+  - **Bookmarks** -- configurable links with title and subtitle
+  - **Clock** -- configurable time format, date, and theme fonts
+  - **Search** -- search bar with configurable engine
+  - **Page Indicator** -- dot indicator for multi-page navigation
+
+### Data & Caching
+
+- All data stored as flat files (JSON + assets) -- no database required
+- Weather data cached for 30 minutes, pre-fetched at startup
+- Market data cached with tiered TTLs based on data freshness needs
+- Both weather and market data are warmed up at startup by scanning dashboard configs
 
 ## Tech Stack
 
-- **Backend:** Go (Cobra CLI, Gorilla Mux, GORM, slog)
-- **Frontend:** Vue.js 3 (Composition API, PrimeVue, Pinia, Vue Query, Vite)
-- **Structure:** Monorepo
-
-## Project Structure
-
-```
-dashi/
-├── main.go                    # Entry point
-├── go.mod                     # Go module definition
-├── Makefile                   # Build, test, and dev automation
-├── .goreleaser.yaml           # Multi-platform release builds
-├── .golangci.yaml             # Linter configuration
-├── config.yaml                # App config (gitignored, generate with `dashi config`)
-├── .env.example               # Environment variable template
-│
-├── app/                       # Application layer
-│   ├── cmd/                   # CLI commands (start, version, config)
-│   ├── metainfo/              # Build metadata (version, commit, date)
-│   ├── router/                # HTTP routing and API endpoints
-│   │   └── handlers/          # Request handlers by domain
-│   └── spa/                   # Embedded SPA serving
-│       └── files/ui/          # Built frontend assets (generated)
-│
-├── internal/                  # Business logic (not importable externally)
-│   ├── dashboard/             # Dashboard CRUD and layout management
-│   └── widgets/               # Widget registry and implementations
-│
-├── webui/                     # Vue.js frontend
-│   ├── package.json           # NPM dependencies and scripts
-│   ├── vite.config.js         # Vite build configuration
-│   ├── vitest.config.js       # Test runner configuration
-│   ├── tsconfig.json          # TypeScript configuration
-│   ├── index.html             # HTML entry point
-│   └── src/
-│       ├── main.ts            # App bootstrap
-│       ├── App.vue            # Root component
-│       ├── router/            # Vue Router configuration
-│       ├── store/             # Pinia stores (user, UI state)
-│       ├── composables/       # Vue Query hooks and custom composables
-│       ├── components/        # Shared UI components
-│       ├── views/             # Page-level components
-│       ├── utils/             # Helper functions
-│       └── assets/            # Styles and static assets
-│
-├── zarf/                      # Deployment artifacts
-│   ├── e2e/                   # End-to-end browser tests
-│   └── pkg/                   # Package scripts (deb, systemd)
-│
-├── docs/                      # Documentation
-│
-└── .github/workflows/         # CI/CD pipelines
-    ├── test.yml               # Go tests + UI tests + build
-    ├── golangci-lint.yml      # Code quality linting
-    ├── license-check.yml      # Dependency license compliance
-    └── release.yml            # GoReleaser multi-platform release
-```
+- **Backend:** Go (Cobra CLI, Gorilla Mux, slog)
+- **Frontend:** Vue.js 3 (Composition API, PrimeVue, Vue Query, Vite)
+- **Image rendering:** litehtml-go + Go image libraries
+- **Charts:** fogleman/gg (server-side PNG), inline SVG (frontend)
+- **Structure:** Monorepo -- single binary with embedded frontend
 
 ## Development
 
 ### Prerequisites
 
-- Go 1.25.4+
+- Go 1.25+
 - Node.js 22+
-- golangci-lint (for linting)
 
 ### Running
 

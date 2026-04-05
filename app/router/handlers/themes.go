@@ -75,3 +75,28 @@ func (h *ThemeHandler) GetFont(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.Write(data)
 }
+
+func (h *ThemeHandler) GetBackground(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	themeName := vars["name"]
+	fileName := vars["file"]
+
+	if strings.ContainsAny(fileName, "/\\") || strings.Contains(fileName, "..") {
+		http.Error(w, `{"error":"invalid filename"}`, http.StatusBadRequest)
+		return
+	}
+
+	data, err := h.store.GetBackgroundData(themeName, fileName)
+	if err != nil {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		return
+	}
+
+	contentType := mime.TypeByExtension(filepath.Ext(fileName))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Write(data)
+}

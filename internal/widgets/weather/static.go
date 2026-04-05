@@ -2,9 +2,12 @@ package weather
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"image/color"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +17,7 @@ import (
 	"github.com/andresbott/dashi/internal/themes"
 	weatherpkg "github.com/andresbott/dashi/internal/weather"
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/widgets/weather/chart"
 )
 
 //go:embed static.html
@@ -43,7 +47,15 @@ type weatherConfig struct {
 	ShowPressure   bool `json:"showPressure"`
 	ShowUV         bool `json:"showUV"`
 	ShowVisibility bool `json:"showVisibility"`
-	ShowAirQuality bool `json:"showAirQuality"`
+	ShowAirQuality bool   `json:"showAirQuality"`
+	ShowGraph      bool   `json:"showGraph"`
+	GraphHours     int    `json:"graphHours"`
+	GraphTempColor string `json:"graphTempColor"`
+	GraphRainColor string `json:"graphRainColor"`
+	GraphBgColor   string `json:"graphBgColor"`
+	GraphHeight     int    `json:"graphHeight"`
+	GraphShowTemp   *bool  `json:"graphShowTemp"`
+	GraphShowRain   *bool  `json:"graphShowRain"`
 }
 
 type hourlyEntry struct {
@@ -77,6 +89,13 @@ type weatherData struct {
 	Forecast     []forecastDay
 	IconHTML     template.HTML
 	ExtraInfo    []extraInfoItem
+	ShowGraph       bool
+	GraphImage      string // base64-encoded PNG
+	GraphTempMin    string
+	GraphTempMax    string
+	GraphTimeLabels []string
+	GraphShowTemp   bool
+	GraphShowRain   bool
 }
 
 type forecastDay struct {
@@ -212,6 +231,72 @@ func NewStaticRenderer(client *weatherpkg.Client, themeStore *themes.Store) func
 			}
 		}
 
+		if cfg.ShowGraph && !cfg.Compact {
+			graphHours := cfg.GraphHours
+			if graphHours <= 0 {
+				graphHours = 24
+			}
+			if graphHours > len(wd.Hourly) {
+				graphHours = len(wd.Hourly)
+			}
+
+			var graphPoints []chart.HourlyPoint
+			for i := 0; i < graphHours; i++ {
+				h := wd.Hourly[i]
+				t, _ := time.Parse("2006-01-02T15:04", h.Time)
+				graphPoints = append(graphPoints, chart.HourlyPoint{
+					Time:        t,
+					Temperature: h.Temperature,
+					RainPercent: h.PrecipitationProbability,
+				})
+			}
+
+			tempColor := parseHexColor(cfg.GraphTempColor, color.NRGBA{R: 0xFF, G: 0x8C, B: 0x42, A: 0xFF})
+			rainColor := parseHexColor(cfg.GraphRainColor, color.NRGBA{R: 0x4A, G: 0x90, B: 0xD9, A: 0xFF})
+			bgColor := parseHexColor(cfg.GraphBgColor, color.NRGBA{A: 0})
+			if cfg.GraphBgColor == "" || cfg.GraphBgColor == "transparent" {
+				bgColor = color.NRGBA{A: 0}
+			}
+
+			graphHeight := cfg.GraphHeight
+			if graphHeight <= 0 {
+				graphHeight = 250
+			}
+
+			chartPNG, err := chart.Generate(graphPoints, chart.Options{
+				Width:     800,
+				Height:    graphHeight,
+				TempColor: tempColor,
+				RainColor: rainColor,
+				BgColor:   bgColor,
+			})
+			if err == nil && len(chartPNG) > 0 {
+				data.ShowGraph = true
+				data.GraphImage = base64.StdEncoding.EncodeToString(chartPNG)
+
+				// Compute temp range for labels
+				minT, maxT := graphPoints[0].Temperature, graphPoints[0].Temperature
+				for _, p := range graphPoints[1:] {
+					minT = math.Min(minT, p.Temperature)
+					maxT = math.Max(maxT, p.Temperature)
+				}
+				data.GraphTempMin = fmt.Sprintf("%.0f°", minT)
+				data.GraphTempMax = fmt.Sprintf("%.0f°", maxT)
+
+				// Time labels — every 3 hours
+				var timeLabels []string
+				for i, p := range graphPoints {
+					if i%(graphHours/8+1) == 0 {
+						timeLabels = append(timeLabels, p.Time.Format("15:04"))
+					}
+				}
+				data.GraphTimeLabels = timeLabels
+
+				data.GraphShowTemp = cfg.GraphShowTemp == nil || *cfg.GraphShowTemp
+				data.GraphShowRain = cfg.GraphShowRain == nil || *cfg.GraphShowRain
+			}
+		}
+
 		if cfg.ShowForecast {
 			forecastDays := cfg.ForecastDays
 			if forecastDays <= 0 {
@@ -293,4 +378,22 @@ func resolveIconHTML(store *themes.Store, themeName, canonicalName string) templ
 	default:
 		return template.HTML(`<i class="ti ti-cloud-question"></i>`)
 	}
+}
+
+func parseHexColor(hex string, fallback color.NRGBA) color.NRGBA {
+	if len(hex) == 0 {
+		return fallback
+	}
+	if hex[0] == '#' {
+		hex = hex[1:]
+	}
+	if len(hex) != 6 {
+		return fallback
+	}
+	var r, g, b uint8
+	_, err := fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b)
+	if err != nil {
+		return fallback
+	}
+	return color.NRGBA{R: r, G: g, B: b, A: 255}
 }

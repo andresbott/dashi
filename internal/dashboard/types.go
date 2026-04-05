@@ -22,6 +22,12 @@ type Page struct {
 	Rows []Row  `json:"rows"`
 }
 
+// Background defines the dashboard background appearance.
+type Background struct {
+	Type  string `json:"type"`  // "none", "image", "color", "gradient"
+	Value string `json:"value"` // image ref, hex color, or CSS gradient
+}
+
 // Dashboard represents a user-defined dashboard with a layout of widgets in rows.
 type Dashboard struct {
 	ID          string       `json:"id"`
@@ -31,6 +37,9 @@ type Dashboard struct {
 	Container   Container    `json:"container"`
 	ImageConfig *ImageConfig `json:"imageConfig,omitempty"`
 	Theme       string       `json:"theme,omitempty"`
+	ColorMode   string       `json:"colorMode,omitempty"`
+	AccentColor string       `json:"accentColor,omitempty"`
+	Background  *Background  `json:"background,omitempty"`
 	Pages       []Page       `json:"pages"`
 }
 

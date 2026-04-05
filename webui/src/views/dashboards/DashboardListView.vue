@@ -8,6 +8,7 @@ import Column from 'primevue/column'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import CreateDashboardDialog from '@/components/dashboards/CreateDashboardDialog.vue'
 import { useListDashboards } from '@/composables/useDashboards'
+import { useSettings } from '@/composables/useSettings'
 import { useToast } from 'primevue/usetoast'
 
 const router = useRouter()
@@ -20,6 +21,9 @@ const {
     deletePreviews,
     isDeletingPreviews,
 } = useListDashboards()
+
+const { data: settings } = useSettings()
+const readOnly = computed(() => settings.value?.readOnly ?? false)
 
 const dashboards = computed(() => dashboardsData.value ?? [])
 
@@ -58,10 +62,6 @@ const handleCreate = async ({ name, type, container }) => {
     }
 }
 
-const editDashboard = (d) => {
-    router.push({ name: 'dashboard-edit', params: { id: d.id } })
-}
-
 const handleDeletePreviews = async () => {
     try {
         const result = await deletePreviews()
@@ -79,7 +79,7 @@ const handleDeletePreviews = async () => {
     <div class="dashboard-list-view">
         <div class="flex align-items-center justify-content-between mb-4">
             <h1 class="text-2xl font-bold text-color">Dashboards</h1>
-            <div class="flex gap-2">
+            <div v-if="!readOnly" class="flex gap-2">
                 <Button
                     label="Delete Previews"
                     icon="ti ti-trash"
@@ -111,21 +111,30 @@ const handleDeletePreviews = async () => {
                     data-key="id"
                     class="p-datatable-sm"
                     stripedRows
-                    selectionMode="single"
-                    @row-click="(e) => router.push({ name: 'dashboard-view', params: { id: e.data.id } })"
                 >
                     <Column field="name" header="Name" />
-                    <Column header="Actions" style="width: 100px">
+                    <Column header="Actions" style="width: 150px">
                         <template #body="{ data }">
                             <div class="flex gap-1 justify-content-end">
                                 <Button
+                                    as="a"
+                                    :href="router.resolve({ name: 'dashboard-view', params: { id: data.id } }).href"
+                                    icon="ti ti-eye"
+                                    text
+                                    rounded
+                                    class="p-1 action-link"
+                                />
+                                <Button
+                                    v-if="!readOnly"
+                                    as="a"
+                                    :href="router.resolve({ name: 'dashboard-edit', params: { id: data.id } }).href"
                                     icon="ti ti-pencil"
                                     text
                                     rounded
-                                    class="p-1"
-                                    @click="editDashboard(data)"
+                                    class="p-1 action-link"
                                 />
                                 <Button
+                                    v-if="!readOnly"
                                     icon="ti ti-trash"
                                     text
                                     rounded
@@ -167,5 +176,9 @@ const handleDeletePreviews = async () => {
     padding: 1rem;
     text-align: center;
     color: var(--p-text-muted-color);
+}
+
+.action-link {
+    text-decoration: none;
 }
 </style>

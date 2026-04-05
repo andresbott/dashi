@@ -20,8 +20,8 @@ func TestNewStore_LoadsEmbeddedDefault(t *testing.T) {
 			if len(th.Fonts) != 1 {
 				t.Errorf("default theme fonts count = %d, want 1", len(th.Fonts))
 			}
-			if len(th.Fonts) > 0 && th.Fonts[0].Name != "Go Mono" {
-				t.Errorf("default theme font name = %q, want %q", th.Fonts[0].Name, "Go Mono")
+			if len(th.Fonts) > 0 && th.Fonts[0].Name != "Inter" {
+				t.Errorf("default theme font name = %q, want %q", th.Fonts[0].Name, "Inter")
 			}
 		}
 	}
@@ -216,12 +216,12 @@ func TestStore_GetFontData_NoFont(t *testing.T) {
 
 func TestStore_GetDisplayFontData_Default(t *testing.T) {
 	store := NewStore("")
-	data, err := store.GetDisplayFontData("default", "Go Mono")
+	data, err := store.GetDisplayFontData("default", "Inter")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(data) == 0 {
-		t.Error("expected non-empty font data for Go Mono")
+		t.Error("expected non-empty font data for Inter")
 	}
 	// TTF files start with 0x00 0x01 0x00 0x00
 	if len(data) < 4 || data[0] != 0x00 || data[1] != 0x01 {

@@ -60,7 +60,7 @@ func (c *Client) GetWeather(lat, lon float64) (WeatherData, error) {
 	}
 
 	url := fmt.Sprintf(
-		"%s/v1/forecast?latitude=%f&longitude=%f&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,surface_pressure&hourly=temperature_2m,weather_code,visibility&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max&timezone=auto&forecast_days=7",
+		"%s/v1/forecast?latitude=%f&longitude=%f&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,surface_pressure&hourly=temperature_2m,weather_code,visibility,precipitation_probability&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max&timezone=auto&forecast_days=7",
 		c.baseURL, lat, lon,
 	)
 
@@ -122,10 +122,12 @@ func (c *Client) transformForecast(raw openMeteoForecastResponse) WeatherData {
 		Icon:        icon,
 	}
 
-	// Derive visibility from first future hourly entry
+	// API returns times in the location's local timezone (timezone=auto).
+	// Parse them in the server's local timezone so Before() comparisons work.
 	now := time.Now()
+	loc := now.Location()
 	for i := range raw.Hourly.Time {
-		t, err := time.Parse("2006-01-02T15:04", raw.Hourly.Time[i])
+		t, err := time.ParseInLocation("2006-01-02T15:04", raw.Hourly.Time[i], loc)
 		if err != nil {
 			continue
 		}
@@ -163,7 +165,7 @@ func (c *Client) transformForecast(raw openMeteoForecastResponse) WeatherData {
 
 	var hourly []HourlyForecast
 	for i := range raw.Hourly.Time {
-		t, err := time.Parse("2006-01-02T15:04", raw.Hourly.Time[i])
+		t, err := time.ParseInLocation("2006-01-02T15:04", raw.Hourly.Time[i], loc)
 		if err != nil {
 			continue
 		}
@@ -174,16 +176,29 @@ func (c *Client) transformForecast(raw openMeteoForecastResponse) WeatherData {
 			break
 		}
 		d, ic := weatherCodeInfo(raw.Hourly.WeatherCode[i])
-		hourly = append(hourly, HourlyForecast{
+		hf := HourlyForecast{
 			Time:        raw.Hourly.Time[i],
 			Temperature: raw.Hourly.Temperature[i],
 			WeatherCode: raw.Hourly.WeatherCode[i],
 			Description: d,
 			Icon:        ic,
-		})
+		}
+		if i < len(raw.Hourly.PrecipitationProbability) {
+			hf.PrecipitationProbability = raw.Hourly.PrecipitationProbability[i]
+		}
+		hourly = append(hourly, hf)
 	}
 
 	return WeatherData{Current: current, Hourly: hourly, Forecast: forecast}
+}
+
+// WarmupLocations pre-fetches weather data for the given lat/lon pairs,
+// populating the cache so subsequent requests are instant.
+func (c *Client) WarmupLocations(locations [][2]float64) {
+	for _, loc := range locations {
+		// GetWeather checks the cache first, so duplicates are cheap
+		c.GetWeather(loc[0], loc[1])
+	}
 }
 
 func (c *Client) Geocode(city string) ([]Location, error) {

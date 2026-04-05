@@ -6,10 +6,12 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	_ "image/jpeg"
 	"image/png"
 	"math"
 
 	litehtml "github.com/andresbott/litehtml-go"
+	xdraw "golang.org/x/image/draw"
 )
 
 const defaultWidth = 1024
@@ -35,7 +37,8 @@ func (r *Renderer) RegisterFont(family string, ttfData []byte) {
 // Render converts the given HTML string to a PNG image.
 // If width is 0, defaultWidth (1024) is used.
 // If height is 0, it is auto-calculated from the rendered content.
-func (r *Renderer) Render(html string, width, height int) ([]byte, error) {
+// backgroundImage, if non-nil, is drawn scaled to cover the canvas before rendering HTML.
+func (r *Renderer) Render(html string, width, height int, backgroundImage ...[]byte) ([]byte, error) {
 	if width <= 0 {
 		width = defaultWidth
 	}
@@ -68,6 +71,28 @@ func (r *Renderer) Render(html string, width, height int) ([]byte, error) {
 
 	container.img = image.NewRGBA(image.Rect(0, 0, width, canvasHeight))
 	draw.Draw(container.img, container.img.Bounds(), &image.Uniform{color.White}, image.Point{}, draw.Src)
+
+	// Draw background image scaled to cover the canvas
+	if len(backgroundImage) > 0 && len(backgroundImage[0]) > 0 {
+		bgImg, _, err := image.Decode(bytes.NewReader(backgroundImage[0]))
+		if err == nil {
+			dstRect := container.img.Bounds()
+			srcBounds := bgImg.Bounds()
+			// Cover: scale to fill, preserving aspect ratio
+			srcW := float64(srcBounds.Dx())
+			srcH := float64(srcBounds.Dy())
+			dstW := float64(dstRect.Dx())
+			dstH := float64(dstRect.Dy())
+			scale := math.Max(dstW/srcW, dstH/srcH)
+			scaledW := int(srcW * scale)
+			scaledH := int(srcH * scale)
+			offsetX := (int(dstW) - scaledW) / 2
+			offsetY := (int(dstH) - scaledH) / 2
+			scaledRect := image.Rect(offsetX, offsetY, offsetX+scaledW, offsetY+scaledH)
+			xdraw.BiLinear.Scale(container.img, scaledRect, bgImg, srcBounds, xdraw.Over, nil)
+		}
+	}
+
 	container.w = float32(width)
 	container.h = float32(canvasHeight)
 

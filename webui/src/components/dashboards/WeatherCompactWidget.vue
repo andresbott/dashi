@@ -105,7 +105,6 @@ const cityName = computed(() => config.value?.city?.split(',')[0] ?? '')
 
 .weather-compact-icon {
     font-size: 2.5rem;
-    color: var(--p-primary-color);
     flex-shrink: 0;
 }
 

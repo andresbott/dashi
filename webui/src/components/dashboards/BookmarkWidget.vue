@@ -1,17 +1,33 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject, ref } from 'vue'
+import type { Ref } from 'vue'
 import type { Widget } from '@/types/dashboard'
 import type { BookmarkWidgetConfig } from '@/types/bookmark'
+import { parseIcon, getSelfhstIconUrl, getDashboardIconUrl } from '@/lib/iconUtils'
 
 const props = defineProps<{
     widget: Widget
 }>()
+
+const dashboardId = inject<Ref<string>>('dashboardId', ref(''))
 
 const config = computed<BookmarkWidgetConfig | null>(() => {
     if (!props.widget.config) return null
     const c = props.widget.config as unknown as BookmarkWidgetConfig
     if (!c.url || !c.title) return null
     return c
+})
+
+const iconInfo = computed(() => {
+    if (!config.value?.icon) return null
+    const parsed = parseIcon(config.value.icon)
+    if (parsed.type === 'selfhst') {
+        return { type: 'image' as const, src: getSelfhstIconUrl(parsed.value) }
+    }
+    if (parsed.type === 'dashboard') {
+        return { type: 'image' as const, src: getDashboardIconUrl(dashboardId.value, parsed.value) }
+    }
+    return { type: 'tabler' as const, class: 'ti ' + parsed.value }
 })
 </script>
 
@@ -23,7 +39,12 @@ const config = computed<BookmarkWidgetConfig | null>(() => {
         </div>
 
         <a v-else :href="config.url" target="_blank" rel="noopener noreferrer" class="bookmark-link">
-            <i :class="'ti ' + config.icon" class="bookmark-icon" />
+            <img
+                v-if="iconInfo?.type === 'image'"
+                :src="iconInfo.src"
+                class="bookmark-icon-img"
+            />
+            <i v-else-if="iconInfo?.type === 'tabler'" :class="iconInfo.class" class="bookmark-icon" />
             <div class="bookmark-text">
                 <span class="bookmark-title">{{ config.title }}</span>
                 <span v-if="config.subtitle" class="bookmark-subtitle">{{ config.subtitle }}</span>
@@ -64,12 +85,19 @@ const config = computed<BookmarkWidgetConfig | null>(() => {
 }
 
 .bookmark-link:hover {
-    background: var(--p-surface-100);
+    background: color-mix(in srgb, currentColor 10%, transparent);
 }
 
 .bookmark-icon {
     font-size: 2rem;
     color: var(--p-primary-color);
+    flex-shrink: 0;
+}
+
+.bookmark-icon-img {
+    width: 2rem;
+    height: 2rem;
+    object-fit: contain;
     flex-shrink: 0;
 }
 

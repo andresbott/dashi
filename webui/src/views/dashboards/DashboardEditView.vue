@@ -14,14 +14,13 @@ import {
     createDashboard as apiCreateDashboard,
     updateDashboard as apiUpdateDashboard,
     deleteDashboard as apiDeleteDashboard,
-    getCustomCSS as apiGetCustomCSS,
-    saveCustomCSS as apiSaveCustomCSS
 } from '@/lib/api/dashboard'
 import { v4 as uuidv4 } from 'uuid'
 import Dialog from 'primevue/dialog'
 import Select from 'primevue/select'
-import Checkbox from 'primevue/checkbox'
-import Textarea from 'primevue/textarea'
+import ColorPicker from 'primevue/colorpicker'
+import { getBackgrounds } from '@/lib/api/dashboard'
+import type { BackgroundOption } from '@/lib/api/dashboard'
 
 const route = useRoute()
 const router = useRouter()
@@ -37,13 +36,106 @@ const themeOptions = computed(() => {
     return themesData.value.map(t => ({ label: t.name, value: t.name }))
 })
 
+const backgroundImageOptions = computed(() => {
+    const groups: { label: string; items: { label: string; value: string }[] }[] = []
+    if (backgroundOptions.value.theme.length > 0) {
+        groups.push({
+            label: 'Theme',
+            items: backgroundOptions.value.theme.map(o => ({ label: o.name, value: o.value })),
+        })
+    }
+    if (backgroundOptions.value.dashboard.length > 0) {
+        groups.push({
+            label: 'Dashboard',
+            items: backgroundOptions.value.dashboard.map(o => ({ label: o.name, value: o.value })),
+        })
+    }
+    return groups
+})
+
+const ensureBackground = () => {
+    if (!localDashboard.value) return
+    if (!localDashboard.value.background) {
+        localDashboard.value.background = { type: 'none', value: '' }
+    }
+}
+
+const backgroundType = computed({
+    get: () => localDashboard.value?.background?.type ?? 'none',
+    set: (v: string) => {
+        ensureBackground()
+        localDashboard.value!.background!.type = v as any
+        if (v === 'gradient') {
+            localDashboard.value!.background!.value = gradientCSS.value
+        } else {
+            localDashboard.value!.background!.value = ''
+        }
+    }
+})
+
+const backgroundValue = computed({
+    get: () => localDashboard.value?.background?.value ?? '',
+    set: (v: string) => {
+        ensureBackground()
+        localDashboard.value!.background!.value = v
+    }
+})
+
+// Gradient editor state
+const gradientDirection = ref('to right')
+const gradientCustomAngle = ref('135')
+const gradientColor1 = ref('#667eea')
+const gradientColor2 = ref('#764ba2')
+
+const gradientDirectionOptions = [
+    { label: 'To Right', value: 'to right' },
+    { label: 'To Left', value: 'to left' },
+    { label: 'To Bottom', value: 'to bottom' },
+    { label: 'To Top', value: 'to top' },
+    { label: 'To Bottom Right', value: 'to bottom right' },
+    { label: 'To Top Right', value: 'to top right' },
+    { label: 'Custom Angle', value: 'custom' },
+]
+
+const gradientDirectionCSS = computed(() => {
+    return gradientDirection.value === 'custom'
+        ? gradientCustomAngle.value + 'deg'
+        : gradientDirection.value
+})
+
+const gradientCSS = computed(() => {
+    return `linear-gradient(${gradientDirectionCSS.value}, ${gradientColor1.value}, ${gradientColor2.value})`
+})
+
+function parseGradientValue(val: string) {
+    const match = val.match(/^linear-gradient\((.+?),\s*(.+?),\s*(.+?)\)$/)
+    if (!match) return
+    const dir = match[1].trim()
+    gradientColor1.value = match[2].trim()
+    gradientColor2.value = match[3].trim()
+    if (dir.endsWith('deg')) {
+        gradientDirection.value = 'custom'
+        gradientCustomAngle.value = dir.replace('deg', '')
+    } else {
+        gradientDirection.value = dir
+    }
+}
+
+function syncGradientToBackground() {
+    backgroundValue.value = gradientCSS.value
+}
+
 const localDashboard = ref<Dashboard | null>(null)
-const customCss = ref('')
+const backgroundOptions = ref<{ theme: BackgroundOption[]; dashboard: BackgroundOption[] }>({ theme: [], dashboard: [] })
 const containerDialogVisible = ref(false)
 const activePageIndex = ref(0)
 
 const dashboardTheme = computed(() => localDashboard.value?.theme || 'default')
 provide('dashboardTheme', dashboardTheme)
+provide('dashboardId', id)
+const editTotalPages = computed(() => localDashboard.value ? localDashboard.value.pages.length : 1)
+provide('activePage', activePageIndex)
+provide('totalPages', editTotalPages)
 const renamePageDialogVisible = ref(false)
 const renamePageIndex = ref(0)
 const renamePageName = ref('')
@@ -51,7 +143,14 @@ const renamePageName = ref('')
 watch(serverDashboard, async (val) => {
     if (val && !localDashboard.value) {
         localDashboard.value = JSON.parse(JSON.stringify(val))
-        customCss.value = await apiGetCustomCSS(val.id)
+        if (val.background?.type === 'gradient' && val.background.value) {
+            parseGradientValue(val.background.value)
+        }
+        try {
+            backgroundOptions.value = await getBackgrounds(val.id)
+        } catch {
+            backgroundOptions.value = { theme: [], dashboard: [] }
+        }
     }
 }, { immediate: true })
 
@@ -161,9 +260,6 @@ const save = async () => {
     if (!localDashboard.value) return
     try {
         await updateDashboard({ id: id.value, payload: localDashboard.value })
-        if (customCss.value.trim()) {
-            await apiSaveCustomCSS(id.value, customCss.value)
-        }
         toast.add({ severity: 'success', summary: 'Saved', detail: 'Dashboard saved successfully', life: 3000 })
     } catch (err) {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to save dashboard', life: 5000 })
@@ -192,6 +288,11 @@ const preview = async () => {
             imageConfig: localDashboard.value.imageConfig
                 ? JSON.parse(JSON.stringify(localDashboard.value.imageConfig))
                 : undefined,
+            theme: localDashboard.value.theme,
+            colorMode: localDashboard.value.colorMode,
+            background: localDashboard.value.background
+                ? JSON.parse(JSON.stringify(localDashboard.value.background))
+                : undefined,
             pages: JSON.parse(JSON.stringify(localDashboard.value.pages))
         }
         if (previewId.value) {
@@ -199,9 +300,6 @@ const preview = async () => {
         } else {
             await apiCreateDashboard(previewPayload)
             previewId.value = prevId
-        }
-        if (customCss.value.trim()) {
-            await apiSaveCustomCSS(prevId, customCss.value)
         }
         const resolved = router.resolve({ name: 'dashboard-view', params: { id: previewId.value! } })
         window.open(resolved.href, '_blank')
@@ -236,6 +334,13 @@ onBeforeUnmount(cleanupPreview)
         <div v-else-if="isError" class="p-4">Failed to load dashboard.</div>
         <template v-else-if="localDashboard">
         <div class="flex align-items-center gap-2 mb-3">
+            <Button
+                icon="ti ti-arrow-left"
+                severity="secondary"
+                text
+                rounded
+                @click="router.push({ name: 'dashboards' })"
+            />
             <span class="text-xl font-bold text-color flex-grow-1">{{ localDashboard.name }}</span>
             <Button
                 icon="ti ti-settings"
@@ -376,6 +481,36 @@ onBeforeUnmount(cleanupPreview)
                     />
                 </div>
                 <div class="flex flex-column gap-1">
+                    <label class="font-semibold text-sm">Color Mode</label>
+                    <Select
+                        :modelValue="localDashboard.colorMode || 'auto'"
+                        @update:modelValue="(v: string) => { localDashboard.colorMode = v as any }"
+                        :options="[
+                            { label: 'Auto', value: 'auto' },
+                            { label: 'Light', value: 'light' },
+                            { label: 'Dark', value: 'dark' },
+                        ]"
+                        optionLabel="label"
+                        optionValue="value"
+                        class="w-full"
+                    />
+                </div>
+                <div class="flex flex-column gap-1">
+                    <label class="font-semibold text-sm">Accent Color</label>
+                    <div class="flex align-items-center gap-2">
+                        <ColorPicker
+                            :modelValue="localDashboard.accentColor?.replace('#', '') || '3B82F6'"
+                            @update:modelValue="(v: string) => { localDashboard.accentColor = '#' + v }"
+                        />
+                        <InputText
+                            :modelValue="localDashboard.accentColor || '#3B82F6'"
+                            @update:modelValue="(v: string) => { localDashboard.accentColor = v }"
+                            class="flex-1"
+                            placeholder="#3B82F6"
+                        />
+                    </div>
+                </div>
+                <div class="flex flex-column gap-1">
                     <label class="font-semibold text-sm">Max Width</label>
                     <InputText v-model="localDashboard.container.maxWidth" placeholder="e.g. 1200px, 80%, 100%" />
                 </div>
@@ -407,20 +542,107 @@ onBeforeUnmount(cleanupPreview)
                         class="w-full"
                     />
                 </div>
-                <div class="flex align-items-center gap-2">
-                    <Checkbox v-model="localDashboard.container.showBoxes" :binary="true" inputId="showBoxes" />
-                    <label for="showBoxes" class="font-semibold text-sm">Show boxes</label>
-                </div>
                 <div class="flex flex-column gap-1">
-                    <label class="font-semibold text-sm">Custom CSS (custom.css)</label>
-                    <Textarea
-                        v-model="customCss"
-                        placeholder="e.g. body { background: #1a1a2e; color: #eee; }"
-                        rows="5"
+                    <label class="font-semibold text-sm">Background</label>
+                    <Select
+                        :modelValue="backgroundType"
+                        @update:modelValue="(v: string) => { backgroundType = v }"
+                        :options="[
+                            { label: 'None', value: 'none' },
+                            { label: 'Image', value: 'image' },
+                            { label: 'Color', value: 'color' },
+                            { label: 'Gradient', value: 'gradient' },
+                        ]"
+                        optionLabel="label"
+                        optionValue="value"
                         class="w-full"
-                        style="font-family: monospace; font-size: 0.8rem;"
                     />
                 </div>
+                <div v-if="backgroundType === 'image'" class="flex flex-column gap-1">
+                    <label class="font-semibold text-sm">Background Image</label>
+                    <Select
+                        :modelValue="backgroundValue"
+                        @update:modelValue="(v: string) => { backgroundValue = v }"
+                        :options="backgroundImageOptions"
+                        optionLabel="label"
+                        optionValue="value"
+                        optionGroupLabel="label"
+                        optionGroupChildren="items"
+                        placeholder="Select an image..."
+                        class="w-full"
+                    />
+                </div>
+                <div v-if="backgroundType === 'color'" class="flex flex-column gap-1">
+                    <label class="font-semibold text-sm">Background Color</label>
+                    <div class="flex align-items-center gap-2">
+                        <ColorPicker
+                            :modelValue="backgroundValue.replace('#', '')"
+                            @update:modelValue="(v: string) => { backgroundValue = '#' + v }"
+                        />
+                        <InputText
+                            :modelValue="backgroundValue"
+                            @update:modelValue="(v: string) => { backgroundValue = v }"
+                            placeholder="#1a1a2e"
+                            class="flex-grow-1"
+                        />
+                    </div>
+                </div>
+                <template v-if="backgroundType === 'gradient'">
+                    <div class="flex flex-column gap-1">
+                        <label class="font-semibold text-sm">Direction</label>
+                        <Select
+                            v-model="gradientDirection"
+                            :options="gradientDirectionOptions"
+                            optionLabel="label"
+                            optionValue="value"
+                            class="w-full"
+                            @update:modelValue="syncGradientToBackground"
+                        />
+                    </div>
+                    <div v-if="gradientDirection === 'custom'" class="flex flex-column gap-1">
+                        <label class="font-semibold text-sm">Angle (degrees)</label>
+                        <InputText
+                            v-model="gradientCustomAngle"
+                            placeholder="135"
+                            class="w-full"
+                            @update:modelValue="syncGradientToBackground"
+                        />
+                    </div>
+                    <div class="flex flex-column gap-1">
+                        <label class="font-semibold text-sm">Start Color</label>
+                        <div class="flex align-items-center gap-2">
+                            <ColorPicker
+                                :modelValue="gradientColor1.replace('#', '')"
+                                @update:modelValue="(v: string) => { gradientColor1 = '#' + v; syncGradientToBackground() }"
+                            />
+                            <InputText
+                                v-model="gradientColor1"
+                                placeholder="#667eea"
+                                class="flex-grow-1"
+                                @update:modelValue="syncGradientToBackground"
+                            />
+                        </div>
+                    </div>
+                    <div class="flex flex-column gap-1">
+                        <label class="font-semibold text-sm">End Color</label>
+                        <div class="flex align-items-center gap-2">
+                            <ColorPicker
+                                :modelValue="gradientColor2.replace('#', '')"
+                                @update:modelValue="(v: string) => { gradientColor2 = '#' + v; syncGradientToBackground() }"
+                            />
+                            <InputText
+                                v-model="gradientColor2"
+                                placeholder="#764ba2"
+                                class="flex-grow-1"
+                                @update:modelValue="syncGradientToBackground"
+                            />
+                        </div>
+                    </div>
+                    <div
+                        class="gradient-preview"
+                        :style="{ background: gradientCSS }"
+                    />
+                </template>
                 <template v-if="localDashboard.type === 'image'">
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Image Width (px)</label>
@@ -516,5 +738,12 @@ onBeforeUnmount(cleanupPreview)
 
 .add-page-btn {
     margin-left: auto;
+}
+
+.gradient-preview {
+    width: 100%;
+    height: 24px;
+    border-radius: 4px;
+    border: 1px solid var(--p-surface-border);
 }
 </style>

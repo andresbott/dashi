@@ -64,6 +64,7 @@ func runServer(configFile string) error {
 		Logger:         l,
 		ProductionMode: cfg.Env.Production,
 		DataDir:        cfg.DataDir,
+		ReadOnly:       cfg.ReadOnly,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create router: %w", err)

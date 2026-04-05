@@ -9,6 +9,8 @@ import (
 type RenderContext struct {
 	Theme       string            // dashboard theme name
 	QueryParams map[string]string // URL query parameters from the HTTP request
+	PageIndex   int               // zero-based index of the current page
+	TotalPages  int               // total number of pages in the dashboard
 }
 
 // StaticRenderer renders a widget's HTML fragment from its JSON config.

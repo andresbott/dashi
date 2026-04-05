@@ -13,10 +13,14 @@ import ClockWidget from '@/components/dashboards/ClockWidget.vue'
 import BookmarkWidgetConfig from '@/components/dashboards/BookmarkWidgetConfig.vue'
 import ClockWidgetConfig from '@/components/dashboards/ClockWidgetConfig.vue'
 import BatteryWidget from '@/components/dashboards/BatteryWidget.vue'
+import SearchWidget from '@/components/dashboards/SearchWidget.vue'
+import SearchWidgetConfig from '@/components/dashboards/SearchWidgetConfig.vue'
+import PageIndicatorWidget from '@/components/dashboards/PageIndicatorWidget.vue'
 import type { Widget } from '@/types/dashboard'
 import type { WeatherWidgetConfig as WeatherWidgetConfigType } from '@/types/weather'
 import type { BookmarkWidgetConfig as BookmarkWidgetConfigType } from '@/types/bookmark'
 import type { ClockWidgetConfig as ClockWidgetConfigType } from '@/types/clock'
+import type { SearchWidgetConfig as SearchWidgetConfigType } from '@/types/search'
 
 const props = defineProps<{
     widget: Widget
@@ -48,6 +52,7 @@ const isWeatherType = computed(() => props.widget.type === 'weather')
 const isWeatherCompactType = computed(() => props.widget.type === 'weather-compact')
 const isBookmarkType = computed(() => props.widget.type === 'bookmark')
 const isClockType = computed(() => props.widget.type === 'clock')
+const isSearchType = computed(() => props.widget.type === 'search')
 
 const bookmarkConfig = computed<BookmarkWidgetConfigType | null>(() => {
     if (props.widget.type !== 'bookmark' || !props.widget.config) return null
@@ -63,12 +68,20 @@ const clockConfig = computed<ClockWidgetConfigType | null>(() => {
 
 const editClockConfig = ref<ClockWidgetConfigType | null>(null)
 
+const searchConfig = computed<SearchWidgetConfigType | null>(() => {
+    if (props.widget.type !== 'search' || !props.widget.config) return null
+    return props.widget.config as unknown as SearchWidgetConfigType
+})
+
+const editSearchConfig = ref<SearchWidgetConfigType | null>(null)
+
 const openSettings = () => {
     editTitle.value = props.widget.title
     editWeatherConfig.value = weatherConfig.value ? { ...weatherConfig.value } : null
     editWeatherCompactConfig.value = weatherCompactConfig.value ? { ...weatherCompactConfig.value } : null
     editBookmarkConfig.value = bookmarkConfig.value ? { ...bookmarkConfig.value } : null
     editClockConfig.value = clockConfig.value ? { ...clockConfig.value } : { hour12: false, showSeconds: true, showDate: true }
+    editSearchConfig.value = searchConfig.value ? { ...searchConfig.value } : { engine: 'google', placeholder: 'Search...' }
     settingsVisible.value = true
 }
 
@@ -82,6 +95,8 @@ const saveSettings = () => {
         updated.config = editBookmarkConfig.value as unknown as Record<string, unknown>
     } else if (isClockType.value && editClockConfig.value) {
         updated.config = editClockConfig.value as unknown as Record<string, unknown>
+    } else if (isSearchType.value && editSearchConfig.value) {
+        updated.config = editSearchConfig.value as unknown as Record<string, unknown>
     }
     emit('update', updated)
     settingsVisible.value = false
@@ -101,6 +116,10 @@ const onUpdateBookmarkConfig = (config: BookmarkWidgetConfigType) => {
 
 const onUpdateClockConfig = (config: ClockWidgetConfigType) => {
     editClockConfig.value = config
+}
+
+const onUpdateSearchConfig = (config: SearchWidgetConfigType) => {
+    editSearchConfig.value = config
 }
 </script>
 
@@ -129,6 +148,8 @@ const onUpdateClockConfig = (config: ClockWidgetConfigType) => {
         <BookmarkWidget v-else-if="widget.type === 'bookmark'" :widget="widget" />
         <ClockWidget v-else-if="widget.type === 'clock'" :widget="widget" />
         <BatteryWidget v-else-if="widget.type === 'battery'" :widget="widget" />
+        <SearchWidget v-else-if="widget.type === 'search'" :widget="widget" />
+        <PageIndicatorWidget v-else-if="widget.type === 'page-indicator'" />
         <WidgetPlaceholder v-else :title="widget.title" />
         <span class="widget-width-label">{{ widget.width }}/12</span>
     </div>
@@ -142,7 +163,7 @@ const onUpdateClockConfig = (config: ClockWidgetConfigType) => {
         style="width: 28rem"
     >
         <div class="flex flex-column gap-3">
-            <div v-if="!isWeatherType && !isWeatherCompactType && !isBookmarkType && !isClockType" class="flex flex-column gap-1">
+            <div v-if="!isWeatherType && !isWeatherCompactType && !isBookmarkType && !isClockType && !isSearchType" class="flex flex-column gap-1">
                 <label class="text-sm font-semibold">Title</label>
                 <InputText v-model="editTitle" placeholder="Widget title" @keydown.enter="saveSettings" />
             </div>
@@ -165,6 +186,11 @@ const onUpdateClockConfig = (config: ClockWidgetConfigType) => {
                 v-if="isClockType"
                 :config="editClockConfig"
                 @update:config="onUpdateClockConfig"
+            />
+            <SearchWidgetConfig
+                v-if="isSearchType"
+                :config="editSearchConfig"
+                @update:config="onUpdateSearchConfig"
             />
         </div>
         <div class="flex justify-content-end gap-3 mt-4">
