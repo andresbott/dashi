@@ -470,6 +470,18 @@ func (s *Store) DeleteAsset(id string, assetPath string) error {
 	return nil
 }
 
+// DashDir returns the filesystem path of the dashboard directory for the given ID.
+func (s *Store) DashDir(id string) (string, error) {
+	if !isValidID(id) {
+		return "", ErrInvalidID
+	}
+	dir := s.dashDir(id)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return "", ErrNotFound
+	}
+	return dir, nil
+}
+
 func (s *Store) ListAssets(id string) ([]string, error) {
 	if !isValidID(id) {
 		return nil, fmt.Errorf("invalid dashboard ID: %s", id)

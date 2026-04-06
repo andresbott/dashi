@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -114,6 +117,58 @@ func (h *DashboardHandler) DeletePreviews(w http.ResponseWriter, r *http.Request
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"deleted": count})
+}
+
+func (h *DashboardHandler) Download(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+	d, err := h.store.Get(id)
+	if err != nil {
+		if errors.Is(err, dashboard.ErrNotFound) || errors.Is(err, dashboard.ErrInvalidID) {
+			ErrorJSON(w, "not found", http.StatusNotFound)
+		} else {
+			h.logger.Error("download dashboard", slog.String("error", err.Error()))
+			ErrorJSON(w, "internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	dashDir, err := h.store.DashDir(id)
+	if err != nil {
+		ErrorJSON(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+d.Name+`.zip"`)
+
+	zw := zip.NewWriter(w)
+	defer func() { _ = zw.Close() }()
+
+	err = filepath.WalkDir(dashDir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(dashDir, path)
+		if err != nil {
+			return err
+		}
+		f, err := zw.Create(rel)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path) //nolint:gosec // path is within the dashboard directory
+		if err != nil {
+			return err
+		}
+		_, err = f.Write(data)
+		return err
+	})
+	if err != nil {
+		h.logger.Error("zip dashboard", slog.String("error", err.Error()))
+	}
 }
 
 func (h *DashboardHandler) ListAssets(w http.ResponseWriter, r *http.Request) {

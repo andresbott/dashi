@@ -8,6 +8,7 @@ import Column from 'primevue/column'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import CreateDashboardDialog from '@/components/dashboards/CreateDashboardDialog.vue'
 import { useListDashboards } from '@/composables/useDashboards'
+import { downloadDashboard } from '@/lib/api/dashboard'
 import dashiIcon from '@/assets/icon-64.png'
 import { useSettings } from '@/composables/useSettings'
 import { useToast } from 'primevue/usetoast'
@@ -71,6 +72,14 @@ const handleDeletePreviews = async () => {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete previews', life: 5000 })
     }
 }
+
+const handleDownload = async (id) => {
+    try {
+        await downloadDashboard(id)
+    } catch (err) {
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to download dashboard', life: 5000 })
+    }
+}
 </script>
 
 <template>
@@ -129,7 +138,7 @@ const handleDeletePreviews = async () => {
                             <i v-if="data.default" class="ti ti-home default-icon" title="Default dashboard" />
                         </template>
                     </Column>
-                    <Column header="Actions" style="width: 150px">
+                    <Column header="Actions" style="width: 180px">
                         <template #body="{ data }">
                             <div class="flex gap-1 justify-content-end">
                                 <Button
@@ -139,6 +148,13 @@ const handleDeletePreviews = async () => {
                                     text
                                     rounded
                                     class="p-1 action-link"
+                                />
+                                <Button
+                                    icon="ti ti-download"
+                                    text
+                                    rounded
+                                    class="p-1"
+                                    @click="handleDownload(data.id)"
                                 />
                                 <Button
                                     v-if="!readOnly"

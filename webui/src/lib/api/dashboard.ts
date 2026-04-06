@@ -42,6 +42,24 @@ export interface BackgroundsResponse {
     dashboard: BackgroundOption[]
 }
 
+export const downloadDashboard = async (id: string): Promise<void> => {
+    const response = await apiClient.get(`${DASHBOARD_PATH}/${id}/download`, {
+        responseType: 'blob',
+    })
+    const disposition = response.headers['content-disposition'] || ''
+    const match = disposition.match(/filename="(.+)"/)
+    const filename = match ? match[1] : `dashboard-${id}.zip`
+
+    const url = URL.createObjectURL(response.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+}
+
 export const getDashboardAssets = async (dashboardId: string): Promise<string[]> => {
     const { data } = await apiClient.get<{ items: string[] }>(`${DASHBOARD_PATH}/${dashboardId}/assets`)
     return data.items ?? []
