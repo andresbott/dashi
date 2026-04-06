@@ -41,5 +41,8 @@ checksum:
 snapshot:
   version_template: "{{ incpatch .Version }}-snapshot"
 
+changelog:
+  disable: true
+
 release:
   mode: append

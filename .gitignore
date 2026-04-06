@@ -30,6 +30,9 @@ dist/
 # Node modules
 webui/node_modules/
 
+# Vite dependency cache
+webui/.vite/
+
 # SPA
 app/spa/files/ui/*
 !app/spa/files/ui/.gitkeep

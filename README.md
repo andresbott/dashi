@@ -1,4 +1,4 @@
-<img src="zarf/icon/favicon.svg" align="left" width="128" height="128" style="margin-right: 40px;" />
+<img src="zarf/icon/favicon.svg" align="left" width="40" height="40" style="margin-right: 22px;" />
 
 # Dashi
 
