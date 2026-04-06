@@ -7,10 +7,10 @@ No database required -- all configuration and assets are stored as plain files o
 ## Screenshots
 
 <p>
-  <img src="zarf/sreenshots/screenshot.jpg" alt="Dashboard" width="400" />
-  <img src="zarf/sreenshots/e-ink.jpg" alt="E-ink rendering" width="400" />
-  <img src="zarf/sreenshots/editor_list.jpg" alt="Dashboard list" width="400" />
-  <img src="zarf/sreenshots/editor.jpg" alt="Visual editor" width="400" />
+  <a href="zarf/sreenshots/editor_list.jpg"><img src="zarf/sreenshots/thumb_editor_list.jpg" alt="Dashboard list" /></a>
+  <a href="zarf/sreenshots/editor.jpg"><img src="zarf/sreenshots/thumb_editor.jpg" alt="Visual editor" /></a>
+  <a href="zarf/sreenshots/screenshot.jpg"><img src="zarf/sreenshots/thumb_screenshot.jpg" alt="Dashboard" /></a>
+  <a href="zarf/sreenshots/e-ink.jpg"><img src="zarf/sreenshots/thumb_e-ink.jpg" alt="E-ink rendering" /></a>
 </p>
 
 ## Quick Start
