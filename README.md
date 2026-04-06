@@ -9,7 +9,7 @@ No database required -- all configuration and assets are stored as plain files o
 <p>
   <a href="zarf/sreenshots/editor_list.jpg"><img src="zarf/sreenshots/thumb_editor_list.jpg" alt="Dashboard list" /></a>
   <a href="zarf/sreenshots/editor.jpg"><img src="zarf/sreenshots/thumb_editor.jpg" alt="Visual editor" /></a>
-  <a href="zarf/sreenshots/screenshot.jpg"><img src="zarf/sreenshots/thumb_screenshot.jpg" alt="Dashboard" /></a>
+  <a href="zarf/sreenshots/dashboard.jpg"><img src="zarf/sreenshots/thumb_dashboard.jpg" alt="Dashboard" /></a>
   <a href="zarf/sreenshots/e-ink.jpg"><img src="zarf/sreenshots/thumb_e-ink.jpg" alt="E-ink rendering" /></a>
 </p>
 
