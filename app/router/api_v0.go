@@ -47,6 +47,7 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router, dashStore *dashboard.Store, 
 	r.Path("/dashboards/{id}").Methods(http.MethodGet).HandlerFunc(dh.Get)
 	r.Path("/dashboards/{id}").Methods(http.MethodPut).HandlerFunc(readOnlyGuard(dh.Update))
 	r.Path("/dashboards/{id}").Methods(http.MethodDelete).HandlerFunc(readOnlyGuard(dh.Delete))
+	r.Path("/dashboards/{id}/download").Methods(http.MethodGet).HandlerFunc(dh.Download)
 
 	// Dashboard asset routes
 	r.Path("/dashboards/{id}/assets").Methods(http.MethodGet).HandlerFunc(dh.ListAssets)
