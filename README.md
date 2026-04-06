@@ -4,7 +4,14 @@ A self-hosted personal landing page with a built-in visual editor, theme support
 and server-side PNG rendering for e-ink displays and home dashboards.
 No database required -- all configuration and assets are stored as plain files on disk.
 
-![Dashi screenshot](zarf/screenshot.jpg)
+## Screenshots
+
+<p>
+  <img src="zarf/sreenshots/screenshot.jpg" alt="Dashboard" width="400" />
+  <img src="zarf/sreenshots/e-ink.jpg" alt="E-ink rendering" width="400" />
+  <img src="zarf/sreenshots/editor_list.jpg" alt="Dashboard list" width="400" />
+  <img src="zarf/sreenshots/editor.jpg" alt="Visual editor" width="400" />
+</p>
 
 ## Quick Start
 
