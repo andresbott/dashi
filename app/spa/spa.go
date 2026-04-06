@@ -1,0 +1,18 @@
+package spa
+
+import (
+	"embed"
+	handlers "github.com/go-bumbu/http/handlers/spa"
+	"net/http"
+)
+
+//go:embed all:files/ui
+var UiFiles embed.FS
+
+func App(path string) (http.Handler, error) {
+	return handlers.NewSpaHAndler(
+		UiFiles,
+		"files/ui",
+		path,
+	)
+}

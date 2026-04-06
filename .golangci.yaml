@@ -1,0 +1,70 @@
+version: "2"
+linters:
+  default: standard # errcheck,govet,ineffassign,staticcheck,unused
+  enable:
+    - nolintlint
+    - gocyclo
+    - nestif
+    - gosec
+    - dupl
+
+  exclusions:
+    rules:
+      - path: '(.+)_test\.go'
+        linters:
+          - noop
+          - nestif
+          - dupl
+          - gosec
+      # G203: template.HTML from trusted Go template output is by design
+      - linters:
+          - gosec
+        text: "G203:"
+        path: 'internal/widgets/'
+      - linters:
+          - gosec
+        text: "G203:"
+        path: 'internal/dashboard/static/'
+      # G304: file reads by constructed path are required for file-based stores
+      - linters:
+          - gosec
+        text: "G304:"
+        path: 'internal/'
+      # G602: false positive on loop-bounded slice access
+      - linters:
+          - gosec
+        text: "G602:"
+        path: 'internal/dashboard/image/'
+      - linters:
+          - gosec
+        text: "G304:"
+        path: 'app/router/middleware_static\.go'
+      # Vendored third-party code
+      - path: 'webui/node_modules/'
+        linters:
+          - gocyclo
+          - nestif
+          - gosec
+          - errcheck
+          - govet
+          - staticcheck
+          - unused
+
+  settings:
+    nolintlint:
+      allow-no-explanation: []
+      require-explanation: true
+      require-specific: true
+    gocyclo:
+      min-complexity: 20  # Default: 30 (but we recommend 10-20)
+    gocognit:
+      min-complexity: 20  # Default: 30 (but we recommend 10-20)
+    nestif:
+      min-complexity: 5   # Default: 5
+
+
+output:
+  sort-order:
+    - file
+    - severity
+    - linter

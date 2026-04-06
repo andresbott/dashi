@@ -1,0 +1,42 @@
+<div class="widget-transport">
+    {{if not .Configured}}
+    <div class="transport-empty">Set a stop in edit mode</div>
+    {{else}}
+    <div class="transport-station">{{.StationName}}</div>
+    {{if not .Departures}}
+    <div class="transport-empty">No departures</div>
+    {{else}}
+    <div class="transport-board">
+        {{range .Departures}}
+        <div class="transport-row">
+            {{if $.IconFontFamily}}<span class="transport-icon" style="font-family: '{{$.IconFontFamily}}'; font-size: 1.1em;">{{.Icon}}</span>{{end}}
+            <span class="transport-line">{{.Number}}</span>
+            <span class="transport-dest">{{.Destination}}</span>
+            <span class="transport-mins">{{.TimeLabel}}</span>
+            {{if .Platform}}<span class="transport-platform">{{.Platform}}</span>{{end}}
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+    {{end}}
+</div>
+<style>
+    .widget-transport { padding: 8px; }
+    .transport-empty { color: #999; text-align: center; padding: 16px; }
+    .transport-station { font-weight: 700; font-size: 0.9em; text-align: center; margin-bottom: 8px; }
+    .transport-board { display: flex; flex-direction: column; }
+    .transport-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 0;
+        border-bottom: 1px solid #eee;
+        font-size: 0.85em;
+    }
+    .transport-row:last-child { border-bottom: none; }
+    .transport-icon { flex-shrink: 0; width: 1.2em; text-align: center; color: #888; margin-right: 4px; }
+    .transport-line { font-weight: 700; width: 2.5em; flex-shrink: 0; text-align: left; margin-right: 6px; }
+    .transport-dest { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: 4px; }
+    .transport-mins { font-weight: 700; text-align: right; min-width: 2.5em; flex-shrink: 0; }
+    .transport-platform { font-size: 0.8em; color: #999; min-width: 1.5em; text-align: center; flex-shrink: 0; }
+</style>

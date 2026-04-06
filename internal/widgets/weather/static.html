@@ -1,0 +1,255 @@
+<style>
+    .widget-weather .weather-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+    }
+    .widget-weather .weather-header > * {
+        margin-right: 8px;
+        margin-bottom: 4px;
+    }
+    .widget-weather .weather-city {
+        font-weight: 600;
+    }
+    .widget-weather .weather-temp {
+        font-size: 1.4em;
+        font-weight: 600;
+    }
+    .widget-weather .weather-desc {
+        color: #666;
+    }
+    .widget-weather .weather-details {
+        display: flex;
+        margin-top: 8px;
+        font-size: 0.9em;
+        color: #666;
+    }
+    .widget-weather .weather-details > * + * {
+        margin-left: 12px;
+    }
+    {{if not .Compact}}
+    .widget-weather .weather-forecast-boxes {
+        display: flex;
+        justify-content: space-between;
+    }
+    .widget-weather .weather-forecast-boxes > * + * {
+        margin-left: 8px;
+    }
+    .widget-weather .forecast-box {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 8px 6px;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        flex: 1;
+        min-width: 0;
+    }
+    .widget-weather .forecast-box > * + * {
+        margin-top: 4px;
+    }
+    .widget-weather .forecast-box-day {
+        font-weight: 600;
+        font-size: 0.85em;
+    }
+    .widget-weather .forecast-box-icon {
+        font-size: 1.4em;
+    }
+    .widget-weather .forecast-box-temps {
+        font-size: 0.8em;
+        color: #666;
+        white-space: nowrap;
+    }
+    .widget-weather .weather-hourly-boxes {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+    .widget-weather .weather-hourly-boxes > * + * {
+        margin-left: 8px;
+    }
+    .widget-weather .hourly-box {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 8px 6px;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        flex: 1;
+        min-width: 0;
+    }
+    .widget-weather .hourly-box > * + * {
+        margin-top: 4px;
+    }
+    .widget-weather .hourly-box-time {
+        font-weight: 600;
+        font-size: 0.85em;
+    }
+    .widget-weather .hourly-box-icon {
+        font-size: 1.4em;
+    }
+    .widget-weather .hourly-box-temp {
+        font-size: 0.8em;
+        color: #666;
+        white-space: nowrap;
+    }
+    .widget-weather .weather-extra-info {
+        display: flex;
+        flex-wrap: wrap;
+        margin: 8px 0;
+    }
+    .widget-weather .weather-extra-info > * {
+        margin-right: 8px;
+        margin-bottom: 8px;
+    }
+    .widget-weather .extra-info-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 70px;
+        flex: 1;
+    }
+    .widget-weather .extra-info-item > * + * {
+        margin-top: 2px;
+    }
+    .widget-weather .extra-info-title {
+        font-size: 0.7em;
+        color: #666;
+    }
+    .widget-weather .extra-info-value {
+        font-size: 0.85em;
+        font-weight: 600;
+    }
+    .widget-weather .weather-graph-container {
+        margin: 8px 0;
+    }
+    .widget-weather .weather-graph-top {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.8em;
+        margin-bottom: 2px;
+    }
+    .widget-weather .weather-graph-img img {
+        width: 100%;
+        display: block;
+    }
+    .widget-weather .weather-graph-bottom {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.75em;
+        margin-top: 2px;
+    }
+    {{end}}
+    .widget-weather .weather-compact {
+        display: flex;
+        align-items: center;
+    }
+    .widget-weather .weather-compact > * + * {
+        margin-left: 12px;
+    }
+    .widget-weather .weather-compact-icon {
+        font-size: 2.5em;
+    }
+    .widget-weather .weather-compact-city {
+        font-weight: 600;
+    }
+    .widget-weather .weather-compact-temp {
+        font-size: 1.25em;
+        font-weight: 700;
+    }
+    .widget-weather .weather-compact-feels {
+        font-size: 0.875em;
+        color: #666;
+    }
+    .widget-weather .weather-compact-desc {
+        font-size: 0.875em;
+        color: #666;
+    }
+</style>
+<div class="widget-weather">
+    {{if .Compact}}
+    <div class="weather-compact" style="justify-content: {{if eq .CompactAlign "center"}}center{{else if eq .CompactAlign "right"}}flex-end{{else}}flex-start{{end}}">
+        <span class="weather-compact-icon">{{.IconHTML}}</span>
+        <div>
+            <div>
+                {{if .CompactCity}}<span class="weather-compact-city">{{.City}}</span>{{end}}
+                <span class="weather-compact-temp">{{printf "%.1f" .Temperature}}<span class="weather-compact-unit">&deg;C</span></span>
+            </div>
+            {{if .CompactFeelsLike}}<div class="weather-compact-feels">Feels like {{printf "%.1f" .FeelsLike}}&deg;</div>{{end}}
+            {{if .CompactDescription}}<div class="weather-compact-desc">{{.Description}}</div>{{end}}
+        </div>
+    </div>
+    {{else}}
+    {{if .ShowCurrent}}
+    <div class="weather-header">
+        <span class="weather-city">{{.City}}</span>
+        <span class="weather-temp">{{printf "%.1f" .Temperature}}&deg;C</span>
+        <span class="weather-desc">{{.Description}}</span>
+    </div>
+    {{end}}
+    {{if .ShowDetails}}
+    <div class="weather-details">
+        <span>Feels like {{printf "%.1f" .FeelsLike}}&deg;C</span>
+        <span>Humidity {{.Humidity}}%</span>
+        <span>Wind {{printf "%.1f" .WindSpeed}} km/h</span>
+    </div>
+    {{end}}
+    {{if .ExtraInfo}}
+    <div class="weather-extra-info">
+        {{range .ExtraInfo}}
+        <div class="extra-info-item">
+            {{.IconHTML}}
+            <span class="extra-info-title">{{.Title}}</span>
+            <span class="extra-info-value">{{.Value}}</span>
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+    {{if .ShowGraph}}
+    <div class="weather-graph-container">
+        {{if or .GraphShowTemp .GraphShowRain}}
+        <div class="weather-graph-top">
+            <span>{{if .GraphShowTemp}}{{.GraphTempMax}}{{end}}</span>
+            <span>{{if .GraphShowRain}}100%{{end}}</span>
+        </div>
+        {{end}}
+        <div class="weather-graph-img">
+            <img src="data:image/png;base64,{{.GraphImage}}" alt="forecast graph">
+        </div>
+        {{if or .GraphShowTemp .GraphShowRain}}
+        <div class="weather-graph-top">
+            <span>{{if .GraphShowTemp}}{{.GraphTempMin}}{{end}}</span>
+            <span>{{if .GraphShowRain}}0%{{end}}</span>
+        </div>
+        {{end}}
+        <div class="weather-graph-bottom">
+            {{range .GraphTimeLabels}}
+            <span>{{.}}</span>
+            {{end}}
+        </div>
+    </div>
+    {{end}}
+    {{if .ShowHourly}}
+    <div class="weather-hourly-boxes">
+        {{range .Hourly}}
+        <div class="hourly-box">
+            <span class="hourly-box-time">{{.Time}}</span>
+            <span class="hourly-box-icon">{{.IconHTML}}</span>
+            <span class="hourly-box-temp">{{printf "%.0f" .Temperature}}&deg;</span>
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+    {{if .ShowForecast}}
+    <div class="weather-forecast-boxes">
+        {{range .Forecast}}
+        <div class="forecast-box">
+            <span class="forecast-box-day">{{.DayName}}</span>
+            <span class="forecast-box-icon">{{.IconHTML}}</span>
+            <span class="forecast-box-temps">{{printf "%.0f" .TempMin}}&deg; / {{printf "%.0f" .TempMax}}&deg;</span>
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+    {{end}}
+</div>

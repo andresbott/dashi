@@ -1,0 +1,26 @@
+<div class="widget-sysinfo">
+    {{range .Disks}}
+    <div class="sysinfo-item">
+        <span class="sysinfo-label">{{.Mountpoint}}</span>
+        <div class="sysinfo-bar">
+            <div class="sysinfo-bar-fill" style="width: {{printf "%.0f" .UsedPct}}%"></div>
+        </div>
+        <span class="sysinfo-value">{{.FreeHuman}} free / {{.TotalHuman}}</span>
+    </div>
+    {{end}}
+    {{if .ShowMemory}}
+    <div class="sysinfo-item">
+        <span class="sysinfo-label">Memory</span>
+        <div class="sysinfo-bar">
+            <div class="sysinfo-bar-fill" style="width: {{printf "%.0f" .MemUsedPct}}%"></div>
+        </div>
+        <span class="sysinfo-value">{{.MemUsedHuman}} / {{.MemTotalHuman}}</span>
+    </div>
+    {{end}}
+    {{if .ShowUptime}}
+    <div class="sysinfo-item">
+        <span class="sysinfo-label">Uptime</span>
+        <span class="sysinfo-value">{{.UptimeHuman}}</span>
+    </div>
+    {{end}}
+</div>

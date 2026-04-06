@@ -1,0 +1,4 @@
+<div class="widget-clock" style="text-align: center;">
+    <span class="clock-time"{{if .Font}} style="font-family: '{{.Font}}';"{{end}}>{{.Time}}</span>
+    {{if .ShowDate}}<span class="clock-date">{{.Date}}</span>{{end}}
+</div>
