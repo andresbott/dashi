@@ -3,6 +3,7 @@ package sysinfo
 import (
 	"context"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -12,6 +13,14 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/sensors"
+)
+
+const cacheTTL = 30 * time.Second
+
+var (
+	cacheMu    sync.Mutex
+	cachedInfo SystemInfo
+	cachedAt   time.Time
 )
 
 type DiskInfo struct {
@@ -98,6 +107,28 @@ func getDisks() []DiskInfo {
 }
 
 func Get() (SystemInfo, error) {
+	cacheMu.Lock()
+	if time.Since(cachedAt) < cacheTTL {
+		info := cachedInfo
+		cacheMu.Unlock()
+		return info, nil
+	}
+	cacheMu.Unlock()
+
+	info, err := collect()
+	if err != nil {
+		return info, err
+	}
+
+	cacheMu.Lock()
+	cachedInfo = info
+	cachedAt = time.Now()
+	cacheMu.Unlock()
+
+	return info, nil
+}
+
+func collect() (SystemInfo, error) {
 	var info SystemInfo
 
 	info.Disks = getDisks()
