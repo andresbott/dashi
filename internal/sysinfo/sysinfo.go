@@ -57,19 +57,35 @@ type SystemInfo struct {
 	NumProcesses  uint64         `json:"numProcesses"`
 }
 
-func Get() (SystemInfo, error) {
-	var info SystemInfo
-
-	partitions, err := disk.Partitions(false)
-	if err != nil {
-		return info, err
+// isVirtualFS returns true for pseudo/virtual filesystem types that should
+// not appear as disk partitions in the system info.
+func isVirtualFS(fstype string) bool {
+	switch fstype {
+	case "sysfs", "proc", "devtmpfs", "devpts", "tmpfs", "securityfs",
+		"cgroup", "cgroup2", "pstore", "debugfs", "hugetlbfs", "mqueue",
+		"configfs", "fusectl", "binfmt_misc", "autofs", "efivarfs",
+		"bpf", "tracefs", "overlay", "nsfs", "ramfs", "rpc_pipefs",
+		"nfsd", "fuse.gvfsd-fuse", "fuse.portal":
+		return true
 	}
+	return false
+}
+
+func getDisks() []DiskInfo {
+	partitions, err := disk.Partitions(true)
+	if err != nil {
+		return nil
+	}
+	var disks []DiskInfo
 	for _, p := range partitions {
+		if isVirtualFS(p.Fstype) {
+			continue
+		}
 		usage, err := disk.Usage(p.Mountpoint)
 		if err != nil {
 			continue
 		}
-		info.Disks = append(info.Disks, DiskInfo{
+		disks = append(disks, DiskInfo{
 			Mountpoint: p.Mountpoint,
 			Device:     p.Device,
 			Total:      usage.Total,
@@ -78,6 +94,13 @@ func Get() (SystemInfo, error) {
 			Fstype:     p.Fstype,
 		})
 	}
+	return disks
+}
+
+func Get() (SystemInfo, error) {
+	var info SystemInfo
+
+	info.Disks = getDisks()
 
 	// Memory
 	v, err := mem.VirtualMemory()
