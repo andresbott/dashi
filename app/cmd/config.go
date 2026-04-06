@@ -10,7 +10,7 @@ import (
 
 type AppCfg struct {
 	Server   serverCfg
-	Obs      serverCfg `config:"Observability"`
+	Obs      obsCfg    `config:"Observability"`
 	Auth     authConfig
 	Env      Env
 	Msgs     []Msg
@@ -35,6 +35,19 @@ func (c serverCfg) Addr() string {
 	return c.BindIp + ":" + strconv.Itoa(c.Port)
 }
 
+type obsCfg struct {
+	Enabled bool
+	BindIp  string
+	Port    int
+}
+
+func (c obsCfg) Addr() string {
+	if c.BindIp == "" {
+		return ":" + strconv.Itoa(c.Port)
+	}
+	return c.BindIp + ":" + strconv.Itoa(c.Port)
+}
+
 type authConfig struct {
 	Enabled     bool
 	DefaultUser string `config:"DefaultUser"`
@@ -46,9 +59,10 @@ var defaultCfg = AppCfg{
 		BindIp: "",
 		Port:   8087,
 	},
-	Obs: serverCfg{
-		BindIp: "",
-		Port:   9092,
+	Obs: obsCfg{
+		Enabled: false,
+		BindIp:  "",
+		Port:    9090,
 	},
 	Auth: authConfig{
 		Enabled:     false,
