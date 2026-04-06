@@ -27,6 +27,9 @@ dist/
 # application data
 /data
 
+# Node modules
+webui/node_modules/
+
 # SPA
 app/spa/files/ui/*
 !app/spa/files/ui/.gitkeep
