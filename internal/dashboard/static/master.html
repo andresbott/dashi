@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{.Name}}</title>
+    <style>
+        * { margin: 0; padding: 0; }
+        body {
+            font-family: {{if .FontFamily}}'{{.FontFamily}}', {{end}}-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: {{if .BackgroundCSS}}{{.BackgroundCSS}}{{else}}{{if .IsDark}}#1a1a2e{{else}}#fff{{end}}{{end}};
+            color: {{if .IsDark}}#e0e0e0{{else}}#333{{end}};
+        }
+        .container {
+            width: 100%;
+            max-width: {{.MaxWidth}};
+        }
+        .row {
+            margin-bottom: 16px;
+        }
+        .row-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 8px;
+            padding: 4px 0;
+        }
+        .row-grid {
+            overflow: hidden;
+            margin: auto;
+        }
+        .widget-cell {
+            float: left;
+        }
+        .widget-placeholder {
+            min-height: 20px;
+        }
+        .widget-clock .clock-time {
+            font-size: 1.8em;
+            font-weight: 600;
+        }
+        .widget-clock .clock-date {
+            display: block;
+            font-size: 0.9em;
+            color: {{if .IsDark}}#999{{else}}#666{{end}};
+            margin-top: 4px;
+        }
+        .widget-bookmark .bookmark-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+        .widget-bookmark .bookmark-title {
+            font-weight: 600;
+            display: block;
+        }
+        .widget-bookmark .bookmark-subtitle {
+            font-size: 0.85em;
+            color: {{if .IsDark}}#999{{else}}#666{{end}};
+            display: block;
+            margin-top: 2px;
+        }
+        .widget-page-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+        }
+        .widget-page-indicator .dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 2px solid {{if .IsDark}}#999{{else}}#666{{end}};
+            margin: 0 4px;
+        }
+        .widget-page-indicator .dot.active {
+            background: {{if .IsDark}}#999{{else}}#666{{end}};
+        }
+    </style>
+    {{if .CustomCSS}}<style>{{.CustomCSS}}</style>{{end}}
+</head>
+<body>
+    <div class="container">
+        {{- range .Rows}}
+        <div class="row"{{if .Height}} style="height: {{.Height}}"{{end}}>
+            {{if .Title}}<h2 class="row-title">{{.Title}}</h2>{{end}}
+            <div class="row-grid"{{if .Width}} style="width: {{.Width}}"{{end}}>
+                {{range .Widgets}}
+                <div class="widget-cell" style="width: {{printf "%.4f" .WidthPercent}}%{{if .DebugColor}}; background: {{.DebugColor}}{{end}}">
+                    {{.HTML}}
+                </div>
+                {{end}}
+            </div>
+        </div>
+        {{- end}}
+    </div>
+</body>
+</html>

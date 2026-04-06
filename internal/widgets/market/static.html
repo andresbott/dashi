@@ -1,0 +1,39 @@
+<div class="widget-market">
+{{if not .Configured}}
+    <div class="widget-market-empty">No symbol configured</div>
+{{else}}
+    <div class="widget-market-header">
+        <div class="market-symbol">{{.Symbol}}</div>
+        <div class="market-name">{{.Name}}</div>
+    </div>
+    <div class="market-price-row">
+        <span class="market-price">{{.PriceFormatted}}</span>
+        {{if .ShowChange}}
+        <span class="market-change" style="color: {{.ChangeColor}}">
+            {{.ChangeFormatted}} ({{.ChangePercentFormatted}})
+        </span>
+        {{end}}
+    </div>
+    {{if .ShowChart}}
+    <div class="market-chart">
+        <img src="data:image/png;base64,{{.ChartImage}}" style="width:100%;height:auto;" />
+    </div>
+    {{end}}
+    <div class="market-footer">
+        <span class="market-currency">{{.Currency}}</span>
+        <span class="market-range">{{.RangeLabel}}</span>
+    </div>
+{{end}}
+</div>
+<style>
+    .widget-market { padding: 8px; }
+    .widget-market-empty { color: #999; text-align: center; padding: 16px; }
+    .widget-market-header { margin-bottom: 4px; }
+    .market-symbol { font-weight: 700; font-size: 1.1em; }
+    .market-name { font-size: 0.8em; color: #666; }
+    .market-price-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+    .market-price { font-size: 1.5em; font-weight: 700; }
+    .market-change { font-size: 0.9em; font-weight: 600; }
+    .market-chart { margin: 4px 0; }
+    .market-footer { display: flex; justify-content: space-between; font-size: 0.75em; color: #999; }
+</style>

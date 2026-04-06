@@ -12,7 +12,7 @@
 *.cover.out
 coverage.out
 *.report
-*.html
+coverage.html
 
 
 # IDE shenanigans

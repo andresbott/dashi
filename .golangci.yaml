@@ -1,8 +1,4 @@
 version: "2"
-run:
-  skip-dirs:
-    - webui/node_modules
-
 linters:
   default: standard # errcheck,govet,ineffassign,staticcheck,unused
   enable:
