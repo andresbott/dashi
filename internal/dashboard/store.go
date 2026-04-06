@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"unicode"
@@ -270,12 +271,16 @@ func (s *Store) List() ([]DashboardMeta, error) {
 			continue
 		}
 		result = append(result, DashboardMeta{
-			ID:   d.ID,
-			Name: d.Name,
-			Icon: d.Icon,
-			Type: d.Type,
+			ID:      d.ID,
+			Name:    d.Name,
+			Icon:    d.Icon,
+			Type:    d.Type,
+			Default: d.Default,
 		})
 	}
+	sort.Slice(result, func(i, j int) bool {
+		return strings.ToLower(result[i].Name) < strings.ToLower(result[j].Name)
+	})
 	return result, nil
 }
 

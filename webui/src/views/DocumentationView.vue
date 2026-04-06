@@ -73,7 +73,7 @@ function scrollTo(routeName: string, id: string) {
 <template>
     <header class="app-topbar">
         <img :src="dashiIcon" alt="Dashi" class="app-topbar-icon" />
-        <span class="app-topbar-title" @click="router.push('/')">Dashi</span>
+        <span class="app-topbar-title" @click="router.push('/dashboards')">Dashi</span>
     </header>
     <div class="documentation-view">
         <div class="flex align-items-center justify-content-between mb-4">

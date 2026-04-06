@@ -45,6 +45,7 @@ export interface Dashboard {
     name: string
     icon: string
     type: DashboardType
+    default?: boolean
     container: Container
     imageConfig?: ImageConfig
     theme?: string
@@ -59,6 +60,7 @@ export interface DashboardMeta {
     name: string
     icon: string
     type: DashboardType
+    default?: boolean
 }
 
 export interface CreateDashboardDTO {

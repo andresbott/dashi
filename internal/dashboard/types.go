@@ -34,6 +34,7 @@ type Dashboard struct {
 	Name        string       `json:"name"`
 	Icon        string       `json:"icon"`
 	Type        string       `json:"type"`
+	Default     bool         `json:"default,omitempty"`
 	Container   Container    `json:"container"`
 	ImageConfig *ImageConfig `json:"imageConfig,omitempty"`
 	Theme       string       `json:"theme,omitempty"`
@@ -45,10 +46,11 @@ type Dashboard struct {
 
 // DashboardMeta is the lightweight listing representation (no rows).
 type DashboardMeta struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Icon string `json:"icon"`
-	Type string `json:"type"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Icon    string `json:"icon"`
+	Type    string `json:"type"`
+	Default bool   `json:"default,omitempty"`
 }
 
 // Row represents a horizontal section of the dashboard.
