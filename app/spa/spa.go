@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-//go:embed files/ui/*
+//go:embed all:files/ui
 var UiFiles embed.FS
 
 func App(path string) (http.Handler, error) {
