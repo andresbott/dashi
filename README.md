@@ -1,7 +1,4 @@
-<table><tr>
-<td><img src="zarf/icon/favicon.svg" width="40" height="40" /></td>
-<td><h1>Dashi</h1></td>
-</tr></table>
+# <img src="zarf/icon/favicon.svg" width="32" height="32" /> Dashi
 
 A self-hosted personal landing page with a built-in visual editor, theme support,
 and server-side PNG rendering for e-ink displays and home dashboards.
