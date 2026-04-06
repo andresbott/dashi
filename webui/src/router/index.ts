@@ -1,13 +1,30 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { queryClient } from '@/lib/queryClient'
 import { getSettings } from '@/lib/api/settings'
+import { getDashboards } from '@/lib/api/dashboard'
 
 const router = createRouter({
     history: createWebHistory('/'),
     routes: [
         {
             path: '/',
-            redirect: '/dashboards'
+            async beforeEnter() {
+                try {
+                    const dashboards = await queryClient.fetchQuery({
+                        queryKey: ['dashboards'],
+                        queryFn: getDashboards,
+                    })
+                    if (dashboards.length > 0) {
+                        const target = dashboards.find(d => d.default) ?? dashboards[0]
+                        return { name: 'dashboard-view', params: { id: target.id } }
+                    }
+                } catch {
+                    // fall through to dashboards list on error
+                }
+                return { name: 'dashboards' }
+            },
+            // component required by Vue Router for beforeEnter; never rendered
+            component: { render: () => null },
         },
         {
             path: '/dashboards',

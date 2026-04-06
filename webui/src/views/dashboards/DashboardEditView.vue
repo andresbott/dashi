@@ -16,6 +16,7 @@ import Dialog from 'primevue/dialog'
 import dashiIcon from '@/assets/icon-64.png'
 import Select from 'primevue/select'
 import ColorPicker from 'primevue/colorpicker'
+import Checkbox from 'primevue/checkbox'
 import type { BackgroundOption } from '@/lib/api/dashboard'
 
 const route = useRoute()
@@ -322,7 +323,7 @@ onBeforeUnmount(cleanupPreview)
 <template>
     <header class="app-topbar">
         <img :src="dashiIcon" alt="Dashi" class="app-topbar-icon" />
-        <span class="app-topbar-title" @click="router.push('/')">Dashi</span>
+        <span class="app-topbar-title" @click="router.push('/dashboards')">Dashi</span>
     </header>
     <div class="dashboard-edit-view">
         <div v-if="isLoading" class="p-4">Loading...</div>
@@ -450,6 +451,10 @@ onBeforeUnmount(cleanupPreview)
                 <div class="flex flex-column gap-1">
                     <label class="font-semibold text-sm">Name</label>
                     <InputText v-model="localDashboard.name" placeholder="Dashboard name" />
+                </div>
+                <div class="flex align-items-center gap-2">
+                    <Checkbox v-model="localDashboard.default" :binary="true" inputId="dashboardDefault" />
+                    <label for="dashboardDefault" class="font-semibold text-sm">Default dashboard</label>
                 </div>
                 <div class="flex flex-column gap-1">
                     <label class="font-semibold text-sm">Type</label>

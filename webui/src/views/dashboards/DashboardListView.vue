@@ -76,7 +76,7 @@ const handleDeletePreviews = async () => {
 <template>
     <header class="app-topbar">
         <img :src="dashiIcon" alt="Dashi" class="app-topbar-icon" />
-        <span class="app-topbar-title" @click="router.push('/')">Dashi</span>
+        <span class="app-topbar-title" @click="router.push('/dashboards')">Dashi</span>
     </header>
     <div class="dashboard-list-view">
         <div class="flex align-items-center justify-content-between mb-4">
@@ -96,6 +96,7 @@ const handleDeletePreviews = async () => {
                     :loading="isDeletingPreviews"
                     @click="handleDeletePreviews"
                 />
+                <span v-if="readOnly" class="read-only-badge">Read-only mode</span>
                 <Button
                     v-if="!readOnly"
                     label="New Dashboard"
@@ -122,7 +123,12 @@ const handleDeletePreviews = async () => {
                     class="p-datatable-sm"
                     stripedRows
                 >
-                    <Column field="name" header="Name" />
+                    <Column field="name" header="Name">
+                        <template #body="{ data }">
+                            <span>{{ data.name }}</span>
+                            <i v-if="data.default" class="ti ti-home default-icon" title="Default dashboard" />
+                        </template>
+                    </Column>
                     <Column header="Actions" style="width: 150px">
                         <template #body="{ data }">
                             <div class="flex gap-1 justify-content-end">
@@ -190,5 +196,17 @@ const handleDeletePreviews = async () => {
 
 .action-link {
     text-decoration: none;
+}
+
+.default-icon {
+    margin-left: 0.5rem;
+    color: var(--p-primary-color);
+    font-size: 1rem;
+}
+
+.read-only-badge {
+    color: var(--p-text-muted-color);
+    font-size: 0.875rem;
+    font-style: italic;
 }
 </style>

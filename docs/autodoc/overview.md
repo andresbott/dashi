@@ -41,11 +41,20 @@ dashi/
       lib/widgetRegistry.ts  Frontend widget registry (component + config + metadata)
       types/                 TypeScript interfaces
       store/                 Pinia stores (minimal UI state)
-      router/                Vue Router (/, /dashboards, /:id, /dashboards/:id/edit)
+      router/                Vue Router (/ → first dashboard or list, /dashboards, /:id, /dashboards/:id/edit)
   data/                      Default data directory (dashboards/, themes/)
 ```
 
 ## Key Flows
+
+### Root Route
+
+```
+GET / → beforeEnter guard fetches dashboard list
+  → If a dashboard has default=true → redirect to /:defaultDashboardId
+  → Else if dashboards exist → redirect to /:firstDashboardId (alphabetical)
+  → If no dashboards (or fetch error) → redirect to /dashboards (list/create view)
+```
 
 ### View Interactive Dashboard
 

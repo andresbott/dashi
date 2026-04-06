@@ -10,6 +10,7 @@
 | Delete dashboard | Implemented | With confirmation dialog |
 | Dashboard preview | Implemented | Creates "-prev" suffixed copy for image preview |
 | Delete previews | Implemented | Bulk delete all preview dashboards |
+| Default dashboard | Implemented | Boolean flag per dashboard; root `/` redirects to it |
 | Read-only mode | Implemented | Config flag disables all writes, UI hides edit controls |
 
 **Create dashboard** — POST creates a new dashboard with a random 6-char
