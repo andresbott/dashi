@@ -3,6 +3,7 @@ package router
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"mime"
 	"net/http"
 	"os"
@@ -44,111 +45,144 @@ func NewStaticDashboardMiddleware(store *dashboard.Store, staticRenderer *dashst
 
 			switch dash.Type {
 			case "image":
-				// Parse page parameter
-				pageIdx := 0
-				if pageParam := r.URL.Query().Get("page"); pageParam != "" {
-					var err error
-					pageIdx, err = strconv.Atoi(pageParam)
-					if err != nil || pageIdx < 0 {
-						http.NotFound(w, r)
-						return
-					}
-				}
-
-				// Validate page index
-				if len(dash.Pages) == 0 {
-					http.NotFound(w, r)
-					return
-				}
-				if pageIdx >= len(dash.Pages) {
-					http.NotFound(w, r)
-					return
-				}
-
-				// Build render data from selected page
-				theme := dash.Theme
-				if theme == "" {
-					theme = "default"
-				}
-				fontFamily := ""
-				if themeInfo, ok := themeStore.Get(theme); ok && len(themeInfo.Fonts) > 0 {
-					fontFamily = themeInfo.Fonts[0].Name
-				}
-
-				queryParams := make(map[string]string)
-				for k, v := range r.URL.Query() {
-					if len(v) > 0 {
-						queryParams[k] = v[0]
-					}
-				}
-
-				renderData := dashstatic.RenderData{
-					Name:        dash.Name,
-					MaxWidth:    dash.Container.MaxWidth,
-					HAlign:      dash.Container.HorizontalAlign,
-					VAlign:      dash.Container.VerticalAlign,
-					Theme:       theme,
-					ColorMode:   dash.ColorMode,
-					FontFamily:  fontFamily,
-					CustomCSS:   store.GetCustomCSS(dash.ID),
-					QueryParams: queryParams,
-					Rows:        dash.Pages[pageIdx].Rows,
-					PageIndex:   pageIdx,
-					TotalPages:  len(dash.Pages),
-				}
-
-				bgCSS, bgImageData := buildBackground(dash, store, themeStore)
-				renderData.BackgroundCSS = bgCSS
-
-				var buf bytes.Buffer
-				if err := staticRenderer.Render(&buf, renderData); err != nil {
-					http.Error(w, "failed to render dashboard HTML", http.StatusInternalServerError)
-					return
-				}
-
-				width := 0
-				height := 0
-				if dash.ImageConfig != nil {
-					width = dash.ImageConfig.Width
-					height = dash.ImageConfig.Height
-				}
-
-				if r.URL.Query().Get("html") != "" {
-					w.Header().Set("Content-Type", "text/html; charset=utf-8")
-					html := inlineLocalImages(buf.String())
-					if width > 0 || height > 0 {
-						style := "margin:2rem auto;border:1px solid #ccc;"
-						if width > 0 {
-							style += "width:" + strconv.Itoa(width) + "px;"
-						}
-						if height > 0 {
-							style += "height:" + strconv.Itoa(height) + "px;"
-						}
-						style += "overflow:hidden;"
-						wrapper := `<div style="` + style + `">`
-						w.Write([]byte(wrapper))
-						w.Write([]byte(html))
-						w.Write([]byte("</div>"))
-					} else {
-						w.Write([]byte(html))
-					}
-					return
-				}
-
-				pngData, err := imageRenderer.Render(buf.String(), width, height, bgImageData)
-				if err != nil {
-					http.Error(w, "failed to render dashboard image", http.StatusInternalServerError)
-					return
-				}
-
-				w.Header().Set("Content-Type", "image/png")
-				w.Write(pngData)
-
+				serveImageDashboard(w, r, dash, store, staticRenderer, imageRenderer, themeStore)
 			default:
 				next.ServeHTTP(w, r)
 			}
 		})
 	}
+}
+
+// serveImageDashboard handles rendering of image-type dashboards.
+func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store) {
+	pageIdx, ok := parsePageIndex(r, len(dash.Pages))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	renderData := buildRenderData(dash, pageIdx, r.URL.Query(), store, themeStore)
+	bgCSS, bgImageData := buildBackground(dash, store, themeStore)
+	renderData.BackgroundCSS = bgCSS
+
+	var buf bytes.Buffer
+	if err := staticRenderer.Render(&buf, renderData); err != nil {
+		http.Error(w, "failed to render dashboard HTML", http.StatusInternalServerError)
+		return
+	}
+
+	width, height := getDashboardDimensions(dash)
+
+	if r.URL.Query().Get("html") != "" {
+		serveHTMLPreview(w, buf.String(), width, height)
+		return
+	}
+
+	pngData, err := imageRenderer.Render(buf.String(), width, height, bgImageData)
+	if err != nil {
+		http.Error(w, "failed to render dashboard image", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/png")
+	if _, err := w.Write(pngData); err != nil {
+		// Error already committed to response
+		return
+	}
+}
+
+// parsePageIndex extracts and validates the page index from the request.
+func parsePageIndex(r *http.Request, totalPages int) (int, bool) {
+	if totalPages == 0 {
+		return 0, false
+	}
+
+	pageIdx := 0
+	if pageParam := r.URL.Query().Get("page"); pageParam != "" {
+		var err error
+		pageIdx, err = strconv.Atoi(pageParam)
+		if err != nil || pageIdx < 0 {
+			return 0, false
+		}
+	}
+
+	if pageIdx >= totalPages {
+		return 0, false
+	}
+
+	return pageIdx, true
+}
+
+// buildRenderData constructs the render data structure for a dashboard page.
+func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]string, store *dashboard.Store, themeStore *themes.Store) dashstatic.RenderData {
+	theme := dash.Theme
+	if theme == "" {
+		theme = "default"
+	}
+
+	fontFamily := ""
+	if themeInfo, ok := themeStore.Get(theme); ok && len(themeInfo.Fonts) > 0 {
+		fontFamily = themeInfo.Fonts[0].Name
+	}
+
+	queryParams := make(map[string]string)
+	for k, v := range query {
+		if len(v) > 0 {
+			queryParams[k] = v[0]
+		}
+	}
+
+	return dashstatic.RenderData{
+		Name:        dash.Name,
+		MaxWidth:    dash.Container.MaxWidth,
+		HAlign:      dash.Container.HorizontalAlign,
+		VAlign:      dash.Container.VerticalAlign,
+		Theme:       theme,
+		ColorMode:   dash.ColorMode,
+		FontFamily:  fontFamily,
+		CustomCSS:   store.GetCustomCSS(dash.ID),
+		QueryParams: queryParams,
+		Rows:        dash.Pages[pageIdx].Rows,
+		PageIndex:   pageIdx,
+		TotalPages:  len(dash.Pages),
+	}
+}
+
+// getDashboardDimensions extracts width and height from dashboard config.
+func getDashboardDimensions(dash dashboard.Dashboard) (width, height int) {
+	if dash.ImageConfig != nil {
+		return dash.ImageConfig.Width, dash.ImageConfig.Height
+	}
+	return 0, 0
+}
+
+// serveHTMLPreview writes the HTML preview with optional dimension wrapper.
+func serveHTMLPreview(w http.ResponseWriter, html string, width, height int) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	inlinedHTML := inlineLocalImages(html)
+
+	if width > 0 || height > 0 {
+		style := buildWrapperStyle(width, height)
+		wrapper := `<div style="` + style + `">`
+		_, _ = w.Write([]byte(wrapper))
+		_, _ = w.Write([]byte(inlinedHTML))
+		_, _ = w.Write([]byte("</div>"))
+	} else {
+		_, _ = w.Write([]byte(inlinedHTML))
+	}
+}
+
+// buildWrapperStyle creates CSS style for preview wrapper.
+func buildWrapperStyle(width, height int) string {
+	style := "margin:2rem auto;border:1px solid #ccc;"
+	if width > 0 {
+		style += "width:" + strconv.Itoa(width) + "px;"
+	}
+	if height > 0 {
+		style += "height:" + strconv.Itoa(height) + "px;"
+	}
+	style += "overflow:hidden;"
+	return style
 }
 
 // buildBackground returns the CSS background value and, for image backgrounds,
@@ -164,40 +198,51 @@ func buildBackground(dash dashboard.Dashboard, dashStore *dashboard.Store, theme
 	case "gradient":
 		return bg.Value, nil
 	case "image":
-		var data []byte
-		var fileName string
-		if strings.HasPrefix(bg.Value, "theme:") {
-			rest := bg.Value[6:]
-			slashIdx := strings.Index(rest, "/")
-			if slashIdx < 0 {
-				return "", nil
-			}
-			themeName := rest[:slashIdx]
-			fileName = rest[slashIdx+1:]
-			var err error
-			data, err = themeStore.GetBackgroundData(themeName, fileName)
-			if err != nil {
-				return "", nil
-			}
-		} else if strings.HasPrefix(bg.Value, "dashboard:") {
-			fileName = bg.Value[len("dashboard:"):]
-			var err error
-			data, _, err = dashStore.GetAsset(dash.ID, fileName)
-			if err != nil {
-				return "", nil
-			}
-		} else {
-			return "", nil
-		}
-		mimeType := mime.TypeByExtension(filepath.Ext(fileName))
-		if mimeType == "" {
-			mimeType = "application/octet-stream"
-		}
-		dataURI := "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data)
-		return "url('" + dataURI + "') center/cover no-repeat", data
+		return buildImageBackground(bg.Value, dash.ID, dashStore, themeStore)
 	default:
 		return "", nil
 	}
+}
+
+// buildImageBackground loads and encodes an image background.
+func buildImageBackground(bgValue, dashID string, dashStore *dashboard.Store, themeStore *themes.Store) (css string, imageData []byte) {
+	data, fileName, err := loadBackgroundImage(bgValue, dashID, dashStore, themeStore)
+	if err != nil {
+		return "", nil
+	}
+
+	mimeType := mime.TypeByExtension(filepath.Ext(fileName))
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	dataURI := "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data)
+	return "url('" + dataURI + "') center/cover no-repeat", data
+}
+
+// loadBackgroundImage loads background image data from theme or dashboard assets.
+func loadBackgroundImage(bgValue, dashID string, dashStore *dashboard.Store, themeStore *themes.Store) (data []byte, fileName string, err error) {
+	if strings.HasPrefix(bgValue, "theme:") {
+		return loadThemeBackground(bgValue, themeStore)
+	}
+	if strings.HasPrefix(bgValue, "dashboard:") {
+		fileName = bgValue[len("dashboard:"):]
+		data, _, err = dashStore.GetAsset(dashID, fileName)
+		return data, fileName, err
+	}
+	return nil, "", fmt.Errorf("unsupported background type")
+}
+
+// loadThemeBackground loads a theme background image.
+func loadThemeBackground(bgValue string, themeStore *themes.Store) ([]byte, string, error) {
+	rest := bgValue[6:]
+	slashIdx := strings.Index(rest, "/")
+	if slashIdx < 0 {
+		return nil, "", fmt.Errorf("invalid theme background format")
+	}
+	themeName := rest[:slashIdx]
+	fileName := rest[slashIdx+1:]
+	data, err := themeStore.GetBackgroundData(themeName, fileName)
+	return data, fileName, err
 }
 
 var imgSrcRe = regexp.MustCompile(`(<img\b[^>]*\bsrc=")([^"]+)(")`)

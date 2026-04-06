@@ -32,12 +32,16 @@ func cacheKey(lat, lon float64) string {
 }
 
 func (c *cache) get(lat, lon float64) (WeatherData, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	key := cacheKey(lat, lon)
 	entry, ok := c.entries[key]
-	if !ok || time.Now().After(entry.expiry) {
+	if !ok {
+		return WeatherData{}, false
+	}
+	if time.Now().After(entry.expiry) {
+		delete(c.entries, key)
 		return WeatherData{}, false
 	}
 	return entry.data, true

@@ -1,15 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch, onUnmounted, provide } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted, provide } from 'vue'
+import { DASHBOARD_THEME, DASHBOARD_ID, ACTIVE_PAGE, TOTAL_PAGES } from '@/lib/injectionKeys'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import WidgetPlaceholder from '@/components/dashboards/WidgetPlaceholder.vue'
-import WeatherWidget from '@/components/dashboards/WeatherWidget.vue'
-import WeatherCompactWidget from '@/components/dashboards/WeatherCompactWidget.vue'
-import BookmarkWidget from '@/components/dashboards/BookmarkWidget.vue'
-import ClockWidget from '@/components/dashboards/ClockWidget.vue'
-import SearchWidget from '@/components/dashboards/SearchWidget.vue'
-import PageIndicatorWidget from '@/components/dashboards/PageIndicatorWidget.vue'
-import MarketWidget from '@/components/dashboards/MarketWidget.vue'
+import { getWidgetEntry } from '@/lib/widgetRegistry'
 import { useGetDashboard } from '@/composables/useDashboards'
 import { useThemes } from '@/composables/useThemes'
 import { getFontUrl, getThemeBackgroundUrl } from '@/lib/api/themes'
@@ -48,8 +43,8 @@ const injectFonts = () => {
 watch([() => dashboard.value, () => themesData.value], injectFonts, { immediate: true })
 
 const dashboardTheme = computed(() => dashboard.value?.theme || 'default')
-provide('dashboardTheme', dashboardTheme)
-provide('dashboardId', id)
+provide(DASHBOARD_THEME, dashboardTheme)
+provide(DASHBOARD_ID, id)
 
 const themeFontFamily = computed(() => {
     if (!dashboard.value || !themesData.value) return undefined
@@ -130,8 +125,8 @@ const activePage = computed(() => {
 })
 
 const totalPages = computed(() => dashboard.value ? dashboard.value.pages.length : 1)
-provide('activePage', activePage)
-provide('totalPages', totalPages)
+provide(ACTIVE_PAGE, activePage)
+provide(TOTAL_PAGES, totalPages)
 
 const showTabs = computed(() => {
     return dashboard.value ? dashboard.value.pages.length > 1 : false
@@ -151,6 +146,18 @@ function pageName(index: number) {
 function switchPage(index: number) {
     router.replace({ query: { ...route.query, page: String(index) } })
 }
+
+const onKeyDown = (e: KeyboardEvent) => {
+    if (!showTabs.value) return
+    if (e.key === 'ArrowLeft' && activePage.value > 0) {
+        switchPage(activePage.value - 1)
+    } else if (e.key === 'ArrowRight' && activePage.value < totalPages.value - 1) {
+        switchPage(activePage.value + 1)
+    }
+}
+
+onMounted(() => window.addEventListener('keydown', onKeyDown))
+onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
 
 const isImageDashboard = computed(() => dashboard.value?.type === 'image')
 
@@ -242,15 +249,13 @@ function debugColor(index: number): string | undefined {
                             v-for="(widget, widgetIdx) in row.widgets"
                             :key="widget.id"
                             :class="'col-' + widget.width"
-                            :style="{ background: debugColor(widgetIdx) }"
+                            :style="{ background: debugColor(widgetIdx), overflow: 'hidden' }"
                         >
-                            <WeatherWidget v-if="widget.type === 'weather'" :widget="widget" />
-                            <WeatherCompactWidget v-else-if="widget.type === 'weather-compact'" :widget="widget" />
-                            <BookmarkWidget v-else-if="widget.type === 'bookmark'" :widget="widget" />
-                            <ClockWidget v-else-if="widget.type === 'clock'" :widget="widget" />
-                            <SearchWidget v-else-if="widget.type === 'search'" :widget="widget" />
-                            <PageIndicatorWidget v-else-if="widget.type === 'page-indicator'" />
-                            <MarketWidget v-else-if="widget.type === 'market'" :widget="widget" />
+                            <component
+                                v-if="getWidgetEntry(widget.type)"
+                                :is="getWidgetEntry(widget.type)!.component"
+                                v-bind="getWidgetEntry(widget.type)!.noWidgetProp ? {} : { widget }"
+                            />
                             <WidgetPlaceholder v-else :title="widget.title" />
                         </div>
                     </div>
@@ -315,8 +320,16 @@ function debugColor(index: number): string | undefined {
     padding: 0.5rem;
 }
 
+.dashboard-row[style*="height"] > .grid {
+    height: 100%;
+}
+
+.dashboard-row[style*="height"] > .grid > div {
+    height: 100%;
+}
+
 .row-title {
-    margin: 0 0 0.5rem 0;
+    margin: 0 0 1rem 0;
     font-size: 1rem;
     font-weight: 600;
 }
@@ -353,10 +366,10 @@ function debugColor(index: number): string | undefined {
 }
 
 .dark-mode {
-    --p-text-color: #e0e0e0;
-    --p-text-muted-color: #bbb;
-    --p-surface-border: #444;
-    background-color: #1a1a2e;
+    --p-text-color: var(--p-surface-100);
+    --p-text-muted-color: var(--p-surface-300);
+    --p-surface-border: var(--p-surface-600);
+    background-color: var(--p-surface-950);
     color: var(--p-text-color);
 }
 </style>

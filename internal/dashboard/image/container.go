@@ -462,7 +462,9 @@ func (c *pngContainer) LoadImage(src, baseurl string, redrawOnReady bool) {
 	if err != nil {
 		return
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 	img, _, err := image.Decode(f)
 	if err != nil {
 		return
@@ -531,39 +533,61 @@ func isInsideRoundedRect(px, py int, pos litehtml.Position, r litehtml.BorderRad
 	if x < 0 || y < 0 || x >= w || y >= h {
 		return false
 	}
+	return !isInRoundedCorner(x, y, w, h, r)
+}
+
+// isInRoundedCorner checks if a point is outside any of the rounded corners.
+func isInRoundedCorner(x, y, w, h float64, r litehtml.BorderRadiuses) bool {
 	// Top-left corner
-	if rx, ry := float64(r.TopLeftX), float64(r.TopLeftY); rx > 0 && ry > 0 && x < rx && y < ry {
-		dx := (rx - x) / rx
-		dy := (ry - y) / ry
-		if dx*dx+dy*dy > 1 {
-			return false
-		}
+	if isOutsideCornerEllipse(x, y, 0, 0, float64(r.TopLeftX), float64(r.TopLeftY), true, true) {
+		return true
 	}
 	// Top-right corner
-	if rx, ry := float64(r.TopRightX), float64(r.TopRightY); rx > 0 && ry > 0 && x > w-rx && y < ry {
-		dx := (x - (w - rx)) / rx
-		dy := (ry - y) / ry
-		if dx*dx+dy*dy > 1 {
-			return false
-		}
+	if isOutsideCornerEllipse(x, y, w, 0, float64(r.TopRightX), float64(r.TopRightY), false, true) {
+		return true
 	}
 	// Bottom-right corner
-	if rx, ry := float64(r.BottomRightX), float64(r.BottomRightY); rx > 0 && ry > 0 && x > w-rx && y > h-ry {
-		dx := (x - (w - rx)) / rx
-		dy := (y - (h - ry)) / ry
-		if dx*dx+dy*dy > 1 {
-			return false
-		}
+	if isOutsideCornerEllipse(x, y, w, h, float64(r.BottomRightX), float64(r.BottomRightY), false, false) {
+		return true
 	}
 	// Bottom-left corner
-	if rx, ry := float64(r.BottomLeftX), float64(r.BottomLeftY); rx > 0 && ry > 0 && x < rx && y > h-ry {
-		dx := (rx - x) / rx
-		dy := (y - (h - ry)) / ry
-		if dx*dx+dy*dy > 1 {
-			return false
-		}
+	if isOutsideCornerEllipse(x, y, 0, h, float64(r.BottomLeftX), float64(r.BottomLeftY), true, false) {
+		return true
 	}
-	return true
+	return false
+}
+
+// isOutsideCornerEllipse checks if a point is outside a corner's elliptical radius.
+func isOutsideCornerEllipse(x, y, cx, cy, rx, ry float64, left, top bool) bool {
+	if rx <= 0 || ry <= 0 {
+		return false
+	}
+	var inRegion bool
+	if left && top {
+		inRegion = x < rx && y < ry
+	} else if !left && top {
+		inRegion = x > cx-rx && y < ry
+	} else if !left && !top {
+		inRegion = x > cx-rx && y > cy-ry
+	} else {
+		inRegion = x < rx && y > cy-ry
+	}
+	if !inRegion {
+		return false
+	}
+
+	var dx, dy float64
+	if left {
+		dx = (rx - x) / rx
+	} else {
+		dx = (x - (cx - rx)) / rx
+	}
+	if top {
+		dy = (ry - y) / ry
+	} else {
+		dy = (y - (cy - ry)) / ry
+	}
+	return dx*dx+dy*dy > 1
 }
 
 func interpolateGradient(stops []litehtml.ColorPoint, t float32) color.NRGBA {

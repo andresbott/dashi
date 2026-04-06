@@ -4,17 +4,17 @@ import Lara from '@primevue/themes/lara'
 const CustomTheme = definePreset(Lara, {
     semantic: {
         primary: {
-            50: '{blue.50}',
-            100: '{blue.100}',
-            200: '{blue.200}',
-            300: '{blue.300}',
-            400: '{blue.400}',
-            500: '{blue.500}',
-            600: '{blue.600}',
-            700: '{blue.700}',
-            800: '{blue.800}',
-            900: '{blue.900}',
-            950: '{blue.950}'
+            50: '#e8eef7',
+            100: '#c5d4ea',
+            200: '#9fb8dc',
+            300: '#799cce',
+            400: '#5c87c3',
+            500: '#3465a4',
+            600: '#2e5a93',
+            700: '#274b7b',
+            800: '#203d64',
+            900: '#192f4d',
+            950: '#0f1d30'
         }
     }
 })

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,7 +15,7 @@ import (
 
 func TestThemeHandler_List(t *testing.T) {
 	store := themes.NewStore("")
-	handler := NewThemeHandler(store)
+	handler := NewThemeHandler(store, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/themes", nil)
 	rec := httptest.NewRecorder()
@@ -42,7 +43,7 @@ func TestThemeHandler_List(t *testing.T) {
 
 func TestThemeHandler_GetIcon_Font(t *testing.T) {
 	store := themes.NewStore("")
-	handler := NewThemeHandler(store)
+	handler := NewThemeHandler(store, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/themes/default/icons/clear-sky", nil)
 	req = mux.SetURLVars(req, map[string]string{"name": "default", "icon": "clear-sky"})
@@ -66,15 +67,21 @@ func TestThemeHandler_GetIcon_Image(t *testing.T) {
 	dir := t.TempDir()
 	themeDir := filepath.Join(dir, "custom")
 	iconsDir := filepath.Join(themeDir, "widgets", "weather", "icons")
-	os.MkdirAll(iconsDir, 0o755)
-	os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(`name: custom
+	if err := os.MkdirAll(iconsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(`name: custom
 description: test
 type: image
-`), 0o644)
-	os.WriteFile(filepath.Join(iconsDir, "clear-sky.svg"), []byte(`<svg xmlns="http://www.w3.org/2000/svg"><circle r="10"/></svg>`), 0o644)
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(iconsDir, "clear-sky.svg"), []byte(`<svg xmlns="http://www.w3.org/2000/svg"><circle r="10"/></svg>`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	store := themes.NewStore(dir)
-	handler := NewThemeHandler(store)
+	handler := NewThemeHandler(store, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/themes/custom/icons/clear-sky", nil)
 	req = mux.SetURLVars(req, map[string]string{"name": "custom", "icon": "clear-sky"})
@@ -92,7 +99,7 @@ type: image
 
 func TestThemeHandler_GetIcon_NotFound(t *testing.T) {
 	store := themes.NewStore("")
-	handler := NewThemeHandler(store)
+	handler := NewThemeHandler(store, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/themes/nonexistent/icons/clear-sky", nil)
 	req = mux.SetURLVars(req, map[string]string{"name": "nonexistent", "icon": "clear-sky"})

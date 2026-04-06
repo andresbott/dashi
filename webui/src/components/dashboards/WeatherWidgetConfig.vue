@@ -220,7 +220,7 @@ const selectLocation = (loc: { name: string; country: string; latitude: number; 
             </Button>
         </div>
 
-        <div v-if="config" class="weather-config-selected mt-3">
+        <div v-if="config && config.latitude != null" class="weather-config-selected mt-3">
             <label class="text-sm font-semibold">Current location</label>
             <div class="text-sm">
                 <i class="ti ti-map-pin" />

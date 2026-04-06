@@ -29,7 +29,7 @@ func TestRegistry_Render_UnknownType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := template.HTML(`<div class="widget-placeholder"></div>`)
+	want := template.HTML(`<div class="widget-placeholder">&nbsp;</div>`)
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}

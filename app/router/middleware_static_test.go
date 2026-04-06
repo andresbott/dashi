@@ -55,7 +55,7 @@ func TestStaticDashboardMiddleware_StaticDashboardFallsThrough(t *testing.T) {
 	renderer := dashstatic.NewRenderer(reg)
 
 	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("SPA"))
+		_, _ = w.Write([]byte("SPA"))
 	})
 
 	imageRenderer := dashimage.NewRenderer()
@@ -92,7 +92,7 @@ func TestStaticDashboardMiddleware_InteractiveDashboard(t *testing.T) {
 	renderer := dashstatic.NewRenderer(reg)
 
 	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("SPA"))
+		_, _ = w.Write([]byte("SPA"))
 	})
 
 	imageRenderer := dashimage.NewRenderer()
@@ -116,7 +116,7 @@ func TestStaticDashboardMiddleware_NonDashboardPath(t *testing.T) {
 	renderer := dashstatic.NewRenderer(reg)
 
 	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("SPA"))
+		_, _ = w.Write([]byte("SPA"))
 	})
 
 	imageRenderer := dashimage.NewRenderer()
@@ -140,7 +140,7 @@ func TestStaticDashboardMiddleware_APIPath(t *testing.T) {
 	renderer := dashstatic.NewRenderer(reg)
 
 	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("SPA"))
+		_, _ = w.Write([]byte("SPA"))
 	})
 
 	imageRenderer := dashimage.NewRenderer()
@@ -200,7 +200,7 @@ func TestStaticDashboardMiddleware_ImageDashboard(t *testing.T) {
 	imageRenderer := dashimage.NewRenderer()
 
 	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("SPA"))
+		_, _ = w.Write([]byte("SPA"))
 	})
 
 	mid := NewStaticDashboardMiddleware(store, staticRenderer, imageRenderer, themes.NewStore(""))
@@ -283,7 +283,7 @@ func TestStaticDashboardMiddleware_ImageDashboardPageSelection(t *testing.T) {
 	imageRenderer := dashimage.NewRenderer()
 
 	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("SPA"))
+		_, _ = w.Write([]byte("SPA"))
 	})
 
 	mid := NewStaticDashboardMiddleware(store, staticRenderer, imageRenderer, themes.NewStore(""))

@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
-import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query'
+import { VueQueryPlugin } from '@tanstack/vue-query'
+import { queryClient } from '@/lib/queryClient'
 import App from './App.vue'
 // @ts-expect-error theme.js has no type declarations
 import CustomTheme from '@/theme.js'
@@ -42,10 +43,6 @@ app.use(PrimeVue, {
 import Tooltip from 'primevue/tooltip'
 app.directive('tooltip', Tooltip)
 
-// Pinia store
-import { createPinia } from 'pinia'
-app.use(createPinia())
-
 // Toast service
 import ToastService from 'primevue/toastservice'
 app.use(ToastService)
@@ -55,20 +52,6 @@ import router from './router'
 app.use(router)
 
 // Vue Query
-const queryClient = new QueryClient({
-    defaultOptions: {
-        queries: {
-            refetchOnWindowFocus: false,
-            retry: 3,
-            staleTime: 1000 * 60 * 5,
-            gcTime: 1000 * 60 * 30
-        },
-        mutations: {
-            retry: false
-        }
-    }
-})
-
 app.use(VueQueryPlugin, {
     queryClient
 })

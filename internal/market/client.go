@@ -1,6 +1,7 @@
 package market
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -37,13 +38,21 @@ func (c *Client) GetMarketData(symbol, rangeID string) (MarketData, error) {
 		return data, nil
 	}
 
-	url := fmt.Sprintf("%s/%s?range=%s&interval=%s", c.BaseURL, symbol, yahooRange, interval)
+	reqURL := fmt.Sprintf("%s/%s?range=%s&interval=%s", c.BaseURL, symbol, yahooRange, interval)
 
-	resp, err := c.httpClient.Get(url)
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
 		return MarketData{}, fmt.Errorf("market API request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return MarketData{}, fmt.Errorf("market API request failed: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return MarketData{}, fmt.Errorf("market API returned status %d", resp.StatusCode)
@@ -63,9 +72,15 @@ func (c *Client) GetMarketData(symbol, rangeID string) (MarketData, error) {
 	return data, nil
 }
 
-func (c *Client) WarmupSymbols(symbols []struct{ Symbol, Range string }) {
+// WarmupSymbols pre-fetches market data for the given symbols,
+// populating the cache so subsequent requests are instant.
+// It respects context cancellation between iterations.
+func (c *Client) WarmupSymbols(ctx context.Context, symbols []struct{ Symbol, Range string }) {
 	for _, s := range symbols {
-		c.GetMarketData(s.Symbol, s.Range)
+		if ctx.Err() != nil {
+			return
+		}
+		_, _ = c.GetMarketData(s.Symbol, s.Range)
 	}
 }
 

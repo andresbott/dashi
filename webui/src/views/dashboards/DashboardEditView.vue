@@ -1,25 +1,21 @@
 <script setup lang="ts">
 import { ref, computed, watch, provide } from 'vue'
+import { DASHBOARD_THEME, DASHBOARD_ID, ACTIVE_PAGE, TOTAL_PAGES, EDITING_MODE } from '@/lib/injectionKeys'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import DashboardRow from '@/components/dashboards/DashboardRow.vue'
 
-import { useGetDashboard, useUpdateDashboard } from '@/composables/useDashboards'
+import { useGetDashboard, useUpdateDashboard, usePreviewDashboard, useBackgrounds } from '@/composables/useDashboards'
 import { useThemes } from '@/composables/useThemes'
 import { useToast } from 'primevue/usetoast'
-import type { Dashboard, Row, Page } from '@/types/dashboard'
+import type { Dashboard, Row, Page, Background } from '@/types/dashboard'
 import { onBeforeUnmount } from 'vue'
-import {
-    createDashboard as apiCreateDashboard,
-    updateDashboard as apiUpdateDashboard,
-    deleteDashboard as apiDeleteDashboard,
-} from '@/lib/api/dashboard'
 import { v4 as uuidv4 } from 'uuid'
 import Dialog from 'primevue/dialog'
+import dashiIcon from '@/assets/icon-64.png'
 import Select from 'primevue/select'
 import ColorPicker from 'primevue/colorpicker'
-import { getBackgrounds } from '@/lib/api/dashboard'
 import type { BackgroundOption } from '@/lib/api/dashboard'
 
 const route = useRoute()
@@ -29,6 +25,8 @@ const id = computed(() => route.params.id as string)
 
 const { data: serverDashboard, isLoading, isError } = useGetDashboard(() => id.value)
 const { updateDashboard, isUpdating } = useUpdateDashboard()
+const { createPreview, updatePreview, deletePreview } = usePreviewDashboard()
+const { data: backgroundsData } = useBackgrounds(() => id.value)
 
 const { data: themesData } = useThemes()
 const themeOptions = computed(() => {
@@ -61,10 +59,10 @@ const ensureBackground = () => {
 }
 
 const backgroundType = computed({
-    get: () => localDashboard.value?.background?.type ?? 'none',
-    set: (v: string) => {
+    get: (): Background['type'] => localDashboard.value?.background?.type ?? 'none',
+    set: (v: Background['type']) => {
         ensureBackground()
-        localDashboard.value!.background!.type = v as any
+        localDashboard.value!.background!.type = v
         if (v === 'gradient') {
             localDashboard.value!.background!.value = gradientCSS.value
         } else {
@@ -126,30 +124,26 @@ function syncGradientToBackground() {
 }
 
 const localDashboard = ref<Dashboard | null>(null)
-const backgroundOptions = ref<{ theme: BackgroundOption[]; dashboard: BackgroundOption[] }>({ theme: [], dashboard: [] })
+const backgroundOptions = computed(() => backgroundsData.value ?? { theme: [] as BackgroundOption[], dashboard: [] as BackgroundOption[] })
 const containerDialogVisible = ref(false)
 const activePageIndex = ref(0)
 
 const dashboardTheme = computed(() => localDashboard.value?.theme || 'default')
-provide('dashboardTheme', dashboardTheme)
-provide('dashboardId', id)
+provide(DASHBOARD_THEME, dashboardTheme)
+provide(DASHBOARD_ID, id)
 const editTotalPages = computed(() => localDashboard.value ? localDashboard.value.pages.length : 1)
-provide('activePage', activePageIndex)
-provide('totalPages', editTotalPages)
+provide(ACTIVE_PAGE, activePageIndex)
+provide(TOTAL_PAGES, editTotalPages)
+provide(EDITING_MODE, true)
 const renamePageDialogVisible = ref(false)
 const renamePageIndex = ref(0)
 const renamePageName = ref('')
 
-watch(serverDashboard, async (val) => {
+watch(serverDashboard, (val) => {
     if (val && !localDashboard.value) {
         localDashboard.value = JSON.parse(JSON.stringify(val))
         if (val.background?.type === 'gradient' && val.background.value) {
             parseGradientValue(val.background.value)
-        }
-        try {
-            backgroundOptions.value = await getBackgrounds(val.id)
-        } catch {
-            backgroundOptions.value = { theme: [], dashboard: [] }
         }
     }
 }, { immediate: true })
@@ -296,9 +290,9 @@ const preview = async () => {
             pages: JSON.parse(JSON.stringify(localDashboard.value.pages))
         }
         if (previewId.value) {
-            await apiUpdateDashboard(prevId, { ...previewPayload } as Dashboard)
+            await updatePreview({ id: prevId, payload: { ...previewPayload } as Dashboard })
         } else {
-            await apiCreateDashboard(previewPayload)
+            await createPreview(previewPayload)
             previewId.value = prevId
         }
         const resolved = router.resolve({ name: 'dashboard-view', params: { id: previewId.value! } })
@@ -314,7 +308,7 @@ const preview = async () => {
 const cleanupPreview = async () => {
     if (previewId.value) {
         try {
-            await apiDeleteDashboard(previewId.value)
+            await deletePreview(previewId.value)
         } catch {
             // ignore cleanup errors
         }
@@ -327,6 +321,7 @@ onBeforeUnmount(cleanupPreview)
 
 <template>
     <header class="app-topbar">
+        <img :src="dashiIcon" alt="Dashi" class="app-topbar-icon" />
         <span class="app-topbar-title" @click="router.push('/')">Dashi</span>
     </header>
     <div class="dashboard-edit-view">
@@ -473,7 +468,7 @@ onBeforeUnmount(cleanupPreview)
                     <label class="font-semibold text-sm">Theme</label>
                     <Select
                         :modelValue="localDashboard.theme || 'default'"
-                        @update:modelValue="(v: string) => { localDashboard.theme = v }"
+                        @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.theme = v }"
                         :options="themeOptions"
                         optionLabel="label"
                         optionValue="value"
@@ -484,7 +479,7 @@ onBeforeUnmount(cleanupPreview)
                     <label class="font-semibold text-sm">Color Mode</label>
                     <Select
                         :modelValue="localDashboard.colorMode || 'auto'"
-                        @update:modelValue="(v: string) => { localDashboard.colorMode = v as any }"
+                        @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.colorMode = v as any }"
                         :options="[
                             { label: 'Auto', value: 'auto' },
                             { label: 'Light', value: 'light' },
@@ -499,12 +494,12 @@ onBeforeUnmount(cleanupPreview)
                     <label class="font-semibold text-sm">Accent Color</label>
                     <div class="flex align-items-center gap-2">
                         <ColorPicker
-                            :modelValue="localDashboard.accentColor?.replace('#', '') || '3B82F6'"
-                            @update:modelValue="(v: string) => { localDashboard.accentColor = '#' + v }"
+                            :modelValue="localDashboard!.accentColor?.replace('#', '') || '3B82F6'"
+                            @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.accentColor = '#' + v }"
                         />
                         <InputText
-                            :modelValue="localDashboard.accentColor || '#3B82F6'"
-                            @update:modelValue="(v: string) => { localDashboard.accentColor = v }"
+                            :modelValue="localDashboard!.accentColor || '#3B82F6'"
+                            @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.accentColor = v }"
                             class="flex-1"
                             placeholder="#3B82F6"
                         />
@@ -546,7 +541,7 @@ onBeforeUnmount(cleanupPreview)
                     <label class="font-semibold text-sm">Background</label>
                     <Select
                         :modelValue="backgroundType"
-                        @update:modelValue="(v: string) => { backgroundType = v }"
+                        @update:modelValue="(v: Background['type'] | undefined) => { if (v !== undefined) backgroundType = v }"
                         :options="[
                             { label: 'None', value: 'none' },
                             { label: 'Image', value: 'image' },
@@ -562,7 +557,7 @@ onBeforeUnmount(cleanupPreview)
                     <label class="font-semibold text-sm">Background Image</label>
                     <Select
                         :modelValue="backgroundValue"
-                        @update:modelValue="(v: string) => { backgroundValue = v }"
+                        @update:modelValue="(v: string | undefined) => { if (v !== undefined) backgroundValue = v }"
                         :options="backgroundImageOptions"
                         optionLabel="label"
                         optionValue="value"
@@ -577,11 +572,11 @@ onBeforeUnmount(cleanupPreview)
                     <div class="flex align-items-center gap-2">
                         <ColorPicker
                             :modelValue="backgroundValue.replace('#', '')"
-                            @update:modelValue="(v: string) => { backgroundValue = '#' + v }"
+                            @update:modelValue="(v: string | undefined) => { if (v !== undefined) backgroundValue = '#' + v }"
                         />
                         <InputText
                             :modelValue="backgroundValue"
-                            @update:modelValue="(v: string) => { backgroundValue = v }"
+                            @update:modelValue="(v: string | undefined) => { if (v !== undefined) backgroundValue = v }"
                             placeholder="#1a1a2e"
                             class="flex-grow-1"
                         />
@@ -613,7 +608,7 @@ onBeforeUnmount(cleanupPreview)
                         <div class="flex align-items-center gap-2">
                             <ColorPicker
                                 :modelValue="gradientColor1.replace('#', '')"
-                                @update:modelValue="(v: string) => { gradientColor1 = '#' + v; syncGradientToBackground() }"
+                                @update:modelValue="(v: string | undefined) => { if (v !== undefined) { gradientColor1 = '#' + v; syncGradientToBackground() } }"
                             />
                             <InputText
                                 v-model="gradientColor1"
@@ -628,7 +623,7 @@ onBeforeUnmount(cleanupPreview)
                         <div class="flex align-items-center gap-2">
                             <ColorPicker
                                 :modelValue="gradientColor2.replace('#', '')"
-                                @update:modelValue="(v: string) => { gradientColor2 = '#' + v; syncGradientToBackground() }"
+                                @update:modelValue="(v: string | undefined) => { if (v !== undefined) { gradientColor2 = '#' + v; syncGradientToBackground() } }"
                             />
                             <InputText
                                 v-model="gradientColor2"
@@ -643,12 +638,13 @@ onBeforeUnmount(cleanupPreview)
                         :style="{ background: gradientCSS }"
                     />
                 </template>
-                <template v-if="localDashboard.type === 'image'">
+                <template v-if="localDashboard!.type === 'image'">
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Image Width (px)</label>
                         <InputText
-                            :modelValue="String(localDashboard.imageConfig?.width ?? 1024)"
-                            @update:modelValue="(v: string) => {
+                            :modelValue="String(localDashboard!.imageConfig?.width ?? 1024)"
+                            @update:modelValue="(v: string | undefined) => {
+                                if (!localDashboard || v === undefined) return
                                 if (!localDashboard.imageConfig) localDashboard.imageConfig = { width: 1024, height: 0 }
                                 localDashboard.imageConfig.width = parseInt(v) || 1024
                             }"
@@ -658,8 +654,9 @@ onBeforeUnmount(cleanupPreview)
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Image Height (px, 0 = auto)</label>
                         <InputText
-                            :modelValue="String(localDashboard.imageConfig?.height ?? 0)"
-                            @update:modelValue="(v: string) => {
+                            :modelValue="String(localDashboard!.imageConfig?.height ?? 0)"
+                            @update:modelValue="(v: string | undefined) => {
+                                if (!localDashboard || v === undefined) return
                                 if (!localDashboard.imageConfig) localDashboard.imageConfig = { width: 1024, height: 0 }
                                 localDashboard.imageConfig.height = parseInt(v) || 0
                             }"

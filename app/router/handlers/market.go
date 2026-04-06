@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/andresbott/dashi/internal/market"
@@ -9,16 +10,17 @@ import (
 
 type MarketHandler struct {
 	client *market.Client
+	logger *slog.Logger
 }
 
-func NewMarketHandler(client *market.Client) *MarketHandler {
-	return &MarketHandler{client: client}
+func NewMarketHandler(client *market.Client, logger *slog.Logger) *MarketHandler {
+	return &MarketHandler{client: client, logger: logger}
 }
 
 func (h *MarketHandler) GetMarketData(w http.ResponseWriter, r *http.Request) {
 	symbol := r.URL.Query().Get("symbol")
 	if symbol == "" {
-		http.Error(w, `{"error":"symbol query parameter is required"}`, http.StatusBadRequest)
+		ErrorJSON(w, "symbol query parameter is required", http.StatusBadRequest)
 		return
 	}
 
@@ -29,10 +31,11 @@ func (h *MarketHandler) GetMarketData(w http.ResponseWriter, r *http.Request) {
 
 	data, err := h.client.GetMarketData(symbol, rangeID)
 	if err != nil {
-		http.Error(w, `{"error":"failed to fetch market data"}`, http.StatusBadGateway)
+		h.logger.Error("fetch market data", slog.String("error", err.Error()))
+		ErrorJSON(w, "failed to fetch market data", http.StatusBadGateway)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
+	_ = json.NewEncoder(w).Encode(data)
 }

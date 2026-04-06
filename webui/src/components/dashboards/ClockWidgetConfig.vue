@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, inject } from 'vue'
-import type { ComputedRef } from 'vue'
+import { DASHBOARD_THEME } from '@/lib/injectionKeys'
 import Checkbox from 'primevue/checkbox'
 import Select from 'primevue/select'
 import type { ClockWidgetConfig } from '@/types/clock'
@@ -18,7 +18,7 @@ const hour12 = ref(props.config?.hour12 ?? false)
 const showSeconds = ref(props.config?.showSeconds ?? true)
 const showDate = ref(props.config?.showDate ?? true)
 const { data: themesData } = useThemes()
-const dashboardTheme = inject<ComputedRef<string>>('dashboardTheme', computed(() => 'default'))
+const dashboardTheme = inject(DASHBOARD_THEME, ref('default'))
 
 const fontOptions = computed(() => {
     const selectedTheme = themesData.value?.find(t => t.name === dashboardTheme.value)

@@ -30,7 +30,7 @@ const rangeLabels: Record<string, string> = {
 
 const changeColor = computed(() => {
     if (!market.value) return undefined
-    return market.value.quote.change >= 0 ? '#22c55e' : '#ef4444'
+    return market.value.quote.change >= 0 ? 'var(--p-green-500)' : 'var(--p-red-500)'
 })
 
 const changePrefix = computed(() => {

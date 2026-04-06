@@ -27,6 +27,13 @@ import Toast from 'primevue/toast'
     color: var(--p-primary-contrast-color);
 }
 
+.app-topbar-icon {
+    height: 1.75rem;
+    width: 1.75rem;
+    margin-right: 0.5rem;
+    cursor: pointer;
+}
+
 .app-topbar-title {
     font-size: 1.25rem;
     font-weight: 700;

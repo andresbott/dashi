@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { inject, ref } from 'vue'
-import type { Ref } from 'vue'
+import { ACTIVE_PAGE, TOTAL_PAGES } from '@/lib/injectionKeys'
 
-const activePage = inject<Ref<number>>('activePage', ref(0))
-const totalPages = inject<Ref<number>>('totalPages', ref(1))
+const activePage = inject(ACTIVE_PAGE, ref(0))
+const totalPages = inject(TOTAL_PAGES, ref(1))
 </script>
 
 <template>

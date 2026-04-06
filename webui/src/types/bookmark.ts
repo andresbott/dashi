@@ -3,4 +3,5 @@ export interface BookmarkWidgetConfig {
     icon: string
     title: string
     subtitle: string
+    textBelow?: boolean
 }

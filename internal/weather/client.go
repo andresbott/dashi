@@ -1,6 +1,7 @@
 package weather
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -68,7 +69,9 @@ func (c *Client) GetWeather(lat, lon float64) (WeatherData, error) {
 	if err != nil {
 		return WeatherData{}, fmt.Errorf("weather API request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return WeatherData{}, fmt.Errorf("weather API returned status %d", resp.StatusCode)
@@ -95,7 +98,9 @@ func (c *Client) fetchAirQuality(lat, lon float64) *AirQuality {
 	if err != nil {
 		return nil
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil
@@ -194,10 +199,14 @@ func (c *Client) transformForecast(raw openMeteoForecastResponse) WeatherData {
 
 // WarmupLocations pre-fetches weather data for the given lat/lon pairs,
 // populating the cache so subsequent requests are instant.
-func (c *Client) WarmupLocations(locations [][2]float64) {
+// It respects context cancellation between iterations.
+func (c *Client) WarmupLocations(ctx context.Context, locations [][2]float64) {
 	for _, loc := range locations {
+		if ctx.Err() != nil {
+			return
+		}
 		// GetWeather checks the cache first, so duplicates are cheap
-		c.GetWeather(loc[0], loc[1])
+		_, _ = c.GetWeather(loc[0], loc[1])
 	}
 }
 
@@ -208,7 +217,9 @@ func (c *Client) Geocode(city string) ([]Location, error) {
 	if err != nil {
 		return nil, fmt.Errorf("geocode request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("geocode API returned status %d", resp.StatusCode)
@@ -219,14 +230,9 @@ func (c *Client) Geocode(city string) ([]Location, error) {
 		return nil, fmt.Errorf("decoding geocode response: %w", err)
 	}
 
-	locations := make([]Location, len(raw.Results))
-	for i, r := range raw.Results {
-		locations[i] = Location{
-			Name:      r.Name,
-			Country:   r.Country,
-			Latitude:  r.Latitude,
-			Longitude: r.Longitude,
-		}
+	locations := make([]Location, 0, len(raw.Results))
+	for _, r := range raw.Results {
+		locations = append(locations, Location(r))
 	}
 	return locations, nil
 }

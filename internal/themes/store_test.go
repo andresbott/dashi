@@ -34,7 +34,7 @@ func TestNewStore_LoadsUserTheme(t *testing.T) {
 	dir := t.TempDir()
 	themeDir := filepath.Join(dir, "my-icons")
 	iconsDir := filepath.Join(themeDir, "widgets", "weather", "icons")
-	if err := os.MkdirAll(iconsDir, 0o755); err != nil {
+	if err := os.MkdirAll(iconsDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -42,10 +42,10 @@ func TestNewStore_LoadsUserTheme(t *testing.T) {
 description: "Custom weather icons"
 type: image
 `
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(iconsDir, "clear-sky.svg"), []byte("<svg/>"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(iconsDir, "clear-sky.svg"), []byte("<svg/>"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -72,7 +72,7 @@ type: image
 func TestStore_UserThemeOverridesEmbedded(t *testing.T) {
 	dir := t.TempDir()
 	themeDir := filepath.Join(dir, "default")
-	if err := os.MkdirAll(themeDir, 0o755); err != nil {
+	if err := os.MkdirAll(themeDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -80,7 +80,7 @@ func TestStore_UserThemeOverridesEmbedded(t *testing.T) {
 description: "User override of default"
 type: image
 `
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -112,7 +112,7 @@ func TestStore_ResolveIcon_ImageTheme(t *testing.T) {
 	dir := t.TempDir()
 	themeDir := filepath.Join(dir, "custom")
 	iconsDir := filepath.Join(themeDir, "widgets", "weather", "icons")
-	if err := os.MkdirAll(iconsDir, 0o755); err != nil {
+	if err := os.MkdirAll(iconsDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -120,10 +120,10 @@ func TestStore_ResolveIcon_ImageTheme(t *testing.T) {
 description: "Custom icons"
 type: image
 `
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(iconsDir, "clear-sky.svg"), []byte("<svg>sun</svg>"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(iconsDir, "clear-sky.svg"), []byte("<svg>sun</svg>"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -240,13 +240,13 @@ func TestStore_GetDisplayFontData_NotFound(t *testing.T) {
 func TestStore_GetDisplayFontData_UserTheme(t *testing.T) {
 	dir := t.TempDir()
 	themeDir := filepath.Join(dir, "custom")
-	if err := os.MkdirAll(themeDir, 0o755); err != nil {
+	if err := os.MkdirAll(themeDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create a minimal TTF file (fake but valid header)
 	fakeTTF := []byte{0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if err := os.WriteFile(filepath.Join(themeDir, "myfont.ttf"), fakeTTF, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "myfont.ttf"), fakeTTF, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -256,7 +256,7 @@ fonts:
   - name: "My Font"
     file: "myfont.ttf"
 `
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -273,16 +273,16 @@ fonts:
 func TestStore_NewFormatThemeWithFontsAndIcons(t *testing.T) {
 	dir := t.TempDir()
 	themeDir := filepath.Join(dir, "newformat")
-	if err := os.MkdirAll(themeDir, 0o755); err != nil {
+	if err := os.MkdirAll(themeDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create fake font files
 	fakeTTF := []byte{0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if err := os.WriteFile(filepath.Join(themeDir, "display.ttf"), fakeTTF, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "display.ttf"), fakeTTF, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(themeDir, "icons.ttf"), fakeTTF, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "icons.ttf"), fakeTTF, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -302,7 +302,7 @@ icons:
       class: "test"
       codepoint: "1234"
 `
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -351,5 +351,172 @@ icons:
 	}
 	if len(iconData) != len(fakeTTF) {
 		t.Errorf("expected icon font data length %d, got %d", len(fakeTTF), len(iconData))
+	}
+}
+
+func TestStore_ResolveIcon_ThemeNoIconConfig(t *testing.T) {
+	dir := t.TempDir()
+	themeDir := filepath.Join(dir, "noicons")
+	if err := os.MkdirAll(themeDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest := `name: "noicons"
+description: "Theme without icons"
+`
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	store := NewStore(dir)
+	_, err := store.ResolveIcon("noicons", "test-icon")
+	if err == nil {
+		t.Error("expected error for theme with no icon config")
+	}
+}
+
+func TestStore_ResolveIcon_InvalidIconName(t *testing.T) {
+	dir := t.TempDir()
+	themeDir := filepath.Join(dir, "custom")
+	iconsDir := filepath.Join(themeDir, "widgets", "weather", "icons")
+	if err := os.MkdirAll(iconsDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest := `name: "custom"
+description: "Custom icons"
+type: image
+`
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	store := NewStore(dir)
+
+	// Test path traversal attempts
+	_, err := store.ResolveIcon("custom", "../etc/passwd")
+	if err == nil {
+		t.Error("expected error for icon name with path traversal")
+	}
+
+	_, err = store.ResolveIcon("custom", "subdir/icon")
+	if err == nil {
+		t.Error("expected error for icon name with slash")
+	}
+}
+
+func TestStore_ListBackgrounds(t *testing.T) {
+	dir := t.TempDir()
+	themeDir := filepath.Join(dir, "mytheme")
+	bgDir := filepath.Join(themeDir, "backgrounds")
+	if err := os.MkdirAll(bgDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest := `name: "mytheme"
+description: "Theme with backgrounds"
+`
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create some background images
+	if err := os.WriteFile(filepath.Join(bgDir, "bg1.png"), []byte("fake png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bgDir, "bg2.jpg"), []byte("fake jpg"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bgDir, "bg3.webp"), []byte("fake webp"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bgDir, "readme.txt"), []byte("not an image"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	store := NewStore(dir)
+	backgrounds := store.ListBackgrounds("mytheme")
+
+	if len(backgrounds) != 3 {
+		t.Errorf("expected 3 backgrounds, got %d", len(backgrounds))
+	}
+
+	// Check that only image files are returned
+	found := make(map[string]bool)
+	for _, bg := range backgrounds {
+		found[bg] = true
+	}
+	if !found["bg1.png"] || !found["bg2.jpg"] || !found["bg3.webp"] {
+		t.Errorf("expected bg1.png, bg2.jpg, bg3.webp, got %v", backgrounds)
+	}
+	if found["readme.txt"] {
+		t.Error("readme.txt should not be in backgrounds list")
+	}
+}
+
+func TestStore_ListBackgrounds_NoTheme(t *testing.T) {
+	store := NewStore("")
+	backgrounds := store.ListBackgrounds("nonexistent")
+	if backgrounds != nil {
+		t.Errorf("expected nil for nonexistent theme, got %v", backgrounds)
+	}
+}
+
+func TestStore_GetBackgroundData(t *testing.T) {
+	dir := t.TempDir()
+	themeDir := filepath.Join(dir, "mytheme")
+	bgDir := filepath.Join(themeDir, "backgrounds")
+	if err := os.MkdirAll(bgDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest := `name: "mytheme"
+description: "Theme with backgrounds"
+`
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	testData := []byte("fake image data")
+	if err := os.WriteFile(filepath.Join(bgDir, "test.png"), testData, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	store := NewStore(dir)
+	data, err := store.GetBackgroundData("mytheme", "test.png")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(data) != string(testData) {
+		t.Errorf("expected %q, got %q", testData, data)
+	}
+}
+
+func TestStore_GetBackgroundData_InvalidPath(t *testing.T) {
+	dir := t.TempDir()
+	themeDir := filepath.Join(dir, "mytheme")
+	bgDir := filepath.Join(themeDir, "backgrounds")
+	if err := os.MkdirAll(bgDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest := `name: "mytheme"
+description: "Theme with backgrounds"
+`
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	store := NewStore(dir)
+
+	// Test path traversal
+	_, err := store.GetBackgroundData("mytheme", "../etc/passwd")
+	if err == nil {
+		t.Error("expected error for path traversal attempt")
+	}
+
+	_, err = store.GetBackgroundData("mytheme", "subdir/file.png")
+	if err == nil {
+		t.Error("expected error for filename with slash")
 	}
 }

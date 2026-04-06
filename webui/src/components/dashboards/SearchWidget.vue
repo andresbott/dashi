@@ -64,8 +64,8 @@ const doSearch = () => {
 .search-form {
     display: flex;
     align-items: center;
-    background: var(--p-surface-100, #f5f5f5);
-    border: 1px solid var(--p-surface-300, #ddd);
+    background: color-mix(in srgb, currentColor 10%, transparent);
+    border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
     border-radius: 8px;
     overflow: hidden;
     transition: border-color 0.15s;
@@ -88,7 +88,7 @@ const doSearch = () => {
     background: transparent;
     padding: 0.6rem 0.5rem;
     font-size: 0.95rem;
-    color: inherit;
+    color: var(--p-text-color, inherit);
     font-family: inherit;
     outline: none;
 }
@@ -100,7 +100,7 @@ const doSearch = () => {
 .search-button {
     border: none;
     background: var(--p-primary-color);
-    color: #fff;
+    color: var(--p-primary-contrast-color);
     padding: 0 0.75rem;
     cursor: pointer;
     font-size: 1rem;

@@ -101,7 +101,7 @@ func themeCreateCmd() *cobra.Command {
 
 func bootstrapImageTheme(themeDir, name string) error {
 	iconsDir := filepath.Join(themeDir, "widgets", "weather", "icons")
-	if err := os.MkdirAll(iconsDir, 0o755); err != nil {
+	if err := os.MkdirAll(iconsDir, 0o750); err != nil {
 		return fmt.Errorf("creating theme directory: %w", err)
 	}
 
@@ -110,7 +110,7 @@ description: "Custom weather icons"
 type: image
 `, name)
 
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
 		return fmt.Errorf("writing theme.yaml: %w", err)
 	}
 
@@ -122,7 +122,7 @@ type: image
 	for _, icon := range canonicalIcons {
 		content := fmt.Sprintf(placeholder, icon)
 		path := filepath.Join(iconsDir, icon+".svg")
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 			return fmt.Errorf("writing %s: %w", path, err)
 		}
 	}
@@ -133,7 +133,7 @@ type: image
 }
 
 func bootstrapFontTheme(themeDir, name string) error {
-	if err := os.MkdirAll(themeDir, 0o755); err != nil {
+	if err := os.MkdirAll(themeDir, 0o750); err != nil {
 		return fmt.Errorf("creating theme directory: %w", err)
 	}
 
@@ -185,7 +185,7 @@ font:
     air-quality: ""
 `, name)
 
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
 		return fmt.Errorf("writing theme.yaml: %w", err)
 	}
 

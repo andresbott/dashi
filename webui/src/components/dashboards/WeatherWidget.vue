@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, ref } from 'vue'
-import type { Ref } from 'vue'
+import { DASHBOARD_THEME } from '@/lib/injectionKeys'
 import { useWeather } from '@/composables/useWeather'
 import { useThemes } from '@/composables/useThemes'
 import WeatherIcon from '@/components/dashboards/WeatherIcon.vue'
@@ -25,7 +25,15 @@ const forecastDays = computed(() => config.value?.forecastDays ?? 7)
 const showHourly = computed(() => config.value?.showHourly ?? false)
 const hourlyCount = computed(() => config.value?.hourlyCount ?? 12)
 const hourlySlots = computed(() => config.value?.hourlySlots ?? 6)
-const iconTheme = inject<Ref<string>>('dashboardTheme', ref('default'))
+const iconTheme = inject(DASHBOARD_THEME, ref('default'))
+
+const showGraph = computed(() => config.value?.showGraph ?? false)
+const graphHours = computed(() => config.value?.graphHours ?? 24)
+const graphTempColor = computed(() => config.value?.graphTempColor ?? '#FF8C42')
+const graphRainColor = computed(() => config.value?.graphRainColor ?? '#4A90D9')
+const graphHeight = computed(() => config.value?.graphHeight ?? 250)
+const graphShowTemp = computed(() => config.value?.graphShowTemp ?? true)
+const graphShowRain = computed(() => config.value?.graphShowRain ?? true)
 
 const showSunrise = computed(() => config.value?.showSunrise ?? false)
 const showSunset = computed(() => config.value?.showSunset ?? false)
@@ -64,6 +72,58 @@ const formatHour = (timeStr: string) => {
     const date = new Date(timeStr.replace('T', ' '))
     return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 }
+
+// --- Graph SVG data ---
+const graphData = computed(() => {
+    if (!weather.value?.hourly || weather.value.hourly.length < 2) return null
+    const points = weather.value.hourly.slice(0, graphHours.value)
+    if (points.length < 2) return null
+
+    const temps = points.map(p => p.temperature)
+    const min = Math.min(...temps)
+    const max = Math.max(...temps)
+    const range = max - min || 1
+    const padding = range * 0.15
+    const pMin = min - padding
+    const pRange = range + padding * 2
+
+    const w = 400
+    const h = 120
+
+    // Temperature line
+    const coords = points.map((p, i) => ({
+        x: (i / (points.length - 1)) * w,
+        y: h - ((p.temperature - pMin) / pRange) * h,
+    }))
+
+    let tempPath = `M ${coords[0].x},${coords[0].y}`
+    for (let i = 1; i < coords.length; i++) {
+        tempPath += ` L ${coords[i].x},${coords[i].y}`
+    }
+    const tempFill = `${tempPath} L ${w},${h} L 0,${h} Z`
+
+    // Rain bars
+    const barWidth = w / points.length
+    const rainBars = points.map((p, i) => ({
+        x: i * barWidth,
+        width: barWidth,
+        height: (p.precipitationProbability / 100) * h,
+        y: h - (p.precipitationProbability / 100) * h,
+    }))
+
+    // Temp range labels (same as image dashboard: max top-left, min bottom-left)
+    const tempMax = `${Math.round(max)}°`
+    const tempMin = `${Math.round(min)}°`
+
+    // Time labels — every ~3 hours (same spacing as image dashboard)
+    const step = Math.max(1, Math.floor(points.length / 8) + 1)
+    const timeLabels: string[] = []
+    for (let i = 0; i < points.length; i += step) {
+        timeLabels.push(formatHour(points[i].time))
+    }
+
+    return { tempPath, tempFill, rainBars, tempMax, tempMin, timeLabels }
+})
 
 const hourlySlice = computed(() => {
     if (!weather.value?.hourly) return []
@@ -164,6 +224,43 @@ const hourlySlice = computed(() => {
                         <span class="hourly-time">{{ formatHour(hour.time) }}</span>
                         <WeatherIcon :icon-name="hour.icon" :theme-name="iconTheme" :themes="themes" />
                         <span class="hourly-temp">{{ formatTemp(hour.temperature) }}</span>
+                    </div>
+                </div>
+                <div v-if="showGraph && graphData" class="weather-graph-container">
+                    <div v-if="graphShowTemp || graphShowRain" class="weather-graph-top">
+                        <span>{{ graphShowTemp ? graphData.tempMax : '' }}</span>
+                        <span>{{ graphShowRain ? '100%' : '' }}</span>
+                    </div>
+                    <div class="weather-graph-img" :style="{ height: graphHeight + 'px' }">
+                        <svg viewBox="0 0 400 120" preserveAspectRatio="none" class="weather-graph-svg">
+                            <defs>
+                                <linearGradient :id="'wg-temp-' + widget.id" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" :stop-color="graphTempColor" stop-opacity="0.3" />
+                                    <stop offset="100%" :stop-color="graphTempColor" stop-opacity="0" />
+                                </linearGradient>
+                            </defs>
+                            <g v-if="graphShowRain">
+                                <rect
+                                    v-for="(bar, i) in graphData.rainBars"
+                                    :key="'rain-' + i"
+                                    :x="bar.x"
+                                    :y="bar.y"
+                                    :width="bar.width"
+                                    :height="bar.height"
+                                    :fill="graphRainColor"
+                                    fill-opacity="0.25"
+                                />
+                            </g>
+                            <path :d="graphData.tempFill" :fill="'url(#wg-temp-' + widget.id + ')'" />
+                            <path :d="graphData.tempPath" fill="none" :stroke="graphTempColor" stroke-width="2" vector-effect="non-scaling-stroke" />
+                        </svg>
+                    </div>
+                    <div v-if="graphShowTemp || graphShowRain" class="weather-graph-top">
+                        <span>{{ graphShowTemp ? graphData.tempMin : '' }}</span>
+                        <span>{{ graphShowRain ? '0%' : '' }}</span>
+                    </div>
+                    <div class="weather-graph-bottom">
+                        <span v-for="(label, i) in graphData.timeLabels" :key="'tml-' + i">{{ label }}</span>
                     </div>
                 </div>
                 <div v-if="showForecast" class="weather-forecast">
@@ -287,6 +384,38 @@ const hourlySlice = computed(() => {
 .extra-info-value {
     font-size: 0.8rem;
     font-weight: 600;
+}
+
+.weather-graph-container {
+    border-top: 1px solid var(--p-surface-200);
+    padding-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.weather-graph-top {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8em;
+    margin-bottom: 2px;
+    color: var(--p-text-muted-color);
+}
+
+.weather-graph-img {
+    width: 100%;
+}
+
+.weather-graph-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.weather-graph-bottom {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75em;
+    color: var(--p-text-muted-color);
+    margin-top: 2px;
 }
 
 .weather-forecast {

@@ -39,7 +39,9 @@ func TestClient_GetMarketData(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			t.Fatalf("encode error: %v", err)
+		}
 	}))
 	defer srv.Close()
 
@@ -95,15 +97,17 @@ func TestClient_GetMarketData_Cache(t *testing.T) {
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			t.Fatalf("encode error: %v", err)
+		}
 	}))
 	defer srv.Close()
 
 	client := NewClient(nil)
 	client.BaseURL = srv.URL
 
-	client.GetMarketData("AAPL", "1mo")
-	client.GetMarketData("AAPL", "1mo")
+	_, _ = client.GetMarketData("AAPL", "1mo")
+	_, _ = client.GetMarketData("AAPL", "1mo")
 
 	if callCount != 1 {
 		t.Errorf("expected 1 API call (cached), got %d", callCount)

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, ref } from 'vue'
-import type { Ref } from 'vue'
+import { DASHBOARD_ID } from '@/lib/injectionKeys'
 import type { Widget } from '@/types/dashboard'
 import type { BookmarkWidgetConfig } from '@/types/bookmark'
 import { parseIcon, getSelfhstIconUrl, getDashboardIconUrl } from '@/lib/iconUtils'
@@ -9,7 +9,7 @@ const props = defineProps<{
     widget: Widget
 }>()
 
-const dashboardId = inject<Ref<string>>('dashboardId', ref(''))
+const dashboardId = inject(DASHBOARD_ID, ref(''))
 
 const config = computed<BookmarkWidgetConfig | null>(() => {
     if (!props.widget.config) return null
@@ -38,7 +38,7 @@ const iconInfo = computed(() => {
             <span>Configure bookmark in edit mode</span>
         </div>
 
-        <a v-else :href="config.url" target="_blank" rel="noopener noreferrer" class="bookmark-link">
+        <a v-else :href="config.url" target="_blank" rel="noopener noreferrer" class="bookmark-link" :class="{ 'bookmark-link--below': config.textBelow }">
             <img
                 v-if="iconInfo?.type === 'image'"
                 :src="iconInfo.src"
@@ -57,6 +57,11 @@ const iconInfo = computed(() => {
 .bookmark-widget {
     padding: 0.5rem;
     min-height: 60px;
+    overflow: hidden;
+}
+
+.bookmark-widget:has(.bookmark-link--below) {
+    padding: 0;
 }
 
 .bookmark-empty {
@@ -88,6 +93,20 @@ const iconInfo = computed(() => {
     background: color-mix(in srgb, currentColor 10%, transparent);
 }
 
+.bookmark-link--below {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 0.25rem;
+    max-width: 6.5rem;
+    aspect-ratio: 1;
+    padding: 0.5rem;
+    box-sizing: border-box;
+    overflow: hidden;
+    margin: 0 auto;
+}
+
 .bookmark-icon {
     font-size: 2rem;
     color: var(--p-primary-color);
@@ -105,6 +124,7 @@ const iconInfo = computed(() => {
     display: flex;
     flex-direction: column;
     min-width: 0;
+    max-width: 100%;
 }
 
 .bookmark-title {

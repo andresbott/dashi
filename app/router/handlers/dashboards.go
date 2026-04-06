@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -27,63 +28,78 @@ func (h *DashboardHandler) List(w http.ResponseWriter, r *http.Request) {
 	list, err := h.store.List()
 	if err != nil {
 		h.logger.Error("list dashboards", slog.String("error", err.Error()))
-		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+		ErrorJSON(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"items": list})
+	_ = json.NewEncoder(w).Encode(map[string]any{"items": list})
 }
 
 func (h *DashboardHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	d, err := h.store.Get(id)
 	if err != nil {
-		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		if errors.Is(err, dashboard.ErrNotFound) || errors.Is(err, dashboard.ErrInvalidID) {
+			ErrorJSON(w, "not found", http.StatusNotFound)
+		} else {
+			h.logger.Error("get dashboard", slog.String("error", err.Error()))
+			ErrorJSON(w, "internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d)
+	_ = json.NewEncoder(w).Encode(d)
 }
 
 func (h *DashboardHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var d dashboard.Dashboard
 	if err := json.NewDecoder(r.Body).Decode(&d); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		ErrorJSON(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	created, err := h.store.Create(d)
 	if err != nil {
 		h.logger.Error("create dashboard", slog.String("error", err.Error()))
-		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+		ErrorJSON(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(created)
+	_ = json.NewEncoder(w).Encode(created)
 }
 
 func (h *DashboardHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	var d dashboard.Dashboard
 	if err := json.NewDecoder(r.Body).Decode(&d); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		ErrorJSON(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 	d.ID = id
 
 	updated, err := h.store.Update(d)
 	if err != nil {
-		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		if errors.Is(err, dashboard.ErrNotFound) || errors.Is(err, dashboard.ErrInvalidID) {
+			ErrorJSON(w, "not found", http.StatusNotFound)
+		} else {
+			h.logger.Error("update dashboard", slog.String("error", err.Error()))
+			ErrorJSON(w, "internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(updated)
+	_ = json.NewEncoder(w).Encode(updated)
 }
 
 func (h *DashboardHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	if err := h.store.Delete(id); err != nil {
-		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		if errors.Is(err, dashboard.ErrNotFound) || errors.Is(err, dashboard.ErrInvalidID) {
+			ErrorJSON(w, "not found", http.StatusNotFound)
+		} else {
+			h.logger.Error("delete dashboard", slog.String("error", err.Error()))
+			ErrorJSON(w, "internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -93,22 +109,22 @@ func (h *DashboardHandler) DeletePreviews(w http.ResponseWriter, r *http.Request
 	count, err := h.store.DeletePreviews()
 	if err != nil {
 		h.logger.Error("delete previews", slog.String("error", err.Error()))
-		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+		ErrorJSON(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"deleted": count})
+	_ = json.NewEncoder(w).Encode(map[string]any{"deleted": count})
 }
 
 func (h *DashboardHandler) ListAssets(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	assets, err := h.store.ListAssets(id)
 	if err != nil {
-		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		ErrorJSON(w, "not found", http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"items": assets})
+	_ = json.NewEncoder(w).Encode(map[string]any{"items": assets})
 }
 
 func (h *DashboardHandler) GetAsset(w http.ResponseWriter, r *http.Request) {
@@ -116,26 +132,29 @@ func (h *DashboardHandler) GetAsset(w http.ResponseWriter, r *http.Request) {
 	assetPath := mux.Vars(r)["path"]
 	data, mimeType, err := h.store.GetAsset(id, assetPath)
 	if err != nil {
-		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		ErrorJSON(w, "not found", http.StatusNotFound)
 		return
 	}
 	w.Header().Set("Content-Type", mimeType)
-	w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		h.logger.Error("write asset", slog.String("error", err.Error()))
+	}
 }
 
 func (h *DashboardHandler) UploadAsset(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	assetPath := mux.Vars(r)["path"]
 
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20) // 10 MB limit
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, `{"error":"failed to read body"}`, http.StatusBadRequest)
+		ErrorJSON(w, "failed to read body", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.store.SaveAsset(id, assetPath, data); err != nil {
 		h.logger.Error("save asset", slog.String("error", err.Error()))
-		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
+		ErrorJSON(w, "failed to save asset", http.StatusBadRequest)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -145,7 +164,7 @@ func (h *DashboardHandler) DeleteAsset(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	assetPath := mux.Vars(r)["path"]
 	if err := h.store.DeleteAsset(id, assetPath); err != nil {
-		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		ErrorJSON(w, "not found", http.StatusNotFound)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -159,13 +178,13 @@ type backgroundOption struct {
 func (h *DashboardHandler) ListBackgrounds(w http.ResponseWriter, r *http.Request) {
 	dashID := r.URL.Query().Get("dashboard")
 	if dashID == "" {
-		http.Error(w, `{"error":"dashboard query parameter required"}`, http.StatusBadRequest)
+		ErrorJSON(w, "dashboard query parameter required", http.StatusBadRequest)
 		return
 	}
 
 	dash, err := h.store.Get(dashID)
 	if err != nil {
-		http.Error(w, `{"error":"dashboard not found"}`, http.StatusNotFound)
+		ErrorJSON(w, "dashboard not found", http.StatusNotFound)
 		return
 	}
 
@@ -198,7 +217,7 @@ func (h *DashboardHandler) ListBackgrounds(w http.ResponseWriter, r *http.Reques
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	_ = json.NewEncoder(w).Encode(map[string]any{
 		"theme":     themeOptions,
 		"dashboard": dashOptions,
 	})

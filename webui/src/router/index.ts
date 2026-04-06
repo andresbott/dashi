@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { apiClient } from '@/lib/api/client'
+import { queryClient } from '@/lib/queryClient'
+import { getSettings } from '@/lib/api/settings'
 
 const router = createRouter({
     history: createWebHistory('/'),
@@ -19,6 +20,16 @@ const router = createRouter({
             component: () => import('@/views/dashboards/DashboardEditView.vue')
         },
         {
+            path: '/docs',
+            component: () => import('@/views/DocumentationView.vue'),
+            children: [
+                { path: '', redirect: { name: 'doc-dashboards' } },
+                { path: 'dashboards', name: 'doc-dashboards', component: () => import('@/views/docs/DocDashboards.vue') },
+                { path: 'widgets', name: 'doc-widgets', component: () => import('@/views/docs/DocWidgets.vue') },
+                { path: 'theming', name: 'doc-theming', component: () => import('@/views/docs/DocTheming.vue') },
+            ],
+        },
+        {
             path: '/:id',
             name: 'dashboard-view',
             component: () => import('@/views/dashboards/DashboardView.vue')
@@ -29,8 +40,12 @@ const router = createRouter({
 router.beforeEach(async (to) => {
     if (to.name === 'dashboard-edit') {
         try {
-            const { data } = await apiClient.get<{ readOnly: boolean }>('/settings')
-            if (data.readOnly) {
+            const settings = await queryClient.fetchQuery({
+                queryKey: ['settings'],
+                queryFn: getSettings,
+                staleTime: 5 * 60 * 1000,
+            })
+            if (settings.readOnly) {
                 return { name: 'dashboards' }
             }
         } catch {

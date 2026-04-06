@@ -56,7 +56,9 @@ func NewStaticRenderer(client *mkt.Client) func(json.RawMessage, widgets.RenderC
 
 		if cfg.Symbol == "" {
 			var buf strings.Builder
-			tmpl.Execute(&buf, marketTemplateData{Configured: false})
+			if err := tmpl.Execute(&buf, marketTemplateData{Configured: false}); err != nil {
+				return "", fmt.Errorf("market template: %w", err)
+			}
 			return template.HTML(buf.String()), nil
 		}
 

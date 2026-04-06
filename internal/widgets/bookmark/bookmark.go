@@ -5,11 +5,33 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"strings"
 
 	_ "embed"
 
 	"github.com/andresbott/dashi/internal/widgets"
 )
+
+// sanitizeURL rejects dangerous URI schemes (javascript:, data:, vbscript:).
+// Only http://, https://, protocol-relative (//), and relative URLs are allowed.
+func sanitizeURL(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "#"
+	}
+	if strings.HasPrefix(trimmed, "//") {
+		return trimmed
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		return trimmed
+	}
+	// Allow relative URLs (no scheme)
+	if !strings.Contains(strings.SplitN(lower, "/", 2)[0], ":") {
+		return trimmed
+	}
+	return "#"
+}
 
 //go:embed bookmark.html
 var bookmarkHTML string
@@ -17,10 +39,11 @@ var bookmarkHTML string
 var tmpl = template.Must(template.New("bookmark").Parse(bookmarkHTML))
 
 type bookmarkConfig struct {
-	URL      string `json:"url"`
-	Icon     string `json:"icon"`
-	Title    string `json:"title"`
-	Subtitle string `json:"subtitle"`
+	URL       string `json:"url"`
+	Icon      string `json:"icon"`
+	Title     string `json:"title"`
+	Subtitle  string `json:"subtitle"`
+	TextBelow bool   `json:"textBelow,omitempty"`
 }
 
 type bookmarkData struct {
@@ -40,7 +63,7 @@ func NewStaticRenderer() func(json.RawMessage, widgets.RenderContext) (template.
 		}
 
 		data := bookmarkData{
-			URL:      cfg.URL,
+			URL:      sanitizeURL(cfg.URL),
 			Title:    cfg.Title,
 			Subtitle: cfg.Subtitle,
 		}

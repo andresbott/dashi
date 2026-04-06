@@ -50,7 +50,9 @@ func TestClient_GetWeather(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("encode error: %v", err)
+		}
 	}))
 	defer forecastSrv.Close()
 
@@ -64,7 +66,9 @@ func TestClient_GetWeather(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("encode error: %v", err)
+		}
 	}))
 	defer aqSrv.Close()
 
@@ -126,7 +130,9 @@ func TestClient_GetWeather_AirQualityFailure(t *testing.T) {
 				TempMin:     []float64{10.0},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("encode error: %v", err)
+		}
 	}))
 	defer forecastSrv.Close()
 
@@ -153,17 +159,22 @@ func TestClient_GetWeather_Cached(t *testing.T) {
 	callCount := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
-		if r.URL.Path == "/v1/forecast" {
+		switch r.URL.Path {
+		case "/v1/forecast":
 			resp := openMeteoForecastResponse{
 				Current: openMeteoCurrent{Temperature: 20.0, WeatherCode: 0},
 				Daily:   openMeteoDaily{},
 			}
-			json.NewEncoder(w).Encode(resp)
-		} else if r.URL.Path == "/v1/air-quality" {
+			if err := json.NewEncoder(w).Encode(resp); err != nil {
+				t.Fatalf("encode error: %v", err)
+			}
+		case "/v1/air-quality":
 			resp := openMeteoAirQualityResponse{
 				Current: openMeteoAirQualityCurrent{EuropeanAQI: 42},
 			}
-			json.NewEncoder(w).Encode(resp)
+			if err := json.NewEncoder(w).Encode(resp); err != nil {
+				t.Fatalf("encode error: %v", err)
+			}
 		}
 	}))
 	defer srv.Close()
@@ -194,7 +205,9 @@ func TestClient_Geocode(t *testing.T) {
 				{Name: "Berlin", Country: "United States", Latitude: 44.47, Longitude: -71.18},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("encode error: %v", err)
+		}
 	}))
 	defer srv.Close()
 
@@ -213,7 +226,9 @@ func TestClient_Geocode(t *testing.T) {
 
 func TestClient_Geocode_EmptyResults(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(openMeteoGeoResponse{})
+		if err := json.NewEncoder(w).Encode(openMeteoGeoResponse{}); err != nil {
+			t.Fatalf("encode error: %v", err)
+		}
 	}))
 	defer srv.Close()
 

@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
+import Select from 'primevue/select'
 import { useGeocode } from '@/composables/useWeather'
 import type { WeatherWidgetConfig } from '@/types/weather'
 
@@ -17,11 +18,18 @@ const emit = defineEmits<{
 const compactCity = ref(props.config?.compactCity ?? true)
 const compactFeelsLike = ref(props.config?.compactFeelsLike ?? false)
 const compactDescription = ref(props.config?.compactDescription ?? true)
+const compactAlign = ref(props.config?.compactAlign ?? 'left')
+const alignOptions = [
+    { label: 'Left', value: 'left' },
+    { label: 'Center', value: 'center' },
+    { label: 'Right', value: 'right' },
+]
 watch(() => props.config, (val) => {
     if (val) {
         compactCity.value = val.compactCity ?? true
         compactFeelsLike.value = val.compactFeelsLike ?? false
         compactDescription.value = val.compactDescription ?? true
+        compactAlign.value = val.compactAlign ?? 'left'
     }
 })
 
@@ -33,6 +41,7 @@ const emitUpdate = () => {
         compactCity: compactCity.value,
         compactFeelsLike: compactFeelsLike.value,
         compactDescription: compactDescription.value,
+        compactAlign: compactAlign.value,
     })
 }
 
@@ -58,6 +67,7 @@ const selectLocation = (loc: { name: string; country: string; latitude: number; 
         compactCity: compactCity.value,
         compactFeelsLike: compactFeelsLike.value,
         compactDescription: compactDescription.value,
+        compactAlign: compactAlign.value,
     })
     searchQuery.value = ''
     debouncedQuery.value = ''
@@ -95,7 +105,7 @@ const selectLocation = (loc: { name: string; country: string; latitude: number; 
             </Button>
         </div>
 
-        <div v-if="config" class="weather-config-selected mt-3">
+        <div v-if="config && config.latitude != null" class="weather-config-selected mt-3">
             <label class="text-sm font-semibold">Current location</label>
             <div class="text-sm">
                 <i class="ti ti-map-pin" />
@@ -119,6 +129,10 @@ const selectLocation = (loc: { name: string; country: string; latitude: number; 
             <div class="flex align-items-center gap-2">
                 <Checkbox v-model="compactDescription" :binary="true" inputId="compactDescription" @update:modelValue="emitUpdate" />
                 <label for="compactDescription" class="text-sm">Show description</label>
+            </div>
+            <div class="flex flex-column gap-1">
+                <label class="text-sm font-semibold">Alignment</label>
+                <Select v-model="compactAlign" :options="alignOptions" optionLabel="label" optionValue="value" @update:modelValue="emitUpdate" />
             </div>
         </div>
     </div>

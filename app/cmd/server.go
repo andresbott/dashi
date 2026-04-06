@@ -59,8 +59,13 @@ func runServer(configFile string) error {
 		}
 	}
 
+	// ——— Start servers ———
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
 	// ——— Build the main app handler ———
 	appHandler, err := router.New(router.Cfg{
+		Ctx:            ctx,
 		Logger:         l,
 		ProductionMode: cfg.Env.Production,
 		DataDir:        cfg.DataDir,
@@ -70,16 +75,13 @@ func runServer(configFile string) error {
 		return fmt.Errorf("failed to create router: %w", err)
 	}
 
-	// ——— Start servers ———
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
 	g, gCtx := errgroup.WithContext(ctx)
 
 	// Main server
 	mainSrv := &http.Server{
-		Addr:    cfg.Server.Addr(),
-		Handler: appHandler,
+		Addr:              cfg.Server.Addr(),
+		Handler:           appHandler,
+		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext: func(_ net.Listener) context.Context {
 			return gCtx
 		},
@@ -95,7 +97,8 @@ func runServer(configFile string) error {
 
 	// Observability server
 	obsSrv := &http.Server{
-		Addr: cfg.Obs.Addr(),
+		Addr:              cfg.Obs.Addr(),
+		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext: func(_ net.Listener) context.Context {
 			return gCtx
 		},

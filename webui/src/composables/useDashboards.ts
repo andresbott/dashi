@@ -1,3 +1,4 @@
+import { computed } from 'vue'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 import {
     getDashboards,
@@ -5,7 +6,9 @@ import {
     createDashboard,
     updateDashboard,
     deleteDashboard,
-    deletePreviews
+    deletePreviews,
+    getBackgrounds,
+    getDashboardAssets,
 } from '@/lib/api/dashboard'
 import type { CreateDashboardDTO, Dashboard } from '@/types/dashboard'
 import { invalidateAndRefetch } from '@/composables/queryUtils'
@@ -54,9 +57,10 @@ export function useListDashboards() {
 }
 
 export function useGetDashboard(id: () => string) {
+    const idRef = computed(id)
     return useQuery({
-        queryKey: ['dashboard', id],
-        queryFn: () => getDashboard(id())
+        queryKey: ['dashboard', idRef],
+        queryFn: () => getDashboard(idRef.value)
     })
 }
 
@@ -76,4 +80,49 @@ export function useUpdateDashboard() {
         updateDashboard: mutation.mutateAsync,
         isUpdating: mutation.isPending
     }
+}
+
+export function usePreviewDashboard() {
+    const queryClient = useQueryClient()
+    const doInvalidate = () => invalidateAndRefetch(queryClient, DASHBOARDS_QUERY_KEY)
+
+    const createMutation = useMutation({
+        mutationFn: (payload: CreateDashboardDTO) => createDashboard(payload),
+        onSuccess: doInvalidate,
+    })
+
+    const updateMutation = useMutation({
+        mutationFn: ({ id, payload }: { id: string; payload: Dashboard }) =>
+            updateDashboard(id, payload),
+        onSuccess: doInvalidate,
+    })
+
+    const deleteMutation = useMutation({
+        mutationFn: (id: string) => deleteDashboard(id),
+        onSuccess: doInvalidate,
+    })
+
+    return {
+        createPreview: createMutation.mutateAsync,
+        updatePreview: updateMutation.mutateAsync,
+        deletePreview: deleteMutation.mutateAsync,
+    }
+}
+
+export function useBackgrounds(dashboardId: () => string) {
+    const idRef = computed(dashboardId)
+    return useQuery({
+        queryKey: ['backgrounds', idRef],
+        queryFn: () => getBackgrounds(idRef.value),
+        enabled: computed(() => !!idRef.value),
+    })
+}
+
+export function useDashboardAssets(dashboardId: () => string) {
+    const idRef = computed(dashboardId)
+    return useQuery({
+        queryKey: ['dashboard-assets', idRef],
+        queryFn: () => getDashboardAssets(idRef.value),
+        enabled: computed(() => !!idRef.value),
+    })
 }

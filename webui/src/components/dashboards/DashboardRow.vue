@@ -6,6 +6,7 @@ import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import DashboardWidget from '@/components/dashboards/DashboardWidget.vue'
 import type { Row, Widget } from '@/types/dashboard'
+import { getWidgetTypeOptions } from '@/lib/widgetRegistry'
 import { v4 as uuidv4 } from 'uuid'
 
 const props = defineProps<{
@@ -56,16 +57,7 @@ const deleteWidget = (index: number) => {
 
 const addWidgetDialogVisible = ref(false)
 
-const widgetTypeOptions = [
-    { value: 'placeholder', label: 'Placeholder', icon: 'ti-layout-grid', description: 'Empty placeholder widget' },
-    { value: 'weather', label: 'Weather', icon: 'ti-sun', description: 'Current conditions and forecast' },
-    { value: 'weather-compact', label: 'Weather (Compact)', icon: 'ti-cloud', description: 'Compact weather display' },
-    { value: 'bookmark', label: 'Bookmark', icon: 'ti-bookmark', description: 'Link to an external website' },
-    { value: 'clock', label: 'Clock', icon: 'ti-clock', description: 'Digital clock with date' },
-    { value: 'battery', label: 'Battery', icon: 'ti-battery-2', description: 'Battery status from query parameter' },
-    { value: 'search', label: 'Search', icon: 'ti-search', description: 'Search engine input' },
-    { value: 'page-indicator', label: 'Page Indicator', icon: 'ti-circles', description: 'Shows dots for each page' },
-]
+const widgetTypeOptions = getWidgetTypeOptions()
 
 const addWidget = (type: string) => {
     const option = widgetTypeOptions.find(o => o.value === type)
@@ -178,6 +170,8 @@ const getWidgetClass = (element: Widget, index: number) => {
             item-key="id"
             class="grid"
             handle=".widget-drag-handle"
+            :invert-swap="true"
+            :swap-threshold="0.65"
             ref="gridRef"
         >
             <template #item="{ element, index }">

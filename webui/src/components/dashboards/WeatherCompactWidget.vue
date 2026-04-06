@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, ref } from 'vue'
-import type { Ref } from 'vue'
+import { DASHBOARD_THEME } from '@/lib/injectionKeys'
 import { useWeather } from '@/composables/useWeather'
 import { useThemes } from '@/composables/useThemes'
 import WeatherIcon from '@/components/dashboards/WeatherIcon.vue'
@@ -21,7 +21,8 @@ const config = computed<WeatherWidgetConfig | null>(() => {
 const compactCity = computed(() => config.value?.compactCity ?? true)
 const compactFeelsLike = computed(() => config.value?.compactFeelsLike ?? false)
 const compactDescription = computed(() => config.value?.compactDescription ?? true)
-const iconTheme = inject<Ref<string>>('dashboardTheme', ref('default'))
+const compactAlign = computed(() => config.value?.compactAlign ?? 'left')
+const iconTheme = inject(DASHBOARD_THEME, ref('default'))
 
 const lat = computed(() => config.value?.latitude)
 const lon = computed(() => config.value?.longitude)
@@ -50,7 +51,12 @@ const cityName = computed(() => config.value?.city?.split(',')[0] ?? '')
         </div>
 
         <template v-else-if="weather">
-            <div class="weather-compact-content">
+            <div
+                class="weather-compact-content"
+                :style="{
+                    justifyContent: compactAlign === 'center' ? 'center' : compactAlign === 'right' ? 'flex-end' : 'flex-start',
+                }"
+            >
                 <span class="weather-compact-icon">
                     <WeatherIcon :icon-name="weather.current.icon" :theme-name="iconTheme" :themes="themes" />
                 </span>
@@ -109,7 +115,6 @@ const cityName = computed(() => config.value?.city?.split(',')[0] ?? '')
 }
 
 .weather-compact-info {
-    flex: 1;
     min-width: 0;
 }
 

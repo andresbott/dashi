@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"log/slog"
@@ -13,19 +14,26 @@ import (
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
 	"github.com/andresbott/dashi/internal/market"
 	"github.com/andresbott/dashi/internal/themes"
+	"github.com/andresbott/dashi/internal/swisstransport"
 	"github.com/andresbott/dashi/internal/weather"
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/xkcd"
 	batterywidget "github.com/andresbott/dashi/internal/widgets/battery"
 	bookmarkwidget "github.com/andresbott/dashi/internal/widgets/bookmark"
 	clockwidget "github.com/andresbott/dashi/internal/widgets/clock"
 	marketwidget "github.com/andresbott/dashi/internal/widgets/market"
 	pageindicatorwidget "github.com/andresbott/dashi/internal/widgets/pageindicator"
+	stackwidget "github.com/andresbott/dashi/internal/widgets/stack"
+	swisstransportwidget "github.com/andresbott/dashi/internal/widgets/swisstransport"
+	sysinfowidget "github.com/andresbott/dashi/internal/widgets/sysinfo"
 	weatherwidget "github.com/andresbott/dashi/internal/widgets/weather"
+	xkcdwidget "github.com/andresbott/dashi/internal/widgets/xkcd"
 	"github.com/go-bumbu/http/middleware"
 	"github.com/gorilla/mux"
 )
 
 type Cfg struct {
+	Ctx            context.Context
 	Logger         *slog.Logger
 	ProductionMode bool
 	DataDir        string
@@ -66,14 +74,20 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 	dashStore := dashboard.NewStore(filepath.Join(cfg.DataDir, "dashboards"))
 	weatherClient := weather.NewClient(nil)
 	marketClient := market.NewClient(nil)
+	xkcdClient := xkcd.NewClient(filepath.Join(cfg.DataDir, "cache", "xkcd"))
+	transportClient := swisstransport.NewClient(nil)
 	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "themes"))
-	if err := app.attachApiV0(app.router.PathPrefix("/api/v0").Subrouter(), dashStore, weatherClient, themeStore, cfg.ReadOnly); err != nil {
+	if err := app.attachApiV0(app.router.PathPrefix("/api/v0").Subrouter(), dashStore, weatherClient, marketClient, xkcdClient, transportClient, themeStore, cfg.ReadOnly); err != nil {
 		return nil, err
 	}
 
 	// Pre-fetch weather data for all configured locations
-	go warmupWeather(dashStore, weatherClient, cfg.Logger)
-	go warmupMarket(dashStore, marketClient, cfg.Logger)
+	warmupCtx := cfg.Ctx
+	if warmupCtx == nil {
+		warmupCtx = context.Background()
+	}
+	go warmupWeather(warmupCtx, dashStore, weatherClient, cfg.Logger)
+	go warmupMarket(warmupCtx, dashStore, marketClient, cfg.Logger)
 
 	// Static dashboard rendering
 	registry := widgets.NewRegistry()
@@ -84,6 +98,10 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 	registry.Register("battery", batterywidget.NewStaticRenderer())
 	registry.Register("page-indicator", pageindicatorwidget.NewStaticRenderer())
 	registry.Register("market", marketwidget.NewStaticRenderer(marketClient))
+	registry.Register("xkcd", xkcdwidget.NewStaticRenderer(xkcdClient))
+	registry.Register("transport", swisstransportwidget.NewStaticRenderer(transportClient))
+	registry.Register("sysinfo", sysinfowidget.NewStaticRenderer())
+	registry.Register("stack", stackwidget.NewStaticRenderer(registry))
 	staticRenderer := dashstatic.NewRenderer(registry)
 	imageRenderer := dashimage.NewRenderer()
 	for _, themeInfo := range themeStore.List() {
@@ -119,14 +137,13 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 
 // warmupWeather scans all dashboards for weather widget configs and
 // pre-fetches the weather data so the cache is warm on first request.
-func warmupWeather(store *dashboard.Store, client *weather.Client, logger *slog.Logger) {
+func warmupWeather(ctx context.Context, store *dashboard.Store, client *weather.Client, logger *slog.Logger) {
 	list, err := store.List()
 	if err != nil {
 		logger.Warn("weather warmup: failed to list dashboards", slog.String("error", err.Error()))
 		return
 	}
 
-	type loc struct{ Lat, Lon float64 }
 	var locations [][2]float64
 
 	for _, meta := range list {
@@ -157,12 +174,12 @@ func warmupWeather(store *dashboard.Store, client *weather.Client, logger *slog.
 
 	if len(locations) > 0 {
 		logger.Info("weather warmup: pre-fetching data", slog.Int("locations", len(locations)))
-		client.WarmupLocations(locations)
+		client.WarmupLocations(ctx, locations)
 		logger.Info("weather warmup: done")
 	}
 }
 
-func warmupMarket(store *dashboard.Store, client *market.Client, logger *slog.Logger) {
+func warmupMarket(ctx context.Context, store *dashboard.Store, client *market.Client, logger *slog.Logger) {
 	list, err := store.List()
 	if err != nil {
 		logger.Warn("market warmup: failed to list dashboards", slog.String("error", err.Error()))
@@ -200,7 +217,7 @@ func warmupMarket(store *dashboard.Store, client *market.Client, logger *slog.Lo
 
 	if len(targets) > 0 {
 		logger.Info("market warmup: pre-fetching data", slog.Int("symbols", len(targets)))
-		client.WarmupSymbols(targets)
+		client.WarmupSymbols(ctx, targets)
 		logger.Info("market warmup: done")
 	}
 }

@@ -20,18 +20,16 @@ var defaultFontTTF []byte
 //go:embed defaults/Inter-Regular.ttf
 var interRegularTTF []byte
 
-//go:embed defaults/Inter-Bold.ttf
-var interBoldTTF []byte
-
-//go:embed defaults/Inter-Italic.ttf
-var interItalicTTF []byte
-
-//go:embed defaults/Inter-BoldItalic.ttf
-var interBoldItalicTTF []byte
+//go:embed defaults/backgrounds/celeste.jpg
+var defaultBgJPG []byte
 
 var embeddedFonts = map[string][]byte{
 	"tabler-icons.ttf":  defaultFontTTF,
 	"Inter-Regular.ttf": interRegularTTF,
+}
+
+var embeddedBackgrounds = map[string][]byte{
+	"bg.jpg": defaultBgJPG,
 }
 
 type Store struct {
@@ -227,8 +225,17 @@ func (s *Store) GetDisplayFontData(themeName, fontName string) ([]byte, error) {
 // ListBackgrounds returns the filenames of background images in a theme's backgrounds/ directory.
 func (s *Store) ListBackgrounds(themeName string) []string {
 	th, ok := s.themes[themeName]
-	if !ok || th.dir == "" {
+	if !ok {
 		return nil
+	}
+	if th.dir == "" {
+		// Embedded default theme: return embedded backgrounds.
+		result := make([]string, 0, len(embeddedBackgrounds))
+		for name := range embeddedBackgrounds {
+			result = append(result, name)
+		}
+		sort.Strings(result)
+		return result
 	}
 	bgDir := filepath.Join(th.dir, "backgrounds")
 	entries, err := os.ReadDir(bgDir)
@@ -252,11 +259,18 @@ func (s *Store) ListBackgrounds(themeName string) []string {
 // GetBackgroundData returns the raw bytes of a background image file.
 func (s *Store) GetBackgroundData(themeName, fileName string) ([]byte, error) {
 	th, ok := s.themes[themeName]
-	if !ok || th.dir == "" {
-		return nil, fmt.Errorf("theme %q not found or has no directory", themeName)
+	if !ok {
+		return nil, fmt.Errorf("theme %q not found", themeName)
 	}
 	if strings.ContainsAny(fileName, "/\\") || strings.Contains(fileName, "..") {
 		return nil, fmt.Errorf("invalid filename %q", fileName)
+	}
+	if th.dir == "" {
+		// Embedded default theme: return embedded background data.
+		if data, ok := embeddedBackgrounds[fileName]; ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf("background %q not found in embedded theme", fileName)
 	}
 	bgPath := filepath.Join(th.dir, "backgrounds", fileName)
 	if !strings.HasPrefix(bgPath, filepath.Join(th.dir, "backgrounds")+string(filepath.Separator)) {

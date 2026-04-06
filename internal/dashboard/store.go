@@ -3,6 +3,7 @@ package dashboard
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"math/big"
@@ -15,6 +16,11 @@ import (
 	"unicode"
 
 	"golang.org/x/text/unicode/norm"
+)
+
+var (
+	ErrNotFound  = errors.New("dashboard not found")
+	ErrInvalidID = errors.New("invalid dashboard ID")
 )
 
 type Store struct {
@@ -30,7 +36,7 @@ func NewStore(dir string) *Store {
 }
 
 func (s *Store) ensureDir() error {
-	return os.MkdirAll(s.dir, 0o755)
+	return os.MkdirAll(s.dir, 0o750)
 }
 
 const dashboardFile = "dashboard.json"
@@ -53,13 +59,16 @@ const idChars = "abcdefghijklmnopqrstuvwxyz0123456789"
 const idLen = 6
 const previewSuffix = "-prev"
 
-func randomID() string {
+func randomID() (string, error) {
 	b := make([]byte, idLen)
 	for i := range b {
-		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(idChars))))
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(idChars))))
+		if err != nil {
+			return "", fmt.Errorf("generate random ID: %w", err)
+		}
 		b[i] = idChars[n.Int64()]
 	}
-	return string(b)
+	return string(b), nil
 }
 
 func isPreviewID(id string) bool {
@@ -74,7 +83,7 @@ func isValidID(id string) bool {
 		return false
 	}
 	for _, c := range base {
-		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') {
 			return false
 		}
 	}
@@ -183,16 +192,20 @@ func (s *Store) Create(d Dashboard) (Dashboard, error) {
 	}
 
 	if d.ID == "" {
-		d.ID = randomID()
-	}
-
-	folder := s.uniqueFolder(toSnakeCase(d.Name))
-	dirPath := filepath.Join(s.dir, folder)
-	if err := os.MkdirAll(dirPath, 0o755); err != nil {
-		return Dashboard{}, fmt.Errorf("create dashboard dir: %w", err)
+		id, err := randomID()
+		if err != nil {
+			return Dashboard{}, err
+		}
+		d.ID = id
 	}
 
 	s.mu.Lock()
+	folder := s.uniqueFolder(toSnakeCase(d.Name))
+	dirPath := filepath.Join(s.dir, folder)
+	if err := os.MkdirAll(dirPath, 0o750); err != nil {
+		s.mu.Unlock()
+		return Dashboard{}, fmt.Errorf("create dashboard dir: %w", err)
+	}
 	s.index[d.ID] = folder
 	s.mu.Unlock()
 
@@ -207,7 +220,7 @@ func (s *Store) writeToDisk(d Dashboard) error {
 	if err != nil {
 		return fmt.Errorf("marshal dashboard: %w", err)
 	}
-	if err := os.WriteFile(s.filePath(d.ID), data, 0o644); err != nil {
+	if err := os.WriteFile(s.filePath(d.ID), data, 0o600); err != nil {
 		return fmt.Errorf("write dashboard file: %w", err)
 	}
 	return nil
@@ -216,7 +229,7 @@ func (s *Store) writeToDisk(d Dashboard) error {
 // Get reads a single dashboard by ID.
 func (s *Store) Get(id string) (Dashboard, error) {
 	if !isValidID(id) {
-		return Dashboard{}, fmt.Errorf("invalid dashboard ID: %s", id)
+		return Dashboard{}, ErrInvalidID
 	}
 	data, err := os.ReadFile(s.filePath(id))
 	if err != nil {
@@ -269,34 +282,37 @@ func (s *Store) List() ([]DashboardMeta, error) {
 // Update overwrites an existing dashboard. Returns error if the dashboard does not exist.
 func (s *Store) Update(d Dashboard) (Dashboard, error) {
 	if !isValidID(d.ID) {
-		return Dashboard{}, fmt.Errorf("invalid dashboard ID: %s", d.ID)
+		return Dashboard{}, ErrInvalidID
 	}
 
-	oldDir := s.dashDir(d.ID)
+	s.mu.Lock()
+	currentFolder := s.index[d.ID]
+	var oldDir string
+	if currentFolder != "" {
+		oldDir = filepath.Join(s.dir, currentFolder)
+	} else {
+		oldDir = filepath.Join(s.dir, d.ID)
+	}
+
 	if _, err := os.Stat(oldDir); err != nil {
+		s.mu.Unlock()
 		if os.IsNotExist(err) {
-			return Dashboard{}, fmt.Errorf("dashboard %s not found", d.ID)
+			return Dashboard{}, ErrNotFound
 		}
 		return Dashboard{}, fmt.Errorf("stat dashboard %s: %w", d.ID, err)
 	}
 
 	// Rename folder if the dashboard name changed
 	newFolder := toSnakeCase(d.Name)
-	s.mu.RLock()
-	currentFolder := s.index[d.ID]
-	s.mu.RUnlock()
-
 	if currentFolder != "" && newFolder != currentFolder {
 		newPath := filepath.Join(s.dir, newFolder)
 		if _, err := os.Stat(newPath); os.IsNotExist(err) {
 			if err := os.Rename(oldDir, newPath); err == nil {
-				s.mu.Lock()
 				s.index[d.ID] = newFolder
-				s.mu.Unlock()
 			}
 		}
-		// If new path already exists, keep the old folder name
 	}
+	s.mu.Unlock()
 
 	if err := s.writeToDisk(d); err != nil {
 		return Dashboard{}, err
@@ -307,12 +323,12 @@ func (s *Store) Update(d Dashboard) (Dashboard, error) {
 // Delete removes a dashboard directory. Returns error if the dashboard does not exist.
 func (s *Store) Delete(id string) error {
 	if !isValidID(id) {
-		return fmt.Errorf("invalid dashboard ID: %s", id)
+		return ErrInvalidID
 	}
 	dir := s.dashDir(id)
 	if _, err := os.Stat(dir); err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("dashboard %s not found", id)
+			return ErrNotFound
 		}
 		return fmt.Errorf("stat dashboard %s: %w", id, err)
 	}
@@ -392,10 +408,10 @@ func (s *Store) SaveAsset(id string, assetPath string, data []byte) error {
 	}
 
 	fullPath := filepath.Join(dashDir, filepath.Clean(assetPath))
-	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0o750); err != nil {
 		return fmt.Errorf("create asset directory: %w", err)
 	}
-	if err := os.WriteFile(fullPath, data, 0o644); err != nil {
+	if err := os.WriteFile(fullPath, data, 0o600); err != nil {
 		return fmt.Errorf("write asset: %w", err)
 	}
 	return nil
@@ -443,7 +459,7 @@ func (s *Store) DeleteAsset(id string, assetPath string) error {
 		if err != nil || len(entries) > 0 {
 			break
 		}
-		os.Remove(dir)
+		_ = os.Remove(dir)
 		dir = filepath.Dir(dir)
 	}
 	return nil

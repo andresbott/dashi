@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, watch, inject, computed, onMounted } from 'vue'
-import type { Ref } from 'vue'
+import { ref, watch, inject, computed } from 'vue'
+import { DASHBOARD_ID } from '@/lib/injectionKeys'
 import InputText from 'primevue/inputtext'
+import Checkbox from 'primevue/checkbox'
 import Select from 'primevue/select'
 import IconSelector from '@/components/dashboards/IconSelector.vue'
 import type { BookmarkWidgetConfig } from '@/types/bookmark'
 import { parseIcon, getSelfhstIconUrl, getDashboardIconUrl } from '@/lib/iconUtils'
-import { getDashboardAssets } from '@/lib/api/dashboard'
+import type { IconType } from '@/lib/iconUtils'
+import { useDashboardAssets } from '@/composables/useDashboards'
 
 const props = defineProps<{
     config: BookmarkWidgetConfig | null
@@ -16,12 +18,13 @@ const emit = defineEmits<{
     'update:config': [config: BookmarkWidgetConfig]
 }>()
 
-const dashboardId = inject<Ref<string>>('dashboardId', ref(''))
+const dashboardId = inject(DASHBOARD_ID, ref(''))
 
 const editUrl = ref(props.config?.url ?? '')
 const editIcon = ref(props.config?.icon ?? 'ti-bookmark')
 const editTitle = ref(props.config?.title ?? '')
 const editSubtitle = ref(props.config?.subtitle ?? '')
+const editTextBelow = ref(props.config?.textBelow ?? false)
 
 const iconTypeOptions = [
     { label: 'Tabler', value: 'tabler' },
@@ -33,12 +36,11 @@ const parsed = computed(() => parseIcon(editIcon.value))
 
 const iconType = computed({
     get: () => parsed.value.type,
-    set: (v: string) => {
+    set: (v: IconType) => {
         if (v === 'tabler') editIcon.value = 'ti-bookmark'
         else if (v === 'selfhst') editIcon.value = 'selfhst:'
         else if (v === 'dashboard') {
             editIcon.value = 'dashboard:'
-            fetchDashboardAssets()
         }
         emitUpdate()
     },
@@ -60,21 +62,12 @@ const dashboardFilename = computed({
     },
 })
 
-const dashboardAssets = ref<string[]>([])
+const { data: dashboardAssetsData } = useDashboardAssets(() => dashboardId.value)
 const imageExtensions = /\.(png|webp|svg|jpg|jpeg|ico|gif)$/i
 
 const dashboardAssetOptions = computed(() =>
-    dashboardAssets.value.filter(a => imageExtensions.test(a)).map(a => ({ label: a, value: a }))
+    (dashboardAssetsData.value ?? []).filter(a => imageExtensions.test(a)).map(a => ({ label: a, value: a }))
 )
-
-const fetchDashboardAssets = async () => {
-    if (!dashboardId.value) return
-    try {
-        dashboardAssets.value = await getDashboardAssets(dashboardId.value)
-    } catch {
-        dashboardAssets.value = []
-    }
-}
 
 const iconPreviewSrc = computed(() => {
     if (parsed.value.type === 'selfhst' && parsed.value.value) {
@@ -92,15 +85,36 @@ watch(() => props.config, (val) => {
         editIcon.value = val.icon
         editTitle.value = val.title
         editSubtitle.value = val.subtitle
+        editTextBelow.value = val.textBelow ?? false
     }
 })
 
+const isSafeUrl = (url: string): boolean => {
+    if (!url) return true
+    try {
+        const parsed = new URL(url)
+        return ['http:', 'https:'].includes(parsed.protocol)
+    } catch {
+        // Allow relative URLs and empty strings
+        return !url.toLowerCase().trimStart().startsWith('javascript:')
+    }
+}
+
+const urlError = computed(() => {
+    if (editUrl.value && !isSafeUrl(editUrl.value)) {
+        return 'Only http:// and https:// URLs are allowed'
+    }
+    return ''
+})
+
 const emitUpdate = () => {
+    if (urlError.value) return
     emit('update:config', {
         url: editUrl.value,
         icon: editIcon.value,
         title: editTitle.value,
         subtitle: editSubtitle.value,
+        textBelow: editTextBelow.value,
     })
 }
 
@@ -109,11 +123,7 @@ const onTablerSelect = (icon: string) => {
     emitUpdate()
 }
 
-onMounted(() => {
-    if (parsed.value.type === 'dashboard') {
-        fetchDashboardAssets()
-    }
-})
+// Assets are fetched reactively via useDashboardAssets query
 </script>
 
 <template>
@@ -122,7 +132,7 @@ onMounted(() => {
             <label class="text-sm font-semibold">Icon</label>
             <Select
                 :modelValue="iconType"
-                @update:modelValue="(v: string) => { iconType = v }"
+                @update:modelValue="(v: IconType | undefined) => { if (v) iconType = v }"
                 :options="iconTypeOptions"
                 optionLabel="label"
                 optionValue="value"
@@ -154,7 +164,7 @@ onMounted(() => {
             <Select
                 v-if="dashboardAssetOptions.length > 0"
                 :modelValue="dashboardFilename"
-                @update:modelValue="(v: string) => { dashboardFilename = v }"
+                @update:modelValue="(v: string | undefined) => { if (v !== undefined) dashboardFilename = v }"
                 :options="dashboardAssetOptions"
                 optionLabel="label"
                 optionValue="value"
@@ -180,7 +190,12 @@ onMounted(() => {
         </div>
         <div class="flex flex-column gap-1">
             <label class="text-sm font-semibold">URL</label>
-            <InputText v-model="editUrl" placeholder="https://example.com" @input="emitUpdate" />
+            <InputText v-model="editUrl" placeholder="https://example.com" @input="emitUpdate" :invalid="!!urlError" />
+            <small v-if="urlError" class="text-red-500">{{ urlError }}</small>
+        </div>
+        <div class="flex align-items-center gap-2">
+            <Checkbox v-model="editTextBelow" :binary="true" inputId="bookmarkTextBelow" @update:modelValue="emitUpdate" />
+            <label for="bookmarkTextBelow" class="text-sm">Text below icon</label>
         </div>
     </div>
 </template>

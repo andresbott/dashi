@@ -8,29 +8,31 @@ import (
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/market"
 	"github.com/andresbott/dashi/internal/themes"
+	"github.com/andresbott/dashi/internal/swisstransport"
 	"github.com/andresbott/dashi/internal/weather"
+	"github.com/andresbott/dashi/internal/xkcd"
 	"github.com/gorilla/mux"
 )
 
-func (h *MainAppHandler) attachApiV0(r *mux.Router, dashStore *dashboard.Store, weatherClient *weather.Client, themeStore *themes.Store, readOnly bool) error {
+func (h *MainAppHandler) attachApiV0(r *mux.Router, dashStore *dashboard.Store, weatherClient *weather.Client, marketClient *market.Client, xkcdClient *xkcd.Client, transportClient *swisstransport.Client, themeStore *themes.Store, readOnly bool) error {
 
 	// Health check
 	r.Path("/health").Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
 	// Settings endpoint
 	r.Path("/settings").Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"readOnly": readOnly})
+		_ = json.NewEncoder(w).Encode(map[string]any{"readOnly": readOnly})
 	})
 
 	// Read-only guard for write operations
 	readOnlyGuard := func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			if readOnly {
-				http.Error(w, `{"error":"read-only mode"}`, http.StatusForbidden)
+				handlers.ErrorJSON(w, "read-only mode", http.StatusForbidden)
 				return
 			}
 			next(w, r)
@@ -54,21 +56,33 @@ func (h *MainAppHandler) attachApiV0(r *mux.Router, dashStore *dashboard.Store, 
 	r.Path("/backgrounds").Methods(http.MethodGet).HandlerFunc(dh.ListBackgrounds)
 
 	// Weather widget routes
-	wh := handlers.NewWeatherHandler(weatherClient)
+	wh := handlers.NewWeatherHandler(weatherClient, h.logger)
 	r.Path("/widgets/weather").Methods(http.MethodGet).HandlerFunc(wh.GetWeather)
 	r.Path("/widgets/weather/geocode").Methods(http.MethodGet).HandlerFunc(wh.Geocode)
 
 	// Theme routes
-	th := handlers.NewThemeHandler(themeStore)
+	th := handlers.NewThemeHandler(themeStore, h.logger)
 	r.Path("/themes").Methods(http.MethodGet).HandlerFunc(th.List)
 	r.Path("/themes/{name}/icons/{icon}").Methods(http.MethodGet).HandlerFunc(th.GetIcon)
 	r.Path("/themes/{name}/fonts/{font}").Methods(http.MethodGet).HandlerFunc(th.GetFont)
 	r.Path("/themes/{name}/backgrounds/{file}").Methods(http.MethodGet).HandlerFunc(th.GetBackground)
 
 	// Market widget routes
-	marketClient := market.NewClient(nil)
-	mh := handlers.NewMarketHandler(marketClient)
+	mh := handlers.NewMarketHandler(marketClient, h.logger)
 	r.Path("/widgets/market").Methods(http.MethodGet).HandlerFunc(mh.GetMarketData)
+
+	// XKCD widget routes
+	xh := handlers.NewXkcdHandler(xkcdClient, h.logger)
+	r.Path("/widgets/xkcd").Methods(http.MethodGet).HandlerFunc(xh.GetComic)
+
+	// Transport widget routes
+	trh := handlers.NewTransportHandler(transportClient, h.logger)
+	r.Path("/widgets/transport/stationboard").Methods(http.MethodGet).HandlerFunc(trh.GetDepartures)
+	r.Path("/widgets/transport/stations").Methods(http.MethodGet).HandlerFunc(trh.SearchStations)
+
+	// Sysinfo widget routes
+	sh := handlers.NewSysinfoHandler(h.logger)
+	r.Path("/widgets/sysinfo").Methods(http.MethodGet).HandlerFunc(sh.GetSysinfo)
 
 	return nil
 }

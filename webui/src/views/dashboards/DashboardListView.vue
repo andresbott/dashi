@@ -8,6 +8,7 @@ import Column from 'primevue/column'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import CreateDashboardDialog from '@/components/dashboards/CreateDashboardDialog.vue'
 import { useListDashboards } from '@/composables/useDashboards'
+import dashiIcon from '@/assets/icon-64.png'
 import { useSettings } from '@/composables/useSettings'
 import { useToast } from 'primevue/usetoast'
 
@@ -74,13 +75,21 @@ const handleDeletePreviews = async () => {
 
 <template>
     <header class="app-topbar">
+        <img :src="dashiIcon" alt="Dashi" class="app-topbar-icon" />
         <span class="app-topbar-title" @click="router.push('/')">Dashi</span>
     </header>
     <div class="dashboard-list-view">
         <div class="flex align-items-center justify-content-between mb-4">
             <h1 class="text-2xl font-bold text-color">Dashboards</h1>
-            <div v-if="!readOnly" class="flex gap-2">
+            <div class="flex gap-2">
                 <Button
+                    label="Documentation"
+                    icon="ti ti-book"
+                    severity="secondary"
+                    @click="router.push({ name: 'doc-dashboards' })"
+                />
+                <Button
+                    v-if="!readOnly"
                     label="Delete Previews"
                     icon="ti ti-trash"
                     severity="secondary"
@@ -88,6 +97,7 @@ const handleDeletePreviews = async () => {
                     @click="handleDeletePreviews"
                 />
                 <Button
+                    v-if="!readOnly"
                     label="New Dashboard"
                     icon="ti ti-plus"
                     @click="createDialogVisible = true"

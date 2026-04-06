@@ -1,14 +1,6 @@
 import { useQuery } from '@tanstack/vue-query'
-import { apiClient } from '@/lib/api/client'
-
-export interface AppSettings {
-    readOnly: boolean
-}
-
-async function getSettings(): Promise<AppSettings> {
-    const { data } = await apiClient.get<AppSettings>('/settings')
-    return data
-}
+import { getSettings } from '@/lib/api/settings'
+export type { AppSettings } from '@/lib/api/settings'
 
 export function useSettings() {
     return useQuery({

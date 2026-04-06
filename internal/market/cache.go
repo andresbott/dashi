@@ -40,11 +40,15 @@ func cacheTTL(rangeID string) time.Duration {
 }
 
 func (c *cache) get(symbol, rangeID string) (MarketData, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	key := cacheKey(symbol, rangeID)
 	entry, ok := c.entries[key]
-	if !ok || time.Now().After(entry.expiry) {
+	if !ok {
+		return MarketData{}, false
+	}
+	if time.Now().After(entry.expiry) {
+		delete(c.entries, key)
 		return MarketData{}, false
 	}
 	return entry.data, true

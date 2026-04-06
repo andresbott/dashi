@@ -47,7 +47,7 @@ func newTestWeatherServer() (*httptest.Server, *httptest.Server) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 
 	aq := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +57,7 @@ func newTestWeatherServer() (*httptest.Server, *httptest.Server) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 
 	return forecast, aq
@@ -291,16 +291,16 @@ func TestRenderStatic_ImageThemeUsesFilePath(t *testing.T) {
 	themeDir := t.TempDir()
 	themePath := filepath.Join(themeDir, "imgtheme")
 	iconsDir := filepath.Join(themePath, "widgets", "weather", "icons")
-	if err := os.MkdirAll(iconsDir, 0o755); err != nil {
+	if err := os.MkdirAll(iconsDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	// Write a minimal PNG file (1x1 pixel)
-	if err := os.WriteFile(filepath.Join(iconsDir, "partly-cloudy.png"), testPNG(), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(iconsDir, "partly-cloudy.png"), testPNG(), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	// Write theme manifest
 	manifest := []byte("name: imgtheme\ndescription: test image theme\ntype: image\n")
-	if err := os.WriteFile(filepath.Join(themePath, "theme.yaml"), manifest, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(themePath, "theme.yaml"), manifest, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -429,7 +429,7 @@ func TestRenderStatic_ImageThemeWithExtraInfo(t *testing.T) {
 	themeDir := t.TempDir()
 	themePath := filepath.Join(themeDir, "imgtheme")
 	iconsDir := filepath.Join(themePath, "widgets", "weather", "icons")
-	if err := os.MkdirAll(iconsDir, 0o755); err != nil {
+	if err := os.MkdirAll(iconsDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -438,13 +438,13 @@ func TestRenderStatic_ImageThemeWithExtraInfo(t *testing.T) {
 		"humidity", "pressure", "uv-index", "visibility", "air-quality",
 	}
 	for _, icon := range allIcons {
-		if err := os.WriteFile(filepath.Join(iconsDir, icon+".svg"), []byte("<svg/>"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(iconsDir, icon+".svg"), []byte("<svg/>"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	manifest := []byte("name: imgtheme\ndescription: test image theme\ntype: image\n")
-	if err := os.WriteFile(filepath.Join(themePath, "theme.yaml"), manifest, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(themePath, "theme.yaml"), manifest, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -546,6 +546,6 @@ func testPNG() []byte {
 	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
 	img.Set(0, 0, color.RGBA{R: 255, A: 255})
 	var buf bytes.Buffer
-	png.Encode(&buf, img)
+	_ = png.Encode(&buf, img)
 	return buf.Bytes()
 }

@@ -32,7 +32,8 @@ type weatherConfig struct {
 	Compact            bool  `json:"compact"`
 	CompactCity        *bool `json:"compactCity"`
 	CompactFeelsLike   bool  `json:"compactFeelsLike"`
-	CompactDescription *bool `json:"compactDescription"`
+	CompactDescription *bool  `json:"compactDescription"`
+	CompactAlign       string `json:"compactAlign"`
 	ShowCurrent        *bool `json:"showCurrent"`
 	ShowDetails  bool    `json:"showDetails"`
 	ShowHourly   bool    `json:"showHourly"`
@@ -75,6 +76,7 @@ type weatherData struct {
 	CompactCity        bool
 	CompactFeelsLike   bool
 	CompactDescription bool
+	CompactAlign       string
 	City               string
 	Temperature  float64
 	Description  string
@@ -136,11 +138,17 @@ func NewStaticRenderer(client *weatherpkg.Client, themeStore *themes.Store) func
 		compactCity := cfg.CompactCity == nil || *cfg.CompactCity
 		compactDesc := cfg.CompactDescription == nil || *cfg.CompactDescription
 
+		compactAlign := cfg.CompactAlign
+		if compactAlign == "" {
+			compactAlign = "left"
+		}
+
 		data := weatherData{
 			Compact:            cfg.Compact,
 			CompactCity:        compactCity,
 			CompactFeelsLike:   cfg.CompactFeelsLike,
 			CompactDescription: compactDesc,
+			CompactAlign:       compactAlign,
 			City:               cfg.City,
 			Temperature:  wd.Current.Temperature,
 			Description:  wd.Current.Description,
@@ -154,171 +162,18 @@ func NewStaticRenderer(client *weatherpkg.Client, themeStore *themes.Store) func
 			IconHTML:     currentIconHTML,
 		}
 
-		var extraInfo []extraInfoItem
-		if cfg.ShowSunrise && len(wd.Forecast) > 0 && wd.Forecast[0].Sunrise != "" {
-			sunrise := wd.Forecast[0].Sunrise
-			if parts := strings.SplitN(sunrise, "T", 2); len(parts) == 2 {
-				sunrise = parts[1]
-			}
-			extraInfo = append(extraInfo, extraInfoItem{IconHTML: resolveIconHTML(themeStore, themeName, "sunrise"), Title: "Sunrise", Value: sunrise})
-		}
-		if cfg.ShowSunset && len(wd.Forecast) > 0 && wd.Forecast[0].Sunset != "" {
-			sunset := wd.Forecast[0].Sunset
-			if parts := strings.SplitN(sunset, "T", 2); len(parts) == 2 {
-				sunset = parts[1]
-			}
-			extraInfo = append(extraInfo, extraInfoItem{IconHTML: resolveIconHTML(themeStore, themeName, "sunset"), Title: "Sunset", Value: sunset})
-		}
-		if cfg.ShowWind {
-			extraInfo = append(extraInfo, extraInfoItem{IconHTML: resolveIconHTML(themeStore, themeName, "wind"), Title: "Wind", Value: fmt.Sprintf("%.0f km/h", wd.Current.WindSpeed)})
-		}
-		if cfg.ShowHumidity {
-			extraInfo = append(extraInfo, extraInfoItem{IconHTML: resolveIconHTML(themeStore, themeName, "humidity"), Title: "Humidity", Value: fmt.Sprintf("%d%%", wd.Current.Humidity)})
-		}
-		if cfg.ShowPressure {
-			extraInfo = append(extraInfo, extraInfoItem{IconHTML: resolveIconHTML(themeStore, themeName, "pressure"), Title: "Pressure", Value: fmt.Sprintf("%.0f hPa", wd.Current.Pressure)})
-		}
-		if cfg.ShowUV && len(wd.Forecast) > 0 {
-			extraInfo = append(extraInfo, extraInfoItem{IconHTML: resolveIconHTML(themeStore, themeName, "uv-index"), Title: "UV Index", Value: fmt.Sprintf("%.1f", wd.Forecast[0].UVIndex)})
-		}
-		if cfg.ShowVisibility {
-			extraInfo = append(extraInfo, extraInfoItem{IconHTML: resolveIconHTML(themeStore, themeName, "visibility"), Title: "Visibility", Value: fmt.Sprintf("%.0f km", wd.Current.Visibility)})
-		}
-		if cfg.ShowAirQuality && wd.AirQuality != nil {
-			extraInfo = append(extraInfo, extraInfoItem{IconHTML: resolveIconHTML(themeStore, themeName, "air-quality"), Title: "AQI", Value: fmt.Sprintf("%d", wd.AirQuality.EuropeanAQI)})
-		}
-		data.ExtraInfo = extraInfo
+		data.ExtraInfo = buildExtraInfo(cfg, wd, themeStore, themeName)
 
 		if cfg.ShowHourly {
-			hourlyCount := cfg.HourlyCount
-			if hourlyCount <= 0 {
-				hourlyCount = 12
-			}
-			if hourlyCount > 24 {
-				hourlyCount = 24
-			}
-			// Collect all entries within the hour range
-			var allHourly []weatherpkg.HourlyForecast
-			for i, h := range wd.Hourly {
-				if i >= hourlyCount {
-					break
-				}
-				allHourly = append(allHourly, h)
-			}
-			// Pick evenly spaced slots
-			slots := cfg.HourlySlots
-			if slots <= 0 {
-				slots = 6
-			}
-			if slots > 12 {
-				slots = 12
-			}
-			if slots > len(allHourly) {
-				slots = len(allHourly)
-			}
-			for i := 0; i < slots; i++ {
-				idx := ((i + 1) * len(allHourly) / slots) - 1
-				h := allHourly[idx]
-				hourTime := h.Time
-				if t, err := time.Parse("2006-01-02T15:04", h.Time); err == nil {
-					hourTime = t.Format("15:04")
-				}
-				data.Hourly = append(data.Hourly, hourlyEntry{
-					Time:        hourTime,
-					IconHTML:    resolveIconHTML(themeStore, themeName, h.Icon),
-					Temperature: h.Temperature,
-				})
-			}
+			data.Hourly = buildHourlyEntries(cfg, wd.Hourly, themeStore, themeName)
 		}
 
 		if cfg.ShowGraph && !cfg.Compact {
-			graphHours := cfg.GraphHours
-			if graphHours <= 0 {
-				graphHours = 24
-			}
-			if graphHours > len(wd.Hourly) {
-				graphHours = len(wd.Hourly)
-			}
-
-			var graphPoints []chart.HourlyPoint
-			for i := 0; i < graphHours; i++ {
-				h := wd.Hourly[i]
-				t, _ := time.Parse("2006-01-02T15:04", h.Time)
-				graphPoints = append(graphPoints, chart.HourlyPoint{
-					Time:        t,
-					Temperature: h.Temperature,
-					RainPercent: h.PrecipitationProbability,
-				})
-			}
-
-			tempColor := parseHexColor(cfg.GraphTempColor, color.NRGBA{R: 0xFF, G: 0x8C, B: 0x42, A: 0xFF})
-			rainColor := parseHexColor(cfg.GraphRainColor, color.NRGBA{R: 0x4A, G: 0x90, B: 0xD9, A: 0xFF})
-			bgColor := parseHexColor(cfg.GraphBgColor, color.NRGBA{A: 0})
-			if cfg.GraphBgColor == "" || cfg.GraphBgColor == "transparent" {
-				bgColor = color.NRGBA{A: 0}
-			}
-
-			graphHeight := cfg.GraphHeight
-			if graphHeight <= 0 {
-				graphHeight = 250
-			}
-
-			chartPNG, err := chart.Generate(graphPoints, chart.Options{
-				Width:     800,
-				Height:    graphHeight,
-				TempColor: tempColor,
-				RainColor: rainColor,
-				BgColor:   bgColor,
-			})
-			if err == nil && len(chartPNG) > 0 {
-				data.ShowGraph = true
-				data.GraphImage = base64.StdEncoding.EncodeToString(chartPNG)
-
-				// Compute temp range for labels
-				minT, maxT := graphPoints[0].Temperature, graphPoints[0].Temperature
-				for _, p := range graphPoints[1:] {
-					minT = math.Min(minT, p.Temperature)
-					maxT = math.Max(maxT, p.Temperature)
-				}
-				data.GraphTempMin = fmt.Sprintf("%.0f°", minT)
-				data.GraphTempMax = fmt.Sprintf("%.0f°", maxT)
-
-				// Time labels — every 3 hours
-				var timeLabels []string
-				for i, p := range graphPoints {
-					if i%(graphHours/8+1) == 0 {
-						timeLabels = append(timeLabels, p.Time.Format("15:04"))
-					}
-				}
-				data.GraphTimeLabels = timeLabels
-
-				data.GraphShowTemp = cfg.GraphShowTemp == nil || *cfg.GraphShowTemp
-				data.GraphShowRain = cfg.GraphShowRain == nil || *cfg.GraphShowRain
-			}
+			addGraphData(&data, cfg, wd.Hourly)
 		}
 
 		if cfg.ShowForecast {
-			forecastDays := cfg.ForecastDays
-			if forecastDays <= 0 {
-				forecastDays = 7
-			}
-			for i, f := range wd.Forecast {
-				if i >= forecastDays {
-					break
-				}
-				dayName := f.Date
-				if t, err := time.Parse("2006-01-02", f.Date); err == nil {
-					dayName = t.Format("Mon")
-				}
-				data.Forecast = append(data.Forecast, forecastDay{
-					Date:        f.Date,
-					DayName:     dayName,
-					IconHTML:    resolveIconHTML(themeStore, themeName, f.Icon),
-					TempMin:     f.TempMin,
-					TempMax:     f.TempMax,
-					Description: f.Description,
-				})
-			}
+			data.Forecast = buildForecastDays(cfg, wd.Forecast, themeStore, themeName)
 		}
 
 		var buf bytes.Buffer
@@ -396,4 +251,219 @@ func parseHexColor(hex string, fallback color.NRGBA) color.NRGBA {
 		return fallback
 	}
 	return color.NRGBA{R: r, G: g, B: b, A: 255}
+}
+
+// buildExtraInfo collects and formats extra weather information (sunrise, sunset, etc).
+func buildExtraInfo(cfg weatherConfig, wd weatherpkg.WeatherData, themeStore *themes.Store, themeName string) []extraInfoItem {
+	var items []extraInfoItem
+	if cfg.ShowSunrise && len(wd.Forecast) > 0 && wd.Forecast[0].Sunrise != "" {
+		sunrise := extractTime(wd.Forecast[0].Sunrise)
+		items = append(items, extraInfoItem{
+			IconHTML: resolveIconHTML(themeStore, themeName, "sunrise"),
+			Title:    "Sunrise",
+			Value:    sunrise,
+		})
+	}
+	if cfg.ShowSunset && len(wd.Forecast) > 0 && wd.Forecast[0].Sunset != "" {
+		sunset := extractTime(wd.Forecast[0].Sunset)
+		items = append(items, extraInfoItem{
+			IconHTML: resolveIconHTML(themeStore, themeName, "sunset"),
+			Title:    "Sunset",
+			Value:    sunset,
+		})
+	}
+	if cfg.ShowWind {
+		items = append(items, extraInfoItem{
+			IconHTML: resolveIconHTML(themeStore, themeName, "wind"),
+			Title:    "Wind",
+			Value:    fmt.Sprintf("%.0f km/h", wd.Current.WindSpeed),
+		})
+	}
+	if cfg.ShowHumidity {
+		items = append(items, extraInfoItem{
+			IconHTML: resolveIconHTML(themeStore, themeName, "humidity"),
+			Title:    "Humidity",
+			Value:    fmt.Sprintf("%d%%", wd.Current.Humidity),
+		})
+	}
+	if cfg.ShowPressure {
+		items = append(items, extraInfoItem{
+			IconHTML: resolveIconHTML(themeStore, themeName, "pressure"),
+			Title:    "Pressure",
+			Value:    fmt.Sprintf("%.0f hPa", wd.Current.Pressure),
+		})
+	}
+	if cfg.ShowUV && len(wd.Forecast) > 0 {
+		items = append(items, extraInfoItem{
+			IconHTML: resolveIconHTML(themeStore, themeName, "uv-index"),
+			Title:    "UV Index",
+			Value:    fmt.Sprintf("%.1f", wd.Forecast[0].UVIndex),
+		})
+	}
+	if cfg.ShowVisibility {
+		items = append(items, extraInfoItem{
+			IconHTML: resolveIconHTML(themeStore, themeName, "visibility"),
+			Title:    "Visibility",
+			Value:    fmt.Sprintf("%.0f km", wd.Current.Visibility),
+		})
+	}
+	if cfg.ShowAirQuality && wd.AirQuality != nil {
+		items = append(items, extraInfoItem{
+			IconHTML: resolveIconHTML(themeStore, themeName, "air-quality"),
+			Title:    "AQI",
+			Value:    fmt.Sprintf("%d", wd.AirQuality.EuropeanAQI),
+		})
+	}
+	return items
+}
+
+// extractTime extracts the time portion from an ISO timestamp string.
+func extractTime(timestamp string) string {
+	if parts := strings.SplitN(timestamp, "T", 2); len(parts) == 2 {
+		return parts[1]
+	}
+	return timestamp
+}
+
+// buildHourlyEntries creates hourly forecast entries for display.
+func buildHourlyEntries(cfg weatherConfig, hourly []weatherpkg.HourlyForecast, themeStore *themes.Store, themeName string) []hourlyEntry {
+	hourlyCount := cfg.HourlyCount
+	if hourlyCount <= 0 {
+		hourlyCount = 12
+	}
+	if hourlyCount > 24 {
+		hourlyCount = 24
+	}
+
+	var allHourly []weatherpkg.HourlyForecast
+	for i, h := range hourly {
+		if i >= hourlyCount {
+			break
+		}
+		allHourly = append(allHourly, h)
+	}
+
+	slots := cfg.HourlySlots
+	if slots <= 0 {
+		slots = 6
+	}
+	if slots > 12 {
+		slots = 12
+	}
+	if slots > len(allHourly) {
+		slots = len(allHourly)
+	}
+
+	var entries []hourlyEntry
+	for i := 0; i < slots; i++ {
+		idx := ((i + 1) * len(allHourly) / slots) - 1
+		h := allHourly[idx]
+		hourTime := h.Time
+		if t, err := time.Parse("2006-01-02T15:04", h.Time); err == nil {
+			hourTime = t.Format("15:04")
+		}
+		entries = append(entries, hourlyEntry{
+			Time:        hourTime,
+			IconHTML:    resolveIconHTML(themeStore, themeName, h.Icon),
+			Temperature: h.Temperature,
+		})
+	}
+	return entries
+}
+
+// buildForecastDays creates daily forecast entries.
+func buildForecastDays(cfg weatherConfig, forecast []weatherpkg.DailyForecast, themeStore *themes.Store, themeName string) []forecastDay {
+	forecastDays := cfg.ForecastDays
+	if forecastDays <= 0 {
+		forecastDays = 7
+	}
+
+	var days []forecastDay
+	for i, f := range forecast {
+		if i >= forecastDays {
+			break
+		}
+		dayName := f.Date
+		if t, err := time.Parse("2006-01-02", f.Date); err == nil {
+			dayName = t.Format("Mon")
+		}
+		days = append(days, forecastDay{
+			Date:        f.Date,
+			DayName:     dayName,
+			IconHTML:    resolveIconHTML(themeStore, themeName, f.Icon),
+			TempMin:     f.TempMin,
+			TempMax:     f.TempMax,
+			Description: f.Description,
+		})
+	}
+	return days
+}
+
+// addGraphData generates and adds weather graph data to the template data.
+func addGraphData(data *weatherData, cfg weatherConfig, hourly []weatherpkg.HourlyForecast) {
+	graphHours := cfg.GraphHours
+	if graphHours <= 0 {
+		graphHours = 24
+	}
+	if graphHours > len(hourly) {
+		graphHours = len(hourly)
+	}
+
+	graphPoints := make([]chart.HourlyPoint, 0, graphHours)
+	for i := 0; i < graphHours; i++ {
+		h := hourly[i]
+		t, _ := time.Parse("2006-01-02T15:04", h.Time)
+		graphPoints = append(graphPoints, chart.HourlyPoint{
+			Time:        t,
+			Temperature: h.Temperature,
+			RainPercent: h.PrecipitationProbability,
+		})
+	}
+
+	tempColor := parseHexColor(cfg.GraphTempColor, color.NRGBA{R: 0xFF, G: 0x8C, B: 0x42, A: 0xFF})
+	rainColor := parseHexColor(cfg.GraphRainColor, color.NRGBA{R: 0x4A, G: 0x90, B: 0xD9, A: 0xFF})
+	bgColor := parseHexColor(cfg.GraphBgColor, color.NRGBA{A: 0})
+	if cfg.GraphBgColor == "" || cfg.GraphBgColor == "transparent" {
+		bgColor = color.NRGBA{A: 0}
+	}
+
+	graphHeight := cfg.GraphHeight
+	if graphHeight <= 0 {
+		graphHeight = 250
+	}
+
+	chartPNG, err := chart.Generate(graphPoints, chart.Options{
+		Width:     800,
+		Height:    graphHeight,
+		TempColor: tempColor,
+		RainColor: rainColor,
+		BgColor:   bgColor,
+	})
+	if err != nil || len(chartPNG) == 0 {
+		return
+	}
+
+	data.ShowGraph = true
+	data.GraphImage = base64.StdEncoding.EncodeToString(chartPNG)
+
+	// Compute temp range for labels
+	minT, maxT := graphPoints[0].Temperature, graphPoints[0].Temperature
+	for _, p := range graphPoints[1:] {
+		minT = math.Min(minT, p.Temperature)
+		maxT = math.Max(maxT, p.Temperature)
+	}
+	data.GraphTempMin = fmt.Sprintf("%.0f°", minT)
+	data.GraphTempMax = fmt.Sprintf("%.0f°", maxT)
+
+	// Time labels — every 3 hours
+	var timeLabels []string
+	for i, p := range graphPoints {
+		if i%(graphHours/8+1) == 0 {
+			timeLabels = append(timeLabels, p.Time.Format("15:04"))
+		}
+	}
+	data.GraphTimeLabels = timeLabels
+
+	data.GraphShowTemp = cfg.GraphShowTemp == nil || *cfg.GraphShowTemp
+	data.GraphShowRain = cfg.GraphShowRain == nil || *cfg.GraphShowRain
 }

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,7 +27,7 @@ func setupWeatherTestServer() (*httptest.Server, *httptest.Server) {
 				"temperature_2m_min": []float64{10.0},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 
 	geoSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -35,7 +36,7 @@ func setupWeatherTestServer() (*httptest.Server, *httptest.Server) {
 				{"name": "Berlin", "country": "Germany", "latitude": 52.52, "longitude": 13.405},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 
 	return forecastSrv, geoSrv
@@ -51,7 +52,7 @@ func TestWeatherHandler_GetWeather(t *testing.T) {
 		weatherpkg.WithBaseURL(forecastSrv.URL),
 		weatherpkg.WithGeoBaseURL(geoSrv.URL),
 	)
-	h := NewWeatherHandler(client)
+	h := NewWeatherHandler(client, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/widgets/weather?lat=52.52&lon=13.41", nil)
 	rec := httptest.NewRecorder()
@@ -73,7 +74,7 @@ func TestWeatherHandler_GetWeather(t *testing.T) {
 
 func TestWeatherHandler_GetWeather_MissingParams(t *testing.T) {
 	client := weatherpkg.NewClient(&http.Client{})
-	h := NewWeatherHandler(client)
+	h := NewWeatherHandler(client, slog.Default())
 
 	tests := []struct {
 		name string
@@ -107,7 +108,7 @@ func TestWeatherHandler_Geocode(t *testing.T) {
 		weatherpkg.WithBaseURL(forecastSrv.URL),
 		weatherpkg.WithGeoBaseURL(geoSrv.URL),
 	)
-	h := NewWeatherHandler(client)
+	h := NewWeatherHandler(client, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/widgets/weather/geocode?city=Berlin", nil)
 	rec := httptest.NewRecorder()
@@ -132,7 +133,7 @@ func TestWeatherHandler_Geocode(t *testing.T) {
 
 func TestWeatherHandler_Geocode_MissingCity(t *testing.T) {
 	client := weatherpkg.NewClient(&http.Client{})
-	h := NewWeatherHandler(client)
+	h := NewWeatherHandler(client, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/widgets/weather/geocode", nil)
 	rec := httptest.NewRecorder()

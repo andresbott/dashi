@@ -57,6 +57,7 @@ export interface WeatherWidgetConfig {
     compactCity?: boolean
     compactFeelsLike?: boolean
     compactDescription?: boolean
+    compactAlign?: 'left' | 'center' | 'right'
     showCurrent?: boolean
     showDetails?: boolean
     showHourly?: boolean
