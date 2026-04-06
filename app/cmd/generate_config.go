@@ -35,6 +35,8 @@ Server:
 # Observability — metrics / health-check HTTP server
 # -----------------------------------------------------------------------------
 Observability:
+  # Set to false to disable the observability server entirely.
+  Enabled: false
   # IP address to bind to. Empty string means listen on all interfaces.
   BindIp: ""
   # Port to listen on.

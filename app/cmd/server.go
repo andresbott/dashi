@@ -95,23 +95,28 @@ func runServer(configFile string) error {
 		return nil
 	})
 
-	// Observability server
-	obsSrv := &http.Server{
-		Addr:              cfg.Obs.Addr(),
-		ReadHeaderTimeout: 10 * time.Second,
-		BaseContext: func(_ net.Listener) context.Context {
-			return gCtx
-		},
-		// TODO: add prometheus metrics handler
-	}
-
-	g.Go(func() error {
-		l.Info("Starting observability server", slog.String("addr", cfg.Obs.Addr()))
-		if err := obsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return err
+	// Observability server (optional)
+	var obsSrv *http.Server
+	if cfg.Obs.Enabled {
+		obsSrv = &http.Server{
+			Addr:              cfg.Obs.Addr(),
+			ReadHeaderTimeout: 10 * time.Second,
+			BaseContext: func(_ net.Listener) context.Context {
+				return gCtx
+			},
+			// TODO: add prometheus metrics handler
 		}
-		return nil
-	})
+
+		g.Go(func() error {
+			l.Info("Starting observability server", slog.String("addr", cfg.Obs.Addr()))
+			if err := obsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				return err
+			}
+			return nil
+		})
+	} else {
+		l.Info("Observability server disabled")
+	}
 
 	// Graceful shutdown
 	g.Go(func() error {
@@ -122,7 +127,9 @@ func runServer(configFile string) error {
 		defer shutdownCancel()
 
 		_ = mainSrv.Shutdown(shutdownCtx)
-		_ = obsSrv.Shutdown(shutdownCtx)
+		if obsSrv != nil {
+			_ = obsSrv.Shutdown(shutdownCtx)
+		}
 		return nil
 	})
 
