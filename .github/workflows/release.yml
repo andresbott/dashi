@@ -13,7 +13,7 @@ jobs:
   # Linux + Windows (runs on Ubuntu, creates the GitHub release)
   # ===========================================================================
   release-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       CGO_ENABLED: 1
 
