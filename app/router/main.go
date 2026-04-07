@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/andresbott/dashi/app/spa"
 	"github.com/andresbott/dashi/internal/dashboard"
@@ -37,51 +38,54 @@ type Cfg struct {
 	Logger         *slog.Logger
 	ProductionMode bool
 	DataDir        string
-	ReadOnly       bool
 }
 
-// MainAppHandler is the entrypoint http handler for the whole application
-type MainAppHandler struct {
+// ViewerHandler serves the read-only dashboard viewer.
+type ViewerHandler struct {
 	router         *mux.Router
 	logger         *slog.Logger
 	productionMode bool
 }
 
-func (h *MainAppHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *ViewerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.router.ServeHTTP(w, r)
 }
 
-func New(cfg Cfg) (*MainAppHandler, error) {
-	r := mux.NewRouter()
-	app := MainAppHandler{
-		router:         r,
-		logger:         cfg.Logger,
-		productionMode: cfg.ProductionMode,
-	}
+// EditorHandler serves the full-CRUD dashboard editor.
+type EditorHandler struct {
+	router         *mux.Router
+	logger         *slog.Logger
+	productionMode bool
+}
 
-	prodMid := middleware.New(middleware.Cfg{
-		JsonErrors:  true,
-		GenericErrs: false,
-		Logger:      cfg.Logger,
-		PromHisto:   middleware.NewPromHistogram("", nil, nil),
-	})
-	r.Use(prodMid.Middleware)
+func (h *EditorHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.router.ServeHTTP(w, r)
+}
 
-	// TODO: attach auth routes
-	// app.attachUserAuth(app.router.PathPrefix("/auth").Subrouter())
+// sharedDeps holds all shared clients, stores, renderers and middleware
+// that are built once and reused by both viewer and editor handlers.
+type sharedDeps struct {
+	dashStore       *dashboard.Store
+	weatherClient   *weather.Client
+	marketClient    *market.Client
+	xkcdClient      *xkcd.Client
+	transportClient *swisstransport.Client
+	themeStore      *themes.Store
+	staticRenderer  *dashstatic.Renderer
+	imageRenderer   *dashimage.Renderer
+	staticMid       func(http.Handler) http.Handler
+	promHisto       middleware.Histogram
+}
 
-	// API v0 routes
+func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	dashStore := dashboard.NewStore(filepath.Join(cfg.DataDir, "dashboards"))
 	weatherClient := weather.NewClient(nil)
 	marketClient := market.NewClient(nil)
 	xkcdClient := xkcd.NewClient(filepath.Join(cfg.DataDir, "cache", "xkcd"))
 	transportClient := swisstransport.NewClient(nil)
 	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "themes"))
-	if err := app.attachApiV0(app.router.PathPrefix("/api/v0").Subrouter(), dashStore, weatherClient, marketClient, xkcdClient, transportClient, themeStore, cfg.ReadOnly); err != nil {
-		return nil, err
-	}
 
-	// Pre-fetch weather data for all configured locations
+	// Pre-fetch weather and market data
 	warmupCtx := cfg.Ctx
 	if warmupCtx == nil {
 		warmupCtx = context.Background()
@@ -104,6 +108,7 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 	registry.Register("stack", stackwidget.NewStaticRenderer(registry))
 	staticRenderer := dashstatic.NewRenderer(registry)
 	imageRenderer := dashimage.NewRenderer()
+
 	for _, themeInfo := range themeStore.List() {
 		if themeInfo.HasIcons && themeInfo.IconType == themes.ThemeTypeFont {
 			fontData, err := themeStore.GetFontData(themeInfo.Name)
@@ -123,16 +128,164 @@ func New(cfg Cfg) (*MainAppHandler, error) {
 			imageRenderer.RegisterFont(font.Name, fontData)
 		}
 	}
-	staticMid := NewStaticDashboardMiddleware(dashStore, staticRenderer, imageRenderer, themeStore)
 
-	// SPA serving — with static dashboard middleware applied before it
-	spaRouter := app.router.PathPrefix("/").Subrouter()
-	spaRouter.Use(staticMid)
-	if err := app.attachSpa(spaRouter, "/"); err != nil {
+	staticMid := NewStaticDashboardMiddleware(dashStore, staticRenderer, imageRenderer, themeStore)
+	promHisto := middleware.NewPromHistogram("", nil, nil)
+
+	return &sharedDeps{
+		dashStore:       dashStore,
+		weatherClient:   weatherClient,
+		marketClient:    marketClient,
+		xkcdClient:      xkcdClient,
+		transportClient: transportClient,
+		themeStore:      themeStore,
+		staticRenderer:  staticRenderer,
+		imageRenderer:   imageRenderer,
+		staticMid:       staticMid,
+		promHisto:       promHisto,
+	}, nil
+}
+
+func newAPIDeps(deps *sharedDeps, logger *slog.Logger) apiDeps {
+	return apiDeps{
+		dashStore:       deps.dashStore,
+		weatherClient:   deps.weatherClient,
+		marketClient:    deps.marketClient,
+		xkcdClient:      deps.xkcdClient,
+		transportClient: deps.transportClient,
+		themeStore:      deps.themeStore,
+		logger:          logger,
+	}
+}
+
+// NewViewerFromDeps creates a viewer handler using pre-built shared deps.
+func NewViewerFromDeps(cfg Cfg, deps *sharedDeps) (*ViewerHandler, error) {
+	r := mux.NewRouter()
+	h := &ViewerHandler{
+		router:         r,
+		logger:         cfg.Logger,
+		productionMode: cfg.ProductionMode,
+	}
+
+	prodMid := middleware.New(middleware.Cfg{
+		JsonErrors:  true,
+		GenericErrs: false,
+		Logger:      cfg.Logger,
+		PromHisto:   deps.promHisto,
+	})
+	r.Use(prodMid.Middleware)
+
+	// API v0 routes (read-only)
+	ad := newAPIDeps(deps, cfg.Logger)
+	attachReadAPIs(r.PathPrefix("/api/v0").Subrouter(), ad)
+
+	// Build the SPA handler once
+	spaHandler, err := spa.App("/")
+	if err != nil {
 		return nil, err
 	}
 
-	return &app, nil
+	// SPA static assets (JS, CSS, fonts, images)
+	r.PathPrefix("/assets/").Methods(http.MethodGet).Handler(spaHandler)
+
+	// Root "/" — serve SPA directly (Vue resolves default dashboard client-side)
+	r.Path("/").Methods(http.MethodGet).Handler(spaHandler)
+
+	// "/:id" — single-segment paths only (no slashes), with static middleware + SPA
+	spaSubrouter := r.PathPrefix("/").Subrouter()
+	spaSubrouter.Use(deps.staticMid)
+	spaSubrouter.Methods(http.MethodGet).MatcherFunc(viewerPathMatcher).Handler(spaHandler)
+
+	return h, nil
+}
+
+// viewerPathMatcher matches only dashboard ID paths (single segment, not a known editor route).
+func viewerPathMatcher(r *http.Request, rm *mux.RouteMatch) bool {
+	path := strings.TrimPrefix(r.URL.Path, "/")
+	if path == "" || strings.Contains(path, "/") {
+		return false
+	}
+	// Reject known editor/SPA-only routes
+	switch path {
+	case "dashboards", "docs":
+		return false
+	}
+	return true
+}
+
+// NewEditorFromDeps creates an editor handler using pre-built shared deps.
+func NewEditorFromDeps(cfg Cfg, deps *sharedDeps) (*EditorHandler, error) {
+	r := mux.NewRouter()
+	h := &EditorHandler{
+		router:         r,
+		logger:         cfg.Logger,
+		productionMode: cfg.ProductionMode,
+	}
+
+	prodMid := middleware.New(middleware.Cfg{
+		JsonErrors:  true,
+		GenericErrs: false,
+		Logger:      cfg.Logger,
+		PromHisto:   deps.promHisto,
+	})
+	r.Use(prodMid.Middleware)
+
+	// API v0 routes (read + write)
+	ad := newAPIDeps(deps, cfg.Logger)
+	apiRouter := r.PathPrefix("/api/v0").Subrouter()
+	attachReadAPIs(apiRouter, ad)
+	attachWriteAPIs(apiRouter, ad)
+
+	// Root "/" redirects to /dashboards
+	r.Path("/").Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/dashboards", http.StatusFound)
+	})
+
+	// Static dashboard middleware (image rendering) + full SPA on all paths
+	spaHandler, err := spa.App("/")
+	if err != nil {
+		return nil, err
+	}
+	spaRouter := r.PathPrefix("/").Subrouter()
+	spaRouter.Use(deps.staticMid)
+	spaRouter.PathPrefix("/").Handler(spaHandler)
+
+	return h, nil
+}
+
+// NewViewer creates a viewer handler (convenience constructor).
+func NewViewer(cfg Cfg) (*ViewerHandler, error) {
+	deps, err := newSharedDeps(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return NewViewerFromDeps(cfg, deps)
+}
+
+// NewEditor creates an editor handler (convenience constructor).
+func NewEditor(cfg Cfg) (*EditorHandler, error) {
+	deps, err := newSharedDeps(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return NewEditorFromDeps(cfg, deps)
+}
+
+// NewBoth creates both viewer and editor handlers sharing the same deps.
+func NewBoth(cfg Cfg) (*ViewerHandler, *EditorHandler, error) {
+	deps, err := newSharedDeps(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	viewer, err := NewViewerFromDeps(cfg, deps)
+	if err != nil {
+		return nil, nil, err
+	}
+	editor, err := NewEditorFromDeps(cfg, deps)
+	if err != nil {
+		return nil, nil, err
+	}
+	return viewer, editor, nil
 }
 
 // warmupWeather scans all dashboards for weather widget configs and
@@ -220,13 +373,4 @@ func warmupMarket(ctx context.Context, store *dashboard.Store, client *market.Cl
 		client.WarmupSymbols(ctx, targets)
 		logger.Info("market warmup: done")
 	}
-}
-
-func (h *MainAppHandler) attachSpa(r *mux.Router, path string) error {
-	spaHandler, err := spa.App(path)
-	if err != nil {
-		return err
-	}
-	r.Methods(http.MethodGet).PathPrefix(path).Handler(spaHandler)
-	return nil
 }

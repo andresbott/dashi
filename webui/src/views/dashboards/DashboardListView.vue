@@ -10,7 +10,6 @@ import CreateDashboardDialog from '@/components/dashboards/CreateDashboardDialog
 import { useListDashboards } from '@/composables/useDashboards'
 import { downloadDashboard } from '@/lib/api/dashboard'
 import dashiIcon from '@/assets/icon-64.png'
-import { useSettings } from '@/composables/useSettings'
 import { useToast } from 'primevue/usetoast'
 
 const router = useRouter()
@@ -23,9 +22,6 @@ const {
     deletePreviews,
     isDeletingPreviews,
 } = useListDashboards()
-
-const { data: settings } = useSettings()
-const readOnly = computed(() => settings.value?.readOnly ?? false)
 
 const dashboards = computed(() => dashboardsData.value ?? [])
 
@@ -98,16 +94,13 @@ const handleDownload = async (id) => {
                     @click="router.push({ name: 'doc-dashboards' })"
                 />
                 <Button
-                    v-if="!readOnly"
                     label="Delete Previews"
                     icon="ti ti-trash"
                     severity="secondary"
                     :loading="isDeletingPreviews"
                     @click="handleDeletePreviews"
                 />
-                <span v-if="readOnly" class="read-only-badge">Read-only mode</span>
                 <Button
-                    v-if="!readOnly"
                     label="New Dashboard"
                     icon="ti ti-plus"
                     @click="createDialogVisible = true"
@@ -157,7 +150,6 @@ const handleDownload = async (id) => {
                                     @click="handleDownload(data.id)"
                                 />
                                 <Button
-                                    v-if="!readOnly"
                                     as="a"
                                     :href="router.resolve({ name: 'dashboard-edit', params: { id: data.id } }).href"
                                     icon="ti ti-pencil"
@@ -166,7 +158,6 @@ const handleDownload = async (id) => {
                                     class="p-1 action-link"
                                 />
                                 <Button
-                                    v-if="!readOnly"
                                     icon="ti ti-trash"
                                     text
                                     rounded
@@ -220,9 +211,4 @@ const handleDownload = async (id) => {
     font-size: 1rem;
 }
 
-.read-only-badge {
-    color: var(--p-text-muted-color);
-    font-size: 0.875rem;
-    font-style: italic;
-}
 </style>

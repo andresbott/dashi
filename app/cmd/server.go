@@ -63,57 +63,53 @@ func runServer(configFile string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// ——— Build the main app handler ———
-	appHandler, err := router.New(router.Cfg{
+	routerCfg := router.Cfg{
 		Ctx:            ctx,
 		Logger:         l,
 		ProductionMode: cfg.Env.Production,
 		DataDir:        cfg.DataDir,
-		ReadOnly:       cfg.ReadOnly,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create router: %w", err)
+	}
+
+	// Build handlers based on which servers are enabled
+	var viewerHandler *router.ViewerHandler
+	var editorHandler *router.EditorHandler
+
+	viewerEnabled := cfg.Server.Viewer.Enabled
+	editorEnabled := cfg.Server.Editor.Enabled
+
+	switch {
+	case viewerEnabled && editorEnabled:
+		viewerHandler, editorHandler, err = router.NewBoth(routerCfg)
+		if err != nil {
+			return fmt.Errorf("failed to create router: %w", err)
+		}
+	case viewerEnabled:
+		l.Info("Editor server disabled")
+		viewerHandler, err = router.NewViewer(routerCfg)
+		if err != nil {
+			return fmt.Errorf("failed to create router: %w", err)
+		}
+	case editorEnabled:
+		l.Info("Viewer server disabled")
+		editorHandler, err = router.NewEditor(routerCfg)
+		if err != nil {
+			return fmt.Errorf("failed to create router: %w", err)
+		}
 	}
 
 	g, gCtx := errgroup.WithContext(ctx)
 
-	// Main server
-	mainSrv := &http.Server{
-		Addr:              cfg.Server.Addr(),
-		Handler:           appHandler,
-		ReadHeaderTimeout: 10 * time.Second,
-		BaseContext: func(_ net.Listener) context.Context {
-			return gCtx
-		},
+	var servers []*http.Server
+
+	if viewerHandler != nil {
+		servers = append(servers, startServer(g, gCtx, l, "viewer", cfg.Server.Viewer.Addr(), viewerHandler))
 	}
-
-	g.Go(func() error {
-		l.Info("Starting main server", slog.String("addr", cfg.Server.Addr()))
-		if err := mainSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return err
-		}
-		return nil
-	})
-
-	// Observability server (optional)
-	var obsSrv *http.Server
+	if editorHandler != nil {
+		servers = append(servers, startServer(g, gCtx, l, "editor", cfg.Server.Editor.Addr(), editorHandler))
+	}
 	if cfg.Obs.Enabled {
-		obsSrv = &http.Server{
-			Addr:              cfg.Obs.Addr(),
-			ReadHeaderTimeout: 10 * time.Second,
-			BaseContext: func(_ net.Listener) context.Context {
-				return gCtx
-			},
-			// TODO: add prometheus metrics handler
-		}
-
-		g.Go(func() error {
-			l.Info("Starting observability server", slog.String("addr", cfg.Obs.Addr()))
-			if err := obsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				return err
-			}
-			return nil
-		})
+		// TODO: add prometheus metrics handler
+		servers = append(servers, startServer(g, gCtx, l, "observability", cfg.Obs.Addr(), nil))
 	} else {
 		l.Info("Observability server disabled")
 	}
@@ -122,16 +118,33 @@ func runServer(configFile string) error {
 	g.Go(func() error {
 		<-gCtx.Done()
 		l.Info("Shutting down servers...")
-
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()
-
-		_ = mainSrv.Shutdown(shutdownCtx)
-		if obsSrv != nil {
-			_ = obsSrv.Shutdown(shutdownCtx)
+		for _, srv := range servers {
+			_ = srv.Shutdown(shutdownCtx)
 		}
 		return nil
 	})
 
 	return g.Wait()
+}
+
+// startServer creates an HTTP server and launches it in the errgroup.
+func startServer(g *errgroup.Group, gCtx context.Context, l *slog.Logger, name, addr string, handler http.Handler) *http.Server {
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		BaseContext: func(_ net.Listener) context.Context {
+			return gCtx
+		},
+	}
+	g.Go(func() error {
+		l.Info("Starting "+name+" server", slog.String("addr", addr))
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
+	})
+	return srv
 }

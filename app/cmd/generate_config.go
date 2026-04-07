@@ -23,13 +23,25 @@ const defaultConfigYAML = `# ===================================================
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Server — main application HTTP server
+# Server — HTTP servers
 # -----------------------------------------------------------------------------
 Server:
-  # IP address to bind to. Empty string means listen on all interfaces.
-  BindIp: ""
-  # Port to listen on.
-  Port: 8085
+  # Viewer — public-facing read-only dashboard viewer
+  Viewer:
+    # Set to false to disable the viewer server entirely.
+    Enabled: true
+    # IP address to bind to. Empty string means listen on all interfaces.
+    BindIp: ""
+    # Port to listen on.
+    Port: 8087
+  # Editor — dashboard editor with full CRUD access
+  Editor:
+    # Set to false to disable the editor server entirely.
+    Enabled: true
+    # IP address to bind to. Empty string means listen on all interfaces.
+    BindIp: ""
+    # Port to listen on.
+    Port: 8088
 
 # -----------------------------------------------------------------------------
 # Observability — metrics / health-check HTTP server
