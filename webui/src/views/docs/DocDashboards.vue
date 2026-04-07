@@ -155,5 +155,68 @@
             <li>Auto-generated on creation.</li>
             <li>Preview dashboards get a <code>-prev</code> suffix.</li>
         </ul>
+        <hr class="doc-divider" />
+        <h3 id="dash-server-modes">Server Modes</h3>
+        <p>Dashi runs the viewer and editor as separate HTTP servers on different ports. Each can be independently enabled or disabled in the configuration.</p>
+        <table>
+            <thead>
+                <tr><th>Server</th><th>Default Port</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>Viewer</code></td>
+                    <td>8087</td>
+                    <td>Read-only. Serves dashboards and GET-only API endpoints. No access to the editor, dashboard list, or documentation pages.</td>
+                </tr>
+                <tr>
+                    <td><code>Editor</code></td>
+                    <td>8088</td>
+                    <td>Full access. Serves the dashboard list, editor, documentation, and all API endpoints including create, update, delete, upload, and import.</td>
+                </tr>
+            </tbody>
+        </table>
+        <p>At least one server must be enabled. When both are enabled they share the same data directory and caches. Configuration example:</p>
+        <pre class="doc-code">Server:
+  Viewer:
+    Enabled: true
+    BindIp: ""
+    Port: 8087
+  Editor:
+    Enabled: true
+    BindIp: ""
+    Port: 8088</pre>
+        <p>A typical deployment exposes the viewer port publicly and restricts editor access to a private network or VPN.</p>
+
+        <hr class="doc-divider" />
+        <h3 id="dash-export-import">Export &amp; Import</h3>
+        <p>Dashboards can be exported as zip archives and imported back into the same or a different Dashi instance.</p>
+        <h4>Export</h4>
+        <ul>
+            <li>From the dashboard list, click the download button on any dashboard card.</li>
+            <li>The zip contains <code>dashboard.json</code> and all asset files.</li>
+        </ul>
+        <h4>Import</h4>
+        <ul>
+            <li>From the dashboard list, click <strong>Import</strong> and select a <code>.zip</code> file.</li>
+            <li>A new dashboard is created with a fresh ID. The name and configuration are read from the zip.</li>
+        </ul>
+
+        <hr class="doc-divider" />
+        <h3 id="dash-file-upload">File Upload</h3>
+        <p>Assets (images, stylesheets) can be uploaded directly from the dashboard editor.</p>
+        <ul>
+            <li>In the editor toolbar, click <strong>Upload</strong> to open the upload dialog.</li>
+            <li>Select a file and confirm. The file is stored in the dashboard's asset folder on disk.</li>
+        </ul>
+        <table>
+            <thead>
+                <tr><th>Detail</th><th>Value</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Accepted file types</td><td><code>.png</code>, <code>.jpg</code>, <code>.jpeg</code>, <code>.svg</code>, <code>.webp</code>, <code>.css</code></td></tr>
+                <tr><td>Max file size</td><td>10 MB per file</td></tr>
+            </tbody>
+        </table>
+        <p>Uploaded assets can be used as dashboard backgrounds (<code>dashboard:filename.jpg</code>) or referenced in custom CSS.</p>
     </section>
 </template>

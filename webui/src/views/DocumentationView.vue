@@ -22,6 +22,9 @@ const sections: Section[] = [
             { id: 'dash-pages', label: 'Pages' },
             { id: 'dash-query-params', label: 'Query Parameters' },
             { id: 'dash-id', label: 'Dashboard ID' },
+            { id: 'dash-server-modes', label: 'Server Modes' },
+            { id: 'dash-export-import', label: 'Export & Import' },
+            { id: 'dash-file-upload', label: 'File Upload' },
         ]
     },
     {

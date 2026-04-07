@@ -11,7 +11,8 @@
 | Dashboard preview | Implemented | Creates "-prev" suffixed copy for image preview |
 | Delete previews | Implemented | Bulk delete all preview dashboards |
 | Default dashboard | Implemented | Boolean flag per dashboard; root `/` redirects to it |
-| Read-only mode | Implemented | Config flag disables all writes, UI hides edit controls |
+| Export dashboard (zip) | Implemented | Downloads dashboard folder as zip |
+| Import dashboard (zip) | Implemented | Upload zip to create new dashboard from dashboard list |
 
 **Create dashboard** — POST creates a new dashboard with a random 6-char
 alphanumeric ID. Folder name derived from snake_case of dashboard name with
@@ -24,6 +25,10 @@ saved via PUT.
 
 **Dashboard preview** — Creates a temporary copy with ID ending in "-prev" so
 image dashboards can be previewed before saving. Bulk delete cleans all previews.
+
+**Export/Import** — Dashboards can be exported as zip files (containing
+dashboard.json and all assets). Zip import creates a new dashboard from an
+uploaded zip, available via the "Import" button on the dashboard list.
 
 ## Dashboard Display
 
@@ -91,7 +96,10 @@ image dashboards can be previewed before saving. Bulk delete cleans all previews
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Embedded frontend | Implemented | go:embed, single binary |
-| Config file generation | Implemented | `dashi generate-config` |
+| Viewer/Editor split | Implemented | Separate servers on different ports, independently enabled |
+| Viewer server | Implemented | Read-only, GET APIs only, default port 8087 |
+| Editor server | Implemented | Full CRUD, read+write APIs, default port 8088 |
+| Config file generation | Implemented | `dashi config` |
 | Env var overrides | Implemented | DASHI_ prefix |
 | Observability server | Partial | Prometheus metrics, health TODO |
 | Logging | Implemented | slog with custom formatting |
