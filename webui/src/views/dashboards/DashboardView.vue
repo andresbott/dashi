@@ -5,13 +5,24 @@ import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import WidgetPlaceholder from '@/components/dashboards/WidgetPlaceholder.vue'
 import { getWidgetEntry } from '@/lib/widgetRegistry'
-import { useGetDashboard } from '@/composables/useDashboards'
+import { useGetDashboard, useListDashboards } from '@/composables/useDashboards'
 import { useThemes } from '@/composables/useThemes'
 import { getFontUrl, getThemeBackgroundUrl } from '@/lib/api/themes'
 
 const route = useRoute()
 const router = useRouter()
-const id = computed(() => route.params.id as string)
+
+// Resolve default dashboard when no :id param (i.e. the "/" route)
+const { dashboards: dashboardList } = useListDashboards()
+const resolvedDefaultId = computed(() => {
+    if (route.params.id) return null
+    const list = dashboardList.value
+    if (!list?.length) return null
+    const target = list.find(d => d.default) ?? list[0]
+    return target.id
+})
+
+const id = computed(() => (route.params.id as string) || resolvedDefaultId.value || '')
 const { data: dashboard, isLoading, isError } = useGetDashboard(() => id.value)
 
 const { data: themesData } = useThemes()

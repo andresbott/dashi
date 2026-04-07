@@ -9,13 +9,12 @@ import (
 )
 
 type AppCfg struct {
-	Server   serverCfg
-	Obs      obsCfg    `config:"Observability"`
-	Auth     authConfig
-	Env      Env
-	Msgs     []Msg
-	DataDir  string
-	ReadOnly bool
+	Server  serverCfg
+	Obs     obsCfg    `config:"Observability"`
+	Auth    authConfig
+	Env     Env
+	Msgs    []Msg
+	DataDir string
 }
 
 type Env struct {
@@ -24,11 +23,30 @@ type Env struct {
 }
 
 type serverCfg struct {
-	BindIp string
-	Port   int
+	Viewer viewerCfg
+	Editor editorCfg
 }
 
-func (c serverCfg) Addr() string {
+type viewerCfg struct {
+	Enabled bool
+	BindIp  string
+	Port    int
+}
+
+func (c viewerCfg) Addr() string {
+	if c.BindIp == "" {
+		return ":" + strconv.Itoa(c.Port)
+	}
+	return c.BindIp + ":" + strconv.Itoa(c.Port)
+}
+
+type editorCfg struct {
+	Enabled bool
+	BindIp  string
+	Port    int
+}
+
+func (c editorCfg) Addr() string {
 	if c.BindIp == "" {
 		return ":" + strconv.Itoa(c.Port)
 	}
@@ -56,8 +74,16 @@ type authConfig struct {
 var defaultCfg = AppCfg{
 	DataDir: "./data",
 	Server: serverCfg{
-		BindIp: "",
-		Port:   8087,
+		Viewer: viewerCfg{
+			Enabled: true,
+			BindIp:  "",
+			Port:    8087,
+		},
+		Editor: editorCfg{
+			Enabled: true,
+			BindIp:  "",
+			Port:    8088,
+		},
 	},
 	Obs: obsCfg{
 		Enabled: false,
@@ -110,6 +136,10 @@ func getAppCfg(file string) (AppCfg, error) {
 		return cfg, fmt.Errorf("failed to get absolute path: %w", err)
 	}
 	cfg.DataDir = absPath
+
+	if !cfg.Server.Viewer.Enabled && !cfg.Server.Editor.Enabled {
+		return cfg, fmt.Errorf("at least one of server.viewer or server.editor must be enabled")
+	}
 
 	if !cfg.Auth.Enabled && cfg.Auth.DefaultUser == "" {
 		cfg.Auth.DefaultUser = "default"
