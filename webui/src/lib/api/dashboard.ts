@@ -65,6 +65,19 @@ export const getDashboardAssets = async (dashboardId: string): Promise<string[]>
     return data.items ?? []
 }
 
+export const uploadDashboardAsset = async (dashboardId: string, filename: string, data: ArrayBuffer): Promise<void> => {
+    await apiClient.post(`${DASHBOARD_PATH}/${dashboardId}/assets/${filename}`, data, {
+        headers: { 'Content-Type': 'application/octet-stream' },
+    })
+}
+
+export const uploadDashboardZip = async (data: ArrayBuffer): Promise<Dashboard> => {
+    const { data: created } = await apiClient.post<Dashboard>(`${DASHBOARD_PATH}/upload`, data, {
+        headers: { 'Content-Type': 'application/zip' },
+    })
+    return created
+}
+
 export const getBackgrounds = async (dashboardId: string): Promise<BackgroundsResponse> => {
     const { data } = await apiClient.get<BackgroundsResponse>('/backgrounds', {
         params: { dashboard: dashboardId },

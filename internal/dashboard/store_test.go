@@ -1,6 +1,9 @@
 package dashboard
 
 import (
+	"archive/zip"
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -662,5 +665,148 @@ func TestStore_List_SkipsPreviews(t *testing.T) {
 
 	if list[0].ID == "preview-prev" {
 		t.Fatal("preview dashboard should not appear in list")
+	}
+}
+
+func makeZip(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, data := range files {
+		f, err := zw.Create(name)
+		if err != nil {
+			t.Fatalf("zip create %s: %v", name, err)
+		}
+		if _, err := f.Write(data); err != nil {
+			t.Fatalf("zip write %s: %v", name, err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("zip close: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func TestStore_ImportZip(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	dashJSON, _ := json.Marshal(Dashboard{
+		ID:        "oldid1",
+		Name:      "Imported",
+		Icon:      "ti-home",
+		Default:   true,
+		Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"},
+		Pages:     []Page{{Rows: []Row{}}},
+	})
+
+	zipData := makeZip(t, map[string][]byte{
+		"dashboard.json": dashJSON,
+		"bg.jpg":         []byte("fake jpg"),
+		"icons/logo.png": []byte("fake png"),
+	})
+
+	created, err := store.ImportZip(zipData)
+	if err != nil {
+		t.Fatalf("import zip: %v", err)
+	}
+	if created.ID == "oldid1" {
+		t.Fatal("expected a new ID, got the old one")
+	}
+	if created.Name != "Imported" {
+		t.Fatalf("expected name 'Imported', got %q", created.Name)
+	}
+	if created.Default {
+		t.Fatal("expected default to be false after import")
+	}
+
+	// Verify dashboard is readable
+	got, err := store.Get(created.ID)
+	if err != nil {
+		t.Fatalf("get imported: %v", err)
+	}
+	if len(got.Pages) != 1 {
+		t.Fatalf("expected 1 page, got %d", len(got.Pages))
+	}
+
+	// Verify assets were extracted
+	assets, err := store.ListAssets(created.ID)
+	if err != nil {
+		t.Fatalf("list assets: %v", err)
+	}
+	if len(assets) != 2 {
+		t.Fatalf("expected 2 assets, got %d: %v", len(assets), assets)
+	}
+}
+
+func TestStore_ImportZip_NoDashboardJSON(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	zipData := makeZip(t, map[string][]byte{
+		"bg.jpg": []byte("fake jpg"),
+	})
+
+	_, err := store.ImportZip(zipData)
+	if err == nil {
+		t.Fatal("expected error for zip without dashboard.json")
+	}
+}
+
+func TestStore_ImportZip_EmptyName(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	dashJSON, _ := json.Marshal(Dashboard{
+		Name:      "",
+		Container: Container{MaxWidth: "100%"},
+		Pages:     []Page{},
+	})
+
+	zipData := makeZip(t, map[string][]byte{
+		"dashboard.json": dashJSON,
+	})
+
+	_, err := store.ImportZip(zipData)
+	if err == nil {
+		t.Fatal("expected error for empty dashboard name")
+	}
+}
+
+func TestStore_ImportZip_InvalidZip(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	_, err := store.ImportZip([]byte("not a zip"))
+	if err == nil {
+		t.Fatal("expected error for invalid zip data")
+	}
+}
+
+func TestStore_ImportZip_SkipsInvalidAssets(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	dashJSON, _ := json.Marshal(Dashboard{
+		Name:      "Test",
+		Container: Container{MaxWidth: "100%"},
+		Pages:     []Page{},
+	})
+
+	zipData := makeZip(t, map[string][]byte{
+		"dashboard.json": dashJSON,
+		"valid.png":      []byte("png"),
+		"script.js":      []byte("bad"),
+		"../escape.png":  []byte("bad"),
+	})
+
+	created, err := store.ImportZip(zipData)
+	if err != nil {
+		t.Fatalf("import zip: %v", err)
+	}
+
+	assets, _ := store.ListAssets(created.ID)
+	if len(assets) != 1 {
+		t.Fatalf("expected 1 valid asset, got %d: %v", len(assets), assets)
 	}
 }

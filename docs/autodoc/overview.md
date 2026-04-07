@@ -91,11 +91,18 @@ DashboardEditView.vue fetches dashboard → local deep copy
 ### Dashboard CRUD (Backend)
 
 ```
-POST   /api/v0/dashboards        → Create (generates 6-char alphanumeric ID)
-GET    /api/v0/dashboards        → List (returns [{id, name, icon, type}])
-GET    /api/v0/dashboards/{id}   → Get full dashboard
-PUT    /api/v0/dashboards/{id}   → Update (overwrites dashboard.json)
-DELETE /api/v0/dashboards/{id}   → Delete (removes folder)
+POST   /api/v0/dashboards                  → Create (generates 6-char alphanumeric ID)
+POST   /api/v0/dashboards/upload           → Import dashboard from zip (Content-Type: application/zip)
+GET    /api/v0/dashboards                  → List (returns [{id, name, icon, type}])
+GET    /api/v0/dashboards/{id}             → Get full dashboard
+GET    /api/v0/dashboards/{id}/download    → Export dashboard as zip
+PUT    /api/v0/dashboards/{id}             → Update (overwrites dashboard.json)
+DELETE /api/v0/dashboards/{id}             → Delete (removes folder)
+DELETE /api/v0/dashboards/previews         → Delete all preview dashboards
+POST   /api/v0/dashboards/{id}/assets/{path} → Upload asset (Content-Type: application/octet-stream, 10MB max)
+GET    /api/v0/dashboards/{id}/assets      → List assets
+GET    /api/v0/dashboards/{id}/assets/{path} → Get asset file
+DELETE /api/v0/dashboards/{id}/assets/{path} → Delete asset
 ```
 
 ## Widget System
@@ -170,9 +177,23 @@ All file-based, no database.
 
 ## Server Architecture
 
-Two HTTP servers started via errgroup:
-1. **Main server** (default `:8087`) — app routes + SPA
-2. **Observability server** (default `:8091`) — metrics/health
+Up to three HTTP servers started via errgroup:
+1. **Viewer server** (default `:8087`) — read-only dashboard viewer with GET-only API
+2. **Editor server** (default `:8088`) — full-CRUD dashboard editor with read + write APIs
+3. **Observability server** (default `:9090`) — metrics/health (disabled by default)
+
+Viewer and editor run on separate ports and can be independently enabled/disabled
+via `Server.Viewer.Enabled` and `Server.Editor.Enabled`. At least one must be
+enabled. When both are enabled, they share the same underlying stores and caches
+(built once via `sharedDeps`).
+
+The **viewer** serves only GET APIs (`attachReadAPIs`) and restricts SPA routes
+to dashboard ID paths (no `/dashboards`, `/docs`). Root `/` serves the SPA which
+resolves the default dashboard client-side.
+
+The **editor** serves both read and write APIs (`attachReadAPIs` + `attachWriteAPIs`)
+and the full SPA including list, edit, and documentation views. Root `/` redirects
+to `/dashboards`.
 
 Data warmup goroutines pre-fetch weather/market data for all configured
 dashboard locations/symbols at startup.

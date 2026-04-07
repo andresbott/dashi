@@ -1,10 +1,13 @@
 package dashboard
 
 import (
+	"archive/zip"
+	"bytes"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"math/big"
 	"mime"
@@ -517,4 +520,96 @@ func (s *Store) ListAssets(id string) ([]string, error) {
 		assets = []string{}
 	}
 	return assets, nil
+}
+
+// ImportZip reads a zip archive containing a dashboard (dashboard.json + assets),
+// assigns a new random ID, and creates the dashboard on disk.
+func (s *Store) ImportZip(data []byte) (Dashboard, error) {
+	if err := s.ensureDir(); err != nil {
+		return Dashboard{}, fmt.Errorf("ensure dir: %w", err)
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return Dashboard{}, fmt.Errorf("open zip: %w", err)
+	}
+
+	// Find and parse dashboard.json
+	var d Dashboard
+	found := false
+	for _, f := range zr.File {
+		if filepath.Clean(f.Name) == dashboardFile {
+			rc, err := f.Open()
+			if err != nil {
+				return Dashboard{}, fmt.Errorf("open %s in zip: %w", dashboardFile, err)
+			}
+			err = json.NewDecoder(rc).Decode(&d)
+			_ = rc.Close()
+			if err != nil {
+				return Dashboard{}, fmt.Errorf("parse %s: %w", dashboardFile, err)
+			}
+			found = true
+			break
+		}
+	}
+	if !found {
+		return Dashboard{}, fmt.Errorf("zip does not contain %s", dashboardFile)
+	}
+
+	if d.Name == "" {
+		return Dashboard{}, fmt.Errorf("dashboard name is required")
+	}
+
+	// Assign a new random ID
+	newID, err := randomID()
+	if err != nil {
+		return Dashboard{}, err
+	}
+	d.ID = newID
+	d.Default = false
+
+	// Create the dashboard folder
+	s.mu.Lock()
+	folder := s.uniqueFolder(toSnakeCase(d.Name))
+	dirPath := filepath.Join(s.dir, folder)
+	if err := os.MkdirAll(dirPath, 0o750); err != nil {
+		s.mu.Unlock()
+		return Dashboard{}, fmt.Errorf("create dashboard dir: %w", err)
+	}
+	s.index[d.ID] = folder
+	s.mu.Unlock()
+
+	// Write dashboard.json with the new ID
+	if err := s.writeToDisk(d); err != nil {
+		_ = os.RemoveAll(dirPath)
+		s.mu.Lock()
+		delete(s.index, d.ID)
+		s.mu.Unlock()
+		return Dashboard{}, err
+	}
+
+	// Extract asset files
+	for _, f := range zr.File {
+		name := filepath.Clean(f.Name)
+		if name == dashboardFile || f.FileInfo().IsDir() {
+			continue
+		}
+		if err := validateAssetPath(name); err != nil {
+			continue // skip files that don't pass validation
+		}
+		rc, err := f.Open()
+		if err != nil {
+			continue
+		}
+		content, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil {
+			continue
+		}
+		fullPath := filepath.Join(dirPath, name)
+		_ = os.MkdirAll(filepath.Dir(fullPath), 0o750)
+		_ = os.WriteFile(fullPath, content, 0o600)
+	}
+
+	return d, nil
 }
