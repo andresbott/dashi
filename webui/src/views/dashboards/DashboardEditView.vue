@@ -6,7 +6,7 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import DashboardRow from '@/components/dashboards/DashboardRow.vue'
 
-import { useGetDashboard, useUpdateDashboard, usePreviewDashboard, useBackgrounds } from '@/composables/useDashboards'
+import { useGetDashboard, useUpdateDashboard, usePreviewDashboard, useBackgrounds, useUploadDashboardAsset } from '@/composables/useDashboards'
 import { useThemes } from '@/composables/useThemes'
 import { useToast } from 'primevue/usetoast'
 import type { Dashboard, Row, Page, Background } from '@/types/dashboard'
@@ -17,6 +17,7 @@ import dashiIcon from '@/assets/icon-64.png'
 import Select from 'primevue/select'
 import ColorPicker from 'primevue/colorpicker'
 import Checkbox from 'primevue/checkbox'
+import FileUpload, { type FileUploadSelectEvent } from 'primevue/fileupload'
 import type { BackgroundOption } from '@/lib/api/dashboard'
 
 const route = useRoute()
@@ -27,6 +28,7 @@ const id = computed(() => route.params.id as string)
 const { data: serverDashboard, isLoading, isError } = useGetDashboard(() => id.value)
 const { updateDashboard, isUpdating } = useUpdateDashboard()
 const { createPreview, updatePreview, deletePreview } = usePreviewDashboard()
+const { uploadAsset, isUploading } = useUploadDashboardAsset()
 const { data: backgroundsData } = useBackgrounds(() => id.value)
 
 const { data: themesData } = useThemes()
@@ -317,6 +319,26 @@ const cleanupPreview = async () => {
     }
 }
 
+const uploadDialogVisible = ref(false)
+const selectedFile = ref<File | null>(null)
+
+const onFileSelect = (event: FileUploadSelectEvent) => {
+    selectedFile.value = event.files[0] ?? null
+}
+
+const confirmUpload = async () => {
+    if (!selectedFile.value) return
+    try {
+        const data = await selectedFile.value.arrayBuffer()
+        await uploadAsset({ dashboardId: id.value, filename: selectedFile.value.name, data })
+        toast.add({ severity: 'success', summary: 'Uploaded', detail: `${selectedFile.value.name} uploaded successfully`, life: 3000 })
+        uploadDialogVisible.value = false
+        selectedFile.value = null
+    } catch {
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to upload file', life: 5000 })
+    }
+}
+
 onBeforeUnmount(cleanupPreview)
 </script>
 
@@ -343,6 +365,12 @@ onBeforeUnmount(cleanupPreview)
                 label="Settings"
                 severity="secondary"
                 @click="containerDialogVisible = true"
+            />
+            <Button
+                icon="ti ti-upload"
+                label="Upload"
+                severity="secondary"
+                @click="uploadDialogVisible = true"
             />
             <Button
                 icon="ti ti-eye"
@@ -691,6 +719,29 @@ onBeforeUnmount(cleanupPreview)
             <div class="flex justify-content-end gap-2 mt-4">
                 <Button label="Cancel" severity="secondary" @click="renamePageDialogVisible = false" />
                 <Button label="Confirm" icon="ti ti-check" @click="confirmRenamePage" />
+            </div>
+        </Dialog>
+        <Dialog
+            v-model:visible="uploadDialogVisible"
+            modal
+            :closable="true"
+            :draggable="false"
+            header="Upload File"
+        >
+            <div class="flex flex-column gap-3" style="min-width: 350px">
+                <FileUpload
+                    mode="basic"
+                    :auto="false"
+                    accept=".png,.jpg,.jpeg,.svg,.webp,.css"
+                    :maxFileSize="10485760"
+                    chooseLabel="Choose File"
+                    @select="onFileSelect"
+                />
+                <small class="text-color-secondary">Accepted: .png, .jpg, .jpeg, .svg, .webp, .css (max 10 MB)</small>
+            </div>
+            <div class="flex justify-content-end gap-2 mt-4">
+                <Button label="Cancel" severity="secondary" @click="uploadDialogVisible = false; selectedFile = null" />
+                <Button label="Upload" icon="ti ti-upload" :loading="isUploading" :disabled="!selectedFile" @click="confirmUpload" />
             </div>
         </Dialog>
         </template>

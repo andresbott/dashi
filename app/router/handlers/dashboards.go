@@ -171,6 +171,25 @@ func (h *DashboardHandler) Download(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *DashboardHandler) Upload(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 50<<20) // 50 MB limit for zip
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		ErrorJSON(w, "failed to read body", http.StatusBadRequest)
+		return
+	}
+
+	created, err := h.store.ImportZip(data)
+	if err != nil {
+		h.logger.Error("import dashboard zip", slog.String("error", err.Error()))
+		ErrorJSON(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(created)
+}
+
 func (h *DashboardHandler) ListAssets(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	assets, err := h.store.ListAssets(id)

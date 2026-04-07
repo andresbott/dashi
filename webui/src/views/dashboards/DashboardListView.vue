@@ -21,6 +21,8 @@ const {
     deleteDashboard,
     deletePreviews,
     isDeletingPreviews,
+    uploadZip,
+    isUploadingZip,
 } = useListDashboards()
 
 const dashboards = computed(() => dashboardsData.value ?? [])
@@ -69,6 +71,22 @@ const handleDeletePreviews = async () => {
     }
 }
 
+const uploadInput = ref(null)
+
+const handleUploadZip = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    try {
+        const data = await file.arrayBuffer()
+        const created = await uploadZip(data)
+        toast.add({ severity: 'success', summary: 'Imported', detail: `Dashboard "${created.name}" imported`, life: 3000 })
+    } catch {
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to import dashboard', life: 5000 })
+    } finally {
+        if (uploadInput.value) uploadInput.value.value = ''
+    }
+}
+
 const handleDownload = async (id) => {
     try {
         await downloadDashboard(id)
@@ -99,6 +117,20 @@ const handleDownload = async (id) => {
                     severity="secondary"
                     :loading="isDeletingPreviews"
                     @click="handleDeletePreviews"
+                />
+                <Button
+                    label="Import"
+                    icon="ti ti-upload"
+                    severity="secondary"
+                    :loading="isUploadingZip"
+                    @click="uploadInput?.click()"
+                />
+                <input
+                    ref="uploadInput"
+                    type="file"
+                    accept=".zip"
+                    style="display: none"
+                    @change="handleUploadZip"
                 />
                 <Button
                     label="New Dashboard"

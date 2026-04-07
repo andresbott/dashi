@@ -9,6 +9,8 @@ import {
     deletePreviews,
     getBackgrounds,
     getDashboardAssets,
+    uploadDashboardAsset,
+    uploadDashboardZip,
 } from '@/lib/api/dashboard'
 import type { CreateDashboardDTO, Dashboard } from '@/types/dashboard'
 import { invalidateAndRefetch } from '@/composables/queryUtils'
@@ -39,6 +41,11 @@ export function useListDashboards() {
         onSuccess: doInvalidate
     })
 
+    const uploadZipMutation = useMutation({
+        mutationFn: (data: ArrayBuffer) => uploadDashboardZip(data),
+        onSuccess: doInvalidate
+    })
+
     return {
         dashboards: query.data,
         isLoading: query.isLoading,
@@ -52,7 +59,10 @@ export function useListDashboards() {
         isDeleting: deleteMutation.isPending,
 
         deletePreviews: deletePreviewsMutation.mutateAsync,
-        isDeletingPreviews: deletePreviewsMutation.isPending
+        isDeletingPreviews: deletePreviewsMutation.isPending,
+
+        uploadZip: uploadZipMutation.mutateAsync,
+        isUploadingZip: uploadZipMutation.isPending
     }
 }
 
@@ -116,6 +126,24 @@ export function useBackgrounds(dashboardId: () => string) {
         queryFn: () => getBackgrounds(idRef.value),
         enabled: computed(() => !!idRef.value),
     })
+}
+
+export function useUploadDashboardAsset() {
+    const queryClient = useQueryClient()
+
+    const mutation = useMutation({
+        mutationFn: ({ dashboardId, filename, data }: { dashboardId: string; filename: string; data: ArrayBuffer }) =>
+            uploadDashboardAsset(dashboardId, filename, data),
+        onSuccess: (_data, variables) => {
+            invalidateAndRefetch(queryClient, ['dashboard-assets', variables.dashboardId])
+            invalidateAndRefetch(queryClient, ['backgrounds', variables.dashboardId])
+        }
+    })
+
+    return {
+        uploadAsset: mutation.mutateAsync,
+        isUploading: mutation.isPending
+    }
 }
 
 export function useDashboardAssets(dashboardId: () => string) {

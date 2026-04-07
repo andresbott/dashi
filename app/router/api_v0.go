@@ -79,6 +79,7 @@ func attachWriteAPIs(r *mux.Router, deps apiDeps) {
 	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.logger)
 
 	r.Path("/dashboards").Methods(http.MethodPost).HandlerFunc(dh.Create)
+	r.Path("/dashboards/upload").Methods(http.MethodPost).HandlerFunc(dh.Upload)
 	r.Path("/dashboards/previews").Methods(http.MethodDelete).HandlerFunc(dh.DeletePreviews)
 	r.Path("/dashboards/{id}").Methods(http.MethodPut).HandlerFunc(dh.Update)
 	r.Path("/dashboards/{id}").Methods(http.MethodDelete).HandlerFunc(dh.Delete)
