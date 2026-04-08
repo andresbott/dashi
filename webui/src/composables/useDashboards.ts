@@ -83,9 +83,9 @@ export function useUpdateDashboard() {
     const mutation = useMutation({
         mutationFn: ({ id, payload }: { id: string; payload: Dashboard }) =>
             updateDashboard(id, payload),
-        onSuccess: (_data, variables) => {
+        onSuccess: (data, variables) => {
             invalidateAndRefetch(queryClient, DASHBOARDS_QUERY_KEY)
-            invalidateAndRefetch(queryClient, ['dashboard', variables.id])
+            queryClient.setQueryData(['dashboard', variables.id], data)
         }
     })
 
