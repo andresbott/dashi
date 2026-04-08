@@ -19,6 +19,11 @@ const router = createRouter({
             component: () => import('@/views/dashboards/DashboardEditView.vue')
         },
         {
+            path: '/dashboards/:id/settings',
+            name: 'dashboard-settings',
+            component: () => import('@/views/dashboards/DashboardSettingsView.vue')
+        },
+        {
             path: '/docs',
             component: () => import('@/views/DocumentationView.vue'),
             children: [

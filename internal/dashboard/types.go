@@ -70,3 +70,10 @@ type Widget struct {
 	Width  int             `json:"width"`
 	Config json.RawMessage `json:"config,omitempty"`
 }
+
+// Auth holds per-dashboard basic auth credentials.
+// Stored as a sidecar auth.json file in the dashboard directory.
+type Auth struct {
+	Username string `json:"username"`
+	Password string `json:"password"` // bcrypt hash
+}

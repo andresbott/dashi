@@ -175,6 +175,10 @@ func NewViewerFromDeps(cfg Cfg, deps *sharedDeps) (*ViewerHandler, error) {
 	})
 	r.Use(prodMid.Middleware)
 
+	// Per-dashboard basic auth (checks /{id} and /api/v0/dashboards/{id} paths)
+	authMid := NewDashboardAuthMiddleware(deps.dashStore)
+	r.Use(authMid)
+
 	// API v0 routes (read-only)
 	ad := newAPIDeps(deps, cfg.Logger)
 	attachReadAPIs(r.PathPrefix("/api/v0").Subrouter(), ad)

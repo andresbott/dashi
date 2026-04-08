@@ -190,6 +190,14 @@ const handleDownload = async (id) => {
                                     class="p-1 action-link"
                                 />
                                 <Button
+                                    as="a"
+                                    :href="router.resolve({ name: 'dashboard-settings', params: { id: data.id } }).href"
+                                    icon="ti ti-settings"
+                                    text
+                                    rounded
+                                    class="p-1 action-link"
+                                />
+                                <Button
                                     icon="ti ti-trash"
                                     text
                                     rounded

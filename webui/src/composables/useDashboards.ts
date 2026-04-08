@@ -11,6 +11,9 @@ import {
     getDashboardAssets,
     uploadDashboardAsset,
     uploadDashboardZip,
+    getDashboardAuth,
+    setDashboardAuth,
+    deleteDashboardAuth,
 } from '@/lib/api/dashboard'
 import type { CreateDashboardDTO, Dashboard } from '@/types/dashboard'
 import { invalidateAndRefetch } from '@/composables/queryUtils'
@@ -153,4 +156,35 @@ export function useDashboardAssets(dashboardId: () => string) {
         queryFn: () => getDashboardAssets(idRef.value),
         enabled: computed(() => !!idRef.value),
     })
+}
+
+export function useDashboardAuth(dashboardId: () => string) {
+    const idRef = computed(dashboardId)
+    const queryClient = useQueryClient()
+
+    const query = useQuery({
+        queryKey: ['dashboard-auth', idRef],
+        queryFn: () => getDashboardAuth(idRef.value),
+        enabled: computed(() => !!idRef.value),
+    })
+
+    const setMutation = useMutation({
+        mutationFn: ({ username, password }: { username: string; password: string }) =>
+            setDashboardAuth(idRef.value, username, password),
+        onSuccess: () => invalidateAndRefetch(queryClient, ['dashboard-auth', idRef.value]),
+    })
+
+    const deleteMutation = useMutation({
+        mutationFn: () => deleteDashboardAuth(idRef.value),
+        onSuccess: () => invalidateAndRefetch(queryClient, ['dashboard-auth', idRef.value]),
+    })
+
+    return {
+        auth: query.data,
+        isLoadingAuth: query.isLoading,
+        setAuth: setMutation.mutateAsync,
+        isSettingAuth: setMutation.isPending,
+        deleteAuth: deleteMutation.mutateAsync,
+        isDeletingAuth: deleteMutation.isPending,
+    }
 }
