@@ -113,3 +113,47 @@ Configuration is loaded in order (last wins):
 2. `.env` file (optional)
 3. `config.yaml` (optional)
 4. Environment variables (prefix: `DASHI_`)
+
+### Running as a systemd User Service
+
+You can run Dashi as a systemd user service so it starts automatically at login.
+
+1. Create the service file at `~/.config/systemd/user/dashi.service`:
+
+```ini
+[Unit]
+Description=Dashi Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/dashi
+ExecStart=/path/to/dashi/dashi start -c /path/to/dashi/config.yaml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+
+2. Enable and start:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now dashi
+```
+
+3. Optionally, keep it running even when logged out:
+
+```bash
+loginctl enable-linger $USER
+```
+
+Useful commands:
+
+```bash
+systemctl --user status dashi     # check status
+systemctl --user restart dashi    # restart
+journalctl --user -u dashi -f    # follow logs
+```
