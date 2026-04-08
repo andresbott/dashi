@@ -6,19 +6,14 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import DashboardRow from '@/components/dashboards/DashboardRow.vue'
 
-import { useGetDashboard, useUpdateDashboard, usePreviewDashboard, useBackgrounds, useUploadDashboardAsset } from '@/composables/useDashboards'
-import { useThemes } from '@/composables/useThemes'
+import { useGetDashboard, useUpdateDashboard, usePreviewDashboard, useUploadDashboardAsset } from '@/composables/useDashboards'
 import { useToast } from 'primevue/usetoast'
-import type { Dashboard, Row, Page, Background } from '@/types/dashboard'
+import type { Dashboard, Row } from '@/types/dashboard'
 import { onBeforeUnmount } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
 import Dialog from 'primevue/dialog'
 import dashiIcon from '@/assets/icon-64.png'
-import Select from 'primevue/select'
-import ColorPicker from 'primevue/colorpicker'
-import Checkbox from 'primevue/checkbox'
 import FileUpload, { type FileUploadSelectEvent } from 'primevue/fileupload'
-import type { BackgroundOption } from '@/lib/api/dashboard'
 
 const route = useRoute()
 const router = useRouter()
@@ -29,106 +24,8 @@ const { data: serverDashboard, isLoading, isError } = useGetDashboard(() => id.v
 const { updateDashboard, isUpdating } = useUpdateDashboard()
 const { createPreview, updatePreview, deletePreview } = usePreviewDashboard()
 const { uploadAsset, isUploading } = useUploadDashboardAsset()
-const { data: backgroundsData } = useBackgrounds(() => id.value)
-
-const { data: themesData } = useThemes()
-const themeOptions = computed(() => {
-    if (!themesData.value) return []
-    return themesData.value.map(t => ({ label: t.name, value: t.name }))
-})
-
-const backgroundImageOptions = computed(() => {
-    const groups: { label: string; items: { label: string; value: string }[] }[] = []
-    if (backgroundOptions.value.theme.length > 0) {
-        groups.push({
-            label: 'Theme',
-            items: backgroundOptions.value.theme.map(o => ({ label: o.name, value: o.value })),
-        })
-    }
-    if (backgroundOptions.value.dashboard.length > 0) {
-        groups.push({
-            label: 'Dashboard',
-            items: backgroundOptions.value.dashboard.map(o => ({ label: o.name, value: o.value })),
-        })
-    }
-    return groups
-})
-
-const ensureBackground = () => {
-    if (!localDashboard.value) return
-    if (!localDashboard.value.background) {
-        localDashboard.value.background = { type: 'none', value: '' }
-    }
-}
-
-const backgroundType = computed({
-    get: (): Background['type'] => localDashboard.value?.background?.type ?? 'none',
-    set: (v: Background['type']) => {
-        ensureBackground()
-        localDashboard.value!.background!.type = v
-        if (v === 'gradient') {
-            localDashboard.value!.background!.value = gradientCSS.value
-        } else {
-            localDashboard.value!.background!.value = ''
-        }
-    }
-})
-
-const backgroundValue = computed({
-    get: () => localDashboard.value?.background?.value ?? '',
-    set: (v: string) => {
-        ensureBackground()
-        localDashboard.value!.background!.value = v
-    }
-})
-
-// Gradient editor state
-const gradientDirection = ref('to right')
-const gradientCustomAngle = ref('135')
-const gradientColor1 = ref('#667eea')
-const gradientColor2 = ref('#764ba2')
-
-const gradientDirectionOptions = [
-    { label: 'To Right', value: 'to right' },
-    { label: 'To Left', value: 'to left' },
-    { label: 'To Bottom', value: 'to bottom' },
-    { label: 'To Top', value: 'to top' },
-    { label: 'To Bottom Right', value: 'to bottom right' },
-    { label: 'To Top Right', value: 'to top right' },
-    { label: 'Custom Angle', value: 'custom' },
-]
-
-const gradientDirectionCSS = computed(() => {
-    return gradientDirection.value === 'custom'
-        ? gradientCustomAngle.value + 'deg'
-        : gradientDirection.value
-})
-
-const gradientCSS = computed(() => {
-    return `linear-gradient(${gradientDirectionCSS.value}, ${gradientColor1.value}, ${gradientColor2.value})`
-})
-
-function parseGradientValue(val: string) {
-    const match = val.match(/^linear-gradient\((.+?),\s*(.+?),\s*(.+?)\)$/)
-    if (!match) return
-    const dir = match[1].trim()
-    gradientColor1.value = match[2].trim()
-    gradientColor2.value = match[3].trim()
-    if (dir.endsWith('deg')) {
-        gradientDirection.value = 'custom'
-        gradientCustomAngle.value = dir.replace('deg', '')
-    } else {
-        gradientDirection.value = dir
-    }
-}
-
-function syncGradientToBackground() {
-    backgroundValue.value = gradientCSS.value
-}
 
 const localDashboard = ref<Dashboard | null>(null)
-const backgroundOptions = computed(() => backgroundsData.value ?? { theme: [] as BackgroundOption[], dashboard: [] as BackgroundOption[] })
-const containerDialogVisible = ref(false)
 const activePageIndex = ref(0)
 
 const dashboardTheme = computed(() => localDashboard.value?.theme || 'default')
@@ -145,18 +42,8 @@ const renamePageName = ref('')
 watch(serverDashboard, (val) => {
     if (val && !localDashboard.value) {
         localDashboard.value = JSON.parse(JSON.stringify(val))
-        if (val.background?.type === 'gradient' && val.background.value) {
-            parseGradientValue(val.background.value)
-        }
     }
 }, { immediate: true })
-
-watch(() => localDashboard.value?.type, (newType) => {
-    if (!localDashboard.value) return
-    if (newType === 'image' && !localDashboard.value.imageConfig) {
-        localDashboard.value.imageConfig = { width: 1024, height: 0 }
-    }
-})
 
 const pages = computed(() => localDashboard.value?.pages ?? [])
 const activePage = computed(() => pages.value[activePageIndex.value])
@@ -364,7 +251,7 @@ onBeforeUnmount(cleanupPreview)
                 icon="ti ti-settings"
                 label="Settings"
                 severity="secondary"
-                @click="containerDialogVisible = true"
+                @click="router.push({ name: 'dashboard-settings', params: { id: id } })"
             />
             <Button
                 icon="ti ti-upload"
@@ -469,241 +356,6 @@ onBeforeUnmount(cleanupPreview)
         </div>
 
         <Dialog
-            v-model:visible="containerDialogVisible"
-            modal
-            :closable="true"
-            :draggable="false"
-            header="Dashboard Settings"
-        >
-            <div class="flex flex-column gap-3" style="min-width: 350px">
-                <div class="flex flex-column gap-1">
-                    <label class="font-semibold text-sm">Name</label>
-                    <InputText v-model="localDashboard.name" placeholder="Dashboard name" />
-                </div>
-                <div class="flex align-items-center gap-2">
-                    <Checkbox v-model="localDashboard.default" :binary="true" inputId="dashboardDefault" />
-                    <label for="dashboardDefault" class="font-semibold text-sm">Default dashboard</label>
-                </div>
-                <div class="flex flex-column gap-1">
-                    <label class="font-semibold text-sm">Type</label>
-                    <Select
-                        v-model="localDashboard.type"
-                        :options="[
-                            { label: 'Interactive', value: 'interactive' },
-                            { label: 'Image', value: 'image' },
-                        ]"
-                        optionLabel="label"
-                        optionValue="value"
-                        class="w-full"
-                    />
-                </div>
-                <div class="flex flex-column gap-1">
-                    <label class="font-semibold text-sm">Theme</label>
-                    <Select
-                        :modelValue="localDashboard.theme || 'default'"
-                        @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.theme = v }"
-                        :options="themeOptions"
-                        optionLabel="label"
-                        optionValue="value"
-                        class="w-full"
-                    />
-                </div>
-                <div class="flex flex-column gap-1">
-                    <label class="font-semibold text-sm">Color Mode</label>
-                    <Select
-                        :modelValue="localDashboard.colorMode || 'auto'"
-                        @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.colorMode = v as any }"
-                        :options="[
-                            { label: 'Auto', value: 'auto' },
-                            { label: 'Light', value: 'light' },
-                            { label: 'Dark', value: 'dark' },
-                        ]"
-                        optionLabel="label"
-                        optionValue="value"
-                        class="w-full"
-                    />
-                </div>
-                <div class="flex flex-column gap-1">
-                    <label class="font-semibold text-sm">Accent Color</label>
-                    <div class="flex align-items-center gap-2">
-                        <ColorPicker
-                            :modelValue="localDashboard!.accentColor?.replace('#', '') || '3B82F6'"
-                            @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.accentColor = '#' + v }"
-                        />
-                        <InputText
-                            :modelValue="localDashboard!.accentColor || '#3B82F6'"
-                            @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.accentColor = v }"
-                            class="flex-1"
-                            placeholder="#3B82F6"
-                        />
-                    </div>
-                </div>
-                <div class="flex flex-column gap-1">
-                    <label class="font-semibold text-sm">Max Width</label>
-                    <InputText v-model="localDashboard.container.maxWidth" placeholder="e.g. 1200px, 80%, 100%" />
-                </div>
-                <div class="flex flex-column gap-1">
-                    <label class="font-semibold text-sm">Vertical Align</label>
-                    <Select
-                        v-model="localDashboard.container.verticalAlign"
-                        :options="[
-                            { label: 'Top', value: 'top' },
-                            { label: 'Center', value: 'center' },
-                            { label: 'Bottom', value: 'bottom' },
-                        ]"
-                        optionLabel="label"
-                        optionValue="value"
-                        class="w-full"
-                    />
-                </div>
-                <div class="flex flex-column gap-1">
-                    <label class="font-semibold text-sm">Horizontal Align</label>
-                    <Select
-                        v-model="localDashboard.container.horizontalAlign"
-                        :options="[
-                            { label: 'Left', value: 'left' },
-                            { label: 'Center', value: 'center' },
-                            { label: 'Right', value: 'right' },
-                        ]"
-                        optionLabel="label"
-                        optionValue="value"
-                        class="w-full"
-                    />
-                </div>
-                <div class="flex flex-column gap-1">
-                    <label class="font-semibold text-sm">Background</label>
-                    <Select
-                        :modelValue="backgroundType"
-                        @update:modelValue="(v: Background['type'] | undefined) => { if (v !== undefined) backgroundType = v }"
-                        :options="[
-                            { label: 'None', value: 'none' },
-                            { label: 'Image', value: 'image' },
-                            { label: 'Color', value: 'color' },
-                            { label: 'Gradient', value: 'gradient' },
-                        ]"
-                        optionLabel="label"
-                        optionValue="value"
-                        class="w-full"
-                    />
-                </div>
-                <div v-if="backgroundType === 'image'" class="flex flex-column gap-1">
-                    <label class="font-semibold text-sm">Background Image</label>
-                    <Select
-                        :modelValue="backgroundValue"
-                        @update:modelValue="(v: string | undefined) => { if (v !== undefined) backgroundValue = v }"
-                        :options="backgroundImageOptions"
-                        optionLabel="label"
-                        optionValue="value"
-                        optionGroupLabel="label"
-                        optionGroupChildren="items"
-                        placeholder="Select an image..."
-                        class="w-full"
-                    />
-                </div>
-                <div v-if="backgroundType === 'color'" class="flex flex-column gap-1">
-                    <label class="font-semibold text-sm">Background Color</label>
-                    <div class="flex align-items-center gap-2">
-                        <ColorPicker
-                            :modelValue="backgroundValue.replace('#', '')"
-                            @update:modelValue="(v: string | undefined) => { if (v !== undefined) backgroundValue = '#' + v }"
-                        />
-                        <InputText
-                            :modelValue="backgroundValue"
-                            @update:modelValue="(v: string | undefined) => { if (v !== undefined) backgroundValue = v }"
-                            placeholder="#1a1a2e"
-                            class="flex-grow-1"
-                        />
-                    </div>
-                </div>
-                <template v-if="backgroundType === 'gradient'">
-                    <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Direction</label>
-                        <Select
-                            v-model="gradientDirection"
-                            :options="gradientDirectionOptions"
-                            optionLabel="label"
-                            optionValue="value"
-                            class="w-full"
-                            @update:modelValue="syncGradientToBackground"
-                        />
-                    </div>
-                    <div v-if="gradientDirection === 'custom'" class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Angle (degrees)</label>
-                        <InputText
-                            v-model="gradientCustomAngle"
-                            placeholder="135"
-                            class="w-full"
-                            @update:modelValue="syncGradientToBackground"
-                        />
-                    </div>
-                    <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Start Color</label>
-                        <div class="flex align-items-center gap-2">
-                            <ColorPicker
-                                :modelValue="gradientColor1.replace('#', '')"
-                                @update:modelValue="(v: string | undefined) => { if (v !== undefined) { gradientColor1 = '#' + v; syncGradientToBackground() } }"
-                            />
-                            <InputText
-                                v-model="gradientColor1"
-                                placeholder="#667eea"
-                                class="flex-grow-1"
-                                @update:modelValue="syncGradientToBackground"
-                            />
-                        </div>
-                    </div>
-                    <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">End Color</label>
-                        <div class="flex align-items-center gap-2">
-                            <ColorPicker
-                                :modelValue="gradientColor2.replace('#', '')"
-                                @update:modelValue="(v: string | undefined) => { if (v !== undefined) { gradientColor2 = '#' + v; syncGradientToBackground() } }"
-                            />
-                            <InputText
-                                v-model="gradientColor2"
-                                placeholder="#764ba2"
-                                class="flex-grow-1"
-                                @update:modelValue="syncGradientToBackground"
-                            />
-                        </div>
-                    </div>
-                    <div
-                        class="gradient-preview"
-                        :style="{ background: gradientCSS }"
-                    />
-                </template>
-                <template v-if="localDashboard!.type === 'image'">
-                    <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Image Width (px)</label>
-                        <InputText
-                            :modelValue="String(localDashboard!.imageConfig?.width ?? 1024)"
-                            @update:modelValue="(v: string | undefined) => {
-                                if (!localDashboard || v === undefined) return
-                                if (!localDashboard.imageConfig) localDashboard.imageConfig = { width: 1024, height: 0 }
-                                localDashboard.imageConfig.width = parseInt(v) || 1024
-                            }"
-                            placeholder="1024"
-                        />
-                    </div>
-                    <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Image Height (px, 0 = auto)</label>
-                        <InputText
-                            :modelValue="String(localDashboard!.imageConfig?.height ?? 0)"
-                            @update:modelValue="(v: string | undefined) => {
-                                if (!localDashboard || v === undefined) return
-                                if (!localDashboard.imageConfig) localDashboard.imageConfig = { width: 1024, height: 0 }
-                                localDashboard.imageConfig.height = parseInt(v) || 0
-                            }"
-                            placeholder="0 (auto)"
-                        />
-                    </div>
-                </template>
-            </div>
-            <div class="flex justify-content-end mt-4">
-                <Button label="Done" icon="ti ti-check" @click="containerDialogVisible = false" />
-            </div>
-        </Dialog>
-
-        <Dialog
             v-model:visible="renamePageDialogVisible"
             modal
             :closable="true"
@@ -791,12 +443,5 @@ onBeforeUnmount(cleanupPreview)
 
 .add-page-btn {
     margin-left: auto;
-}
-
-.gradient-preview {
-    width: 100%;
-    height: 24px;
-    border-radius: 4px;
-    border: 1px solid var(--p-surface-border);
 }
 </style>

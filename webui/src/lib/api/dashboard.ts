@@ -84,3 +84,23 @@ export const getBackgrounds = async (dashboardId: string): Promise<BackgroundsRe
     })
     return data
 }
+
+export interface DashboardAuthResponse {
+    enabled: boolean
+    username?: string
+}
+
+export const getDashboardAuth = async (id: string): Promise<DashboardAuthResponse> => {
+    const { data } = await apiClient.get<DashboardAuthResponse>(`${DASHBOARD_PATH}/${id}/auth`)
+    return data
+}
+
+export const setDashboardAuth = async (id: string, username: string, password: string): Promise<DashboardAuthResponse> => {
+    const { data } = await apiClient.put<DashboardAuthResponse>(`${DASHBOARD_PATH}/${id}/auth`, { username, password })
+    return data
+}
+
+export const deleteDashboardAuth = async (id: string): Promise<DashboardAuthResponse> => {
+    const { data } = await apiClient.delete<DashboardAuthResponse>(`${DASHBOARD_PATH}/${id}/auth`)
+    return data
+}

@@ -613,3 +613,61 @@ func (s *Store) ImportZip(data []byte) (Dashboard, error) {
 
 	return d, nil
 }
+
+const authFile = "auth.json"
+
+// GetAuth reads the auth.json sidecar file for a dashboard.
+// Returns nil, nil if the file does not exist (dashboard is unprotected).
+func (s *Store) GetAuth(id string) (*Auth, error) {
+	if !isValidID(id) {
+		return nil, ErrInvalidID
+	}
+	data, err := os.ReadFile(filepath.Join(s.dashDir(id), authFile))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read auth for %s: %w", id, err)
+	}
+	var a Auth
+	if err := json.Unmarshal(data, &a); err != nil {
+		return nil, fmt.Errorf("unmarshal auth for %s: %w", id, err)
+	}
+	return &a, nil
+}
+
+// SetAuth writes the auth.json sidecar file for a dashboard.
+// The password should already be bcrypt-hashed.
+func (s *Store) SetAuth(id string, username, hashedPassword string) error {
+	if !isValidID(id) {
+		return ErrInvalidID
+	}
+	dir := s.dashDir(id)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return ErrNotFound
+	}
+	a := Auth{Username: username, Password: hashedPassword}
+	data, err := json.MarshalIndent(a, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal auth: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, authFile), data, 0o600); err != nil {
+		return fmt.Errorf("write auth for %s: %w", id, err)
+	}
+	return nil
+}
+
+// DeleteAuth removes the auth.json sidecar file for a dashboard.
+func (s *Store) DeleteAuth(id string) error {
+	if !isValidID(id) {
+		return ErrInvalidID
+	}
+	path := filepath.Join(s.dashDir(id), authFile)
+	if err := os.Remove(path); err != nil {
+		if os.IsNotExist(err) {
+			return nil // already unprotected
+		}
+		return fmt.Errorf("delete auth for %s: %w", id, err)
+	}
+	return nil
+}

@@ -15,6 +15,7 @@ import (
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/gorilla/mux"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type DashboardHandler struct {
@@ -154,6 +155,10 @@ func (h *DashboardHandler) Download(w http.ResponseWriter, r *http.Request) {
 		rel, err := filepath.Rel(dashDir, path)
 		if err != nil {
 			return err
+		}
+		// Exclude auth.json from exports — credentials should not travel with the dashboard
+		if rel == "auth.json" {
+			return nil
 		}
 		f, err := zw.Create(rel)
 		if err != nil {
@@ -295,4 +300,77 @@ func (h *DashboardHandler) ListBackgrounds(w http.ResponseWriter, r *http.Reques
 		"theme":     themeOptions,
 		"dashboard": dashOptions,
 	})
+}
+
+func (h *DashboardHandler) GetAuth(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+	auth, err := h.store.GetAuth(id)
+	if err != nil {
+		if errors.Is(err, dashboard.ErrInvalidID) {
+			ErrorJSON(w, "not found", http.StatusNotFound)
+		} else {
+			h.logger.Error("get auth", slog.String("error", err.Error()))
+			ErrorJSON(w, "internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if auth == nil {
+		_ = json.NewEncoder(w).Encode(map[string]any{"enabled": false})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"enabled": true, "username": auth.Username})
+}
+
+func (h *DashboardHandler) SetAuth(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		ErrorJSON(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Username == "" || req.Password == "" {
+		ErrorJSON(w, "username and password are required", http.StatusBadRequest)
+		return
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		h.logger.Error("hash password", slog.String("error", err.Error()))
+		ErrorJSON(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.store.SetAuth(id, req.Username, string(hashed)); err != nil {
+		if errors.Is(err, dashboard.ErrNotFound) || errors.Is(err, dashboard.ErrInvalidID) {
+			ErrorJSON(w, "not found", http.StatusNotFound)
+		} else {
+			h.logger.Error("set auth", slog.String("error", err.Error()))
+			ErrorJSON(w, "internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"enabled": true, "username": req.Username})
+}
+
+func (h *DashboardHandler) DeleteAuth(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+	if err := h.store.DeleteAuth(id); err != nil {
+		if errors.Is(err, dashboard.ErrInvalidID) {
+			ErrorJSON(w, "not found", http.StatusNotFound)
+		} else {
+			h.logger.Error("delete auth", slog.String("error", err.Error()))
+			ErrorJSON(w, "internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"enabled": false})
 }
