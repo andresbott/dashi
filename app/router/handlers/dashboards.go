@@ -145,6 +145,7 @@ func (h *DashboardHandler) Download(w http.ResponseWriter, r *http.Request) {
 	zw := zip.NewWriter(w)
 	defer func() { _ = zw.Close() }()
 
+	//nolint:gosec // G703: dashDir is derived from id already validated by isValidID ([a-z0-9]+), no traversal possible
 	err = filepath.WalkDir(dashDir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -215,7 +216,7 @@ func (h *DashboardHandler) GetAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", mimeType)
-	if _, err := w.Write(data); err != nil {
+	if _, err := w.Write(data); err != nil { //nolint:gosec // G705: binary asset bytes with explicit Content-Type from mime detection, not HTML
 		h.logger.Error("write asset", slog.String("error", err.Error()))
 	}
 }

@@ -85,7 +85,7 @@ func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.
 	}
 
 	w.Header().Set("Content-Type", "image/png")
-	if _, err := w.Write(pngData); err != nil {
+	if _, err := w.Write(pngData); err != nil { //nolint:gosec // G705: rendered PNG bytes with explicit image/png content-type, not HTML
 		// Error already committed to response
 		return
 	}
@@ -134,6 +134,7 @@ func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]s
 
 	return dashstatic.RenderData{
 		Name:        dash.Name,
+		DashboardID: dash.ID,
 		MaxWidth:    dash.Container.MaxWidth,
 		HAlign:      dash.Container.HorizontalAlign,
 		VAlign:      dash.Container.VerticalAlign,
@@ -164,7 +165,7 @@ func serveHTMLPreview(w http.ResponseWriter, html string, width, height int) {
 	if width > 0 || height > 0 {
 		style := buildWrapperStyle(width, height)
 		wrapper := `<div style="` + style + `">`
-		_, _ = w.Write([]byte(wrapper))
+		_, _ = w.Write([]byte(wrapper)) //nolint:gosec // G705: wrapper is a fixed-shape div with style built from numeric width/height, no user input
 		_, _ = w.Write([]byte(inlinedHTML))
 		_, _ = w.Write([]byte("</div>"))
 	} else {

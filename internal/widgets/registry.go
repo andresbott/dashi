@@ -7,6 +7,7 @@ import (
 
 // RenderContext provides dashboard-level settings to widget renderers.
 type RenderContext struct {
+	DashboardID string            // dashboard identifier for asset resolution
 	Theme       string            // dashboard theme name
 	QueryParams map[string]string // URL query parameters from the HTTP request
 	PageIndex   int               // zero-based index of the current page

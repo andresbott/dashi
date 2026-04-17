@@ -94,6 +94,9 @@ func getDisks() []DiskInfo {
 		if err != nil {
 			continue
 		}
+		if usage.Total == 0 {
+			continue
+		}
 		disks = append(disks, DiskInfo{
 			Mountpoint: p.Mountpoint,
 			Device:     p.Device,

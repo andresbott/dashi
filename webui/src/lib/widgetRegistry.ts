@@ -95,6 +95,13 @@ const registry: Record<string, WidgetRegistryEntry> = {
         icon: 'ti-server-cog',
         description: 'Host disk, memory, and uptime',
     },
+    markdown: {
+        component: defineAsyncComponent(() => import('@/components/dashboards/MarkdownWidget.vue')),
+        configComponent: defineAsyncComponent(() => import('@/components/dashboards/MarkdownWidgetConfig.vue')),
+        label: 'Markdown',
+        icon: 'ti-markdown',
+        description: 'Render markdown content from a file',
+    },
 }
 
 export function getWidgetEntry(type: string): WidgetRegistryEntry | undefined {

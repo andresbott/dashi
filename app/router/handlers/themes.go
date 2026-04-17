@@ -71,7 +71,7 @@ func (h *ThemeHandler) GetFont(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "font/ttf")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
-	if _, err := w.Write(data); err != nil {
+	if _, err := w.Write(data); err != nil { //nolint:gosec // G705: font binary with explicit font/ttf content-type, not HTML
 		// Error already committed to response, log only
 		return
 	}
@@ -99,7 +99,7 @@ func (h *ThemeHandler) GetBackground(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "public, max-age=86400")
-	if _, err := w.Write(data); err != nil {
+	if _, err := w.Write(data); err != nil { //nolint:gosec // G705: background image bytes with Content-Type from extension; filename sanitized above against traversal/slashes
 		// Error already committed to response, log only
 		return
 	}

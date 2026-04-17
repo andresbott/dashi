@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	_ "embed"
 
@@ -216,7 +217,7 @@ func resolveIconHTML(store *themes.Store, themeName, canonicalName string) templ
 	case themes.ThemeTypeFont:
 		if resolved.Codepoint != "" {
 			cp, err := strconv.ParseUint(resolved.Codepoint, 16, 32)
-			if err == nil {
+			if err == nil && cp <= unicode.MaxRune {
 				return template.HTML(fmt.Sprintf(
 					`<span style="font-family: icon-font-%s; font-size: 1.4em;">%s</span>`,
 					template.HTMLEscapeString(themeName),

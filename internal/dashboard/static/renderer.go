@@ -28,6 +28,7 @@ func NewRenderer(registry *widgets.Registry) *Renderer {
 // RenderData holds the data needed to render a dashboard page as HTML.
 type RenderData struct {
 	Name          string
+	DashboardID   string
 	MaxWidth      string
 	HAlign        string
 	VAlign        string
@@ -98,7 +99,7 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 			Width:             row.Width,
 			HasExplicitHeight: hasExplicitHeight,
 		}
-		ctx := widgets.RenderContext{Theme: data.Theme, QueryParams: data.QueryParams, PageIndex: data.PageIndex, TotalPages: data.TotalPages}
+		ctx := widgets.RenderContext{DashboardID: data.DashboardID, Theme: data.Theme, QueryParams: data.QueryParams, PageIndex: data.PageIndex, TotalPages: data.TotalPages}
 		debug := data.QueryParams["debug"] == "1"
 		colorIdx := 0
 		for _, widget := range row.Widgets {
