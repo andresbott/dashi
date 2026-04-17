@@ -21,3 +21,7 @@ Project documentation lives in `docs/autodoc/`:
 - `make run` — Start Go server (debug mode, no embedded UI)
 - `make run-ui` — Build UI + embed + start server
 - `cd webui && npm run dev` — Vite dev server (proxies API to :8087)
+
+## Rules
+
+- Never edit `.golangci.yaml` (or any `.golangci.*` config) without explicit user approval. When a linter flags code, fix the code or use a targeted inline `//nolint:<linter> // reason` directive instead. Only change lint config after the user says yes.

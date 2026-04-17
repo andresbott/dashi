@@ -17,13 +17,13 @@ export default defineConfig({
   server: {
     proxy: {
       '/auth': {
-        target: 'http://localhost:8087',
+        target: 'http://localhost:8088',
         changeOrigin: true,
         secure: false,
         cookieDomainRewrite: { '*': '' }
       },
       '/api': {
-        target: 'http://localhost:8087',
+        target: 'http://localhost:8088',
         changeOrigin: true,
         secure: false,
         cookieDomainRewrite: { '*': '' }

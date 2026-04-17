@@ -72,6 +72,11 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	// Sysinfo widget routes
 	sh := handlers.NewSysinfoHandler(deps.logger)
 	r.Path("/widgets/sysinfo").Methods(http.MethodGet).HandlerFunc(sh.GetSysinfo)
+
+	// Markdown widget routes
+	mdh := handlers.NewMarkdownHandler(deps.dashStore, deps.logger)
+	r.Path("/dashboards/{id}/markdown").Methods(http.MethodGet).HandlerFunc(mdh.ListMarkdown)
+	r.Path("/dashboards/{id}/markdown/{filename}").Methods(http.MethodGet).HandlerFunc(mdh.GetMarkdown)
 }
 
 // attachWriteAPIs mounts all write (POST/PUT/DELETE) API endpoints on the given router.

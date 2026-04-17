@@ -101,6 +101,7 @@ var allowedAssetExts = map[string]bool{
 	".svg":  true,
 	".webp": true,
 	".css":  true,
+	".md":   true,
 }
 
 func isAllowedAssetExt(name string) bool {
@@ -647,7 +648,7 @@ func (s *Store) SetAuth(id string, username, hashedPassword string) error {
 		return ErrNotFound
 	}
 	a := Auth{Username: username, Password: hashedPassword}
-	data, err := json.MarshalIndent(a, "", "  ")
+	data, err := json.MarshalIndent(a, "", "  ") //nolint:gosec // G117: Password field stores a bcrypt hash, not plaintext, and is written to a 0600 sidecar file
 	if err != nil {
 		return fmt.Errorf("marshal auth: %w", err)
 	}
