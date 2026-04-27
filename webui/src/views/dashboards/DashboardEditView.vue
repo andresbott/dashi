@@ -169,9 +169,6 @@ const preview = async () => {
             icon: localDashboard.value.icon,
             type: localDashboard.value.type,
             container: JSON.parse(JSON.stringify(localDashboard.value.container)),
-            imageConfig: localDashboard.value.imageConfig
-                ? JSON.parse(JSON.stringify(localDashboard.value.imageConfig))
-                : undefined,
             theme: localDashboard.value.theme,
             colorMode: localDashboard.value.colorMode,
             background: localDashboard.value.background
@@ -366,6 +363,17 @@ onBeforeUnmount(cleanupPreview)
                 <div class="flex flex-column gap-1">
                     <label class="font-semibold text-sm">Page Name</label>
                     <InputText v-model="renamePageName" placeholder="Page name" />
+                </div>
+                <div class="flex flex-column gap-1">
+                    <label class="font-semibold text-sm">Refresh Interval (seconds)</label>
+                    <InputText
+                        :modelValue="String(localDashboard!.pages[renamePageIndex]?.refreshInterval ?? 0)"
+                        @update:modelValue="(v: string | undefined) => {
+                            if (!localDashboard || v === undefined) return
+                            localDashboard.pages[renamePageIndex].refreshInterval = parseInt(v) || 0
+                        }"
+                        placeholder="0 (no header)"
+                    />
                 </div>
             </div>
             <div class="flex justify-content-end gap-2 mt-4">

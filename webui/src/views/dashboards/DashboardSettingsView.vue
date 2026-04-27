@@ -135,13 +135,6 @@ watch(serverDashboard, (val) => {
     }
 }, { immediate: true })
 
-watch(() => localDashboard.value?.type, (newType) => {
-    if (!localDashboard.value) return
-    if (newType === 'image' && !localDashboard.value.imageConfig) {
-        localDashboard.value.imageConfig = { width: 1024, height: 0 }
-    }
-})
-
 const goBack = () => {
     if (window.history.length > 1) {
         router.back()
@@ -166,9 +159,6 @@ const sections = computed(() => {
         { key: 'general', label: 'General', icon: 'ti ti-settings' },
         { key: 'appearance', label: 'Appearance', icon: 'ti ti-palette' },
     ]
-    if (localDashboard.value?.type === 'image') {
-        items.push({ key: 'image', label: 'Image Rendering', icon: 'ti ti-camera' })
-    }
     items.push({ key: 'protection', label: 'Protection', icon: 'ti ti-lock' })
     return items
 })
@@ -423,38 +413,6 @@ const activeSection = ref('general')
                         />
                     </template>
 
-                    <div class="settings-actions">
-                        <Button label="Save" icon="ti ti-check" :loading="isUpdating" @click="save" />
-                        <Button label="Cancel" icon="ti ti-x" severity="secondary" @click="goBack" />
-                    </div>
-                </div>
-
-                <!-- Image Config -->
-                <div v-if="activeSection === 'image'" class="flex flex-column gap-3">
-                    <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Image Width (px)</label>
-                        <InputText
-                            :modelValue="String(localDashboard!.imageConfig?.width ?? 1024)"
-                            @update:modelValue="(v: string | undefined) => {
-                                if (!localDashboard || v === undefined) return
-                                if (!localDashboard.imageConfig) localDashboard.imageConfig = { width: 1024, height: 0 }
-                                localDashboard.imageConfig.width = parseInt(v) || 1024
-                            }"
-                            placeholder="1024"
-                        />
-                    </div>
-                    <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Image Height (px, 0 = auto)</label>
-                        <InputText
-                            :modelValue="String(localDashboard!.imageConfig?.height ?? 0)"
-                            @update:modelValue="(v: string | undefined) => {
-                                if (!localDashboard || v === undefined) return
-                                if (!localDashboard.imageConfig) localDashboard.imageConfig = { width: 1024, height: 0 }
-                                localDashboard.imageConfig.height = parseInt(v) || 0
-                            }"
-                            placeholder="0 (auto)"
-                        />
-                    </div>
                     <div class="settings-actions">
                         <Button label="Save" icon="ti ti-check" :loading="isUpdating" @click="save" />
                         <Button label="Cancel" icon="ti ti-x" severity="secondary" @click="goBack" />

@@ -22,6 +22,7 @@ import (
 	batterywidget "github.com/andresbott/dashi/internal/widgets/battery"
 	bookmarkwidget "github.com/andresbott/dashi/internal/widgets/bookmark"
 	clockwidget "github.com/andresbott/dashi/internal/widgets/clock"
+	imagewidget "github.com/andresbott/dashi/internal/widgets/image"
 	markdownwidget "github.com/andresbott/dashi/internal/widgets/markdown"
 	marketwidget "github.com/andresbott/dashi/internal/widgets/market"
 	pageindicatorwidget "github.com/andresbott/dashi/internal/widgets/pageindicator"
@@ -108,6 +109,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	registry.Register("sysinfo", sysinfowidget.NewStaticRenderer())
 	registry.Register("stack", stackwidget.NewStaticRenderer(registry))
 	registry.Register("markdown", markdownwidget.NewStaticRenderer(dashStore))
+	registry.Register("image", imagewidget.NewStaticRenderer(dashStore))
 	staticRenderer := dashstatic.NewRenderer(registry)
 	imageRenderer := dashimage.NewRenderer()
 
