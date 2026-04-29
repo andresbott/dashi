@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"image"
-	"image/color"
 	"log"
 	"mime"
 	"net/http"
@@ -245,24 +244,20 @@ func encodeForFormat(img *image.RGBA, format string, width, height int) ([]byte,
 		return data, "image/png", err
 
 	case "png-bw":
-		bwData := dashimage.DitherBW(img)
-		grayImg := unpackBWToGray(bwData, width, height)
-		data, err := dashimage.EncodePNG(grayImg)
+		rgba := dashimage.DitherBWRGBA(img)
+		data, err := dashimage.EncodePNG(rgba)
 		return data, "image/png", err
 
 	case "png-spectra6":
-		indices := dashimage.DitherSpectra6(img)
-		colorImg := reconstructSpectra6ToRGBA(indices, width, height)
-		data, err := dashimage.EncodePNG(colorImg)
+		rgba := dashimage.DitherSpectra6RGBA(img)
+		data, err := dashimage.EncodePNG(rgba)
 		return data, "image/png", err
 
 	case "bw":
-		return dashimage.DitherBW(img), "application/octet-stream", nil
+		return dashimage.DitherBWPacked(img), "application/octet-stream", nil
 
 	case "spectra6":
-		indices := dashimage.DitherSpectra6(img)
-		data := dashimage.PackSpectra6(indices, width, height)
-		return data, "application/octet-stream", nil
+		return dashimage.DitherSpectra6Packed(img), "application/octet-stream", nil
 
 	default:
 		return nil, "", fmt.Errorf("unsupported format: %s", format)
@@ -442,53 +437,3 @@ func inlineLocalImages(html string) string {
 	})
 }
 
-// unpackBWToGray converts packed BW data back to grayscale image for PNG encoding.
-func unpackBWToGray(bwData []byte, width, height int) *image.RGBA {
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
-	bytesPerRow := (width + 7) / 8
-
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			byteIdx := y*bytesPerRow + x/8
-			bitPos := 7 - (x % 8)
-			bit := (bwData[byteIdx] >> bitPos) & 1
-
-			var gray uint8
-			if bit == 1 {
-				gray = 255 // white
-			} else {
-				gray = 0 // black
-			}
-
-			img.SetRGBA(x, y, color.RGBA{R: gray, G: gray, B: gray, A: 255})
-		}
-	}
-
-	return img
-}
-
-// reconstructSpectra6ToRGBA converts palette indices back to full-color RGBA for PNG encoding.
-func reconstructSpectra6ToRGBA(indices [][]uint8, width, height int) *image.RGBA {
-	palette := [][3]uint8{
-		{0, 0, 0},       // 0: Black
-		{255, 255, 255}, // 1: White
-		{0, 128, 0},     // 2: Green
-		{0, 0, 255},     // 3: Blue
-		{255, 0, 0},     // 4: Red
-		{255, 255, 0},   // 5: Yellow
-	}
-
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
-
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			idx := indices[y][x]
-			if int(idx) < len(palette) {
-				c := palette[idx]
-				img.SetRGBA(x, y, color.RGBA{R: c[0], G: c[1], B: c[2], A: 255})
-			}
-		}
-	}
-
-	return img
-}

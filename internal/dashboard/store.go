@@ -648,7 +648,7 @@ func (s *Store) SetAuth(id string, username, hashedPassword string) error {
 		return ErrNotFound
 	}
 	a := Auth{Username: username, Password: hashedPassword}
-	data, err := json.MarshalIndent(a, "", "  ") //nolint:gosec // G117: Password field stores a bcrypt hash, not plaintext, and is written to a 0600 sidecar file
+	data, err := json.MarshalIndent(a, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal auth: %w", err)
 	}
