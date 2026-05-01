@@ -7,7 +7,8 @@ func applyExposure(buf []uint8, exposure float64) {
 	if exposure == 1 {
 		return
 	}
-	for i := 0; i < len(buf); i += 4 {
+	n := len(buf) - 3
+	for i := 0; i < n; i += 4 {
 		buf[i] = clampByte(float64(buf[i]) * exposure)
 		buf[i+1] = clampByte(float64(buf[i+1]) * exposure)
 		buf[i+2] = clampByte(float64(buf[i+2]) * exposure)
@@ -20,7 +21,8 @@ func applyContrast(buf []uint8, contrast float64) {
 	if contrast == 1 {
 		return
 	}
-	for i := 0; i < len(buf); i += 4 {
+	n := len(buf) - 3
+	for i := 0; i < n; i += 4 {
 		buf[i] = clampByte((float64(buf[i])-128)*contrast + 128)
 		buf[i+1] = clampByte((float64(buf[i+1])-128)*contrast + 128)
 		buf[i+2] = clampByte((float64(buf[i+2])-128)*contrast + 128)
@@ -55,7 +57,8 @@ func applySaturation(buf []uint8, saturation float64) {
 	if saturation == 1 {
 		return
 	}
-	for i := 0; i < len(buf); i += 4 {
+	n := len(buf) - 3
+	for i := 0; i < n; i += 4 {
 		r := float64(buf[i]) / 255
 		g := float64(buf[i+1]) / 255
 		b := float64(buf[i+2]) / 255
@@ -223,7 +226,8 @@ func applyDRC(buf []uint8, opts *DRCOptions, palette Palette) {
 			highP = 0.99
 		}
 		lightnesses := make([]float64, 0, len(buf)/4)
-		for i := 0; i < len(buf); i += 4 {
+		m := len(buf) - 3
+		for i := 0; i < m; i += 4 {
 			lab := RGBToLab(buf[i], buf[i+1], buf[i+2])
 			lightnesses = append(lightnesses, lab[0])
 		}
@@ -236,7 +240,8 @@ func applyDRC(buf []uint8, opts *DRCOptions, palette Palette) {
 		return
 	}
 
-	for i := 0; i < len(buf); i += 4 {
+	n := len(buf) - 3
+	for i := 0; i < n; i += 4 {
 		lab := RGBToLab(buf[i], buf[i+1], buf[i+2])
 		normL := clamp01((lab[0] - sourceBlackL) / sourceRange)
 		compressedL := blackLab[0] + normL*targetRange
@@ -349,7 +354,8 @@ func applyLevelCompression(buf []uint8, opts *LevelCompressionOptions) {
 		if dL <= 0 {
 			return
 		}
-		for i := 0; i < len(buf); i += 4 {
+		n := len(buf) - 3
+		for i := 0; i < n; i += 4 {
 			r := float64(buf[i])
 			g := float64(buf[i+1])
 			b := float64(buf[i+2])
@@ -379,7 +385,8 @@ func applyLevelCompression(buf []uint8, opts *LevelCompressionOptions) {
 	if dR <= 0 || dG <= 0 || dB <= 0 {
 		return
 	}
-	for i := 0; i < len(buf); i += 4 {
+	n := len(buf) - 3
+	for i := 0; i < n; i += 4 {
 		buf[i] = clampByte(float64(black[0]) + float64(buf[i])*dR/255)
 		buf[i+1] = clampByte(float64(black[1]) + float64(buf[i+1])*dG/255)
 		buf[i+2] = clampByte(float64(black[2]) + float64(buf[i+2])*dB/255)

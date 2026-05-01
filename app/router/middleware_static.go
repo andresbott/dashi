@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"image"
-	"log"
 	"mime"
 	"net/http"
 	"os"
@@ -136,12 +135,6 @@ func parseDisplayHeaders(r *http.Request) (displayRequest, error) {
 
 // serveImageDashboard handles rendering of image-type dashboards.
 func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store) {
-	// TEMPORARY: log request headers and query params for debugging
-	log.Printf("[DEBUG] %s %s", r.Method, r.URL.String())
-	for name, values := range r.Header {
-		log.Printf("[DEBUG]   Header: %s = %s", name, strings.Join(values, ", "))
-	}
-
 	// No display headers at all → serve HTML preview (browser access)
 	if !hasDisplayHeaders(r) {
 		serveImageHTMLPreview(w, r, dash, store, staticRenderer, themeStore)
@@ -212,7 +205,8 @@ func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.
 	}
 
 	w.Header().Set("Content-Type", contentType)
-	_, _ = w.Write(output)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	_, _ = w.Write(output) //nolint:gosec // G705: encoded image/binary bytes served with explicit Content-Type and nosniff; not HTML
 }
 
 // serveImageHTMLPreview renders the dashboard as HTML when display headers are missing.

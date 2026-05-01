@@ -615,6 +615,47 @@ func (s *Store) ImportZip(data []byte) (Dashboard, error) {
 	return d, nil
 }
 
+// ExportZip writes a zip archive of the dashboard directory to w. The auth.json
+// sidecar is excluded so credentials do not travel with exported dashboards.
+// Uses os.Root to confine all file access to the dashboard directory, which
+// rejects symlinks that would escape the root and prevents TOCTOU traversal.
+func (s *Store) ExportZip(id string, w io.Writer) error {
+	if !isValidID(id) {
+		return ErrInvalidID
+	}
+	root, err := os.OpenRoot(s.dashDir(id))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("open dashboard root: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+
+	zw := zip.NewWriter(w)
+	defer func() { _ = zw.Close() }()
+
+	return fs.WalkDir(root.FS(), ".", func(rel string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || rel == authFile {
+			return nil
+		}
+		src, err := root.Open(rel)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = src.Close() }()
+		dst, err := zw.Create(rel)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(dst, src)
+		return err
+	})
+}
+
 const authFile = "auth.json"
 
 // GetAuth reads the auth.json sidecar file for a dashboard.
@@ -647,8 +688,8 @@ func (s *Store) SetAuth(id string, username, hashedPassword string) error {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return ErrNotFound
 	}
-	a := Auth{Username: username, Password: hashedPassword}
-	data, err := json.MarshalIndent(a, "", "  ")
+	a := Auth{Username: username, PasswordHash: hashedPassword}
+	data, err := json.MarshalIndent(a, "", "  ") //nolint:gosec // G117: field holds a bcrypt hash; JSON tag "password" is the stable on-disk sidecar format
 	if err != nil {
 		return fmt.Errorf("marshal auth: %w", err)
 	}

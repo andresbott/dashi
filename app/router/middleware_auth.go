@@ -80,6 +80,6 @@ func extractDashboardID(path string, store *dashboard.Store) (id string, name st
 // checkCredentials compares provided credentials against stored auth.
 func checkCredentials(username, password string, auth *dashboard.Auth) bool {
 	usernameMatch := subtle.ConstantTimeCompare([]byte(username), []byte(auth.Username)) == 1
-	passwordMatch := bcrypt.CompareHashAndPassword([]byte(auth.Password), []byte(password)) == nil
+	passwordMatch := bcrypt.CompareHashAndPassword([]byte(auth.PasswordHash), []byte(password)) == nil
 	return usernameMatch && passwordMatch
 }

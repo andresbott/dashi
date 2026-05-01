@@ -1,14 +1,11 @@
 package handlers
 
 import (
-	"archive/zip"
 	"encoding/json"
 	"errors"
 	"io"
-	"io/fs"
 	"log/slog"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -133,45 +130,10 @@ func (h *DashboardHandler) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dashDir, err := h.store.DashDir(id)
-	if err != nil {
-		ErrorJSON(w, "not found", http.StatusNotFound)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+d.Name+`.zip"`)
 
-	zw := zip.NewWriter(w)
-	defer func() { _ = zw.Close() }()
-
-	err = filepath.WalkDir(dashDir, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(dashDir, path)
-		if err != nil {
-			return err
-		}
-		// Exclude auth.json from exports — credentials should not travel with the dashboard
-		if rel == "auth.json" {
-			return nil
-		}
-		f, err := zw.Create(rel)
-		if err != nil {
-			return err
-		}
-		data, err := os.ReadFile(path) //nolint:gosec // path is within the dashboard directory
-		if err != nil {
-			return err
-		}
-		_, err = f.Write(data)
-		return err
-	})
-	if err != nil {
+	if err := h.store.ExportZip(id, w); err != nil {
 		h.logger.Error("zip dashboard", slog.String("error", err.Error()))
 	}
 }
@@ -215,7 +177,8 @@ func (h *DashboardHandler) GetAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", mimeType)
-	if _, err := w.Write(data); err != nil {
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if _, err := w.Write(data); err != nil { //nolint:gosec // G705: binary asset bytes served with explicit Content-Type and nosniff; not HTML
 		h.logger.Error("write asset", slog.String("error", err.Error()))
 	}
 }
