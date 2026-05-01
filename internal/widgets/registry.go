@@ -1,8 +1,11 @@
 package widgets
 
 import (
+	"context"
 	"encoding/json"
 	"html/template"
+
+	"github.com/gorilla/mux"
 )
 
 // RenderContext provides dashboard-level settings to widget renderers.
@@ -41,3 +44,39 @@ func (r *Registry) Render(widgetType string, config json.RawMessage, ctx RenderC
 	}
 	return renderer(config, ctx)
 }
+
+// Module is the self-contained widget contract. A widget package
+// implements this interface and the app/router layer iterates over
+// a []Module to register renderers, routes, and warmup.
+//
+// RegisterRoutes and Warmup are optional: widgets with no interactive
+// API or no warmup can embed NoopModule to inherit no-op defaults.
+type Module interface {
+	// Type returns the widget type string as stored in dashboard JSON.
+	Type() string
+
+	// Renderer returns the StaticRenderer used for image-mode rendering.
+	// Widgets with no static rendering may return a renderer that emits
+	// a placeholder div.
+	Renderer() StaticRenderer
+
+	// RegisterRoutes mounts the widget's interactive HTTP endpoints on r.
+	// Called once at startup. Must not fail.
+	RegisterRoutes(r *mux.Router)
+
+	// Warmup pre-fetches data for all instances of this widget across
+	// all dashboards. Runs in a goroutine at startup; errors are
+	// non-fatal and should be logged by the widget.
+	Warmup(ctx context.Context, configs []json.RawMessage)
+}
+
+// NoopModule provides no-op implementations of the optional Module
+// methods (RegisterRoutes, Warmup). Embed it in a Module type to
+// inherit the defaults.
+type NoopModule struct{}
+
+// RegisterRoutes is a no-op.
+func (NoopModule) RegisterRoutes(r *mux.Router) {}
+
+// Warmup is a no-op.
+func (NoopModule) Warmup(ctx context.Context, configs []json.RawMessage) {}

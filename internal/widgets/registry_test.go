@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"context"
 	"encoding/json"
 	"html/template"
 	"testing"
@@ -33,4 +34,10 @@ func TestRegistry_Render_UnknownType(t *testing.T) {
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
+}
+
+func TestNoopModule_DoesNotPanic(t *testing.T) {
+	var n NoopModule
+	n.RegisterRoutes(nil)
+	n.Warmup(context.Background(), nil)
 }
