@@ -76,7 +76,7 @@ func TestDashboardHandler_SetAuth(t *testing.T) {
 	if auth == nil {
 		t.Fatal("expected auth to be set")
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(auth.Password), []byte("secret123")); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(auth.PasswordHash), []byte("secret123")); err != nil {
 		t.Fatalf("stored password does not match: %v", err)
 	}
 }

@@ -15,7 +15,7 @@
                 </tr>
                 <tr>
                     <td><code>image</code></td>
-                    <td>Server-side rendered as PNG. Designed for e-ink displays, kiosk screens, or embedding via URL.</td>
+                    <td>Server-side rendered to an image. Supports multiple output formats (PNG, B&amp;W, 7-color) for e-ink displays, kiosk screens, or embedding via URL. When accessed in a browser without display parameters, shows an HTML preview.</td>
                 </tr>
             </tbody>
         </table>
@@ -54,14 +54,9 @@
                     <td>Custom accent color override.</td>
                 </tr>
                 <tr>
-                    <td><code>imageConfig.width</code></td>
-                    <td>integer (default: 1024)</td>
-                    <td>Image type only. Render width in pixels.</td>
-                </tr>
-                <tr>
-                    <td><code>imageConfig.height</code></td>
-                    <td>integer (default: auto)</td>
-                    <td>Image type only. Render height. Auto-calculated from content if omitted.</td>
+                    <td><code>pages[].refreshInterval</code></td>
+                    <td>integer (default: 0)</td>
+                    <td>Image type only. Per-page refresh interval in seconds. Returned as <code>X-Refresh-Interval</code> response header so display devices know when to re-fetch. 0 = no header sent.</td>
                 </tr>
             </tbody>
         </table>
@@ -138,14 +133,101 @@
                     <td><code>1</code></td>
                     <td>Enable debug mode: shows colored borders around widget boxes.</td>
                 </tr>
-                <tr>
-                    <td><code>html</code></td>
-                    <td>(flag)</td>
-                    <td>Image dashboards only. Returns HTML instead of PNG.</td>
-                </tr>
             </tbody>
         </table>
         <p class="doc-hint">All other query parameters are passed through to widgets.</p>
+
+        <h4>Display Parameters (image dashboards)</h4>
+        <p>Image dashboards accept display parameters as either HTTP headers or query parameters. Headers take precedence over query parameters when both are provided.</p>
+        <table>
+            <thead>
+                <tr><th>Header</th><th>Query Parameter</th><th>Values</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>X-Display-Format</code></td>
+                    <td><code>format</code></td>
+                    <td><code>png</code>, <code>png-bw</code>, <code>png-7color</code>, <code>bw</code>, <code>7color</code></td>
+                    <td>Output format. <code>png</code> = full color PNG. <code>png-bw</code> = dithered B&amp;W PNG. <code>png-7color</code> = 7-color palette PNG. <code>bw</code> = raw 1bpp packed binary. <code>7color</code> = raw 4bpp packed binary.</td>
+                </tr>
+                <tr>
+                    <td><code>X-Display-Width</code></td>
+                    <td><code>width</code></td>
+                    <td>positive integer</td>
+                    <td>Native panel width in pixels.</td>
+                </tr>
+                <tr>
+                    <td><code>X-Display-Height</code></td>
+                    <td><code>height</code></td>
+                    <td>positive integer</td>
+                    <td>Native panel height in pixels.</td>
+                </tr>
+                <tr>
+                    <td><code>X-Display-Rotation</code></td>
+                    <td><code>rotation</code></td>
+                    <td><code>0</code>, <code>90</code>, <code>180</code>, <code>270</code></td>
+                    <td>Rotation in degrees. The server renders content rotated by the given amount so that pixel (0,0) maps to the panel's native top-left. For 90°/270° the content is laid out in portrait (H×W) then rotated to fit the native landscape (W×H) output. Defaults to <code>0</code>.</td>
+                </tr>
+                <tr>
+                    <td><code>X-Action</code></td>
+                    <td><code>action</code></td>
+                    <td><code>refresh</code>, <code>swipe_right</code>, <code>swipe_left</code></td>
+                    <td>Navigation action. <code>swipe_right</code>/<code>swipe_left</code> redirect to next/previous page. Defaults to <code>refresh</code>.</td>
+                </tr>
+            </tbody>
+        </table>
+        <p class="doc-hint">Example: <code>/my-dash?format=png&amp;width=800&amp;height=480&amp;rotation=90</code> renders the dashboard in portrait layout, rotated 90° to fill the native 800×480 panel.</p>
+
+        <h4>Response Headers</h4>
+        <table>
+            <thead>
+                <tr><th>Header</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>X-Refresh-Interval</code></td>
+                    <td>Seconds until the display should re-fetch the image. Only set when the page has a non-zero <code>refreshInterval</code>.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h4>Output Formats</h4>
+        <table>
+            <thead>
+                <tr><th>Format</th><th>Content-Type</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>png</code></td>
+                    <td><code>image/png</code></td>
+                    <td>Full-color RGBA PNG image.</td>
+                </tr>
+                <tr>
+                    <td><code>png-bw</code></td>
+                    <td><code>image/png</code></td>
+                    <td>Floyd-Steinberg dithered black &amp; white, encoded as grayscale PNG.</td>
+                </tr>
+                <tr>
+                    <td><code>png-7color</code></td>
+                    <td><code>image/png</code></td>
+                    <td>Dithered to a 7-color e-ink palette (black, white, green, blue, red, yellow, orange), encoded as PNG.</td>
+                </tr>
+                <tr>
+                    <td><code>bw</code></td>
+                    <td><code>application/octet-stream</code></td>
+                    <td>Raw 1-bit-per-pixel packed binary (MSB first). Size: <code>ceil(width/8) × height</code> bytes.</td>
+                </tr>
+                <tr>
+                    <td><code>7color</code></td>
+                    <td><code>application/octet-stream</code></td>
+                    <td>Raw 4-bit-per-pixel packed binary (two pixels per byte). Size: <code>(width × height) / 2</code> bytes.</td>
+                </tr>
+            </tbody>
+        </table>
+        <p class="doc-hint">The <code>bw</code> and <code>7color</code> raw formats are optimized for direct transfer to e-ink display controllers without additional decoding.</p>
+
+        <h4>Browser Preview</h4>
+        <p>When an image dashboard is accessed without any display parameters (no headers, no <code>format</code>/<code>width</code>/<code>height</code> query params), the server returns an HTML preview of the rendered page instead of an image. This allows viewing the dashboard in a regular browser for debugging and development.</p>
 
         <hr class="doc-divider" />
         <h3 id="dash-id">Dashboard ID</h3>

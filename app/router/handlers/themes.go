@@ -70,8 +70,9 @@ func (h *ThemeHandler) GetFont(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "font/ttf")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
-	if _, err := w.Write(data); err != nil { //nolint:gosec // G705: font binary with explicit font/ttf content-type, not HTML
+	if _, err := w.Write(data); err != nil { //nolint:gosec // G705: font bytes served with explicit Content-Type and nosniff; not HTML
 		// Error already committed to response, log only
 		return
 	}
@@ -98,8 +99,9 @@ func (h *ThemeHandler) GetBackground(w http.ResponseWriter, r *http.Request) {
 		contentType = "application/octet-stream"
 	}
 	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
-	if _, err := w.Write(data); err != nil { //nolint:gosec // G705: background image bytes with Content-Type from extension; filename sanitized above against traversal/slashes
+	if _, err := w.Write(data); err != nil { //nolint:gosec // G705: background image bytes served with explicit Content-Type and nosniff; not HTML
 		// Error already committed to response, log only
 		return
 	}

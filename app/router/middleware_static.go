@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"image"
 	"mime"
 	"net/http"
 	"os"
@@ -53,14 +54,119 @@ func NewStaticDashboardMiddleware(store *dashboard.Store, staticRenderer *dashst
 	}
 }
 
+// displayRequest holds validated display protocol headers.
+type displayRequest struct {
+	Format   string
+	Width    int
+	Height   int
+	Rotation int
+	Action   string
+}
+
+var validFormats = map[string]bool{
+	"png": true, "png-bw": true, "png-spectra6": true,
+	"bw": true, "spectra6": true,
+}
+
+var validRotations = map[int]bool{0: true, 90: true, 180: true, 270: true}
+
+// hasDisplayHeaders returns true if any display protocol header or query parameter is present.
+func hasDisplayHeaders(r *http.Request) bool {
+	return r.Header.Get("X-Display-Format") != "" ||
+		r.Header.Get("X-Display-Width") != "" ||
+		r.Header.Get("X-Display-Height") != "" ||
+		r.URL.Query().Get("format") != "" ||
+		r.URL.Query().Get("width") != "" ||
+		r.URL.Query().Get("height") != ""
+}
+
+// getDisplayParam returns the value from the header first, falling back to the query parameter.
+func getDisplayParam(r *http.Request, header, queryParam string) string {
+	if v := r.Header.Get(header); v != "" {
+		return v
+	}
+	return r.URL.Query().Get(queryParam)
+}
+
+// parseDisplayHeaders validates and extracts required display headers/query params.
+// Headers take precedence over query parameters.
+func parseDisplayHeaders(r *http.Request) (displayRequest, error) {
+	format := getDisplayParam(r, "X-Display-Format", "format")
+	if format == "" {
+		return displayRequest{}, fmt.Errorf("missing X-Display-Format header or format query parameter")
+	}
+	if !validFormats[format] {
+		return displayRequest{}, fmt.Errorf("invalid X-Display-Format: %s", format)
+	}
+
+	widthStr := getDisplayParam(r, "X-Display-Width", "width")
+	if widthStr == "" {
+		return displayRequest{}, fmt.Errorf("missing X-Display-Width header or width query parameter")
+	}
+	width, err := strconv.Atoi(widthStr)
+	if err != nil || width <= 0 {
+		return displayRequest{}, fmt.Errorf("invalid X-Display-Width: %s", widthStr)
+	}
+
+	heightStr := getDisplayParam(r, "X-Display-Height", "height")
+	if heightStr == "" {
+		return displayRequest{}, fmt.Errorf("missing X-Display-Height header or height query parameter")
+	}
+	height, err := strconv.Atoi(heightStr)
+	if err != nil || height <= 0 {
+		return displayRequest{}, fmt.Errorf("invalid X-Display-Height: %s", heightStr)
+	}
+
+	rotation := 0
+	if rotStr := getDisplayParam(r, "X-Display-Rotation", "rotation"); rotStr != "" {
+		rotation, err = strconv.Atoi(rotStr)
+		if err != nil || !validRotations[rotation] {
+			return displayRequest{}, fmt.Errorf("invalid X-Display-Rotation: %s (must be 0, 90, 180, or 270)", rotStr)
+		}
+	}
+
+	action := getDisplayParam(r, "X-Action", "action")
+	if action == "" {
+		action = "refresh"
+	}
+
+	return displayRequest{Format: format, Width: width, Height: height, Rotation: rotation, Action: action}, nil
+}
+
 // serveImageDashboard handles rendering of image-type dashboards.
 func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store) {
+	// No display headers at all → serve HTML preview (browser access)
+	if !hasDisplayHeaders(r) {
+		serveImageHTMLPreview(w, r, dash, store, staticRenderer, themeStore)
+		return
+	}
+
+	dreq, err := parseDisplayHeaders(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	pageIdx, ok := parsePageIndex(r, len(dash.Pages))
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 
+	// Handle swipe navigation
+	totalPages := len(dash.Pages)
+	switch dreq.Action {
+	case "swipe_right":
+		nextPage := (pageIdx + 1) % totalPages
+		http.Redirect(w, r, r.URL.Path+"?page="+strconv.Itoa(nextPage), http.StatusTemporaryRedirect)
+		return
+	case "swipe_left":
+		prevPage := (pageIdx - 1 + totalPages) % totalPages
+		http.Redirect(w, r, r.URL.Path+"?page="+strconv.Itoa(prevPage), http.StatusTemporaryRedirect)
+		return
+	}
+
+	// Render dashboard to image
 	renderData := buildRenderData(dash, pageIdx, r.URL.Query(), store, themeStore)
 	bgCSS, bgImageData := buildBackground(dash, store, themeStore)
 	renderData.BackgroundCSS = bgCSS
@@ -71,23 +177,84 @@ func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.
 		return
 	}
 
-	width, height := getDashboardDimensions(dash)
-
-	if r.URL.Query().Get("html") != "" {
-		serveHTMLPreview(w, buf.String(), width, height)
-		return
+	renderWidth, renderHeight := dreq.Width, dreq.Height
+	if dreq.Rotation == 90 || dreq.Rotation == 270 {
+		renderWidth, renderHeight = dreq.Height, dreq.Width
 	}
 
-	pngData, err := imageRenderer.Render(buf.String(), width, height, bgImageData)
+	img, err := imageRenderer.RenderToImage(buf.String(), renderWidth, renderHeight, bgImageData)
 	if err != nil {
 		http.Error(w, "failed to render dashboard image", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "image/png")
-	if _, err := w.Write(pngData); err != nil { //nolint:gosec // G705: rendered PNG bytes with explicit image/png content-type, not HTML
-		// Error already committed to response
+	if dreq.Rotation != 0 {
+		img = dashimage.RotateImage(img, dreq.Rotation)
+	}
+
+	// Set refresh interval
+	if dash.Pages[pageIdx].RefreshInterval > 0 {
+		w.Header().Set("X-Refresh-Interval", strconv.Itoa(dash.Pages[pageIdx].RefreshInterval))
+	}
+
+	// Encode and serve
+	output, contentType, err := encodeForFormat(img, dreq.Format, dreq.Width, dreq.Height)
+	if err != nil {
+		http.Error(w, "failed to encode image", http.StatusInternalServerError)
 		return
+	}
+
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	_, _ = w.Write(output) //nolint:gosec // G705: encoded image/binary bytes served with explicit Content-Type and nosniff; not HTML
+}
+
+// serveImageHTMLPreview renders the dashboard as HTML when display headers are missing.
+func serveImageHTMLPreview(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, themeStore *themes.Store) {
+	pageIdx, ok := parsePageIndex(r, len(dash.Pages))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	renderData := buildRenderData(dash, pageIdx, r.URL.Query(), store, themeStore)
+	bgCSS, _ := buildBackground(dash, store, themeStore)
+	renderData.BackgroundCSS = bgCSS
+
+	var buf bytes.Buffer
+	if err := staticRenderer.Render(&buf, renderData); err != nil {
+		http.Error(w, "failed to render dashboard HTML", http.StatusInternalServerError)
+		return
+	}
+
+	serveHTMLPreview(w, buf.String(), 0, 0)
+}
+
+// encodeForFormat encodes an RGBA image in the requested display format.
+func encodeForFormat(img *image.RGBA, format string, width, height int) ([]byte, string, error) {
+	switch format {
+	case "png":
+		data, err := dashimage.EncodePNG(img)
+		return data, "image/png", err
+
+	case "png-bw":
+		rgba := dashimage.DitherBWRGBA(img)
+		data, err := dashimage.EncodePNG(rgba)
+		return data, "image/png", err
+
+	case "png-spectra6":
+		rgba := dashimage.DitherSpectra6RGBA(img)
+		data, err := dashimage.EncodePNG(rgba)
+		return data, "image/png", err
+
+	case "bw":
+		return dashimage.DitherBWPacked(img), "application/octet-stream", nil
+
+	case "spectra6":
+		return dashimage.DitherSpectra6Packed(img), "application/octet-stream", nil
+
+	default:
+		return nil, "", fmt.Errorf("unsupported format: %s", format)
 	}
 }
 
@@ -149,14 +316,6 @@ func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]s
 	}
 }
 
-// getDashboardDimensions extracts width and height from dashboard config.
-func getDashboardDimensions(dash dashboard.Dashboard) (width, height int) {
-	if dash.ImageConfig != nil {
-		return dash.ImageConfig.Width, dash.ImageConfig.Height
-	}
-	return 0, 0
-}
-
 // serveHTMLPreview writes the HTML preview with optional dimension wrapper.
 func serveHTMLPreview(w http.ResponseWriter, html string, width, height int) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -165,7 +324,7 @@ func serveHTMLPreview(w http.ResponseWriter, html string, width, height int) {
 	if width > 0 || height > 0 {
 		style := buildWrapperStyle(width, height)
 		wrapper := `<div style="` + style + `">`
-		_, _ = w.Write([]byte(wrapper)) //nolint:gosec // G705: wrapper is a fixed-shape div with style built from numeric width/height, no user input
+		_, _ = w.Write([]byte(wrapper))
 		_, _ = w.Write([]byte(inlinedHTML))
 		_, _ = w.Write([]byte("</div>"))
 	} else {
@@ -271,3 +430,4 @@ func inlineLocalImages(html string) string {
 		return parts[1] + dataURI + parts[3]
 	})
 }
+

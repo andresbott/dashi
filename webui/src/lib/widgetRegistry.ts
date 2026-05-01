@@ -102,6 +102,13 @@ const registry: Record<string, WidgetRegistryEntry> = {
         icon: 'ti-markdown',
         description: 'Render markdown content from a file',
     },
+    image: {
+        component: defineAsyncComponent(() => import('@/components/dashboards/ImageWidget.vue')),
+        configComponent: defineAsyncComponent(() => import('@/components/dashboards/ImageWidgetConfig.vue')),
+        label: 'Image',
+        icon: 'ti-photo',
+        description: 'Display an uploaded image',
+    },
 }
 
 export function getWidgetEntry(type: string): WidgetRegistryEntry | undefined {

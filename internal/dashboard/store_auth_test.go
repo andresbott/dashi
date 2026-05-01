@@ -42,8 +42,8 @@ func TestStore_SetAuth(t *testing.T) {
 	if auth.Username != "viewer" {
 		t.Fatalf("expected username 'viewer', got %q", auth.Username)
 	}
-	if auth.Password != "$2a$10$fakehashvalue" {
-		t.Fatalf("expected password hash, got %q", auth.Password)
+	if auth.PasswordHash != "$2a$10$fakehashvalue" {
+		t.Fatalf("expected password hash, got %q", auth.PasswordHash)
 	}
 }
 

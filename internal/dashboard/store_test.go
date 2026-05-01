@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -808,5 +809,130 @@ func TestStore_ImportZip_SkipsInvalidAssets(t *testing.T) {
 	assets, _ := store.ListAssets(created.ID)
 	if len(assets) != 1 {
 		t.Fatalf("expected 1 valid asset, got %d: %v", len(assets), assets)
+	}
+}
+
+func TestStore_ExportZip(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	created, err := store.Create(Dashboard{
+		ID:        "export01",
+		Name:      "Exportable",
+		Icon:      "ti-home",
+		Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"},
+		Pages:     []Page{{Rows: []Row{}}},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := store.SaveAsset(created.ID, "logo.png", []byte("pngbytes")); err != nil {
+		t.Fatalf("save asset: %v", err)
+	}
+	if err := store.SaveAsset(created.ID, "icons/home.png", []byte("iconbytes")); err != nil {
+		t.Fatalf("save nested asset: %v", err)
+	}
+	if err := store.SetAuth(created.ID, "viewer", "$2a$10$fakehash"); err != nil {
+		t.Fatalf("set auth: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := store.ExportZip(created.ID, &buf); err != nil {
+		t.Fatalf("export zip: %v", err)
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatalf("open zip: %v", err)
+	}
+
+	got := map[string]string{}
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatalf("open %s: %v", f.Name, err)
+		}
+		data, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil {
+			t.Fatalf("read %s: %v", f.Name, err)
+		}
+		got[filepath.ToSlash(f.Name)] = string(data)
+	}
+
+	if _, ok := got["dashboard.json"]; !ok {
+		t.Fatal("expected dashboard.json in zip")
+	}
+	if got["logo.png"] != "pngbytes" {
+		t.Fatalf("logo.png content mismatch: %q", got["logo.png"])
+	}
+	if got["icons/home.png"] != "iconbytes" {
+		t.Fatalf("icons/home.png content mismatch: %q", got["icons/home.png"])
+	}
+	if _, ok := got["auth.json"]; ok {
+		t.Fatal("auth.json must not be included in export")
+	}
+}
+
+func TestStore_ExportZip_InvalidID(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	err := store.ExportZip("BAD_ID!", &bytes.Buffer{})
+	if err != ErrInvalidID {
+		t.Fatalf("expected ErrInvalidID, got %v", err)
+	}
+}
+
+func TestStore_ExportZip_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	err := store.ExportZip("missing01", &bytes.Buffer{})
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestStore_ExportZip_ImportRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	original, err := store.Create(Dashboard{
+		ID:        "roundtrip",
+		Name:      "Round Trip",
+		Icon:      "ti-home",
+		Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"},
+		Pages:     []Page{{Rows: []Row{}}},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := store.SaveAsset(original.ID, "bg.jpg", []byte("jpegdata")); err != nil {
+		t.Fatalf("save asset: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := store.ExportZip(original.ID, &buf); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+
+	imported, err := store.ImportZip(buf.Bytes())
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if imported.Name != original.Name {
+		t.Fatalf("name mismatch: got %q want %q", imported.Name, original.Name)
+	}
+	if imported.ID == original.ID {
+		t.Fatal("expected imported dashboard to get a new ID")
+	}
+
+	assets, err := store.ListAssets(imported.ID)
+	if err != nil {
+		t.Fatalf("list assets: %v", err)
+	}
+	if len(assets) != 1 || assets[0] != "bg.jpg" {
+		t.Fatalf("expected [bg.jpg], got %v", assets)
 	}
 }

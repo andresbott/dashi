@@ -23,11 +23,6 @@ export interface Container {
     showBoxes?: boolean
 }
 
-export interface ImageConfig {
-    width: number
-    height: number
-}
-
 export interface Background {
     type: 'none' | 'image' | 'color' | 'gradient'
     value: string
@@ -35,6 +30,7 @@ export interface Background {
 
 export interface Page {
     name: string
+    refreshInterval?: number
     rows: Row[]
 }
 
@@ -47,7 +43,6 @@ export interface Dashboard {
     type: DashboardType
     default?: boolean
     container: Container
-    imageConfig?: ImageConfig
     theme?: string
     colorMode?: ColorMode
     accentColor?: string
@@ -69,7 +64,6 @@ export interface CreateDashboardDTO {
     icon: string
     type: DashboardType
     container: Container
-    imageConfig?: ImageConfig
     theme?: string
     colorMode?: ColorMode
     accentColor?: string
