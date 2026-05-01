@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/andresbott/dashi/app/router/handlers"
+	weatherwidget "github.com/andresbott/dashi/internal/widgets/weather"
 	xkcdwidget "github.com/andresbott/dashi/internal/widgets/xkcd"
 )
 
@@ -46,9 +47,7 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/backgrounds").Methods(http.MethodGet).HandlerFunc(dh.ListBackgrounds)
 
 	// Weather widget routes
-	wh := handlers.NewWeatherHandler(deps.weatherClient, deps.logger)
-	r.Path("/widgets/weather").Methods(http.MethodGet).HandlerFunc(wh.GetWeather)
-	r.Path("/widgets/weather/geocode").Methods(http.MethodGet).HandlerFunc(wh.Geocode)
+	weatherwidget.NewModule(deps.weatherClient, deps.themeStore, deps.logger).RegisterRoutes(r)
 
 	// Theme routes
 	th := handlers.NewThemeHandler(deps.themeStore, deps.logger)

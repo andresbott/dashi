@@ -1,4 +1,4 @@
-package handlers
+package weather
 
 import (
 	"encoding/json"
@@ -52,7 +52,7 @@ func TestWeatherHandler_GetWeather(t *testing.T) {
 		weatherpkg.WithBaseURL(forecastSrv.URL),
 		weatherpkg.WithGeoBaseURL(geoSrv.URL),
 	)
-	h := NewWeatherHandler(client, slog.Default())
+	h := newHandler(client, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/widgets/weather?lat=52.52&lon=13.41", nil)
 	rec := httptest.NewRecorder()
@@ -74,7 +74,7 @@ func TestWeatherHandler_GetWeather(t *testing.T) {
 
 func TestWeatherHandler_GetWeather_MissingParams(t *testing.T) {
 	client := weatherpkg.NewClient(&http.Client{})
-	h := NewWeatherHandler(client, slog.Default())
+	h := newHandler(client, slog.Default())
 
 	tests := []struct {
 		name string
@@ -108,7 +108,7 @@ func TestWeatherHandler_Geocode(t *testing.T) {
 		weatherpkg.WithBaseURL(forecastSrv.URL),
 		weatherpkg.WithGeoBaseURL(geoSrv.URL),
 	)
-	h := NewWeatherHandler(client, slog.Default())
+	h := newHandler(client, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/widgets/weather/geocode?city=Berlin", nil)
 	rec := httptest.NewRecorder()
@@ -133,7 +133,7 @@ func TestWeatherHandler_Geocode(t *testing.T) {
 
 func TestWeatherHandler_Geocode_MissingCity(t *testing.T) {
 	client := weatherpkg.NewClient(&http.Client{})
-	h := NewWeatherHandler(client, slog.Default())
+	h := newHandler(client, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/widgets/weather/geocode", nil)
 	rec := httptest.NewRecorder()
