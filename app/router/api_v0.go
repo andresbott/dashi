@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/andresbott/dashi/app/router/handlers"
+	xkcdwidget "github.com/andresbott/dashi/internal/widgets/xkcd"
 )
 
 // apiDeps holds shared dependencies for API route handlers.
@@ -61,8 +62,7 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/widgets/market").Methods(http.MethodGet).HandlerFunc(mh.GetMarketData)
 
 	// XKCD widget routes
-	xh := handlers.NewXkcdHandler(deps.xkcdClient, deps.logger)
-	r.Path("/widgets/xkcd").Methods(http.MethodGet).HandlerFunc(xh.GetComic)
+	xkcdwidget.NewModule(deps.xkcdClient, deps.logger).RegisterRoutes(r)
 
 	// Transport widget routes
 	trh := handlers.NewTransportHandler(deps.transportClient, deps.logger)
