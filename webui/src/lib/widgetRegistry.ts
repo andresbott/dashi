@@ -6,6 +6,7 @@ import bookmarkModule from '@/widgets/bookmark'
 import clockModule from '@/widgets/clock'
 import batteryModule from '@/widgets/battery'
 import searchModule from '@/widgets/search'
+import pageIndicatorModule from '@/widgets/page-indicator'
 
 export interface WidgetRegistryEntry {
     component: Component
@@ -23,14 +24,7 @@ const registry: Record<string, WidgetRegistryEntry> = {
     clock: clockModule,
     battery: batteryModule,
     search: searchModule,
-    'page-indicator': {
-        component: defineAsyncComponent(() => import('@/components/dashboards/PageIndicatorWidget.vue')),
-        configComponent: null,
-        label: 'Page Indicator',
-        icon: 'ti-circles',
-        description: 'Shows dots for each page',
-        noWidgetProp: true,
-    },
+    'page-indicator': pageIndicatorModule,
     market: {
         component: defineAsyncComponent(() => import('@/components/dashboards/MarketWidget.vue')),
         configComponent: defineAsyncComponent(() => import('@/components/dashboards/MarketWidgetConfig.vue')),
