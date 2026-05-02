@@ -9,6 +9,7 @@ import searchModule from '@/widgets/search'
 import pageIndicatorModule from '@/widgets/page-indicator'
 import marketModule from '@/widgets/market'
 import transportModule from '@/widgets/transport'
+import stackModule from '@/widgets/stack'
 
 export interface WidgetRegistryEntry {
     component: Component
@@ -30,13 +31,7 @@ const registry: Record<string, WidgetRegistryEntry> = {
     market: marketModule,
     xkcd: xkcdModule,
     transport: transportModule,
-    stack: {
-        component: defineAsyncComponent(() => import('@/components/dashboards/StackWidget.vue')),
-        configComponent: null,
-        label: 'Stack',
-        icon: 'ti-layout-rows',
-        description: 'Stack widgets vertically in a column',
-    },
+    stack: stackModule,
     sysinfo: {
         component: defineAsyncComponent(() => import('@/components/dashboards/SysinfoWidget.vue')),
         configComponent: defineAsyncComponent(() => import('@/components/dashboards/SysinfoWidgetConfig.vue')),
