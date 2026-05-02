@@ -3,7 +3,6 @@ package router
 import (
 	"context"
 	_ "embed"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -26,6 +25,7 @@ import (
 	markdownwidget "github.com/andresbott/dashi/internal/widgets/markdown"
 	marketwidget "github.com/andresbott/dashi/internal/widgets/market"
 	pageindicatorwidget "github.com/andresbott/dashi/internal/widgets/pageindicator"
+	searchwidget "github.com/andresbott/dashi/internal/widgets/search"
 	stackwidget "github.com/andresbott/dashi/internal/widgets/stack"
 	swisstransportwidget "github.com/andresbott/dashi/internal/widgets/swisstransport"
 	sysinfowidget "github.com/andresbott/dashi/internal/widgets/sysinfo"
@@ -77,6 +77,7 @@ type sharedDeps struct {
 	imageRenderer   *dashimage.Renderer
 	staticMid       func(http.Handler) http.Handler
 	promHisto       middleware.Histogram
+	modules         []widgets.Module
 }
 
 func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
@@ -87,29 +88,37 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	transportClient := swisstransport.NewClient(nil)
 	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "themes"))
 
-	// Pre-fetch weather and market data
+	// Static dashboard rendering
+	registry := widgets.NewRegistry()
+
+	modules := []widgets.Module{
+		weatherwidget.NewModule(weatherClient, themeStore, cfg.Logger),
+		weatherwidget.NewCompactModule(weatherClient, themeStore, cfg.Logger),
+		bookmarkwidget.NewModule(),
+		clockwidget.NewModule(),
+		batterywidget.NewModule(),
+		pageindicatorwidget.NewModule(),
+		marketwidget.NewModule(marketClient, cfg.Logger),
+		xkcdwidget.NewModule(xkcdClient, cfg.Logger),
+		swisstransportwidget.NewModule(transportClient, cfg.Logger),
+		sysinfowidget.NewModule(cfg.Logger),
+		stackwidget.NewModule(registry),
+		markdownwidget.NewModule(dashStore, cfg.Logger),
+		imagewidget.NewModule(dashStore),
+		searchwidget.NewModule(),
+	}
+
 	warmupCtx := cfg.Ctx
 	if warmupCtx == nil {
 		warmupCtx = context.Background()
 	}
-	go warmupWeather(warmupCtx, dashStore, weatherClient, cfg.Logger)
-	go warmupMarket(warmupCtx, dashStore, marketClient, cfg.Logger)
 
-	// Static dashboard rendering
-	registry := widgets.NewRegistry()
-	registry.Register("weather", weatherwidget.NewStaticRenderer(weatherClient, themeStore))
-	registry.Register("weather-compact", weatherwidget.NewStaticCompactRenderer(weatherClient, themeStore))
-	registry.Register("bookmark", bookmarkwidget.NewStaticRenderer())
-	registry.Register("clock", clockwidget.NewStaticRenderer(nil))
-	registry.Register("battery", batterywidget.NewStaticRenderer())
-	registry.Register("page-indicator", pageindicatorwidget.NewStaticRenderer())
-	registry.Register("market", marketwidget.NewStaticRenderer(marketClient))
-	registry.Register("xkcd", xkcdwidget.NewStaticRenderer(xkcdClient))
-	registry.Register("transport", swisstransportwidget.NewStaticRenderer(transportClient))
-	registry.Register("sysinfo", sysinfowidget.NewStaticRenderer())
-	registry.Register("stack", stackwidget.NewStaticRenderer(registry))
-	registry.Register("markdown", markdownwidget.NewStaticRenderer(dashStore))
-	registry.Register("image", imagewidget.NewStaticRenderer(dashStore))
+	for _, m := range modules {
+		registry.Register(m.Type(), m.Renderer())
+		configs := widgets.CollectConfigs(dashStore, m.Type())
+		go m.Warmup(warmupCtx, configs)
+	}
+
 	staticRenderer := dashstatic.NewRenderer(registry)
 	imageRenderer := dashimage.NewRenderer()
 
@@ -147,18 +156,16 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		imageRenderer:   imageRenderer,
 		staticMid:       staticMid,
 		promHisto:       promHisto,
+		modules:         modules,
 	}, nil
 }
 
 func newAPIDeps(deps *sharedDeps, logger *slog.Logger) apiDeps {
 	return apiDeps{
-		dashStore:       deps.dashStore,
-		weatherClient:   deps.weatherClient,
-		marketClient:    deps.marketClient,
-		xkcdClient:      deps.xkcdClient,
-		transportClient: deps.transportClient,
-		themeStore:      deps.themeStore,
-		logger:          logger,
+		dashStore:  deps.dashStore,
+		themeStore: deps.themeStore,
+		logger:     logger,
+		modules:    deps.modules,
 	}
 }
 
@@ -294,91 +301,4 @@ func NewBoth(cfg Cfg) (*ViewerHandler, *EditorHandler, error) {
 		return nil, nil, err
 	}
 	return viewer, editor, nil
-}
-
-// warmupWeather scans all dashboards for weather widget configs and
-// pre-fetches the weather data so the cache is warm on first request.
-func warmupWeather(ctx context.Context, store *dashboard.Store, client *weather.Client, logger *slog.Logger) {
-	list, err := store.List()
-	if err != nil {
-		logger.Warn("weather warmup: failed to list dashboards", slog.String("error", err.Error()))
-		return
-	}
-
-	var locations [][2]float64
-
-	for _, meta := range list {
-		dash, err := store.Get(meta.ID)
-		if err != nil {
-			continue
-		}
-		for _, page := range dash.Pages {
-			for _, row := range page.Rows {
-				for _, w := range row.Widgets {
-					if w.Type != "weather" && w.Type != "weather-compact" {
-						continue
-					}
-					var cfg struct {
-						Latitude  float64 `json:"latitude"`
-						Longitude float64 `json:"longitude"`
-					}
-					if err := json.Unmarshal(w.Config, &cfg); err != nil {
-						continue
-					}
-					if cfg.Latitude != 0 || cfg.Longitude != 0 {
-						locations = append(locations, [2]float64{cfg.Latitude, cfg.Longitude})
-					}
-				}
-			}
-		}
-	}
-
-	if len(locations) > 0 {
-		logger.Info("weather warmup: pre-fetching data", slog.Int("locations", len(locations)))
-		client.WarmupLocations(ctx, locations)
-		logger.Info("weather warmup: done")
-	}
-}
-
-func warmupMarket(ctx context.Context, store *dashboard.Store, client *market.Client, logger *slog.Logger) {
-	list, err := store.List()
-	if err != nil {
-		logger.Warn("market warmup: failed to list dashboards", slog.String("error", err.Error()))
-		return
-	}
-
-	var targets []struct{ Symbol, Range string }
-
-	for _, meta := range list {
-		dash, err := store.Get(meta.ID)
-		if err != nil {
-			continue
-		}
-		for _, page := range dash.Pages {
-			for _, row := range page.Rows {
-				for _, w := range row.Widgets {
-					if w.Type != "market" {
-						continue
-					}
-					var cfg struct {
-						Symbol string `json:"symbol"`
-						Range  string `json:"range"`
-					}
-					if err := json.Unmarshal(w.Config, &cfg); err != nil || cfg.Symbol == "" {
-						continue
-					}
-					if cfg.Range == "" {
-						cfg.Range = "1mo"
-					}
-					targets = append(targets, struct{ Symbol, Range string }{cfg.Symbol, cfg.Range})
-				}
-			}
-		}
-	}
-
-	if len(targets) > 0 {
-		logger.Info("market warmup: pre-fetching data", slog.Int("symbols", len(targets)))
-		client.WarmupSymbols(ctx, targets)
-		logger.Info("market warmup: done")
-	}
 }
