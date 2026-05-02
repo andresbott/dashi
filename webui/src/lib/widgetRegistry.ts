@@ -1,4 +1,5 @@
 import { defineAsyncComponent, type Component } from 'vue'
+import xkcdModule from '@/widgets/xkcd'
 
 export interface WidgetRegistryEntry {
     component: Component
@@ -67,13 +68,7 @@ const registry: Record<string, WidgetRegistryEntry> = {
         icon: 'ti-chart-line',
         description: 'Stock / crypto market ticker',
     },
-    xkcd: {
-        component: defineAsyncComponent(() => import('@/components/dashboards/XkcdWidget.vue')),
-        configComponent: defineAsyncComponent(() => import('@/components/dashboards/XkcdWidgetConfig.vue')),
-        label: 'XKCD',
-        icon: 'ti-pencil',
-        description: 'XKCD comic strip',
-    },
+    xkcd: xkcdModule,
     transport: {
         component: defineAsyncComponent(() => import('@/components/dashboards/TransportWidget.vue')),
         configComponent: defineAsyncComponent(() => import('@/components/dashboards/TransportWidgetConfig.vue')),

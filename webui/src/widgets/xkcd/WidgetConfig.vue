@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import Select from 'primevue/select'
-import type { XkcdWidgetConfig } from '@/types/xkcd'
+import type { XkcdWidgetConfig } from './types'
 
 const props = defineProps<{
     config: XkcdWidgetConfig | null

@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api/client'
-import type { XkcdComic } from '@/types/xkcd'
+import type { XkcdComic } from './types'
 
 const XKCD_PATH = '/widgets/xkcd'
 

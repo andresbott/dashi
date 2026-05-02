@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/vue-query'
-import { getXkcd } from '@/lib/api/xkcd'
+import { getXkcd } from './api'
 import type { Ref } from 'vue'
 
 export function useXkcd(mode: Ref<string>) {

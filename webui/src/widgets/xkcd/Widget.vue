@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useXkcd } from '@/composables/useXkcd'
-import type { XkcdWidgetConfig } from '@/types/xkcd'
+import { useXkcd } from './composable'
+import type { XkcdWidgetConfig } from './types'
 import type { Widget } from '@/types/dashboard'
 
 const props = defineProps<{
