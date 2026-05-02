@@ -15,6 +15,7 @@ import (
 
 	"github.com/andresbott/dashi/app/router/handlers"
 	sysinfowidget "github.com/andresbott/dashi/internal/widgets/sysinfo"
+	swisstransportwidget "github.com/andresbott/dashi/internal/widgets/swisstransport"
 	weatherwidget "github.com/andresbott/dashi/internal/widgets/weather"
 	xkcdwidget "github.com/andresbott/dashi/internal/widgets/xkcd"
 )
@@ -65,9 +66,7 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	xkcdwidget.NewModule(deps.xkcdClient, deps.logger).RegisterRoutes(r)
 
 	// Transport widget routes
-	trh := handlers.NewTransportHandler(deps.transportClient, deps.logger)
-	r.Path("/widgets/transport/stationboard").Methods(http.MethodGet).HandlerFunc(trh.GetDepartures)
-	r.Path("/widgets/transport/stations").Methods(http.MethodGet).HandlerFunc(trh.SearchStations)
+	swisstransportwidget.NewModule(deps.transportClient, deps.logger).RegisterRoutes(r)
 
 	// Sysinfo widget routes
 	sysinfowidget.NewModule(deps.logger).RegisterRoutes(r)
