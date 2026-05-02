@@ -7,6 +7,7 @@ import clockModule from '@/widgets/clock'
 import batteryModule from '@/widgets/battery'
 import searchModule from '@/widgets/search'
 import pageIndicatorModule from '@/widgets/page-indicator'
+import marketModule from '@/widgets/market'
 
 export interface WidgetRegistryEntry {
     component: Component
@@ -25,13 +26,7 @@ const registry: Record<string, WidgetRegistryEntry> = {
     battery: batteryModule,
     search: searchModule,
     'page-indicator': pageIndicatorModule,
-    market: {
-        component: defineAsyncComponent(() => import('@/components/dashboards/MarketWidget.vue')),
-        configComponent: defineAsyncComponent(() => import('@/components/dashboards/MarketWidgetConfig.vue')),
-        label: 'Market',
-        icon: 'ti-chart-line',
-        description: 'Stock / crypto market ticker',
-    },
+    market: marketModule,
     xkcd: xkcdModule,
     transport: {
         component: defineAsyncComponent(() => import('@/components/dashboards/TransportWidget.vue')),
