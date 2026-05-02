@@ -3,7 +3,7 @@ import { ref, watch, inject, computed } from 'vue'
 import { DASHBOARD_ID } from '@/lib/injectionKeys'
 import { useDashboardAssets } from '@/composables/useDashboards'
 import Select from 'primevue/select'
-import type { ImageWidgetConfig } from '@/types/image'
+import type { ImageWidgetConfig } from './types'
 
 const props = defineProps<{
     config: ImageWidgetConfig | null

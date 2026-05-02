@@ -12,6 +12,7 @@ import transportModule from '@/widgets/transport'
 import stackModule from '@/widgets/stack'
 import sysinfoModule from '@/widgets/sysinfo'
 import markdownModule from '@/widgets/markdown'
+import imageModule from '@/widgets/image'
 
 export interface WidgetRegistryEntry {
     component: Component
@@ -36,13 +37,7 @@ const registry: Record<string, WidgetRegistryEntry> = {
     stack: stackModule,
     sysinfo: sysinfoModule,
     markdown: markdownModule,
-    image: {
-        component: defineAsyncComponent(() => import('@/components/dashboards/ImageWidget.vue')),
-        configComponent: defineAsyncComponent(() => import('@/components/dashboards/ImageWidgetConfig.vue')),
-        label: 'Image',
-        icon: 'ti-photo',
-        description: 'Display an uploaded image',
-    },
+    image: imageModule,
 }
 
 export function getWidgetEntry(type: string): WidgetRegistryEntry | undefined {

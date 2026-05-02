@@ -2,7 +2,7 @@
 import { computed, inject, ref } from 'vue'
 import { DASHBOARD_ID } from '@/lib/injectionKeys'
 import type { Widget } from '@/types/dashboard'
-import type { ImageWidgetConfig } from '@/types/image'
+import type { ImageWidgetConfig } from './types'
 
 const props = defineProps<{
     widget: Widget
