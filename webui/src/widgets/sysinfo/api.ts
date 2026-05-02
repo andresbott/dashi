@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api/client'
-import type { SystemInfo } from '@/types/sysinfo'
+import type { SystemInfo } from './types'
 
 const SYSINFO_PATH = '/widgets/sysinfo'
 

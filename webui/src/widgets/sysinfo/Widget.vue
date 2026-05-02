@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useSysinfo } from '@/composables/useSysinfo'
+import { useSysinfo } from './composable'
 import type { Widget } from '@/types/dashboard'
-import type { SysinfoWidgetConfig, DiskInfo, CPUTemp } from '@/types/sysinfo'
+import type { SysinfoWidgetConfig, DiskInfo, CPUTemp } from './types'
 
 const props = defineProps<{
     widget: Widget

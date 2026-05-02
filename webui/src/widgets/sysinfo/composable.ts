@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/vue-query'
-import { getSysinfo } from '@/lib/api/sysinfo'
+import { getSysinfo } from './api'
 
 const ONE_MINUTE = 60 * 1000
 

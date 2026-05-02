@@ -10,6 +10,7 @@ import pageIndicatorModule from '@/widgets/page-indicator'
 import marketModule from '@/widgets/market'
 import transportModule from '@/widgets/transport'
 import stackModule from '@/widgets/stack'
+import sysinfoModule from '@/widgets/sysinfo'
 
 export interface WidgetRegistryEntry {
     component: Component
@@ -32,13 +33,7 @@ const registry: Record<string, WidgetRegistryEntry> = {
     xkcd: xkcdModule,
     transport: transportModule,
     stack: stackModule,
-    sysinfo: {
-        component: defineAsyncComponent(() => import('@/components/dashboards/SysinfoWidget.vue')),
-        configComponent: defineAsyncComponent(() => import('@/components/dashboards/SysinfoWidgetConfig.vue')),
-        label: 'System Info',
-        icon: 'ti-server-cog',
-        description: 'Host disk, memory, and uptime',
-    },
+    sysinfo: sysinfoModule,
     markdown: {
         component: defineAsyncComponent(() => import('@/components/dashboards/MarkdownWidget.vue')),
         configComponent: defineAsyncComponent(() => import('@/components/dashboards/MarkdownWidgetConfig.vue')),

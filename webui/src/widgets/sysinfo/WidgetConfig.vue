@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import Checkbox from 'primevue/checkbox'
-import { useSysinfo } from '@/composables/useSysinfo'
-import type { SysinfoWidgetConfig } from '@/types/sysinfo'
+import { useSysinfo } from './composable'
+import type { SysinfoWidgetConfig } from './types'
 
 const props = defineProps<{
     config: SysinfoWidgetConfig | null
