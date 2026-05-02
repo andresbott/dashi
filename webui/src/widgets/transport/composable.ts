@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/vue-query'
-import { getDepartures, searchStations } from '@/lib/api/transport'
+import { getDepartures, searchStations } from './api'
 import type { Ref } from 'vue'
 
 const ONE_MINUTE = 60 * 1000

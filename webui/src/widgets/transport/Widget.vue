@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { useTransport } from '@/composables/useTransport'
-import type { TransportWidgetConfig } from '@/types/transport'
+import { useTransport } from './composable'
+import type { TransportWidgetConfig } from './types'
 import type { Widget } from '@/types/dashboard'
 
 const props = defineProps<{

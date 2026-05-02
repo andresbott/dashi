@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api/client'
-import type { TransportDeparture, TransportStation } from '@/types/transport'
+import type { TransportDeparture, TransportStation } from './types'
 
 const TRANSPORT_PATH = '/widgets/transport'
 

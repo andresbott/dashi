@@ -3,8 +3,8 @@ import { ref, watch } from 'vue'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import Button from 'primevue/button'
-import { useStationSearch } from '@/composables/useTransport'
-import type { TransportWidgetConfig } from '@/types/transport'
+import { useStationSearch } from './composable'
+import type { TransportWidgetConfig } from './types'
 
 const props = defineProps<{
     config: TransportWidgetConfig | null

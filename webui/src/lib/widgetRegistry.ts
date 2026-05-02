@@ -8,6 +8,7 @@ import batteryModule from '@/widgets/battery'
 import searchModule from '@/widgets/search'
 import pageIndicatorModule from '@/widgets/page-indicator'
 import marketModule from '@/widgets/market'
+import transportModule from '@/widgets/transport'
 
 export interface WidgetRegistryEntry {
     component: Component
@@ -28,13 +29,7 @@ const registry: Record<string, WidgetRegistryEntry> = {
     'page-indicator': pageIndicatorModule,
     market: marketModule,
     xkcd: xkcdModule,
-    transport: {
-        component: defineAsyncComponent(() => import('@/components/dashboards/TransportWidget.vue')),
-        configComponent: defineAsyncComponent(() => import('@/components/dashboards/TransportWidgetConfig.vue')),
-        label: 'Departures',
-        icon: 'ti-bus',
-        description: 'Public transport departures',
-    },
+    transport: transportModule,
     stack: {
         component: defineAsyncComponent(() => import('@/components/dashboards/StackWidget.vue')),
         configComponent: null,
