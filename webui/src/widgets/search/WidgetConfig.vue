@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
-import type { SearchWidgetConfig, SearchEngine } from '@/types/search'
+import type { SearchWidgetConfig, SearchEngine } from './types'
 
 const props = defineProps<{
     config: SearchWidgetConfig | null

@@ -5,6 +5,7 @@ import weatherCompactModule from '@/widgets/weather-compact'
 import bookmarkModule from '@/widgets/bookmark'
 import clockModule from '@/widgets/clock'
 import batteryModule from '@/widgets/battery'
+import searchModule from '@/widgets/search'
 
 export interface WidgetRegistryEntry {
     component: Component
@@ -21,13 +22,7 @@ const registry: Record<string, WidgetRegistryEntry> = {
     bookmark: bookmarkModule,
     clock: clockModule,
     battery: batteryModule,
-    search: {
-        component: defineAsyncComponent(() => import('@/components/dashboards/SearchWidget.vue')),
-        configComponent: defineAsyncComponent(() => import('@/components/dashboards/SearchWidgetConfig.vue')),
-        label: 'Search',
-        icon: 'ti-search',
-        description: 'Search engine input',
-    },
+    search: searchModule,
     'page-indicator': {
         component: defineAsyncComponent(() => import('@/components/dashboards/PageIndicatorWidget.vue')),
         configComponent: null,

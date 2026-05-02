@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { Widget } from '@/types/dashboard'
-import type { SearchWidgetConfig } from '@/types/search'
-import { searchEngineUrls } from '@/types/search'
+import type { SearchWidgetConfig } from './types'
+import { searchEngineUrls } from './types'
 
 const props = defineProps<{
     widget: Widget
