@@ -1,4 +1,4 @@
-package handlers
+package sysinfo
 
 import (
 	"encoding/json"
@@ -7,11 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/andresbott/dashi/internal/sysinfo"
+	sysinfopkg "github.com/andresbott/dashi/internal/sysinfo"
 )
 
 func TestSysinfoHandler_GetSysinfo(t *testing.T) {
-	h := NewSysinfoHandler(slog.Default())
+	h := newHandler(slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/widgets/sysinfo", nil)
 	rec := httptest.NewRecorder()
@@ -22,7 +22,7 @@ func TestSysinfoHandler_GetSysinfo(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 
-	var data sysinfo.SystemInfo
+	var data sysinfopkg.SystemInfo
 	if err := json.NewDecoder(rec.Body).Decode(&data); err != nil {
 		t.Fatalf("decode: %v", err)
 	}

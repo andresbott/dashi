@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/andresbott/dashi/app/router/handlers"
+	sysinfowidget "github.com/andresbott/dashi/internal/widgets/sysinfo"
 	weatherwidget "github.com/andresbott/dashi/internal/widgets/weather"
 	xkcdwidget "github.com/andresbott/dashi/internal/widgets/xkcd"
 )
@@ -69,8 +70,7 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/widgets/transport/stations").Methods(http.MethodGet).HandlerFunc(trh.SearchStations)
 
 	// Sysinfo widget routes
-	sh := handlers.NewSysinfoHandler(deps.logger)
-	r.Path("/widgets/sysinfo").Methods(http.MethodGet).HandlerFunc(sh.GetSysinfo)
+	sysinfowidget.NewModule(deps.logger).RegisterRoutes(r)
 
 	// Markdown widget routes
 	mdh := handlers.NewMarkdownHandler(deps.dashStore, deps.logger)
