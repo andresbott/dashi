@@ -1,61 +1,45 @@
-import { defineAsyncComponent, type Component } from 'vue'
-import xkcdModule from '@/widgets/xkcd'
-import weatherModule from '@/widgets/weather'
-import weatherCompactModule from '@/widgets/weather-compact'
-import bookmarkModule from '@/widgets/bookmark'
-import clockModule from '@/widgets/clock'
-import batteryModule from '@/widgets/battery'
-import searchModule from '@/widgets/search'
-import pageIndicatorModule from '@/widgets/page-indicator'
-import marketModule from '@/widgets/market'
-import transportModule from '@/widgets/transport'
-import stackModule from '@/widgets/stack'
-import sysinfoModule from '@/widgets/sysinfo'
-import markdownModule from '@/widgets/markdown'
-import imageModule from '@/widgets/image'
+import type { WidgetModule } from '@/widgets/types'
 
-export interface WidgetRegistryEntry {
-    component: Component
-    configComponent: Component | null
-    label: string
-    icon: string
-    description: string
-    noWidgetProp?: boolean
-}
+import weather from '@/widgets/weather'
+import weatherCompact from '@/widgets/weather-compact'
+import bookmark from '@/widgets/bookmark'
+import clock from '@/widgets/clock'
+import battery from '@/widgets/battery'
+import search from '@/widgets/search'
+import pageIndicator from '@/widgets/page-indicator'
+import market from '@/widgets/market'
+import xkcd from '@/widgets/xkcd'
+import transport from '@/widgets/transport'
+import stack from '@/widgets/stack'
+import sysinfo from '@/widgets/sysinfo'
+import markdown from '@/widgets/markdown'
+import image from '@/widgets/image'
 
-const registry: Record<string, WidgetRegistryEntry> = {
-    weather: weatherModule,
-    'weather-compact': weatherCompactModule,
-    bookmark: bookmarkModule,
-    clock: clockModule,
-    battery: batteryModule,
-    search: searchModule,
-    'page-indicator': pageIndicatorModule,
-    market: marketModule,
-    xkcd: xkcdModule,
-    transport: transportModule,
-    stack: stackModule,
-    sysinfo: sysinfoModule,
-    markdown: markdownModule,
-    image: imageModule,
-}
+const modules: WidgetModule[] = [
+    weather, weatherCompact, bookmark, clock, battery, search,
+    pageIndicator, market, xkcd, transport, stack, sysinfo, markdown, image,
+]
 
-export function getWidgetEntry(type: string): WidgetRegistryEntry | undefined {
+const registry: Record<string, WidgetModule> =
+    Object.fromEntries(modules.map(m => [m.type, m]))
+
+export function getWidgetEntry(type: string): WidgetModule | undefined {
     return registry[type]
 }
 
 export function getWidgetTypes(): string[] {
-    return Object.keys(registry)
+    return modules.map(m => m.type)
 }
 
 export function getWidgetTypeOptions(): { value: string; label: string; icon: string; description: string }[] {
     const opts: { value: string; label: string; icon: string; description: string }[] = [
         { value: 'placeholder', label: 'Placeholder', icon: 'ti-layout-grid', description: 'Empty placeholder widget' },
     ]
-    for (const [key, entry] of Object.entries(registry)) {
-        opts.push({ value: key, label: entry.label, icon: entry.icon, description: entry.description })
+    for (const m of modules) {
+        opts.push({ value: m.type, label: m.label, icon: m.icon, description: m.description })
     }
     return opts
 }
 
+export type WidgetRegistryEntry = WidgetModule
 export default registry
