@@ -1,4 +1,4 @@
-package handlers
+package markdown
 
 import (
 	"bytes"
@@ -13,39 +13,41 @@ import (
 	"github.com/yuin/goldmark"
 )
 
-type MarkdownHandler struct {
+type handler struct {
 	store  *dashboard.Store
 	logger *slog.Logger
 	md     goldmark.Markdown
 }
 
-func NewMarkdownHandler(store *dashboard.Store, logger *slog.Logger) *MarkdownHandler {
-	return &MarkdownHandler{
+func newHandler(store *dashboard.Store, logger *slog.Logger) *handler {
+	return &handler{
 		store:  store,
 		logger: logger,
 		md:     goldmark.New(),
 	}
 }
 
-func (h *MarkdownHandler) GetMarkdown(w http.ResponseWriter, r *http.Request) {
+func (h *handler) GetMarkdown(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	filename := mux.Vars(r)["filename"]
 
 	if filename == "" || strings.Contains(filename, "/") || strings.Contains(filename, "..") {
-		ErrorJSON(w, "invalid filename", http.StatusBadRequest)
+		writeJSONError(w, "invalid filename", http.StatusBadRequest)
 		return
 	}
 
 	data, _, err := h.store.GetAsset(id, "md/"+filename)
 	if err != nil {
-		ErrorJSON(w, "not found", http.StatusNotFound)
+		writeJSONError(w, "not found", http.StatusNotFound)
 		return
 	}
 
 	var buf bytes.Buffer
 	if err := h.md.Convert(data, &buf); err != nil {
-		h.logger.Error("markdown render", slog.String("error", err.Error()))
-		ErrorJSON(w, "failed to render markdown", http.StatusInternalServerError)
+		if h.logger != nil {
+			h.logger.Error("markdown render", slog.String("error", err.Error()))
+		}
+		writeJSONError(w, "failed to render markdown", http.StatusInternalServerError)
 		return
 	}
 
@@ -53,14 +55,12 @@ func (h *MarkdownHandler) GetMarkdown(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"html": buf.String()})
 }
 
-// ListMarkdown lists the .md files in a dashboard's md/ folder.
-// Returns 200 with {"files": [...]} on success, 404 on any store error.
-func (h *MarkdownHandler) ListMarkdown(w http.ResponseWriter, r *http.Request) {
+func (h *handler) ListMarkdown(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
 	assets, err := h.store.ListAssets(id)
 	if err != nil {
-		ErrorJSON(w, "not found", http.StatusNotFound)
+		writeJSONError(w, "not found", http.StatusNotFound)
 		return
 	}
 
@@ -79,4 +79,10 @@ func (h *MarkdownHandler) ListMarkdown(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string][]string{"files": files})
+}
+
+func writeJSONError(w http.ResponseWriter, message string, status int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 }

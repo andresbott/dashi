@@ -15,6 +15,7 @@ import (
 
 	"github.com/andresbott/dashi/app/router/handlers"
 	marketwidget "github.com/andresbott/dashi/internal/widgets/market"
+	markdownwidget "github.com/andresbott/dashi/internal/widgets/markdown"
 	sysinfowidget "github.com/andresbott/dashi/internal/widgets/sysinfo"
 	swisstransportwidget "github.com/andresbott/dashi/internal/widgets/swisstransport"
 	weatherwidget "github.com/andresbott/dashi/internal/widgets/weather"
@@ -72,9 +73,7 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	sysinfowidget.NewModule(deps.logger).RegisterRoutes(r)
 
 	// Markdown widget routes
-	mdh := handlers.NewMarkdownHandler(deps.dashStore, deps.logger)
-	r.Path("/dashboards/{id}/markdown").Methods(http.MethodGet).HandlerFunc(mdh.ListMarkdown)
-	r.Path("/dashboards/{id}/markdown/{filename}").Methods(http.MethodGet).HandlerFunc(mdh.GetMarkdown)
+	markdownwidget.NewModule(deps.dashStore, deps.logger).RegisterRoutes(r)
 }
 
 // attachWriteAPIs mounts all write (POST/PUT/DELETE) API endpoints on the given router.

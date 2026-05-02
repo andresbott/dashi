@@ -1,4 +1,4 @@
-package handlers
+package markdown
 
 import (
 	"encoding/json"
@@ -31,7 +31,7 @@ func writeAsset(t *testing.T, store *dashboard.Store, id, assetPath string, data
 	}
 }
 
-func callListMarkdown(t *testing.T, h *MarkdownHandler, id string) *httptest.ResponseRecorder {
+func callListMarkdown(t *testing.T, h *handler, id string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/dashboards/"+id+"/markdown", nil)
 	req = mux.SetURLVars(req, map[string]string{"id": id})
@@ -42,7 +42,7 @@ func callListMarkdown(t *testing.T, h *MarkdownHandler, id string) *httptest.Res
 
 func TestMarkdownHandler_ListMarkdown_EmptyFolder(t *testing.T) {
 	store, id := setupDashboard(t)
-	h := NewMarkdownHandler(store, slog.Default())
+	h := newHandler(store, slog.Default())
 
 	rec := callListMarkdown(t, h, id)
 	if rec.Code != http.StatusOK {
@@ -74,7 +74,7 @@ func TestMarkdownHandler_ListMarkdown_FiltersAndSorts(t *testing.T) {
 	// an image in the root — should be excluded
 	writeAsset(t, store, id, "bg.jpg", []byte{0xff, 0xd8, 0xff})
 
-	h := NewMarkdownHandler(store, slog.Default())
+	h := newHandler(store, slog.Default())
 	rec := callListMarkdown(t, h, id)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
@@ -100,7 +100,7 @@ func TestMarkdownHandler_ListMarkdown_FiltersAndSorts(t *testing.T) {
 func TestMarkdownHandler_ListMarkdown_MissingDashboard(t *testing.T) {
 	// Make a store whose directory exists but the dashboard ID does not
 	store := dashboard.NewStore(t.TempDir())
-	h := NewMarkdownHandler(store, slog.Default())
+	h := newHandler(store, slog.Default())
 
 	// Use a syntactically valid ID that does not exist
 	rec := callListMarkdown(t, h, "abc123")
@@ -111,7 +111,7 @@ func TestMarkdownHandler_ListMarkdown_MissingDashboard(t *testing.T) {
 
 func TestMarkdownHandler_ListMarkdown_InvalidID(t *testing.T) {
 	store := dashboard.NewStore(t.TempDir())
-	h := NewMarkdownHandler(store, slog.Default())
+	h := newHandler(store, slog.Default())
 
 	// Capital letters are not valid IDs per the store's isValidID
 	rec := callListMarkdown(t, h, "BAD!ID")
