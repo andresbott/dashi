@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { listMarkdownFiles } from './markdown'
-import { apiClient } from './client'
+import { listMarkdownFiles } from './api'
+import { apiClient } from '@/lib/api/client'
 
-vi.mock('./client', () => ({
+vi.mock('@/lib/api/client', () => ({
     apiClient: {
         get: vi.fn(),
         post: vi.fn(),

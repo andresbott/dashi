@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, watch, inject, computed } from 'vue'
 import { DASHBOARD_ID } from '@/lib/injectionKeys'
-import { getMarkdownRaw, saveMarkdown } from '@/lib/api/markdown'
-import { useMarkdownFiles } from '@/composables/useMarkdownFiles'
+import { getMarkdownRaw, saveMarkdown } from './api'
+import { useMarkdownFiles } from './useMarkdownFiles'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import Button from 'primevue/button'

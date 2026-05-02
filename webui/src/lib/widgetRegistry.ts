@@ -11,6 +11,7 @@ import marketModule from '@/widgets/market'
 import transportModule from '@/widgets/transport'
 import stackModule from '@/widgets/stack'
 import sysinfoModule from '@/widgets/sysinfo'
+import markdownModule from '@/widgets/markdown'
 
 export interface WidgetRegistryEntry {
     component: Component
@@ -34,13 +35,7 @@ const registry: Record<string, WidgetRegistryEntry> = {
     transport: transportModule,
     stack: stackModule,
     sysinfo: sysinfoModule,
-    markdown: {
-        component: defineAsyncComponent(() => import('@/components/dashboards/MarkdownWidget.vue')),
-        configComponent: defineAsyncComponent(() => import('@/components/dashboards/MarkdownWidgetConfig.vue')),
-        label: 'Markdown',
-        icon: 'ti-markdown',
-        description: 'Render markdown content from a file',
-    },
+    markdown: markdownModule,
     image: {
         component: defineAsyncComponent(() => import('@/components/dashboards/ImageWidget.vue')),
         configComponent: defineAsyncComponent(() => import('@/components/dashboards/ImageWidgetConfig.vue')),

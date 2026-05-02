@@ -4,9 +4,9 @@ import { useMarkdownFiles } from './useMarkdownFiles'
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { mount, flushPromises } from '@vue/test-utils'
 import { defineComponent } from 'vue'
-import * as markdownApi from '@/lib/api/markdown'
+import * as markdownApi from './api'
 
-vi.mock('@/lib/api/markdown', () => ({
+vi.mock('./api', () => ({
     listMarkdownFiles: vi.fn(),
     getMarkdownHtml: vi.fn(),
     getMarkdownRaw: vi.fn(),

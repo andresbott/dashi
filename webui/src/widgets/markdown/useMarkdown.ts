@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/vue-query'
-import { getMarkdownHtml } from '@/lib/api/markdown'
+import { getMarkdownHtml } from './api'
 import type { Ref } from 'vue'
 import { computed } from 'vue'
 

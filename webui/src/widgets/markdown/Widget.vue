@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, ref } from 'vue'
 import { DASHBOARD_ID } from '@/lib/injectionKeys'
-import { useMarkdown } from '@/composables/useMarkdown'
+import { useMarkdown } from './useMarkdown'
 import type { Widget } from '@/types/dashboard'
 
 const props = defineProps<{
