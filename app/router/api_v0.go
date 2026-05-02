@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/andresbott/dashi/app/router/handlers"
+	marketwidget "github.com/andresbott/dashi/internal/widgets/market"
 	sysinfowidget "github.com/andresbott/dashi/internal/widgets/sysinfo"
 	swisstransportwidget "github.com/andresbott/dashi/internal/widgets/swisstransport"
 	weatherwidget "github.com/andresbott/dashi/internal/widgets/weather"
@@ -59,8 +60,7 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/themes/{name}/backgrounds/{file}").Methods(http.MethodGet).HandlerFunc(th.GetBackground)
 
 	// Market widget routes
-	mh := handlers.NewMarketHandler(deps.marketClient, deps.logger)
-	r.Path("/widgets/market").Methods(http.MethodGet).HandlerFunc(mh.GetMarketData)
+	marketwidget.NewModule(deps.marketClient, deps.logger).RegisterRoutes(r)
 
 	// XKCD widget routes
 	xkcdwidget.NewModule(deps.xkcdClient, deps.logger).RegisterRoutes(r)
