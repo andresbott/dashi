@@ -1,6 +1,7 @@
 import { defineAsyncComponent, type Component } from 'vue'
 import xkcdModule from '@/widgets/xkcd'
 import weatherModule from '@/widgets/weather'
+import weatherCompactModule from '@/widgets/weather-compact'
 
 export interface WidgetRegistryEntry {
     component: Component
@@ -13,13 +14,7 @@ export interface WidgetRegistryEntry {
 
 const registry: Record<string, WidgetRegistryEntry> = {
     weather: weatherModule,
-    'weather-compact': {
-        component: defineAsyncComponent(() => import('@/components/dashboards/WeatherCompactWidget.vue')),
-        configComponent: defineAsyncComponent(() => import('@/components/dashboards/WeatherCompactWidgetConfig.vue')),
-        label: 'Weather (Compact)',
-        icon: 'ti-cloud',
-        description: 'Compact weather display',
-    },
+    'weather-compact': weatherCompactModule,
     bookmark: {
         component: defineAsyncComponent(() => import('@/components/dashboards/BookmarkWidget.vue')),
         configComponent: defineAsyncComponent(() => import('@/components/dashboards/BookmarkWidgetConfig.vue')),
