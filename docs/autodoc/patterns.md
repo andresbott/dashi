@@ -2,30 +2,60 @@
 
 ## Adding a New Widget
 
-Files to modify:
+Backend (`internal/widgets/{pkg}/`):
+1. Create `module.go` implementing `widgets.Module` (embed `widgets.NoopModule`
+   for optional methods you don't need).
+2. Create `static.go` (+ optional HTML template) with your `NewStaticRenderer`.
+3. If you need an interactive API: create `handler.go` with an unexported
+   `handler` struct and `newHandler` constructor; include in-package
+   `writeJSONError` helper. Implement `Module.RegisterRoutes(r)` to mount
+   your routes.
+4. If you need warmup: implement `Module.Warmup(ctx, configs)`. Parse
+   `configs` ([]json.RawMessage) into your config struct and call the
+   relevant data client's warmup method.
+5. Add tests: `static_test.go`, `handler_test.go` (if applicable),
+   `module_test.go` asserting `Type()`, `Renderer()` non-nil,
+   `RegisterRoutes` mounts expected paths, and a compile-time
+   `var _ widgets.Module = (*Module)(nil)`.
+6. Register in `app/router/main.go`: add one line to the `modules` slice.
 
-**Backend (static/image rendering):**
-1. `internal/widgets/{name}/` — new package
-   - `static.go` — `NewStaticRenderer(deps) widgets.StaticRenderer` function
-   - Embedded HTML template (optional, or inline)
-   - `static_test.go` — test the renderer
-2. `app/router/main.go` — register: `registry.Register("{name}", {name}widget.NewStaticRenderer(...))`
+Frontend (`webui/src/widgets/{type}/`):
+1. Create the folder (name matches the type string exactly, including
+   any hyphens).
+2. Add `Widget.vue` (and `WidgetConfig.vue` if configurable).
+3. If you need API calls: add `api.ts` (axios client wrapper) and
+   `composable.ts` (Vue Query wrapper). Types go in `types.ts`.
+4. Create `index.ts` exporting a `WidgetModule`:
 
-**Frontend (interactive rendering):**
-3. `webui/src/components/dashboards/{Name}Widget.vue` — display component
-   - Props: `widget: Widget` (access config via `JSON.parse(widget.config)`)
-4. `webui/src/components/dashboards/{Name}WidgetConfig.vue` — config editor (optional)
-   - Props: `modelValue: object`, emits `update:modelValue`
-5. `webui/src/lib/widgetRegistry.ts` — register entry with component, configComponent, label, icon, description
+   ```ts
+   import { defineAsyncComponent } from 'vue'
+   import type { WidgetModule } from '@/widgets/types'
 
-Naming: Widget type is lowercase kebab (e.g., `weather-compact`). Package name
-is the type without hyphens. Vue components are PascalCase (e.g., `WeatherCompactWidget.vue`).
+   const myWidget: WidgetModule = {
+       type: 'my-widget',
+       component: defineAsyncComponent(() => import('./Widget.vue')),
+       configComponent: defineAsyncComponent(() => import('./WidgetConfig.vue')),
+       label: 'My Widget',
+       icon: 'ti-something',
+       description: 'What it does',
+   }
+
+   export default myWidget
+   ```
+
+5. Register in `webui/src/lib/widgetRegistry.ts`: add one import line and
+   append to the `modules` array.
 
 ### Caveats
-- Backend and frontend registries must use the same type string
-- Config is opaque JSON — define your own struct/interface, no shared schema
-- If the widget needs external data, inject the client via the renderer constructor (backend) or use a composable (frontend)
-- Image-mode widgets must produce self-contained HTML (inline styles, base64 images) — no external resources
+- **Folder naming:** backend package name has no hyphens (Go convention);
+  frontend folder name matches the widget type string exactly (including
+  hyphens). `Module.Type()` returns the hyphenated type string.
+- **Warmup configs** are pre-filtered to this widget's type — you don't
+  scan dashboards yourself.
+- **Handlers must not import `app/router/handlers`** — in-package
+  `writeJSONError` mirrors `handlers.ErrorJSON`.
+- **Search-style frontend-only widgets:** implement `Module` with a
+  placeholder `Renderer()` that emits an empty div.
 
 ## Adding a New API Endpoint
 

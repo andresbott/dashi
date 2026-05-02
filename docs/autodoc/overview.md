@@ -22,24 +22,36 @@ dashi/
     dashboard/               Dashboard types, file-based store, ID generation
       image/                 PNG rendering via litehtml-go + fogleman/gg
       static/                HTML rendering via Go templates
-    widgets/                 Widget registry (type → StaticRenderer function)
-      weather/               Weather widget (static + chart rendering)
-      market/                Market widget (static + chart rendering)
-      bookmark/              Bookmark link widget
-      clock/                 Clock widget
-      battery/               Battery widget (reads query param)
-      pageindicator/         Page indicator dots widget
+    widgets/                 Widget Module interface + CollectConfigs helper
+      scanner.go             CollectConfigs helper + DashboardLister interface
+      weather/               Weather widget module (module.go, static.go, handler.go, tests)
+      market/                Market widget module (module.go, static.go, handler.go, tests)
+      bookmark/              Bookmark widget module (module.go, static.go, tests)
+      clock/                 Clock widget module (module.go, static.go, tests)
+      battery/               Battery widget module (module.go, static.go, tests)
+      pageindicator/         Page indicator widget module (module.go, static.go, tests)
+      markdown/              Markdown widget module (module.go, static.go, tests)
+      search/                Search widget module (module.go, placeholder static.go)
     themes/                  Theme store (embedded default + user themes from disk)
     weather/                 Open-Meteo API client + in-memory cache (30-min TTL)
     market/                  Yahoo Finance API client + in-memory cache (tiered TTL)
   webui/                     Vue 3 + Vite + PrimeVue frontend
     src/
       views/dashboards/      DashboardListView, DashboardView, DashboardEditView
-      components/dashboards/  Widget display + config components
-      composables/           Vue Query composables (useDashboards, useWeather, etc.)
-      lib/api/               Axios API client modules
-      lib/widgetRegistry.ts  Frontend widget registry (component + config + metadata)
-      types/                 TypeScript interfaces
+      widgets/               Self-contained widget modules
+        <type>/              One folder per widget type (name matches type string exactly)
+          Widget.vue         Display component
+          WidgetConfig.vue   Configuration component (if applicable)
+          index.ts           WidgetModule export
+          types.ts           TypeScript types (optional)
+          api.ts             Axios API client (optional)
+          composable.ts      Vue Query composable (optional)
+        types.ts             WidgetModule interface
+      components/dashboards/  Dashboard-level components (WidgetContainer, etc.)
+      composables/           Dashboard-level composables
+      lib/api/               Dashboard-level API clients
+      lib/widgetRegistry.ts  Module-import registry (aggregates widgets/*/index.ts)
+      types/                 Dashboard-level TypeScript interfaces
       store/                 Pinia stores (minimal UI state)
       router/                Vue Router (/ → first dashboard or list, /dashboards, /:id, /dashboards/:id/edit)
   data/                      Default data directory (dashboards/, themes/)
@@ -107,39 +119,44 @@ DELETE /api/v0/dashboards/{id}/assets/{path} → Delete asset
 
 ## Widget System
 
-### Backend: Static Rendering
+### Backend: Module Interface
+
+Each widget implements the `widgets.Module` interface:
 
 ```go
-// Registry maps type string → renderer function
-type StaticRenderer func(config json.RawMessage, ctx RenderContext) (template.HTML, error)
-
-// RenderContext provides theme, query params, page info
-type RenderContext struct {
-    Theme       string
-    QueryParams map[string]string
-    PageIndex   int
-    TotalPages  int
+type Module interface {
+    Type() string                                          // Widget type string (e.g., "weather")
+    Renderer() StaticRenderer                              // Returns renderer function for HTML/PNG mode
+    RegisterRoutes(r *mux.Router)                          // Optional: mount interactive API routes
+    Warmup(ctx context.Context, configs []json.RawMessage) // Optional: pre-fetch data at startup
 }
+
+type StaticRenderer func(config json.RawMessage, ctx RenderContext) (template.HTML, error)
 ```
 
-Registered in `router/main.go`. Each widget parses its own config from
-`json.RawMessage`, fetches data from cached clients, renders HTML via template.
+The `widgets.NoopModule` type can be embedded to provide no-op implementations
+of optional methods (`RegisterRoutes`, `Warmup`). Modules are registered as a
+slice in `app/router/main.go`. The `widgets.CollectConfigs` helper scans
+dashboards and returns configs for a given widget type (used by warmup).
 
-### Frontend: Interactive Rendering
+### Frontend: WidgetModule Export
+
+Each widget folder exports a `WidgetModule` from `index.ts`:
 
 ```ts
-// lib/widgetRegistry.ts maps type string → Vue component + config component
-interface WidgetRegistryEntry {
-  component: Component           // display component
-  configComponent: Component     // config dialog (nullable)
+interface WidgetModule {
+  type: string                   // Widget type string (matches backend Module.Type())
+  component: Component           // Display component (asyncComponent)
+  configComponent: Component     // Config dialog (asyncComponent, nullable)
   label: string
   icon: string
   description: string
 }
 ```
 
-Widget config stored as `json.RawMessage` / opaque JSON — each widget type
-defines its own schema by convention.
+The `lib/widgetRegistry.ts` file imports all widget modules and exposes lookup
+functions by type. Widget config is stored as `json.RawMessage` (Go) / opaque
+JSON (TS) — each widget defines its own schema.
 
 ### Registered Widgets
 
