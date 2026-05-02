@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api/client'
-import type { MarketData } from '@/types/market'
+import type { MarketData } from './types'
 
 const MARKET_PATH = '/widgets/market'
 

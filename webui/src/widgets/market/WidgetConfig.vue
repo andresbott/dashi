@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Checkbox from 'primevue/checkbox'
-import type { MarketWidgetConfig } from '@/types/market'
+import type { MarketWidgetConfig } from './types'
 
 const props = defineProps<{
     config: MarketWidgetConfig | null

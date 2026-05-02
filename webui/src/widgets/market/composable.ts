@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/vue-query'
-import { getMarketData } from '@/lib/api/market'
+import { getMarketData } from './api'
 import type { Ref } from 'vue'
 
 export function useMarket(symbol: Ref<string | undefined>, range: Ref<string>) {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useMarket } from '@/composables/useMarket'
-import type { MarketWidgetConfig } from '@/types/market'
+import { useMarket } from './composable'
+import type { MarketWidgetConfig } from './types'
 import type { Widget } from '@/types/dashboard'
 
 const props = defineProps<{
