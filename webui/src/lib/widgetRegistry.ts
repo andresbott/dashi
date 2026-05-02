@@ -3,6 +3,7 @@ import xkcdModule from '@/widgets/xkcd'
 import weatherModule from '@/widgets/weather'
 import weatherCompactModule from '@/widgets/weather-compact'
 import bookmarkModule from '@/widgets/bookmark'
+import clockModule from '@/widgets/clock'
 
 export interface WidgetRegistryEntry {
     component: Component
@@ -17,13 +18,7 @@ const registry: Record<string, WidgetRegistryEntry> = {
     weather: weatherModule,
     'weather-compact': weatherCompactModule,
     bookmark: bookmarkModule,
-    clock: {
-        component: defineAsyncComponent(() => import('@/components/dashboards/ClockWidget.vue')),
-        configComponent: defineAsyncComponent(() => import('@/components/dashboards/ClockWidgetConfig.vue')),
-        label: 'Clock',
-        icon: 'ti-clock',
-        description: 'Digital clock with date',
-    },
+    clock: clockModule,
     battery: {
         component: defineAsyncComponent(() => import('@/components/dashboards/BatteryWidget.vue')),
         configComponent: null,

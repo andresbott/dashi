@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import type { Widget } from '@/types/dashboard'
-import type { ClockWidgetConfig } from '@/types/clock'
+import type { ClockWidgetConfig } from './types'
 
 const props = defineProps<{
     widget: Widget

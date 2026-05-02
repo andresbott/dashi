@@ -3,7 +3,7 @@ import { ref, watch, computed, inject } from 'vue'
 import { DASHBOARD_THEME } from '@/lib/injectionKeys'
 import Checkbox from 'primevue/checkbox'
 import Select from 'primevue/select'
-import type { ClockWidgetConfig } from '@/types/clock'
+import type { ClockWidgetConfig } from './types'
 import { useThemes } from '@/composables/useThemes'
 
 const props = defineProps<{
