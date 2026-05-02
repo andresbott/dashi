@@ -2,7 +2,7 @@
 import { computed, inject, ref } from 'vue'
 import { DASHBOARD_ID } from '@/lib/injectionKeys'
 import type { Widget } from '@/types/dashboard'
-import type { BookmarkWidgetConfig } from '@/types/bookmark'
+import type { BookmarkWidgetConfig } from './types'
 import { parseIcon, getSelfhstIconUrl, getDashboardIconUrl } from '@/lib/iconUtils'
 
 const props = defineProps<{
