@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/vue-query'
-import { getWeather, geocodeCity } from '@/lib/api/weather'
+import { getWeather, geocodeCity } from './api'
 import type { Ref } from 'vue'
 
 const FIVE_MINUTES = 5 * 60 * 1000

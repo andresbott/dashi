@@ -5,8 +5,8 @@ import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import Slider from 'primevue/slider'
 import ColorPicker from 'primevue/colorpicker'
-import { useGeocode } from '@/composables/useWeather'
-import type { WeatherWidgetConfig } from '@/types/weather'
+import { useGeocode } from './composable'
+import type { WeatherWidgetConfig } from './types'
 
 const props = defineProps<{
     config: WeatherWidgetConfig | null

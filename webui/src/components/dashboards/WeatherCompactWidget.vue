@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, inject, ref } from 'vue'
 import { DASHBOARD_THEME } from '@/lib/injectionKeys'
-import { useWeather } from '@/composables/useWeather'
+import { useWeather } from '@/widgets/weather/composable'
 import { useThemes } from '@/composables/useThemes'
-import WeatherIcon from '@/components/dashboards/WeatherIcon.vue'
-import type { WeatherWidgetConfig } from '@/types/weather'
+import WeatherIcon from '@/widgets/weather/WeatherIcon.vue'
+import type { WeatherWidgetConfig } from '@/widgets/weather/types'
 import type { Widget } from '@/types/dashboard'
 
 const props = defineProps<{

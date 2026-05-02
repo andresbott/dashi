@@ -4,8 +4,8 @@ import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import Checkbox from 'primevue/checkbox'
 import Select from 'primevue/select'
-import { useGeocode } from '@/composables/useWeather'
-import type { WeatherWidgetConfig } from '@/types/weather'
+import { useGeocode } from '@/widgets/weather/composable'
+import type { WeatherWidgetConfig } from '@/widgets/weather/types'
 
 const props = defineProps<{
     config: WeatherWidgetConfig | null

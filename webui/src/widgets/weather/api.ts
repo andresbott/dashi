@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api/client'
-import type { WeatherData, Location } from '@/types/weather'
+import type { WeatherData, Location } from './types'
 
 const WEATHER_PATH = '/widgets/weather'
 
