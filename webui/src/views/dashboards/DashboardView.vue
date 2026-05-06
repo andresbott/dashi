@@ -104,10 +104,8 @@ const backgroundStyle = computed(() => {
                 url = getThemeBackgroundUrl(themeName, fileName)
             } else if (bg.value.startsWith('dashboard:')) {
                 // "dashboard:filename.jpg"
-                // For preview dashboards (id ending in -prev), use the base dashboard's assets
-                const assetDashId = id.value.endsWith('-prev') ? id.value.slice(0, -5) : id.value
                 const fileName = bg.value.slice(10)
-                url = `/api/v0/dashboards/${assetDashId}/assets/${encodeURIComponent(fileName)}`
+                url = `/api/v0/dashboards/${id.value}/assets/${encodeURIComponent(fileName)}`
             } else {
                 return {}
             }

@@ -6,7 +6,6 @@ import {
     createDashboard,
     updateDashboard,
     deleteDashboard,
-    deletePreviews,
     getBackgrounds,
     getDashboardAssets,
     uploadDashboardAsset,
@@ -39,11 +38,6 @@ export function useListDashboards() {
         onSuccess: doInvalidate
     })
 
-    const deletePreviewsMutation = useMutation({
-        mutationFn: () => deletePreviews(),
-        onSuccess: doInvalidate
-    })
-
     const uploadZipMutation = useMutation({
         mutationFn: (data: ArrayBuffer) => uploadDashboardZip(data),
         onSuccess: doInvalidate
@@ -60,9 +54,6 @@ export function useListDashboards() {
 
         deleteDashboard: deleteMutation.mutateAsync,
         isDeleting: deleteMutation.isPending,
-
-        deletePreviews: deletePreviewsMutation.mutateAsync,
-        isDeletingPreviews: deletePreviewsMutation.isPending,
 
         uploadZip: uploadZipMutation.mutateAsync,
         isUploadingZip: uploadZipMutation.isPending
@@ -92,33 +83,6 @@ export function useUpdateDashboard() {
     return {
         updateDashboard: mutation.mutateAsync,
         isUpdating: mutation.isPending
-    }
-}
-
-export function usePreviewDashboard() {
-    const queryClient = useQueryClient()
-    const doInvalidate = () => invalidateAndRefetch(queryClient, DASHBOARDS_QUERY_KEY)
-
-    const createMutation = useMutation({
-        mutationFn: (payload: CreateDashboardDTO) => createDashboard(payload),
-        onSuccess: doInvalidate,
-    })
-
-    const updateMutation = useMutation({
-        mutationFn: ({ id, payload }: { id: string; payload: Dashboard }) =>
-            updateDashboard(id, payload),
-        onSuccess: doInvalidate,
-    })
-
-    const deleteMutation = useMutation({
-        mutationFn: (id: string) => deleteDashboard(id),
-        onSuccess: doInvalidate,
-    })
-
-    return {
-        createPreview: createMutation.mutateAsync,
-        updatePreview: updateMutation.mutateAsync,
-        deletePreview: deleteMutation.mutateAsync,
     }
 }
 

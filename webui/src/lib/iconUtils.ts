@@ -23,8 +23,7 @@ export function getSelfhstIconUrl(filename: string): string {
 }
 
 export function getDashboardIconUrl(dashboardId: string, filename: string): string {
-    const assetDashId = dashboardId.endsWith('-prev') ? dashboardId.slice(0, -5) : dashboardId
-    return `/api/v0/dashboards/${assetDashId}/assets/${encodeURIComponent(filename)}`
+    return `/api/v0/dashboards/${dashboardId}/assets/${encodeURIComponent(filename)}`
 }
 
 export function isImageIcon(icon: string): boolean {

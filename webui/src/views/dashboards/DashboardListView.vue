@@ -19,8 +19,6 @@ const {
     isLoading,
     createDashboard,
     deleteDashboard,
-    deletePreviews,
-    isDeletingPreviews,
     uploadZip,
     isUploadingZip,
 } = useListDashboards()
@@ -59,15 +57,6 @@ const handleCreate = async ({ name, type, container }) => {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to create dashboard', life: 5000 })
     } finally {
         isCreating.value = false
-    }
-}
-
-const handleDeletePreviews = async () => {
-    try {
-        const result = await deletePreviews()
-        toast.add({ severity: 'success', summary: 'Done', detail: `Deleted ${result.deleted} preview(s)`, life: 3000 })
-    } catch (err) {
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete previews', life: 5000 })
     }
 }
 
@@ -110,13 +99,6 @@ const handleDownload = async (id) => {
                     icon="ti ti-book"
                     severity="secondary"
                     @click="router.push({ name: 'doc-dashboards' })"
-                />
-                <Button
-                    label="Delete Previews"
-                    icon="ti ti-trash"
-                    severity="secondary"
-                    :loading="isDeletingPreviews"
-                    @click="handleDeletePreviews"
                 />
                 <Button
                     label="Import"

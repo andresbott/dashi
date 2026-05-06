@@ -5,7 +5,6 @@ import {
     createDashboard,
     updateDashboard,
     deleteDashboard,
-    deletePreviews,
     getDashboardAssets,
     getBackgrounds,
 } from './dashboard'
@@ -77,14 +76,6 @@ describe('dashboard API', () => {
             vi.mocked(apiClient.delete).mockResolvedValue({})
             await deleteDashboard('1')
             expect(apiClient.delete).toHaveBeenCalledWith('/dashboards/1')
-        })
-    })
-
-    describe('deletePreviews', () => {
-        it('deletes previews and returns count', async () => {
-            vi.mocked(apiClient.delete).mockResolvedValue({ data: { deleted: 3 } })
-            const result = await deletePreviews()
-            expect(result).toEqual({ deleted: 3 })
         })
     })
 

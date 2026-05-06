@@ -6,10 +6,9 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import DashboardRow from '@/components/dashboards/DashboardRow.vue'
 
-import { useGetDashboard, useUpdateDashboard, usePreviewDashboard, useUploadDashboardAsset } from '@/composables/useDashboards'
+import { useGetDashboard, useUpdateDashboard, useUploadDashboardAsset } from '@/composables/useDashboards'
 import { useToast } from 'primevue/usetoast'
 import type { Dashboard, Row } from '@/types/dashboard'
-import { onBeforeUnmount } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
 import Dialog from 'primevue/dialog'
 import dashiIcon from '@/assets/icon-64.png'
@@ -22,7 +21,6 @@ const id = computed(() => route.params.id as string)
 
 const { data: serverDashboard, isLoading, isError } = useGetDashboard(() => id.value)
 const { updateDashboard, isUpdating } = useUpdateDashboard()
-const { createPreview, updatePreview, deletePreview } = usePreviewDashboard()
 const { uploadAsset, isUploading } = useUploadDashboardAsset()
 
 const localDashboard = ref<Dashboard | null>(null)
@@ -154,55 +152,6 @@ const cancel = () => {
     router.push({ name: 'dashboards' })
 }
 
-const previewId = ref<string | null>(null)
-
-const isPreviewing = ref(false)
-
-const preview = async () => {
-    if (!localDashboard.value) return
-    isPreviewing.value = true
-    try {
-        const prevId = id.value + '-prev'
-        const previewPayload = {
-            id: prevId,
-            name: localDashboard.value.name + ' - preview',
-            icon: localDashboard.value.icon,
-            type: localDashboard.value.type,
-            container: JSON.parse(JSON.stringify(localDashboard.value.container)),
-            theme: localDashboard.value.theme,
-            colorMode: localDashboard.value.colorMode,
-            background: localDashboard.value.background
-                ? JSON.parse(JSON.stringify(localDashboard.value.background))
-                : undefined,
-            pages: JSON.parse(JSON.stringify(localDashboard.value.pages))
-        }
-        if (previewId.value) {
-            await updatePreview({ id: prevId, payload: { ...previewPayload } as Dashboard })
-        } else {
-            await createPreview(previewPayload)
-            previewId.value = prevId
-        }
-        const resolved = router.resolve({ name: 'dashboard-view', params: { id: previewId.value! } })
-        window.open(resolved.href, '_blank')
-    } catch (err) {
-        console.error('Preview failed:', err)
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to create preview', life: 5000 })
-    } finally {
-        isPreviewing.value = false
-    }
-}
-
-const cleanupPreview = async () => {
-    if (previewId.value) {
-        try {
-            await deletePreview(previewId.value)
-        } catch {
-            // ignore cleanup errors
-        }
-        previewId.value = null
-    }
-}
-
 const uploadDialogVisible = ref(false)
 const selectedFile = ref<File | null>(null)
 
@@ -222,8 +171,6 @@ const confirmUpload = async () => {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to upload file', life: 5000 })
     }
 }
-
-onBeforeUnmount(cleanupPreview)
 </script>
 
 <template>
@@ -255,13 +202,6 @@ onBeforeUnmount(cleanupPreview)
                 label="Upload"
                 severity="secondary"
                 @click="uploadDialogVisible = true"
-            />
-            <Button
-                icon="ti ti-eye"
-                label="Preview"
-                severity="secondary"
-                :loading="isPreviewing"
-                @click="preview"
             />
             <Button
                 label="Save"

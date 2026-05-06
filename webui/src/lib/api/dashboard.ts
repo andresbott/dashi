@@ -27,11 +27,6 @@ export const deleteDashboard = async (id: string): Promise<void> => {
     await apiClient.delete(`${DASHBOARD_PATH}/${id}`)
 }
 
-export const deletePreviews = async (): Promise<{ deleted: number }> => {
-    const { data } = await apiClient.delete<{ deleted: number }>(`${DASHBOARD_PATH}/previews`)
-    return data
-}
-
 export interface BackgroundOption {
     name: string
     value: string
