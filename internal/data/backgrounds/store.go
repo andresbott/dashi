@@ -1,6 +1,6 @@
 // Package backgrounds stores background images shared across all
 // dashboards. API identical to images.Store; kept separate so future
-// divergence (thumbnails, preview generation) doesn't force a rename.
+// divergence (thumbnails, etc.) doesn't force a rename.
 package backgrounds
 
 import (

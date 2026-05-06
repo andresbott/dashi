@@ -61,7 +61,6 @@ func (s *Store) filePath(id string) string {
 
 const idChars = "abcdefghijklmnopqrstuvwxyz0123456789"
 const idLen = 6
-const previewSuffix = "-prev"
 
 func randomID() (string, error) {
 	b := make([]byte, idLen)
@@ -75,18 +74,12 @@ func randomID() (string, error) {
 	return string(b), nil
 }
 
-func isPreviewID(id string) bool {
-	return strings.HasSuffix(id, previewSuffix)
-}
-
-// isValidID checks that the ID contains only lowercase alphanumeric chars,
-// optionally followed by the preview suffix "-prev".
+// isValidID checks that the ID contains only lowercase alphanumeric chars.
 func isValidID(id string) bool {
-	base := strings.TrimSuffix(id, previewSuffix)
-	if len(base) == 0 {
+	if len(id) == 0 {
 		return false
 	}
-	for _, c := range base {
+	for _, c := range id {
 		if (c < 'a' || c > 'z') && (c < '0' || c > '9') {
 			return false
 		}
@@ -270,9 +263,6 @@ func (s *Store) List() ([]DashboardMeta, error) {
 		if err := json.Unmarshal(data, &d); err != nil {
 			continue
 		}
-		if isPreviewID(d.ID) {
-			continue
-		}
 		result = append(result, DashboardMeta{
 			ID:      d.ID,
 			Name:    d.Name,
@@ -349,45 +339,6 @@ func (s *Store) Delete(id string) error {
 	s.mu.Unlock()
 
 	return nil
-}
-
-// DeletePreviews removes all preview dashboard directories and returns the count deleted.
-func (s *Store) DeletePreviews() (int, error) {
-	entries, err := os.ReadDir(s.dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return 0, nil
-		}
-		return 0, fmt.Errorf("read dir: %w", err)
-	}
-
-	count := 0
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		// Read the dashboard.json to check if it's a preview
-		fp := filepath.Join(s.dir, entry.Name(), dashboardFile)
-		data, err := os.ReadFile(fp)
-		if err != nil {
-			continue
-		}
-		var d Dashboard
-		if err := json.Unmarshal(data, &d); err != nil {
-			continue
-		}
-		if !isPreviewID(d.ID) {
-			continue
-		}
-		if err := os.RemoveAll(filepath.Join(s.dir, entry.Name())); err != nil {
-			return count, fmt.Errorf("delete preview %s: %w", entry.Name(), err)
-		}
-		s.mu.Lock()
-		delete(s.index, d.ID)
-		s.mu.Unlock()
-		count++
-	}
-	return count, nil
 }
 
 const customCSSFile = "custom.css"

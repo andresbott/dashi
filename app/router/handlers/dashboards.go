@@ -108,17 +108,6 @@ func (h *DashboardHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *DashboardHandler) DeletePreviews(w http.ResponseWriter, r *http.Request) {
-	count, err := h.store.DeletePreviews()
-	if err != nil {
-		h.logger.Error("delete previews", slog.String("error", err.Error()))
-		ErrorJSON(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"deleted": count})
-}
-
 func (h *DashboardHandler) Download(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	d, err := h.store.Get(id)
