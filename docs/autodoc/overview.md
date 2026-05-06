@@ -115,7 +115,6 @@ GET    /api/v0/dashboards/{id}             → Get full dashboard
 GET    /api/v0/dashboards/{id}/download    → Export dashboard as zip
 PUT    /api/v0/dashboards/{id}             → Update (overwrites dashboard.json)
 DELETE /api/v0/dashboards/{id}             → Delete (removes folder)
-DELETE /api/v0/dashboards/previews         → Delete all preview dashboards
 POST   /api/v0/dashboards/{id}/assets/{path} → Upload asset (Content-Type: application/octet-stream, 10MB max)
 GET    /api/v0/dashboards/{id}/assets      → List assets
 GET    /api/v0/dashboards/{id}/assets/{path} → Get asset file

@@ -8,8 +8,6 @@
 | List dashboards | Implemented | Grid view with cards |
 | Edit dashboard | Implemented | Full editor: pages, rows, widgets, theme, background |
 | Delete dashboard | Implemented | With confirmation dialog |
-| Dashboard preview | Implemented | Creates "-prev" suffixed copy for image preview |
-| Delete previews | Implemented | Bulk delete all preview dashboards |
 | Default dashboard | Implemented | Boolean flag per dashboard; root `/` redirects to it |
 | Export dashboard (zip) | Implemented | Downloads dashboard folder as zip |
 | Import dashboard (zip) | Implemented | Upload zip to create new dashboard from dashboard list |
@@ -22,9 +20,6 @@ collision detection.
 row management (add/delete/reorder, height/width/title), widget management
 (add/delete/reorder via drag, type/title/width/config). Local copy edited then
 saved via PUT.
-
-**Dashboard preview** — Creates a temporary copy with ID ending in "-prev" so
-image dashboards can be previewed before saving. Bulk delete cleans all previews.
 
 **Export/Import** — Dashboards can be exported as zip files (containing
 dashboard.json and all assets). Zip import creates a new dashboard from an

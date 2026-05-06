@@ -235,7 +235,6 @@
         <ul>
             <li>6 characters, lowercase alphanumeric (<code>a-z0-9</code>).</li>
             <li>Auto-generated on creation.</li>
-            <li>Preview dashboards get a <code>-prev</code> suffix.</li>
         </ul>
         <hr class="doc-divider" />
         <h3 id="dash-server-modes">Server Modes</h3>
