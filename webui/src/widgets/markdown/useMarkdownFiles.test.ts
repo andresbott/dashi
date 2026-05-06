@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { ref } from 'vue'
 import { useMarkdownFiles } from './useMarkdownFiles'
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -31,28 +30,17 @@ describe('useMarkdownFiles', () => {
         vi.clearAllMocks()
     })
 
-    it('fetches the file list when dashboardId is set', async () => {
+    it('fetches the file list', async () => {
         vi.mocked(markdownApi.listMarkdownFiles).mockResolvedValue(['a.md', 'b.md'])
 
         let result: ReturnType<typeof useMarkdownFiles>
         withQueryClient(() => {
-            result = useMarkdownFiles(ref('abc123'))
+            result = useMarkdownFiles()
         })
 
         await flushPromises()
         expect(result!.files.value).toEqual(['a.md', 'b.md'])
-        expect(markdownApi.listMarkdownFiles).toHaveBeenCalledWith('abc123')
-    })
-
-    it('does not fetch when dashboardId is empty', async () => {
-        vi.mocked(markdownApi.listMarkdownFiles).mockResolvedValue([])
-
-        withQueryClient(() => {
-            useMarkdownFiles(ref(''))
-        })
-
-        await flushPromises()
-        expect(markdownApi.listMarkdownFiles).not.toHaveBeenCalled()
+        expect(markdownApi.listMarkdownFiles).toHaveBeenCalled()
     })
 
     it('exposes invalidate that triggers a refetch', async () => {
@@ -62,7 +50,7 @@ describe('useMarkdownFiles', () => {
 
         let result: ReturnType<typeof useMarkdownFiles>
         withQueryClient(() => {
-            result = useMarkdownFiles(ref('abc123'))
+            result = useMarkdownFiles()
         })
 
         await flushPromises()

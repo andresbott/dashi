@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, watch, inject, computed } from 'vue'
-import { DASHBOARD_ID } from '@/lib/injectionKeys'
-import { useDashboardAssets } from '@/composables/useDashboards'
+import { ref, watch, computed } from 'vue'
 import Select from 'primevue/select'
 import type { ImageWidgetConfig } from './types'
+import { useDataImages } from './composable'
 
 const props = defineProps<{
     config: ImageWidgetConfig | null
@@ -13,15 +12,11 @@ const emit = defineEmits<{
     'update:config': [config: ImageWidgetConfig]
 }>()
 
-const dashboardId = inject(DASHBOARD_ID, ref(''))
-const { data: assets, isLoading } = useDashboardAssets(() => dashboardId.value)
+const { data: assets, isLoading } = useDataImages()
 
 const imageFiles = computed(() => {
     if (!assets.value) return []
-    const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp']
-    return assets.value
-        .filter(a => imageExts.some(ext => a.toLowerCase().endsWith(ext)))
-        .map(a => ({ label: a, value: a }))
+    return assets.value.map(a => ({ label: a.name, value: a.name }))
 })
 
 const fitOptions = [
@@ -63,7 +58,7 @@ const emitUpdate = () => {
                 @update:modelValue="emitUpdate"
             />
             <small class="text-color-secondary">
-                Upload images in the dashboard assets panel
+                Shared across all dashboards
             </small>
         </div>
         <div class="flex flex-column gap-1">

@@ -1,19 +1,19 @@
 package image
 
 import (
-	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
 // Module implements widgets.Module for the image widget.
 type Module struct {
 	widgets.NoopModule
-	store *dashboard.Store
+	store *images.Store
 }
 
-// NewModule constructs an image Module. The dashboard store is required
-// for resolving uploaded image assets.
-func NewModule(store *dashboard.Store) *Module {
+// NewModule constructs an image Module backed by the shared images
+// data store.
+func NewModule(store *images.Store) *Module {
 	return &Module{store: store}
 }
 

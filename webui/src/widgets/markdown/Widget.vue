@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue'
-import { DASHBOARD_ID } from '@/lib/injectionKeys'
+import { computed } from 'vue'
 import { useMarkdown } from './useMarkdown'
 import type { Widget } from '@/types/dashboard'
 
@@ -8,14 +7,12 @@ const props = defineProps<{
     widget: Widget
 }>()
 
-const dashboardId = inject(DASHBOARD_ID, ref(''))
-
 const filename = computed(() => {
     const cfg = props.widget.config as { filename?: string } | null | undefined
     return cfg?.filename ?? ''
 })
 
-const { data: html, isLoading, isError } = useMarkdown(dashboardId, filename)
+const { data: html, isLoading, isError } = useMarkdown(filename)
 </script>
 
 <template>

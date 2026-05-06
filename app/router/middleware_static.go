@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/data/backgrounds"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
 	"github.com/andresbott/dashi/internal/themes"
@@ -23,7 +24,7 @@ import (
 // for static and image dashboards. Static dashboards are rendered as HTML,
 // image dashboards are rendered as PNG. Non-matching requests fall through
 // to the next handler (SPA).
-func NewStaticDashboardMiddleware(store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store) func(http.Handler) http.Handler {
+func NewStaticDashboardMiddleware(store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store, backgroundsStore *backgrounds.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet {
@@ -46,7 +47,7 @@ func NewStaticDashboardMiddleware(store *dashboard.Store, staticRenderer *dashst
 
 			switch dash.Type {
 			case "image":
-				serveImageDashboard(w, r, dash, store, staticRenderer, imageRenderer, themeStore)
+				serveImageDashboard(w, r, dash, store, staticRenderer, imageRenderer, themeStore, backgroundsStore)
 			default:
 				next.ServeHTTP(w, r)
 			}
@@ -134,10 +135,10 @@ func parseDisplayHeaders(r *http.Request) (displayRequest, error) {
 }
 
 // serveImageDashboard handles rendering of image-type dashboards.
-func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store) {
+func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store, backgroundsStore *backgrounds.Store) {
 	// No display headers at all → serve HTML preview (browser access)
 	if !hasDisplayHeaders(r) {
-		serveImageHTMLPreview(w, r, dash, store, staticRenderer, themeStore)
+		serveImageHTMLPreview(w, r, dash, store, staticRenderer, themeStore, backgroundsStore)
 		return
 	}
 
@@ -168,7 +169,7 @@ func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.
 
 	// Render dashboard to image
 	renderData := buildRenderData(dash, pageIdx, r.URL.Query(), store, themeStore)
-	bgCSS, bgImageData := buildBackground(dash, store, themeStore)
+	bgCSS, bgImageData := buildBackground(dash, store, themeStore, backgroundsStore)
 	renderData.BackgroundCSS = bgCSS
 
 	var buf bytes.Buffer
@@ -210,7 +211,7 @@ func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.
 }
 
 // serveImageHTMLPreview renders the dashboard as HTML when display headers are missing.
-func serveImageHTMLPreview(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, themeStore *themes.Store) {
+func serveImageHTMLPreview(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, themeStore *themes.Store, backgroundsStore *backgrounds.Store) {
 	pageIdx, ok := parsePageIndex(r, len(dash.Pages))
 	if !ok {
 		http.NotFound(w, r)
@@ -218,7 +219,7 @@ func serveImageHTMLPreview(w http.ResponseWriter, r *http.Request, dash dashboar
 	}
 
 	renderData := buildRenderData(dash, pageIdx, r.URL.Query(), store, themeStore)
-	bgCSS, _ := buildBackground(dash, store, themeStore)
+	bgCSS, _ := buildBackground(dash, store, themeStore, backgroundsStore)
 	renderData.BackgroundCSS = bgCSS
 
 	var buf bytes.Buffer
@@ -347,7 +348,7 @@ func buildWrapperStyle(width, height int) string {
 
 // buildBackground returns the CSS background value and, for image backgrounds,
 // the raw image bytes (since litehtml doesn't support CSS background-image).
-func buildBackground(dash dashboard.Dashboard, dashStore *dashboard.Store, themeStore *themes.Store) (css string, imageData []byte) {
+func buildBackground(dash dashboard.Dashboard, dashStore *dashboard.Store, themeStore *themes.Store, backgroundsStore *backgrounds.Store) (css string, imageData []byte) {
 	bg := dash.Background
 	if bg == nil || bg.Type == "none" || bg.Value == "" {
 		return "", nil
@@ -358,15 +359,15 @@ func buildBackground(dash dashboard.Dashboard, dashStore *dashboard.Store, theme
 	case "gradient":
 		return bg.Value, nil
 	case "image":
-		return buildImageBackground(bg.Value, dash.ID, dashStore, themeStore)
+		return buildImageBackground(bg.Value, dash.ID, dashStore, themeStore, backgroundsStore)
 	default:
 		return "", nil
 	}
 }
 
 // buildImageBackground loads and encodes an image background.
-func buildImageBackground(bgValue, dashID string, dashStore *dashboard.Store, themeStore *themes.Store) (css string, imageData []byte) {
-	data, fileName, err := loadBackgroundImage(bgValue, dashID, dashStore, themeStore)
+func buildImageBackground(bgValue, dashID string, dashStore *dashboard.Store, themeStore *themes.Store, backgroundsStore *backgrounds.Store) (css string, imageData []byte) {
+	data, fileName, err := loadBackgroundImage(bgValue, dashID, dashStore, themeStore, backgroundsStore)
 	if err != nil {
 		return "", nil
 	}
@@ -380,13 +381,21 @@ func buildImageBackground(bgValue, dashID string, dashStore *dashboard.Store, th
 }
 
 // loadBackgroundImage loads background image data from theme or dashboard assets.
-func loadBackgroundImage(bgValue, dashID string, dashStore *dashboard.Store, themeStore *themes.Store) (data []byte, fileName string, err error) {
+func loadBackgroundImage(bgValue, dashID string, dashStore *dashboard.Store, themeStore *themes.Store, backgroundsStore *backgrounds.Store) (data []byte, fileName string, err error) {
 	if strings.HasPrefix(bgValue, "theme:") {
 		return loadThemeBackground(bgValue, themeStore)
 	}
 	if strings.HasPrefix(bgValue, "dashboard:") {
 		fileName = bgValue[len("dashboard:"):]
 		data, _, err = dashStore.GetAsset(dashID, fileName)
+		return data, fileName, err
+	}
+	if strings.HasPrefix(bgValue, "shared:") {
+		fileName = bgValue[len("shared:"):]
+		if backgroundsStore == nil {
+			return nil, fileName, fmt.Errorf("backgrounds store not configured")
+		}
+		data, _, err = backgroundsStore.Get(fileName)
 		return data, fileName, err
 	}
 	return nil, "", fmt.Errorf("unsupported background type")

@@ -11,14 +11,20 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/andresbott/dashi/app/router/handlers"
+	"github.com/andresbott/dashi/internal/data/backgrounds"
+	"github.com/andresbott/dashi/internal/data/images"
+	"github.com/andresbott/dashi/internal/data/notes"
 )
 
 // apiDeps holds shared dependencies for API route handlers.
 type apiDeps struct {
-	dashStore  *dashboard.Store
-	themeStore *themes.Store
-	logger     *slog.Logger
-	modules    []widgets.Module
+	dashStore        *dashboard.Store
+	themeStore       *themes.Store
+	notesStore       *notes.Store
+	imagesStore      *images.Store
+	backgroundsStore *backgrounds.Store
+	logger           *slog.Logger
+	modules          []widgets.Module
 }
 
 // attachReadAPIs mounts all read-only (GET) API endpoints on the given router.
@@ -30,7 +36,7 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	})
 
 	// Dashboard routes (read)
-	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.logger)
+	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.backgroundsStore, deps.logger)
 	r.Path("/dashboards").Methods(http.MethodGet).HandlerFunc(dh.List)
 	r.Path("/dashboards/{id}").Methods(http.MethodGet).HandlerFunc(dh.Get)
 	r.Path("/dashboards/{id}/download").Methods(http.MethodGet).HandlerFunc(dh.Download)
@@ -49,11 +55,15 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/themes/{name}/icons/{icon}").Methods(http.MethodGet).HandlerFunc(th.GetIcon)
 	r.Path("/themes/{name}/fonts/{font}").Methods(http.MethodGet).HandlerFunc(th.GetFont)
 	r.Path("/themes/{name}/backgrounds/{file}").Methods(http.MethodGet).HandlerFunc(th.GetBackground)
+
+	// Shared user-data (read)
+	dataH := handlers.NewDataHandler(deps.notesStore, deps.imagesStore, deps.backgroundsStore, deps.logger)
+	dataH.RegisterRead(r)
 }
 
 // attachWriteAPIs mounts all write (POST/PUT/DELETE) API endpoints on the given router.
 func attachWriteAPIs(r *mux.Router, deps apiDeps) {
-	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.logger)
+	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.backgroundsStore, deps.logger)
 
 	r.Path("/dashboards").Methods(http.MethodPost).HandlerFunc(dh.Create)
 	r.Path("/dashboards/upload").Methods(http.MethodPost).HandlerFunc(dh.Upload)
@@ -67,4 +77,8 @@ func attachWriteAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/dashboards/{id}/auth").Methods(http.MethodGet).HandlerFunc(dh.GetAuth)
 	r.Path("/dashboards/{id}/auth").Methods(http.MethodPut).HandlerFunc(dh.SetAuth)
 	r.Path("/dashboards/{id}/auth").Methods(http.MethodDelete).HandlerFunc(dh.DeleteAuth)
+
+	// Shared user-data (write)
+	dataH := handlers.NewDataHandler(deps.notesStore, deps.imagesStore, deps.backgroundsStore, deps.logger)
+	dataH.RegisterWrite(r)
 }

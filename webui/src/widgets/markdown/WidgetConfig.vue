@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, inject, computed } from 'vue'
-import { DASHBOARD_ID } from '@/lib/injectionKeys'
+import { ref, watch, computed } from 'vue'
 import { getMarkdownRaw, saveMarkdown } from './api'
 import { useMarkdownFiles } from './useMarkdownFiles'
 import InputText from 'primevue/inputtext'
@@ -16,8 +15,7 @@ const emit = defineEmits<{
     'update:config': [config: { filename: string }]
 }>()
 
-const dashboardId = inject(DASHBOARD_ID, ref(''))
-const { files, isLoading: filesLoading, invalidate: refreshFiles } = useMarkdownFiles(dashboardId)
+const { files, isLoading: filesLoading, invalidate: refreshFiles } = useMarkdownFiles()
 
 const configFilename = computed(() => props.config?.filename ?? '')
 
@@ -43,12 +41,12 @@ const createError = ref('')
 const creating = ref(false)
 
 const loadContent = async (filename: string) => {
-    if (!dashboardId.value || !filename) return
+    if (!filename) return
     editLoading.value = true
     loadError.value = false
     saveStatus.value = 'idle'
     try {
-        editContent.value = await getMarkdownRaw(dashboardId.value, filename)
+        editContent.value = await getMarkdownRaw(filename)
     } catch {
         editContent.value = ''
         loadError.value = true
@@ -74,7 +72,7 @@ const syncFromProps = () => {
     }
 }
 
-watch([files, () => props.config, () => dashboardId.value], syncFromProps, { immediate: true })
+watch([files, () => props.config], syncFromProps, { immediate: true })
 
 const onSelect = (value: string | null) => {
     if (!value) return
@@ -111,11 +109,10 @@ const confirmCreate = async () => {
         createError.value = result.error
         return
     }
-    if (!dashboardId.value) return
     creating.value = true
     createError.value = ''
     try {
-        await saveMarkdown(dashboardId.value, result.name, '')
+        await saveMarkdown(result.name, '')
         await refreshFiles()
         selected.value = result.name
         editContent.value = ''
@@ -129,11 +126,11 @@ const confirmCreate = async () => {
 }
 
 const save = async () => {
-    if (!selected.value || !dashboardId.value || loadError.value) return
+    if (!selected.value || loadError.value) return
     saving.value = true
     saveStatus.value = 'idle'
     try {
-        await saveMarkdown(dashboardId.value, selected.value, editContent.value)
+        await saveMarkdown(selected.value, editContent.value)
         saveStatus.value = 'saved'
     } catch {
         saveStatus.value = 'error'
@@ -178,7 +175,7 @@ const onDropdownChange = (value: string | null) => {
                 "{{ configFilename }}" is missing — pick another or create a new one.
             </small>
             <small v-else class="text-color-secondary">
-                Files from the dashboard's <code>md/</code> folder
+                Notes are shared across all dashboards
             </small>
         </div>
 

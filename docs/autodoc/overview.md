@@ -22,6 +22,11 @@ dashi/
     dashboard/               Dashboard types, file-based store, ID generation
       image/                 PNG rendering via litehtml-go + fogleman/gg
       static/                HTML rendering via Go templates
+    data/                    Shared user-data (cross-dashboard)
+      data.go                FsStore primitive + validateName + sentinels
+      notes/                 Markdown notes (string API, goldmark render)
+      images/                Images (bytes + mime)
+      backgrounds/           Background images (bytes + mime)
     widgets/                 Widget Module interface + CollectConfigs helper
       scanner.go             CollectConfigs helper + DashboardLister interface
       weather/               Weather widget module (module.go, static.go, handler.go, tests)
@@ -117,6 +122,30 @@ GET    /api/v0/dashboards/{id}/assets/{path} → Get asset file
 DELETE /api/v0/dashboards/{id}/assets/{path} → Delete asset
 ```
 
+### Shared Data Layer (`/api/v0/data/*`)
+
+```
+GET    /api/v0/data/notes                → list of Items
+GET    /api/v0/data/notes/{name}         → {"html": ...} rendered HTML
+GET    /api/v0/data/notes/{name}/raw     → raw markdown (text/plain)
+POST   /api/v0/data/notes/{name}         → save (application/octet-stream, 10MB max)
+DELETE /api/v0/data/notes/{name}
+
+GET    /api/v0/data/images               → list of Items
+GET    /api/v0/data/images/{name}        → image bytes with correct mime
+POST   /api/v0/data/images/{name}
+DELETE /api/v0/data/images/{name}
+
+GET    /api/v0/data/backgrounds          → list of Items
+GET    /api/v0/data/backgrounds/{name}
+POST   /api/v0/data/backgrounds/{name}
+DELETE /api/v0/data/backgrounds/{name}
+```
+
+GET endpoints are available on viewer + editor; POST/DELETE only on editor.
+Content is shared across all dashboards — not scoped to any one dashboard.
+Not included in dashboard export/import zips.
+
 ## Widget System
 
 ### Backend: Module Interface
@@ -169,7 +198,11 @@ JSON (TS) — each widget defines its own schema.
 | battery | Yes | Yes | No |
 | page-indicator | Yes | Yes | No |
 | market | Yes | Yes | No |
+| image | Yes | Yes | Yes |
+| markdown | Yes | Yes | Yes |
 | search | No | Yes | Yes |
+
+> `image` and `markdown` widgets read from the shared data layer (`/api/v0/data/*`) instead of owning their own routes.
 
 ## Data Storage
 
@@ -178,6 +211,9 @@ All file-based, no database.
 - **Dashboards:** `{dataDir}/dashboards/{snake_name}/dashboard.json`
   - In-memory index (`id → folder`) rebuilt on startup
   - Optional sidecar: `custom.css`, `assets/` directory
+- **Shared data:** `{dataDir}/data/{notes,images,backgrounds}/`
+  - Flat per-kind namespace, accessible from any dashboard.
+  - Not included in dashboard export/import zips.
 - **Themes:** Embedded default + `{dataDir}/themes/{name}/theme.yaml`
   - Fonts (TTF), icons (font or image), backgrounds
 - **Caches:** In-memory only (weather 30-min TTL, market tiered TTL)

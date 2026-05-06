@@ -6,23 +6,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
-func setupStore(t *testing.T) *dashboard.Store {
+func setupStore(t *testing.T) *images.Store {
 	t.Helper()
-	dir := t.TempDir()
-	store := dashboard.NewStore(dir)
-	_, err := store.Create(dashboard.Dashboard{
-		ID:        "test01",
-		Name:      "Test",
-		Icon:      "ti-home",
-		Container: dashboard.Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"},
-		Pages:     []dashboard.Page{},
-	})
+	store, err := images.NewStore(t.TempDir())
 	if err != nil {
-		t.Fatalf("create dashboard: %v", err)
+		t.Fatalf("NewStore: %v", err)
 	}
 	return store
 }
@@ -30,13 +22,13 @@ func setupStore(t *testing.T) *dashboard.Store {
 func TestRenderStatic_Cover(t *testing.T) {
 	store := setupStore(t)
 	imgData := []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a}
-	if err := store.SaveAsset("test01", "photo.png", imgData); err != nil {
-		t.Fatalf("save asset: %v", err)
+	if err := store.Save("photo.png", imgData); err != nil {
+		t.Fatalf("save: %v", err)
 	}
 
 	renderer := NewStaticRenderer(store)
 	config := json.RawMessage(`{"image":"photo.png","fit":"cover"}`)
-	got, err := renderer(config, widgets.RenderContext{DashboardID: "test01"})
+	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -54,13 +46,13 @@ func TestRenderStatic_Cover(t *testing.T) {
 func TestRenderStatic_Contain(t *testing.T) {
 	store := setupStore(t)
 	imgData := []byte{0xff, 0xd8, 0xff}
-	if err := store.SaveAsset("test01", "pic.jpg", imgData); err != nil {
-		t.Fatalf("save asset: %v", err)
+	if err := store.Save("pic.jpg", imgData); err != nil {
+		t.Fatalf("save: %v", err)
 	}
 
 	renderer := NewStaticRenderer(store)
 	config := json.RawMessage(`{"image":"pic.jpg","fit":"contain"}`)
-	got, err := renderer(config, widgets.RenderContext{DashboardID: "test01"})
+	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -76,13 +68,13 @@ func TestRenderStatic_Contain(t *testing.T) {
 
 func TestRenderStatic_DefaultFit(t *testing.T) {
 	store := setupStore(t)
-	if err := store.SaveAsset("test01", "img.png", []byte{0x89, 0x50}); err != nil {
-		t.Fatalf("save asset: %v", err)
+	if err := store.Save("img.png", []byte{0x89, 0x50}); err != nil {
+		t.Fatalf("save: %v", err)
 	}
 
 	renderer := NewStaticRenderer(store)
 	config := json.RawMessage(`{"image":"img.png"}`)
-	got, err := renderer(config, widgets.RenderContext{DashboardID: "test01"})
+	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -98,7 +90,7 @@ func TestRenderStatic_EmptyImage(t *testing.T) {
 
 	renderer := NewStaticRenderer(store)
 	config := json.RawMessage(`{}`)
-	got, err := renderer(config, widgets.RenderContext{DashboardID: "test01"})
+	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -114,7 +106,7 @@ func TestRenderStatic_AssetNotFound(t *testing.T) {
 
 	renderer := NewStaticRenderer(store)
 	config := json.RawMessage(`{"image":"missing.png"}`)
-	got, err := renderer(config, widgets.RenderContext{DashboardID: "test01"})
+	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

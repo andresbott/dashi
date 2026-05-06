@@ -40,6 +40,7 @@ export interface BackgroundOption {
 export interface BackgroundsResponse {
     theme: BackgroundOption[]
     dashboard: BackgroundOption[]
+    shared: BackgroundOption[]
 }
 
 export const downloadDashboard = async (id: string): Promise<void> => {

@@ -1,23 +1,22 @@
 package markdown
 
 import (
-	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 
-	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/data"
+	"github.com/andresbott/dashi/internal/data/notes"
 	"github.com/andresbott/dashi/internal/widgets"
-	"github.com/yuin/goldmark"
 )
 
 // NewStaticRenderer returns a StaticRenderer for markdown widgets.
-// The config is a plain JSON string with the filename (e.g., "notes.md").
-// The file is read from {dashboardDir}/md/{filename}.
-func NewStaticRenderer(store *dashboard.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
-	md := goldmark.New()
-
-	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
+// Config: {"filename": "foo.md"}. The file is read from the shared
+// notes store (internal/data/notes). An empty/missing filename
+// renders the empty placeholder.
+func NewStaticRenderer(store *notes.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+	return func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
 		var filename string
 		if len(config) > 0 {
 			var obj struct {
@@ -33,16 +32,14 @@ func NewStaticRenderer(store *dashboard.Store) func(json.RawMessage, widgets.Ren
 			return template.HTML(`<div class="widget-markdown"><p class="md-not-found">Markdown file not found</p></div>`), nil
 		}
 
-		data, _, err := store.GetAsset(ctx.DashboardID, "md/"+filename)
+		html, err := store.GetHTML(filename)
 		if err != nil {
-			return template.HTML(`<div class="widget-markdown"><p class="md-not-found">Markdown file not found</p></div>`), nil
-		}
-
-		var buf bytes.Buffer
-		if err := md.Convert(data, &buf); err != nil {
+			if errors.Is(err, data.ErrNotFound) {
+				return template.HTML(`<div class="widget-markdown"><p class="md-not-found">Markdown file not found</p></div>`), nil
+			}
 			return "", fmt.Errorf("markdown render: %w", err)
 		}
 
-		return template.HTML(`<div class="widget-markdown">` + buf.String() + `</div>`), nil
+		return template.HTML(`<div class="widget-markdown">` + string(html) + `</div>`), nil
 	}
 }

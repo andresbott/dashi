@@ -5,48 +5,30 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/data/notes"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
-// setupTestDashboard creates a temp dashboard store with a markdown file.
-func setupTestDashboard(t *testing.T, filename, content string) (*dashboard.Store, string) {
+// setupTestStore creates a temp notes store seeded with one file.
+func setupTestStore(t *testing.T, filename, content string) *notes.Store {
 	t.Helper()
-	dir := t.TempDir()
-	store := dashboard.NewStore(dir)
-
-	dash, err := store.Create(dashboard.Dashboard{
-		Name: "test-dash",
-		Icon: "ti-test",
-		Type: "interactive",
-		Pages: []dashboard.Page{{
-			Name: "main",
-			Rows: nil,
-		}},
-		Container: dashboard.Container{
-			MaxWidth: "1200px",
-		},
-	})
+	store, err := notes.NewStore(t.TempDir())
 	if err != nil {
-		t.Fatalf("create dashboard: %v", err)
+		t.Fatalf("NewStore: %v", err)
 	}
-
-	// Write the markdown file via the store so it lands in the correct folder.
-	if err := store.SaveAsset(dash.ID, "md/"+filename, []byte(content)); err != nil {
-		t.Fatalf("save md asset: %v", err)
+	if err := store.Save(filename, content); err != nil {
+		t.Fatalf("save: %v", err)
 	}
-
-	return store, dash.ID
+	return store
 }
 
 func TestRenderStatic_BasicMarkdown(t *testing.T) {
-	store, dashID := setupTestDashboard(t, "test.md", "# Hello\n\nThis is **bold** text.")
+	store := setupTestStore(t, "test.md", "# Hello\n\nThis is **bold** text.")
 
 	renderer := NewStaticRenderer(store)
 	config := json.RawMessage(`{"filename":"test.md"}`)
-	ctx := widgets.RenderContext{DashboardID: dashID}
 
-	got, err := renderer(config, ctx)
+	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -61,13 +43,12 @@ func TestRenderStatic_BasicMarkdown(t *testing.T) {
 }
 
 func TestRenderStatic_FileNotFound(t *testing.T) {
-	store, dashID := setupTestDashboard(t, "exists.md", "content")
+	store := setupTestStore(t, "exists.md", "content")
 
 	renderer := NewStaticRenderer(store)
 	config := json.RawMessage(`{"filename":"missing.md"}`)
-	ctx := widgets.RenderContext{DashboardID: dashID}
 
-	got, err := renderer(config, ctx)
+	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -79,13 +60,12 @@ func TestRenderStatic_FileNotFound(t *testing.T) {
 }
 
 func TestRenderStatic_EmptyConfig(t *testing.T) {
-	store, dashID := setupTestDashboard(t, "test.md", "content")
+	store := setupTestStore(t, "test.md", "content")
 
 	renderer := NewStaticRenderer(store)
 	config := json.RawMessage(`{}`)
-	ctx := widgets.RenderContext{DashboardID: dashID}
 
-	got, err := renderer(config, ctx)
+	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -97,13 +77,12 @@ func TestRenderStatic_EmptyConfig(t *testing.T) {
 }
 
 func TestRenderStatic_InvalidJSON(t *testing.T) {
-	store, dashID := setupTestDashboard(t, "test.md", "content")
+	store := setupTestStore(t, "test.md", "content")
 
 	renderer := NewStaticRenderer(store)
 	config := json.RawMessage(`not valid json at all`)
-	ctx := widgets.RenderContext{DashboardID: dashID}
 
-	_, err := renderer(config, ctx)
+	_, err := renderer(config, widgets.RenderContext{})
 	if err == nil {
 		t.Error("expected error for invalid JSON, got nil")
 	}
@@ -114,13 +93,12 @@ func TestRenderStatic_InvalidJSON(t *testing.T) {
 
 func TestRenderStatic_ListsAndCodeBlocks(t *testing.T) {
 	md := "- item one\n- item two\n\n```\ncode block\n```\n"
-	store, dashID := setupTestDashboard(t, "lists.md", md)
+	store := setupTestStore(t, "lists.md", md)
 
 	renderer := NewStaticRenderer(store)
 	config := json.RawMessage(`{"filename":"lists.md"}`)
-	ctx := widgets.RenderContext{DashboardID: dashID}
 
-	got, err := renderer(config, ctx)
+	got, err := renderer(config, widgets.RenderContext{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

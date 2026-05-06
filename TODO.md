@@ -1,3 +1,4 @@
 * migrate code as HA addon
-* use enhanced dither
 * rework widgets as isolated component
+* custom themes
+* json not passed directly to backend

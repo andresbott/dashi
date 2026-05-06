@@ -1,22 +1,19 @@
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { listMarkdownFiles } from './api'
-import type { Ref } from 'vue'
 import { computed } from 'vue'
 
-export function useMarkdownFiles(dashboardId: Ref<string>) {
+export function useMarkdownFiles() {
     const queryClient = useQueryClient()
-    const enabled = computed(() => !!dashboardId.value)
 
     const query = useQuery({
-        queryKey: ['markdownFiles', dashboardId],
-        queryFn: () => listMarkdownFiles(dashboardId.value),
-        enabled,
+        queryKey: ['data-notes-list'],
+        queryFn: () => listMarkdownFiles(),
     })
 
     const files = computed(() => query.data.value ?? [])
 
     const invalidate = () =>
-        queryClient.invalidateQueries({ queryKey: ['markdownFiles', dashboardId.value] })
+        queryClient.invalidateQueries({ queryKey: ['data-notes-list'] })
 
     return {
         files,

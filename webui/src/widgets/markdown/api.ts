@@ -4,36 +4,36 @@ export interface MarkdownResponse {
     html: string
 }
 
-export const getMarkdownHtml = async (dashboardId: string, filename: string): Promise<string> => {
+export interface DataItem {
+    name: string
+    size: number
+    modTime: string
+}
+
+export const getMarkdownHtml = async (filename: string): Promise<string> => {
     const { data } = await apiClient.get<MarkdownResponse>(
-        `/dashboards/${dashboardId}/markdown/${encodeURIComponent(filename)}`
+        `/data/notes/${encodeURIComponent(filename)}`
     )
     return data.html
 }
 
-export const getMarkdownRaw = async (dashboardId: string, filename: string): Promise<string> => {
+export const getMarkdownRaw = async (filename: string): Promise<string> => {
     const { data } = await apiClient.get<string>(
-        `/dashboards/${dashboardId}/assets/md/${encodeURIComponent(filename)}`,
+        `/data/notes/${encodeURIComponent(filename)}/raw`,
         { responseType: 'text', transformResponse: [(d: string) => d] }
     )
     return data
 }
 
-export const saveMarkdown = async (dashboardId: string, filename: string, content: string): Promise<void> => {
+export const saveMarkdown = async (filename: string, content: string): Promise<void> => {
     await apiClient.post(
-        `/dashboards/${dashboardId}/assets/md/${encodeURIComponent(filename)}`,
+        `/data/notes/${encodeURIComponent(filename)}`,
         new TextEncoder().encode(content),
         { headers: { 'Content-Type': 'application/octet-stream' } }
     )
 }
 
-export interface MarkdownFilesResponse {
-    files: string[] | null
-}
-
-export const listMarkdownFiles = async (dashboardId: string): Promise<string[]> => {
-    const { data } = await apiClient.get<MarkdownFilesResponse>(
-        `/dashboards/${dashboardId}/markdown`
-    )
-    return data.files ?? []
+export const listMarkdownFiles = async (): Promise<string[]> => {
+    const { data } = await apiClient.get<DataItem[]>('/data/notes')
+    return (data ?? []).map(item => item.name)
 }

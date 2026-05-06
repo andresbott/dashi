@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/data/backgrounds"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
 	"github.com/andresbott/dashi/internal/themes"
@@ -41,7 +42,8 @@ func newTestMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.Han
 		_, _ = w.Write([]byte("SPA"))
 	})
 
-	mid := NewStaticDashboardMiddleware(store, staticRenderer, imageRenderer, themes.NewStore(""))
+	bs, _ := backgrounds.NewStore(t.TempDir())
+	mid := NewStaticDashboardMiddleware(store, staticRenderer, imageRenderer, themes.NewStore(""), bs)
 	return mid(spaHandler)
 }
 
@@ -607,5 +609,27 @@ func TestImageDashboard_RotationQueryParam(t *testing.T) {
 	bounds := img.Bounds()
 	if bounds.Dx() != 800 || bounds.Dy() != 480 {
 		t.Errorf("expected 800x480 output (native panel), got %dx%d", bounds.Dx(), bounds.Dy())
+	}
+}
+
+func TestLoadBackgroundImage_SharedPrefix(t *testing.T) {
+	bs, err := backgrounds.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []byte{0xFF, 0xD8, 0xFF}
+	if err := bs.Save("sunset.jpg", want); err != nil {
+		t.Fatal(err)
+	}
+
+	data, name, err := loadBackgroundImage("shared:sunset.jpg", "anyid", nil, nil, bs)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if string(data) != string(want) {
+		t.Fatalf("bytes mismatch")
+	}
+	if name != "sunset.jpg" {
+		t.Fatalf("name: %q", name)
 	}
 }

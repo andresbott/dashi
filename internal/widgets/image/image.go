@@ -4,13 +4,15 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"strings"
 
 	_ "embed"
 
-	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/data"
+	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
@@ -32,8 +34,10 @@ type imageData struct {
 	Fit  string
 }
 
-func NewStaticRenderer(store *dashboard.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
-	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
+// NewStaticRenderer returns the image widget's static renderer. The
+// store is the shared images data store (internal/data/images).
+func NewStaticRenderer(store *images.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+	return func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
 		var cfg imageConfig
 		if len(config) > 0 {
 			if err := json.Unmarshal(config, &cfg); err != nil {
@@ -45,9 +49,12 @@ func NewStaticRenderer(store *dashboard.Store) func(json.RawMessage, widgets.Ren
 			return template.HTML(`<div class="widget-image-empty"></div>`), nil
 		}
 
-		data, mimeType, err := store.GetAsset(ctx.DashboardID, cfg.Image)
+		body, mimeType, err := store.Get(cfg.Image)
 		if err != nil {
-			return template.HTML(`<div class="widget-image-empty"></div>`), nil
+			if errors.Is(err, data.ErrNotFound) {
+				return template.HTML(`<div class="widget-image-empty"></div>`), nil
+			}
+			return "", fmt.Errorf("image fetch: %w", err)
 		}
 
 		fit := cfg.Fit
@@ -61,7 +68,7 @@ func NewStaticRenderer(store *dashboard.Store) func(json.RawMessage, widgets.Ren
 
 		d := imageData{
 			Mime: mimeType,
-			Data: base64.StdEncoding.EncodeToString(data),
+			Data: base64.StdEncoding.EncodeToString(body),
 			Fit:  fit,
 		}
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/gorilla/mux"
 )
@@ -17,7 +17,10 @@ func TestModule_Type(t *testing.T) {
 }
 
 func TestModule_RendererNotNil(t *testing.T) {
-	store := dashboard.NewStore("")
+	store, err := images.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
 	m := NewModule(store)
 	if m.Renderer() == nil {
 		t.Fatal("Renderer() is nil")

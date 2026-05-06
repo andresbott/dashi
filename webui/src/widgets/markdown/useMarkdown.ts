@@ -3,12 +3,12 @@ import { getMarkdownHtml } from './api'
 import type { Ref } from 'vue'
 import { computed } from 'vue'
 
-export function useMarkdown(dashboardId: Ref<string>, filename: Ref<string>) {
-    const enabled = computed(() => !!dashboardId.value && !!filename.value)
+export function useMarkdown(filename: Ref<string>) {
+    const enabled = computed(() => !!filename.value)
 
     return useQuery({
-        queryKey: ['markdown', dashboardId, filename],
-        queryFn: () => getMarkdownHtml(dashboardId.value, filename.value),
+        queryKey: ['data-notes-html', filename],
+        queryFn: () => getMarkdownHtml(filename.value),
         enabled,
     })
 }

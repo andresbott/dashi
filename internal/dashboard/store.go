@@ -101,7 +101,6 @@ var allowedAssetExts = map[string]bool{
 	".svg":  true,
 	".webp": true,
 	".css":  true,
-	".md":   true,
 }
 
 func isAllowedAssetExt(name string) bool {

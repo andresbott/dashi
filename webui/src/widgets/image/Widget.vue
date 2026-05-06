@@ -1,14 +1,11 @@
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue'
-import { DASHBOARD_ID } from '@/lib/injectionKeys'
+import { computed } from 'vue'
 import type { Widget } from '@/types/dashboard'
 import type { ImageWidgetConfig } from './types'
 
 const props = defineProps<{
     widget: Widget
 }>()
-
-const dashboardId = inject(DASHBOARD_ID, ref(''))
 
 const config = computed<ImageWidgetConfig>(() => {
     const c = props.widget.config as unknown as ImageWidgetConfig | undefined
@@ -19,11 +16,8 @@ const config = computed<ImageWidgetConfig>(() => {
 })
 
 const imageUrl = computed(() => {
-    if (!config.value.image || !dashboardId.value) return ''
-    const assetDashId = dashboardId.value.endsWith('-prev')
-        ? dashboardId.value.slice(0, -5)
-        : dashboardId.value
-    return `/api/v0/dashboards/${assetDashId}/assets/${encodeURIComponent(config.value.image)}`
+    if (!config.value.image) return ''
+    return `/api/v0/data/images/${encodeURIComponent(config.value.image)}`
 })
 </script>
 

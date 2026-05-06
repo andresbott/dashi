@@ -33,7 +33,7 @@ const themeOptions = computed(() => {
     return themesData.value.map(t => ({ label: t.name, value: t.name }))
 })
 
-const backgroundOptions = computed(() => backgroundsData.value ?? { theme: [] as BackgroundOption[], dashboard: [] as BackgroundOption[] })
+const backgroundOptions = computed(() => backgroundsData.value ?? { theme: [] as BackgroundOption[], dashboard: [] as BackgroundOption[], shared: [] as BackgroundOption[] })
 
 const backgroundImageOptions = computed(() => {
     const groups: { label: string; items: { label: string; value: string }[] }[] = []
@@ -47,6 +47,12 @@ const backgroundImageOptions = computed(() => {
         groups.push({
             label: 'Dashboard',
             items: backgroundOptions.value.dashboard.map(o => ({ label: o.name, value: o.value })),
+        })
+    }
+    if (backgroundOptions.value.shared.length > 0) {
+        groups.push({
+            label: 'Shared',
+            items: backgroundOptions.value.shared.map(o => ({ label: o.name, value: o.value })),
         })
     }
     return groups

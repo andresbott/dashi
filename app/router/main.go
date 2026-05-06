@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -12,6 +13,9 @@ import (
 	"github.com/andresbott/dashi/internal/dashboard"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
+	"github.com/andresbott/dashi/internal/data/backgrounds"
+	"github.com/andresbott/dashi/internal/data/images"
+	"github.com/andresbott/dashi/internal/data/notes"
 	"github.com/andresbott/dashi/internal/market"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/swisstransport"
@@ -67,17 +71,20 @@ func (h *EditorHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // sharedDeps holds all shared clients, stores, renderers and middleware
 // that are built once and reused by both viewer and editor handlers.
 type sharedDeps struct {
-	dashStore       *dashboard.Store
-	weatherClient   *weather.Client
-	marketClient    *market.Client
-	xkcdClient      *xkcd.Client
-	transportClient *swisstransport.Client
-	themeStore      *themes.Store
-	staticRenderer  *dashstatic.Renderer
-	imageRenderer   *dashimage.Renderer
-	staticMid       func(http.Handler) http.Handler
-	promHisto       middleware.Histogram
-	modules         []widgets.Module
+	dashStore        *dashboard.Store
+	weatherClient    *weather.Client
+	marketClient     *market.Client
+	xkcdClient       *xkcd.Client
+	transportClient  *swisstransport.Client
+	themeStore       *themes.Store
+	notesStore       *notes.Store
+	imagesStore      *images.Store
+	backgroundsStore *backgrounds.Store
+	staticRenderer   *dashstatic.Renderer
+	imageRenderer    *dashimage.Renderer
+	staticMid        func(http.Handler) http.Handler
+	promHisto        middleware.Histogram
+	modules          []widgets.Module
 }
 
 func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
@@ -87,6 +94,18 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	xkcdClient := xkcd.NewClient(filepath.Join(cfg.DataDir, "cache", "xkcd"))
 	transportClient := swisstransport.NewClient(nil)
 	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "themes"))
+	notesStore, err := notes.NewStore(filepath.Join(cfg.DataDir, "data", "notes"))
+	if err != nil {
+		return nil, fmt.Errorf("create notes store: %w", err)
+	}
+	imagesStore, err := images.NewStore(filepath.Join(cfg.DataDir, "data", "images"))
+	if err != nil {
+		return nil, fmt.Errorf("create images store: %w", err)
+	}
+	backgroundsStore, err := backgrounds.NewStore(filepath.Join(cfg.DataDir, "data", "backgrounds"))
+	if err != nil {
+		return nil, fmt.Errorf("create backgrounds store: %w", err)
+	}
 
 	// Static dashboard rendering
 	registry := widgets.NewRegistry()
@@ -103,8 +122,8 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		swisstransportwidget.NewModule(transportClient, cfg.Logger),
 		sysinfowidget.NewModule(cfg.Logger),
 		stackwidget.NewModule(registry),
-		markdownwidget.NewModule(dashStore, cfg.Logger),
-		imagewidget.NewModule(dashStore),
+		markdownwidget.NewModule(notesStore),
+		imagewidget.NewModule(imagesStore),
 		searchwidget.NewModule(),
 	}
 
@@ -142,30 +161,36 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		}
 	}
 
-	staticMid := NewStaticDashboardMiddleware(dashStore, staticRenderer, imageRenderer, themeStore)
+	staticMid := NewStaticDashboardMiddleware(dashStore, staticRenderer, imageRenderer, themeStore, backgroundsStore)
 	promHisto := middleware.NewPromHistogram("", nil, nil)
 
 	return &sharedDeps{
-		dashStore:       dashStore,
-		weatherClient:   weatherClient,
-		marketClient:    marketClient,
-		xkcdClient:      xkcdClient,
-		transportClient: transportClient,
-		themeStore:      themeStore,
-		staticRenderer:  staticRenderer,
-		imageRenderer:   imageRenderer,
-		staticMid:       staticMid,
-		promHisto:       promHisto,
-		modules:         modules,
+		dashStore:        dashStore,
+		weatherClient:    weatherClient,
+		marketClient:     marketClient,
+		xkcdClient:       xkcdClient,
+		transportClient:  transportClient,
+		themeStore:       themeStore,
+		notesStore:       notesStore,
+		imagesStore:      imagesStore,
+		backgroundsStore: backgroundsStore,
+		staticRenderer:   staticRenderer,
+		imageRenderer:    imageRenderer,
+		staticMid:        staticMid,
+		promHisto:        promHisto,
+		modules:          modules,
 	}, nil
 }
 
 func newAPIDeps(deps *sharedDeps, logger *slog.Logger) apiDeps {
 	return apiDeps{
-		dashStore:  deps.dashStore,
-		themeStore: deps.themeStore,
-		logger:     logger,
-		modules:    deps.modules,
+		dashStore:        deps.dashStore,
+		themeStore:       deps.themeStore,
+		notesStore:       deps.notesStore,
+		imagesStore:      deps.imagesStore,
+		backgroundsStore: deps.backgroundsStore,
+		logger:           logger,
+		modules:          deps.modules,
 	}
 }
 
