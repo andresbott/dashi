@@ -8,17 +8,16 @@ import (
 	"testing"
 
 	"github.com/andresbott/dashi/internal/widgets"
-	xkcdclient "github.com/andresbott/dashi/internal/xkcd"
 )
 
-func newTestClient(t *testing.T, response map[string]any) *xkcdclient.Client {
+func newTestClient(t *testing.T, response map[string]any) *Client {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(response)
 	}))
 	t.Cleanup(srv.Close)
 
-	client := xkcdclient.NewClient(t.TempDir())
+	client := NewClient(t.TempDir())
 	client.SetBaseURL(srv.URL)
 	return client
 }

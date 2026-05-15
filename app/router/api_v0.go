@@ -10,7 +10,7 @@ import (
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/swisstransport"
 	"github.com/andresbott/dashi/internal/weather"
-	"github.com/andresbott/dashi/internal/xkcd"
+	xkcd "github.com/andresbott/dashi/internal/widgets/xkcd"
 	"github.com/gorilla/mux"
 
 	"github.com/andresbott/dashi/app/router/handlers"

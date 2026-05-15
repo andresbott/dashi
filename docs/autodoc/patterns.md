@@ -27,6 +27,16 @@ is the type without hyphens. Vue components are PascalCase (e.g., `WeatherCompac
 - If the widget needs external data, inject the client via the renderer constructor (backend) or use a composable (frontend)
 - Image-mode widgets must produce self-contained HTML (inline styles, base64 images) — no external resources
 
+### Where backend clients/libraries live
+
+- Clients or libraries used by **exactly one widget** live inside that widget's
+  package (`internal/widgets/{name}/`) alongside the renderer. Keep all the
+  widget-specific code in one place.
+- Clients or libraries shared across **multiple widgets** (or used by code
+  outside the widget system) live in their own top-level package
+  (`internal/{name}/`). Promote a widget-local client to a shared package only
+  when a second consumer appears.
+
 ## Adding a New API Endpoint
 
 Files to modify:
@@ -45,6 +55,10 @@ under `/api/v0/`.
 - Error handling uses go-bumbu HTTP error middleware — return errors via the pattern used in existing handlers
 
 ## Adding a New External Data Source
+
+Use this layout when the client is shared across multiple widgets (or used by
+non-widget code). For a client used by a single widget, keep it inside
+`internal/widgets/{name}/` — see "Where backend clients/libraries live" above.
 
 Files to modify:
 1. `internal/{name}/client.go` — API client with in-memory cache

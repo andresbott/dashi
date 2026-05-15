@@ -18,7 +18,6 @@ import (
 	"github.com/andresbott/dashi/internal/swisstransport"
 	"github.com/andresbott/dashi/internal/weather"
 	"github.com/andresbott/dashi/internal/widgets"
-	"github.com/andresbott/dashi/internal/xkcd"
 	batterywidget "github.com/andresbott/dashi/internal/widgets/battery"
 	bookmarkwidget "github.com/andresbott/dashi/internal/widgets/bookmark"
 	clockwidget "github.com/andresbott/dashi/internal/widgets/clock"
@@ -70,7 +69,7 @@ type sharedDeps struct {
 	dashStore       *dashboard.Store
 	weatherClient   *weather.Client
 	marketClient    *market.Client
-	xkcdClient      *xkcd.Client
+	xkcdClient      *xkcdwidget.Client
 	transportClient *swisstransport.Client
 	themeStore      *themes.Store
 	staticRenderer  *dashstatic.Renderer
@@ -83,7 +82,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	dashStore := dashboard.NewStore(filepath.Join(cfg.DataDir, "dashboards"))
 	weatherClient := weather.NewClient(nil)
 	marketClient := market.NewClient(nil)
-	xkcdClient := xkcd.NewClient(filepath.Join(cfg.DataDir, "cache", "xkcd"))
+	xkcdClient := xkcdwidget.NewClient(filepath.Join(cfg.DataDir, "cache", "xkcd"))
 	transportClient := swisstransport.NewClient(nil)
 	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "themes"))
 
