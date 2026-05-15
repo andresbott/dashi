@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"html/template"
 
-	"github.com/andresbott/dashi/internal/sysinfo"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
@@ -82,7 +81,7 @@ func NewStaticRenderer() func(json.RawMessage, widgets.RenderContext) (template.
 			}
 		}
 
-		info, err := sysinfo.Get()
+		info, err := Get()
 		if err != nil {
 			return "", fmt.Errorf("sysinfo get: %w", err)
 		}

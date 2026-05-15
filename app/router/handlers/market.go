@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/andresbott/dashi/internal/market"
+	market "github.com/andresbott/dashi/internal/widgets/market"
 )
 
 type MarketHandler struct {

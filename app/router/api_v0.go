@@ -6,10 +6,10 @@ import (
 	"net/http"
 
 	"github.com/andresbott/dashi/internal/dashboard"
-	"github.com/andresbott/dashi/internal/market"
+	market "github.com/andresbott/dashi/internal/widgets/market"
 	"github.com/andresbott/dashi/internal/themes"
-	"github.com/andresbott/dashi/internal/swisstransport"
-	"github.com/andresbott/dashi/internal/weather"
+	swisstransport "github.com/andresbott/dashi/internal/widgets/swisstransport"
+	weather "github.com/andresbott/dashi/internal/widgets/weather"
 	xkcd "github.com/andresbott/dashi/internal/widgets/xkcd"
 	"github.com/gorilla/mux"
 

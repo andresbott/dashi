@@ -5,12 +5,10 @@ import (
 	"image/png"
 	"testing"
 	"time"
-
-	mkt "github.com/andresbott/dashi/internal/market"
 )
 
 func TestGenerateChart(t *testing.T) {
-	points := []mkt.PricePoint{
+	points := []PricePoint{
 		{Time: time.Now().Add(-3 * 24 * time.Hour), Close: 170.0},
 		{Time: time.Now().Add(-2 * 24 * time.Hour), Close: 175.0},
 		{Time: time.Now().Add(-1 * 24 * time.Hour), Close: 172.0},
@@ -45,7 +43,7 @@ func TestGenerateChart_Empty(t *testing.T) {
 }
 
 func TestGenerateChart_SinglePoint(t *testing.T) {
-	points := []mkt.PricePoint{
+	points := []PricePoint{
 		{Time: time.Now(), Close: 100.0},
 	}
 	data, err := generateChart(points, chartOptions{Width: 200, Height: 100})
@@ -58,7 +56,7 @@ func TestGenerateChart_SinglePoint(t *testing.T) {
 }
 
 func TestGenerateChart_TwoPoints(t *testing.T) {
-	points := []mkt.PricePoint{
+	points := []PricePoint{
 		{Time: time.Now().Add(-1 * time.Hour), Close: 100.0},
 		{Time: time.Now(), Close: 105.0},
 	}
@@ -80,7 +78,7 @@ func TestGenerateChart_TwoPoints(t *testing.T) {
 }
 
 func TestGenerateChart_DefaultDimensions(t *testing.T) {
-	points := []mkt.PricePoint{
+	points := []PricePoint{
 		{Time: time.Now().Add(-2 * time.Hour), Close: 100.0},
 		{Time: time.Now().Add(-1 * time.Hour), Close: 102.0},
 		{Time: time.Now(), Close: 101.0},
@@ -101,7 +99,7 @@ func TestGenerateChart_DefaultDimensions(t *testing.T) {
 }
 
 func TestGenerateChart_NegativeDimensions(t *testing.T) {
-	points := []mkt.PricePoint{
+	points := []PricePoint{
 		{Time: time.Now(), Close: 100.0},
 		{Time: time.Now().Add(1 * time.Hour), Close: 105.0},
 	}
@@ -122,7 +120,7 @@ func TestGenerateChart_NegativeDimensions(t *testing.T) {
 
 func TestGenerateChart_VerySmallPriceRange(t *testing.T) {
 	// Test with very small price range (< 0.01)
-	points := []mkt.PricePoint{
+	points := []PricePoint{
 		{Time: time.Now().Add(-3 * time.Hour), Close: 100.000},
 		{Time: time.Now().Add(-2 * time.Hour), Close: 100.001},
 		{Time: time.Now().Add(-1 * time.Hour), Close: 100.002},
@@ -139,7 +137,7 @@ func TestGenerateChart_VerySmallPriceRange(t *testing.T) {
 
 func TestGenerateChart_DecreasingPrices(t *testing.T) {
 	// Test with decreasing prices to trigger red color
-	points := []mkt.PricePoint{
+	points := []PricePoint{
 		{Time: time.Now().Add(-3 * time.Hour), Close: 200.0},
 		{Time: time.Now().Add(-2 * time.Hour), Close: 190.0},
 		{Time: time.Now().Add(-1 * time.Hour), Close: 180.0},
@@ -182,7 +180,7 @@ func TestSafeUint8(t *testing.T) {
 
 func TestPickLineColor(t *testing.T) {
 	// Test increasing prices (green)
-	increasingPoints := []mkt.PricePoint{
+	increasingPoints := []PricePoint{
 		{Time: time.Now().Add(-1 * time.Hour), Close: 100.0},
 		{Time: time.Now(), Close: 110.0},
 	}
@@ -194,7 +192,7 @@ func TestPickLineColor(t *testing.T) {
 	}
 
 	// Test decreasing prices (red)
-	decreasingPoints := []mkt.PricePoint{
+	decreasingPoints := []PricePoint{
 		{Time: time.Now().Add(-1 * time.Hour), Close: 110.0},
 		{Time: time.Now(), Close: 100.0},
 	}

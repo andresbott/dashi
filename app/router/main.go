@@ -13,10 +13,7 @@ import (
 	"github.com/andresbott/dashi/internal/dashboard"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
-	"github.com/andresbott/dashi/internal/market"
 	"github.com/andresbott/dashi/internal/themes"
-	"github.com/andresbott/dashi/internal/swisstransport"
-	"github.com/andresbott/dashi/internal/weather"
 	"github.com/andresbott/dashi/internal/widgets"
 	batterywidget "github.com/andresbott/dashi/internal/widgets/battery"
 	bookmarkwidget "github.com/andresbott/dashi/internal/widgets/bookmark"
@@ -67,10 +64,10 @@ func (h *EditorHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // that are built once and reused by both viewer and editor handlers.
 type sharedDeps struct {
 	dashStore       *dashboard.Store
-	weatherClient   *weather.Client
-	marketClient    *market.Client
+	weatherClient   *weatherwidget.Client
+	marketClient    *marketwidget.Client
 	xkcdClient      *xkcdwidget.Client
-	transportClient *swisstransport.Client
+	transportClient *swisstransportwidget.Client
 	themeStore      *themes.Store
 	staticRenderer  *dashstatic.Renderer
 	imageRenderer   *dashimage.Renderer
@@ -80,10 +77,10 @@ type sharedDeps struct {
 
 func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	dashStore := dashboard.NewStore(filepath.Join(cfg.DataDir, "dashboards"))
-	weatherClient := weather.NewClient(nil)
-	marketClient := market.NewClient(nil)
+	weatherClient := weatherwidget.NewClient(nil)
+	marketClient := marketwidget.NewClient(nil)
 	xkcdClient := xkcdwidget.NewClient(filepath.Join(cfg.DataDir, "cache", "xkcd"))
-	transportClient := swisstransport.NewClient(nil)
+	transportClient := swisstransportwidget.NewClient(nil)
 	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "themes"))
 
 	// Pre-fetch weather and market data
@@ -297,7 +294,7 @@ func NewBoth(cfg Cfg) (*ViewerHandler, *EditorHandler, error) {
 
 // warmupWeather scans all dashboards for weather widget configs and
 // pre-fetches the weather data so the cache is warm on first request.
-func warmupWeather(ctx context.Context, store *dashboard.Store, client *weather.Client, logger *slog.Logger) {
+func warmupWeather(ctx context.Context, store *dashboard.Store, client *weatherwidget.Client, logger *slog.Logger) {
 	list, err := store.List()
 	if err != nil {
 		logger.Warn("weather warmup: failed to list dashboards", slog.String("error", err.Error()))
@@ -339,7 +336,7 @@ func warmupWeather(ctx context.Context, store *dashboard.Store, client *weather.
 	}
 }
 
-func warmupMarket(ctx context.Context, store *dashboard.Store, client *market.Client, logger *slog.Logger) {
+func warmupMarket(ctx context.Context, store *dashboard.Store, client *marketwidget.Client, logger *slog.Logger) {
 	list, err := store.List()
 	if err != nil {
 		logger.Warn("market warmup: failed to list dashboards", slog.String("error", err.Error()))

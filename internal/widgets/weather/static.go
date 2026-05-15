@@ -16,7 +16,6 @@ import (
 	_ "embed"
 
 	"github.com/andresbott/dashi/internal/themes"
-	weatherpkg "github.com/andresbott/dashi/internal/weather"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/andresbott/dashi/internal/widgets/weather/chart"
 )
@@ -113,7 +112,7 @@ type forecastDay struct {
 // NewStaticRenderer returns a StaticRenderer for weather widgets.
 // It uses the provided weather client to fetch live data and the
 // theme store to resolve canonical icon names.
-func NewStaticRenderer(client *weatherpkg.Client, themeStore *themes.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+func NewStaticRenderer(client *Client, themeStore *themes.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
 	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
 		var cfg weatherConfig
 		if len(config) > 0 {
@@ -187,7 +186,7 @@ func NewStaticRenderer(client *weatherpkg.Client, themeStore *themes.Store) func
 
 // NewStaticCompactRenderer returns a StaticRenderer for compact weather widgets.
 // It works like NewStaticRenderer but always renders in compact mode.
-func NewStaticCompactRenderer(client *weatherpkg.Client, themeStore *themes.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+func NewStaticCompactRenderer(client *Client, themeStore *themes.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
 	inner := NewStaticRenderer(client, themeStore)
 	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
 		// Inject compact:true into the config
@@ -255,7 +254,7 @@ func parseHexColor(hex string, fallback color.NRGBA) color.NRGBA {
 }
 
 // buildExtraInfo collects and formats extra weather information (sunrise, sunset, etc).
-func buildExtraInfo(cfg weatherConfig, wd weatherpkg.WeatherData, themeStore *themes.Store, themeName string) []extraInfoItem {
+func buildExtraInfo(cfg weatherConfig, wd WeatherData, themeStore *themes.Store, themeName string) []extraInfoItem {
 	var items []extraInfoItem
 	if cfg.ShowSunrise && len(wd.Forecast) > 0 && wd.Forecast[0].Sunrise != "" {
 		sunrise := extractTime(wd.Forecast[0].Sunrise)
@@ -327,7 +326,7 @@ func extractTime(timestamp string) string {
 }
 
 // buildHourlyEntries creates hourly forecast entries for display.
-func buildHourlyEntries(cfg weatherConfig, hourly []weatherpkg.HourlyForecast, themeStore *themes.Store, themeName string) []hourlyEntry {
+func buildHourlyEntries(cfg weatherConfig, hourly []HourlyForecast, themeStore *themes.Store, themeName string) []hourlyEntry {
 	hourlyCount := cfg.HourlyCount
 	if hourlyCount <= 0 {
 		hourlyCount = 12
@@ -336,7 +335,7 @@ func buildHourlyEntries(cfg weatherConfig, hourly []weatherpkg.HourlyForecast, t
 		hourlyCount = 24
 	}
 
-	var allHourly []weatherpkg.HourlyForecast
+	var allHourly []HourlyForecast
 	for i, h := range hourly {
 		if i >= hourlyCount {
 			break
@@ -373,7 +372,7 @@ func buildHourlyEntries(cfg weatherConfig, hourly []weatherpkg.HourlyForecast, t
 }
 
 // buildForecastDays creates daily forecast entries.
-func buildForecastDays(cfg weatherConfig, forecast []weatherpkg.DailyForecast, themeStore *themes.Store, themeName string) []forecastDay {
+func buildForecastDays(cfg weatherConfig, forecast []DailyForecast, themeStore *themes.Store, themeName string) []forecastDay {
 	forecastDays := cfg.ForecastDays
 	if forecastDays <= 0 {
 		forecastDays = 7
@@ -401,7 +400,7 @@ func buildForecastDays(cfg weatherConfig, forecast []weatherpkg.DailyForecast, t
 }
 
 // addGraphData generates and adds weather graph data to the template data.
-func addGraphData(data *weatherData, cfg weatherConfig, hourly []weatherpkg.HourlyForecast) {
+func addGraphData(data *weatherData, cfg weatherConfig, hourly []HourlyForecast) {
 	graphHours := cfg.GraphHours
 	if graphHours <= 0 {
 		graphHours = 24

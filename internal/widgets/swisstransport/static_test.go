@@ -8,17 +8,16 @@ import (
 	"testing"
 
 	"github.com/andresbott/dashi/internal/widgets"
-	tr "github.com/andresbott/dashi/internal/swisstransport"
 )
 
-func newTestClient(t *testing.T, response map[string]any) *tr.Client {
+func newTestClient(t *testing.T, response map[string]any) *Client {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(response)
 	}))
 	t.Cleanup(srv.Close)
 
-	client := tr.NewClient(nil)
+	client := NewClient(nil)
 	client.SetBaseURL(srv.URL)
 	return client
 }

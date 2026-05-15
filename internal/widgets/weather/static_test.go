@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/andresbott/dashi/internal/themes"
-	weatherpkg "github.com/andresbott/dashi/internal/weather"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
@@ -68,7 +67,7 @@ func TestRenderStatic_Basic(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -102,7 +101,7 @@ func TestRenderStatic_WithDetails(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -136,7 +135,7 @@ func TestRenderStatic_WithForecast(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -170,7 +169,7 @@ func TestRenderStatic_ForecastOnly(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -214,7 +213,7 @@ func TestRenderStatic_Compact(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -254,7 +253,7 @@ func TestRenderStatic_WithHourly(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -304,7 +303,7 @@ func TestRenderStatic_ImageThemeUsesFilePath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore(themeDir)
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -336,7 +335,7 @@ func TestRenderStatic_FontIconCodepoint(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -369,7 +368,7 @@ func TestRenderStatic_WithExtraInfo(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -448,7 +447,7 @@ func TestRenderStatic_ImageThemeWithExtraInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore(themeDir)
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -485,7 +484,7 @@ func TestRenderStatic_WithGraph(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -519,7 +518,7 @@ func TestRenderStatic_GraphCompactDisabled(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",

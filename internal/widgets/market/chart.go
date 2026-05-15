@@ -6,7 +6,6 @@ import (
 	"image/png"
 
 	"github.com/fogleman/gg"
-	mkt "github.com/andresbott/dashi/internal/market"
 )
 
 type chartOptions struct {
@@ -15,7 +14,7 @@ type chartOptions struct {
 	LineColor color.Color
 }
 
-func generateChart(points []mkt.PricePoint, opts chartOptions) ([]byte, error) {
+func generateChart(points []PricePoint, opts chartOptions) ([]byte, error) {
 	w := opts.Width
 	h := opts.Height
 	if w <= 0 {
@@ -85,7 +84,7 @@ func generateChart(points []mkt.PricePoint, opts chartOptions) ([]byte, error) {
 	return encodePNG(dc)
 }
 
-func pickLineColor(points []mkt.PricePoint) color.Color {
+func pickLineColor(points []PricePoint) color.Color {
 	if points[len(points)-1].Close >= points[0].Close {
 		return color.RGBA{R: 0x22, G: 0xC5, B: 0x5E, A: 0xFF}
 	}

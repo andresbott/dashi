@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	weatherpkg "github.com/andresbott/dashi/internal/weather"
+	weatherpkg "github.com/andresbott/dashi/internal/widgets/weather"
 )
 
 func setupWeatherTestServer() (*httptest.Server, *httptest.Server) {
