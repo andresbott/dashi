@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/* Tailwind v4 only auto-detects sources next to this stylesheet, so every
+   template tree carrying utility class names is registered explicitly.
+   Paths are relative to this file. */
+@source "../../internal/dashboard/browser/*.html";
+@source "../../internal/widgets/*/browser.html";
+
+@theme {
+  /* Themes set --dashi-font at runtime (see themes.ThemeCSS); Inter is the
+     embedded fallback. */
+  --font-sans: var(--dashi-font, "Inter"), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Page defaults driven by the theme variables. Utilities can still override
+   these per element. */
+@layer base {
+  html {
+    background: var(--dashi-bg);
+    color: var(--dashi-fg);
+    font-family: var(--font-sans);
+  }
+
+  /* The `background` SHORTHAND is mandatory here. --dashi-page-bg carries
+     whole background values — `linear-gradient(...)` for gradient
+     dashboards, `url(...) center/cover no-repeat` for image ones — none of
+     which are valid `background-color`. A Tailwind `bg-[var(--dashi-page-bg)]`
+     utility compiles to `background-color` and therefore silently drops
+     everything except plain colours. */
+  body {
+    background: var(--dashi-page-bg, var(--dashi-bg));
+  }
+}

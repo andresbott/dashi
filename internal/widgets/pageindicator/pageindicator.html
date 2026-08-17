@@ -1,3 +1,8 @@
+<style>
+    .widget-page-indicator { display: flex; align-items: center; justify-content: center; padding: 8px; }
+    .widget-page-indicator .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid {{.MutedColor}}; margin: 0 4px; }
+    .widget-page-indicator .dot.active { background: {{.MutedColor}}; }
+</style>
 <div class="widget-page-indicator">
     {{range .Dots}}<span class="dot{{if .Active}} active{{end}}"></span>{{end}}
 </div>

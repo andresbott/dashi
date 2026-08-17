@@ -270,3 +270,42 @@ func TestThemeHandler_Delete_Builtin(t *testing.T) {
 		t.Fatalf("status = %d, want 403", rec.Code)
 	}
 }
+
+func TestThemeHandler_GetFont_ServesDisplayAndIconFonts(t *testing.T) {
+	store := themes.NewStore("")
+	handler := NewThemeHandler(store, slog.Default())
+
+	// The browser stack's @font-face rules (themes.Store.ThemeCSS) point at
+	// this route for both the display font and the icon font, so both names
+	// must resolve or font-icon themes render tofu in a browser.
+	for _, fontName := range []string{"Inter", themes.IconFontFamily("default")} {
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/themes/default/fonts/"+fontName, nil)
+		req = mux.SetURLVars(req, map[string]string{"name": "default", "font": fontName})
+		rec := httptest.NewRecorder()
+		handler.GetFont(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("font %q: status = %d, want 200 (body %s)", fontName, rec.Code, rec.Body.String())
+			continue
+		}
+		if rec.Body.Len() == 0 {
+			t.Errorf("font %q: empty body", fontName)
+		}
+		if got := rec.Header().Get("Content-Type"); got != "font/ttf" {
+			t.Errorf("font %q: Content-Type = %q, want font/ttf", fontName, got)
+		}
+	}
+}
+
+func TestThemeHandler_GetFont_UnknownFontIs404(t *testing.T) {
+	handler := NewThemeHandler(themes.NewStore(""), slog.Default())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/themes/default/fonts/NoSuchFont", nil)
+	req = mux.SetURLVars(req, map[string]string{"name": "default", "font": "NoSuchFont"})
+	rec := httptest.NewRecorder()
+	handler.GetFont(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}

@@ -409,3 +409,83 @@ func TestRenderer_Render_RenderContext(t *testing.T) {
 		t.Errorf("expected total pages 5, got %d", capturedContext.TotalPages)
 	}
 }
+
+func TestMasterTemplateHasNoWidgetSpecificCSS(t *testing.T) {
+	// Widgets own their own styling (spec decision D2/D6); the page shell
+	// must not know about individual widget types.
+	for _, selector := range []string{
+		".widget-clock", ".widget-bookmark", ".widget-page-indicator",
+	} {
+		if strings.Contains(masterHTML, selector) {
+			t.Errorf("master.html still styles %s — move it into the widget's image template", selector)
+		}
+	}
+}
+
+func TestRenderer_Render_CustomCSSComesAfterWidgetContent(t *testing.T) {
+	// litehtml collects <style> elements in document order and breaks
+	// equal-specificity ties by insertion order. Widget CSS now ships inside
+	// each widget's body, so custom.css must be the last <style> in the
+	// document or a dashboard's overrides silently lose.
+	reg := widgets.NewRegistry()
+	reg.Register("styled", func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
+		return template.HTML(`<style>.widget-styled .label{color:#000}</style><div class="widget-styled"><span class="label">x</span></div>`), nil
+	})
+
+	var buf bytes.Buffer
+	err := NewRenderer(reg).Render(&buf, RenderData{
+		Name:      "Cascade",
+		CustomCSS: ".widget-styled .label{color:#f00}",
+		Rows: []dashboard.Row{{
+			ID:      "row-1",
+			Widgets: []dashboard.Widget{{ID: "w1", Type: "styled", Width: 12}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	html := buf.String()
+
+	widgetCSS := strings.Index(html, ".widget-styled .label{color:#000}")
+	customCSS := strings.Index(html, ".widget-styled .label{color:#f00}")
+	if widgetCSS < 0 || customCSS < 0 {
+		t.Fatalf("expected both stylesheets in output:\n%s", html)
+	}
+	if customCSS < widgetCSS {
+		t.Errorf("custom.css must be inserted after the widget's own CSS to win the cascade:\n%s", html)
+	}
+	if bodyEnd := strings.Index(html, "</body>"); customCSS > bodyEnd {
+		t.Errorf("custom.css must sit inside <body>, not after it:\n%s", html)
+	}
+}
+
+func TestRenderer_Render_CustomCSSCannotBreakOutOfStyleElement(t *testing.T) {
+	var buf bytes.Buffer
+	err := NewRenderer(widgets.NewRegistry()).Render(&buf, RenderData{
+		Name:      "XSS",
+		CustomCSS: "</style><script>alert(1)</script>",
+		Rows:      []dashboard.Row{},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	html := buf.String()
+
+	if strings.Contains(html, "</style><script") {
+		t.Errorf("custom.css broke out of the style element:\n%s", html)
+	}
+	payload := strings.Index(html, "alert(1)")
+	closing := strings.Index(html[payload:], "</style>")
+	if payload < 0 || closing < 0 {
+		t.Errorf("payload must remain inside the style element:\n%s", html)
+	}
+}
+
+func TestMasterTemplateUsesPaletteNotHardcodedColors(t *testing.T) {
+	if strings.Contains(masterHTML, "#1a1a2e") || strings.Contains(masterHTML, "#e0e0e0") {
+		t.Error("master.html should take colours from .Palette, not hardcode them")
+	}
+	if !strings.Contains(masterHTML, ".Palette.") {
+		t.Error("master.html should reference palette fields")
+	}
+}

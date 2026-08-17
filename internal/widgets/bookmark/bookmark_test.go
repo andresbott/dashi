@@ -52,8 +52,8 @@ func TestRenderStatic_NoSubtitle(t *testing.T) {
 	if !strings.Contains(html, "Example") {
 		t.Errorf("expected title in output, got: %s", html)
 	}
-	if strings.Contains(html, "bookmark-subtitle") {
-		t.Errorf("should not contain subtitle span, got: %s", html)
+	if strings.Contains(html, `<span class="bookmark-subtitle">`) {
+		t.Errorf("should not contain subtitle span element, got: %s", html)
 	}
 }
 

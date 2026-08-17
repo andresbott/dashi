@@ -11,6 +11,7 @@ import (
 
 	"github.com/andresbott/dashi/app/spa"
 	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/dashboard/browser"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
 	"github.com/andresbott/dashi/internal/data/backgrounds"
@@ -82,6 +83,8 @@ type sharedDeps struct {
 	backgroundsStore *backgrounds.Store
 	staticRenderer   *dashstatic.Renderer
 	imageRenderer    *dashimage.Renderer
+	browserRenderer  *browser.Renderer
+	browserAssets    *browser.Assets
 	staticMid        func(http.Handler) http.Handler
 	promHisto        middleware.Histogram
 	modules          []widgets.Module
@@ -134,11 +137,16 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 
 	for _, m := range modules {
 		registry.Register(m.Type(), m.Renderer())
+		if br, ok := m.(widgets.BrowserRenderable); ok {
+			registry.RegisterBrowser(m.Type(), br.RenderBrowser)
+		}
 		configs := widgets.CollectConfigs(dashStore, m.Type())
 		go m.Warmup(warmupCtx, configs)
 	}
 
 	staticRenderer := dashstatic.NewRenderer(registry)
+	browserAssets := browser.NewAssets(modules)
+	browserRenderer := browser.NewRenderer(registry, browserAssets.JSTypes())
 	imageRenderer := dashimage.NewRenderer()
 
 	for _, themeInfo := range themeStore.List() {
@@ -161,7 +169,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		}
 	}
 
-	staticMid := NewStaticDashboardMiddleware(dashStore, staticRenderer, imageRenderer, themeStore, backgroundsStore)
+	staticMid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, backgroundsStore)
 	promHisto := middleware.NewPromHistogram("", nil, nil)
 
 	return &sharedDeps{
@@ -176,6 +184,8 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		backgroundsStore: backgroundsStore,
 		staticRenderer:   staticRenderer,
 		imageRenderer:    imageRenderer,
+		browserRenderer:  browserRenderer,
+		browserAssets:    browserAssets,
 		staticMid:        staticMid,
 		promHisto:        promHisto,
 		modules:          modules,
@@ -219,6 +229,10 @@ func NewViewerFromDeps(cfg Cfg, deps *sharedDeps) (*ViewerHandler, error) {
 	ad := newAPIDeps(deps, cfg.Logger)
 	attachReadAPIs(r.PathPrefix("/api/v0").Subrouter(), ad)
 
+	// Browser-stack assets (CSS/JS/theme). Registered before the SPA and
+	// dashboard-ID routes so the /_dashi prefix always wins.
+	attachDashiAssets(r, deps.browserAssets, deps.themeStore)
+
 	// Build the SPA handler once
 	spaHandler, err := spa.App("/")
 	if err != nil {
@@ -228,8 +242,22 @@ func NewViewerFromDeps(cfg Cfg, deps *sharedDeps) (*ViewerHandler, error) {
 	// SPA static assets (JS, CSS, fonts, images)
 	r.PathPrefix("/assets/").Methods(http.MethodGet).Handler(spaHandler)
 
-	// Root "/" — serve SPA directly (Vue resolves default dashboard client-side)
-	r.Path("/").Methods(http.MethodGet).Handler(spaHandler)
+	// Root "/" — resolve the default dashboard server-side and redirect.
+	r.Path("/").Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		list, err := deps.dashStore.List()
+		if err != nil || len(list) == 0 {
+			http.Error(w, "no dashboards configured", http.StatusNotFound)
+			return
+		}
+		target := list[0]
+		for _, meta := range list {
+			if meta.Default {
+				target = meta
+				break
+			}
+		}
+		http.Redirect(w, req, "/"+target.ID, http.StatusFound)
+	})
 
 	// "/:id" — single-segment paths only (no slashes), with static middleware + SPA
 	spaSubrouter := r.PathPrefix("/").Subrouter()
@@ -275,6 +303,10 @@ func NewEditorFromDeps(cfg Cfg, deps *sharedDeps) (*EditorHandler, error) {
 	apiRouter := r.PathPrefix("/api/v0").Subrouter()
 	attachReadAPIs(apiRouter, ad)
 	attachWriteAPIs(apiRouter, ad)
+
+	// Browser-stack assets (CSS/JS/theme). Registered before the SPA and
+	// dashboard-ID routes so the /_dashi prefix always wins.
+	attachDashiAssets(r, deps.browserAssets, deps.themeStore)
 
 	// Root "/" redirects to /admin
 	r.Path("/").Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

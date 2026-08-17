@@ -51,6 +51,12 @@ jobs:
       - name: Build frontend
         run: make package-ui
 
+      # The viewer's Tailwind stylesheet is a committed build artifact, so a
+      # release would still work without this step — it would just ship a
+      # stale viewer.css if templates changed after the last local run.
+      - name: Build viewer stylesheet
+        run: make viewer-css
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -93,6 +99,12 @@ jobs:
 
       - name: Build frontend
         run: make package-ui
+
+      # The viewer's Tailwind stylesheet is a committed build artifact, so a
+      # release would still work without this step — it would just ship a
+      # stale viewer.css if templates changed after the last local run.
+      - name: Build viewer stylesheet
+        run: make viewer-css
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6

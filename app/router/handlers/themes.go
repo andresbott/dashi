@@ -64,7 +64,10 @@ func (h *ThemeHandler) GetFont(w http.ResponseWriter, r *http.Request) {
 	themeName := vars["name"]
 	fontName := vars["font"]
 
-	data, err := h.store.GetDisplayFontData(themeName, fontName)
+	// FontData resolves display fonts and, under the icon-font-{theme}
+	// family name, the theme's icon font — the browser stack needs both as
+	// @font-face sources (see themes.Store.ThemeCSS).
+	data, err := h.store.FontData(themeName, fontName)
 	if err != nil {
 		h.logger.Error("get font data", slog.String("error", err.Error()))
 		ErrorJSON(w, err.Error(), http.StatusNotFound)
@@ -74,7 +77,8 @@ func (h *ThemeHandler) GetFont(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "font/ttf")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "public, max-age=86400")
-	if _, err := w.Write(data); err != nil { //nolint:gosec // G705: font bytes served with explicit Content-Type and nosniff; not HTML
+	// Font bytes served with an explicit Content-Type and nosniff; not HTML.
+	if _, err := w.Write(data); err != nil {
 		// Error already committed to response, log only
 		return
 	}

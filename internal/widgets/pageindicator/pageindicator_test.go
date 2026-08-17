@@ -281,6 +281,34 @@ func TestNewStaticRenderer_IgnoresConfig(t *testing.T) {
 	}
 }
 
+func TestNewStaticRenderer_CentresDotsWithFlex(t *testing.T) {
+	// litehtml has comprehensive flexbox support
+	// (docs/project/litehtml-rendering-reference.md:143). These four
+	// declarations are the pre-refactor ones and they decide the rendered PNG:
+	// with text-align instead, the dots sit on a text baseline, which changes
+	// both the widget's height and the dots' vertical position.
+	renderer := NewStaticRenderer()
+	got, err := renderer(json.RawMessage(`{}`), widgets.RenderContext{TotalPages: 3})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	html := string(got)
+
+	for _, decl := range []string{
+		"display: flex",
+		"align-items: center",
+		"justify-content: center",
+		"padding: 8px",
+	} {
+		if !strings.Contains(html, decl) {
+			t.Errorf("page-indicator CSS missing %q (changes rendered PNGs):\n%s", decl, html)
+		}
+	}
+	if strings.Contains(html, "text-align: center") {
+		t.Errorf("text-align centring was the regression; flex centring is required:\n%s", html)
+	}
+}
+
 func TestNewStaticRenderer_ValidHTMLStructure(t *testing.T) {
 	renderer := NewStaticRenderer()
 	ctx := widgets.RenderContext{
@@ -295,9 +323,12 @@ func TestNewStaticRenderer_ValidHTMLStructure(t *testing.T) {
 
 	html := string(got)
 
-	// Check for proper opening and closing tags
-	if !strings.HasPrefix(strings.TrimSpace(html), `<div class="widget-page-indicator">`) {
-		t.Errorf("expected HTML to start with widget-page-indicator div, got: %s", html)
+	// Check for proper opening and closing tags (style block is now prepended)
+	if !strings.Contains(html, `<style>`) {
+		t.Errorf("expected HTML to contain style block, got: %s", html)
+	}
+	if !strings.Contains(html, `<div class="widget-page-indicator">`) {
+		t.Errorf("expected HTML to contain widget-page-indicator div, got: %s", html)
 	}
 
 	if !strings.HasSuffix(strings.TrimSpace(html), `</div>`) {

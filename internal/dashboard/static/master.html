@@ -8,8 +8,8 @@
         * { margin: 0; padding: 0; }
         body {
             font-family: {{if .FontFamily}}'{{.FontFamily}}', {{end}}-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: {{if .BackgroundCSS}}{{.BackgroundCSS}}{{else}}{{if .IsDark}}#1a1a2e{{else}}#fff{{end}}{{end}};
-            color: {{if .IsDark}}#e0e0e0{{else}}#333{{end}};
+            background: {{if .BackgroundCSS}}{{.BackgroundCSS}}{{else}}{{.Palette.BG}}{{end}};
+            color: {{.Palette.FG}};
         }
         .container {
             width: 100%;
@@ -34,50 +34,7 @@
         .widget-placeholder {
             min-height: 20px;
         }
-        .widget-clock .clock-time {
-            font-size: 1.8em;
-            font-weight: 600;
-        }
-        .widget-clock .clock-date {
-            display: block;
-            font-size: 0.9em;
-            color: {{if .IsDark}}#999{{else}}#666{{end}};
-            margin-top: 4px;
-        }
-        .widget-bookmark .bookmark-link {
-            text-decoration: none;
-            color: inherit;
-            display: block;
-        }
-        .widget-bookmark .bookmark-title {
-            font-weight: 600;
-            display: block;
-        }
-        .widget-bookmark .bookmark-subtitle {
-            font-size: 0.85em;
-            color: {{if .IsDark}}#999{{else}}#666{{end}};
-            display: block;
-            margin-top: 2px;
-        }
-        .widget-page-indicator {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 8px;
-        }
-        .widget-page-indicator .dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            border: 2px solid {{if .IsDark}}#999{{else}}#666{{end}};
-            margin: 0 4px;
-        }
-        .widget-page-indicator .dot.active {
-            background: {{if .IsDark}}#999{{else}}#666{{end}};
-        }
     </style>
-    {{if .CustomCSS}}<style>{{.CustomCSS}}</style>{{end}}
 </head>
 <body>
     <div class="container">
@@ -94,5 +51,10 @@
         </div>
         {{- end}}
     </div>
+    <!-- custom.css goes LAST in the document. litehtml collects <style>
+         elements in document order and breaks equal-specificity ties by
+         insertion order, and widget CSS now ships inside each widget's body.
+         Anything earlier would lose to the widget's own rules. -->
+    {{if .CustomCSS}}<style>{{.CustomCSS}}</style>{{end}}
 </body>
 </html>

@@ -12,10 +12,10 @@ import (
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
-//go:embed clock.html
-var clockHTML string
+//go:embed image.html
+var imageHTML string
 
-var tmpl = template.Must(template.New("clock").Parse(clockHTML))
+var imageTmpl = template.Must(template.New("clock-image").Parse(imageHTML))
 
 type clockConfig struct {
 	Hour12      bool   `json:"hour12"`
@@ -25,10 +25,11 @@ type clockConfig struct {
 }
 
 type clockData struct {
-	Time     string
-	Date     string
-	ShowDate bool
-	Font     string
+	Time       string
+	Date       string
+	ShowDate   bool
+	Font       string
+	MutedColor string
 }
 
 // NewStaticRenderer returns a StaticRenderer that renders the current time.
@@ -38,7 +39,7 @@ func NewStaticRenderer(nowFn func() time.Time) func(json.RawMessage, widgets.Ren
 	if nowFn == nil {
 		nowFn = time.Now
 	}
-	return func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
+	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
 		var cfg clockConfig
 		if len(config) > 0 {
 			if err := json.Unmarshal(config, &cfg); err != nil {
@@ -50,16 +51,17 @@ func NewStaticRenderer(nowFn func() time.Time) func(json.RawMessage, widgets.Ren
 		timeStr := formatTime(now, cfg.Hour12, cfg.ShowSeconds)
 
 		data := clockData{
-			Time:     timeStr,
-			ShowDate: cfg.ShowDate,
-			Font:     cfg.Font,
+			Time:       timeStr,
+			ShowDate:   cfg.ShowDate,
+			Font:       cfg.Font,
+			MutedColor: ctx.EffectivePalette().Muted,
 		}
 		if cfg.ShowDate {
 			data.Date = now.Format("Monday, January 2, 2006")
 		}
 
 		var buf bytes.Buffer
-		if err := tmpl.Execute(&buf, data); err != nil {
+		if err := imageTmpl.Execute(&buf, data); err != nil {
 			return "", fmt.Errorf("clock render: %w", err)
 		}
 		return template.HTML(buf.String()), nil

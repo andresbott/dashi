@@ -105,3 +105,37 @@ func TestRenderStatic_NoFont(t *testing.T) {
 		t.Errorf("expected no font-family when font not set, got: %s", html)
 	}
 }
+
+func TestFormatTimeParity(t *testing.T) {
+	// Keep this table identical to the one in clock.test.js. Go is the
+	// contract: the server prefills the value and clock.js overwrites it a
+	// second later, so any difference is a visible flicker.
+	afternoon := time.Date(2026, 8, 17, 14, 32, 5, 0, time.UTC)
+	midnight := time.Date(2026, 8, 17, 0, 32, 5, 0, time.UTC)
+
+	cases := []struct {
+		name        string
+		at          time.Time
+		hour12      bool
+		showSeconds bool
+		want        string
+	}{
+		{"24h", afternoon, false, false, "14:32"},
+		{"24h with seconds", afternoon, false, true, "14:32:05"},
+		{"12h", afternoon, true, false, "2:32 PM"},
+		{"12h with seconds", afternoon, true, true, "2:32:05 PM"},
+		// Midnight: Go's "15:04" renders 00:32, never 24:32. An
+		// Intl implementation using hourCycle h24 would disagree, which is
+		// why clock.js pins h23.
+		{"24h midnight", midnight, false, false, "00:32"},
+		{"24h midnight with seconds", midnight, false, true, "00:32:05"},
+		{"12h midnight", midnight, true, false, "12:32 AM"},
+		{"12h midnight with seconds", midnight, true, true, "12:32:05 AM"},
+	}
+
+	for _, tc := range cases {
+		if got := formatTime(tc.at, tc.hour12, tc.showSeconds); got != tc.want {
+			t.Errorf("%s: formatTime = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}

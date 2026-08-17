@@ -58,7 +58,7 @@ coverage-report: ## generate a coverage report
 run: ## start the GO service (uses built-in defaults; optional -c config.yaml)
 	@APP_LOG_LEVEL="debug" go run main.go start
 
-run-ui: package-ui run## build the UI and start the GO service
+run-ui: package-ui viewer-css run## build the UI and start the GO service
 
 #==========================================================================================
 ##@ Building
@@ -74,7 +74,12 @@ build-ui:
 	export VITE_BASE="/ui" && \
 	npm run build
 
-build: package-ui ## use goreleaser to build to current OS/Arch
+viewer-css: ## build the viewer Tailwind stylesheet (generated artifact — never hand-edit)
+	@cd webui && \
+	npm install && \
+	npm run build:viewer
+
+build: package-ui viewer-css ## use goreleaser to build to current OS/Arch
 	@goreleaser build --snapshot --clean --single-target
 
 #==========================================================================================

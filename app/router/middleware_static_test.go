@@ -7,9 +7,11 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/dashboard/browser"
 	"github.com/andresbott/dashi/internal/data/backgrounds"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
@@ -37,13 +39,15 @@ func newTestMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.Han
 
 	staticRenderer := dashstatic.NewRenderer(reg)
 	imageRenderer := dashimage.NewRenderer()
+	browserAssets := browser.NewAssets(nil)
+	browserRenderer := browser.NewRenderer(reg, browserAssets.JSTypes())
 
 	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("SPA"))
 	})
 
 	bs, _ := backgrounds.NewStore(t.TempDir())
-	mid := NewStaticDashboardMiddleware(store, staticRenderer, imageRenderer, themes.NewStore(""), bs)
+	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themes.NewStore(""), bs)
 	return mid(spaHandler)
 }
 
@@ -130,11 +134,16 @@ func TestImageDashboard_NoHeadersHTMLPreview(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("expected 200 (HTML preview), got %d", rec.Code)
+		t.Errorf("expected 200 (browser HTML), got %d", rec.Code)
 	}
 	ct := rec.Header().Get("Content-Type")
 	if ct != "text/html; charset=utf-8" {
 		t.Errorf("expected text/html content type, got %s", ct)
+	}
+	// Image dashboards without display headers now render through the browser stack
+	body := rec.Body.String()
+	if body == "<p>test-content</p>" || body == "SPA" {
+		t.Error("expected browser-rendered HTML, got static HTML or SPA")
 	}
 }
 
@@ -365,6 +374,9 @@ func TestImageDashboard_NoRefreshIntervalWhenZero(t *testing.T) {
 }
 
 func TestImageDashboard_InteractiveFallsThrough(t *testing.T) {
+	// After Task 7: non-image dashboards (including "interactive" type)
+	// are rendered through the browser stack, not as SPA fallthrough.
+	// Only image-type dashboards with display headers render as PNG.
 	dash := dashboard.Dashboard{
 		ID:   "interactive",
 		Name: "Interactive",
@@ -374,7 +386,16 @@ func TestImageDashboard_InteractiveFallsThrough(t *testing.T) {
 			VerticalAlign:   "top",
 			HorizontalAlign: "center",
 		},
-		Pages: []dashboard.Page{},
+		Pages: []dashboard.Page{{
+			Name: "Main",
+			Rows: []dashboard.Row{{
+				ID: "r1", Height: "auto", Width: "100%",
+				Widgets: []dashboard.Widget{{
+					ID: "w1", Type: "test", Width: 12,
+					Config: json.RawMessage(`{}`),
+				}},
+			}},
+		}},
 	}
 
 	handler := newTestMiddleware(t, dash)
@@ -386,8 +407,13 @@ func TestImageDashboard_InteractiveFallsThrough(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Body.String() != "SPA" {
-		t.Errorf("expected SPA fallthrough, got: %s", rec.Body.String())
+	// Interactive dashboards now render as browser HTML even with display headers
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	ct := rec.Header().Get("Content-Type")
+	if ct != "text/html; charset=utf-8" {
+		t.Errorf("expected text/html (browser rendering), got: %s", ct)
 	}
 }
 
@@ -631,5 +657,112 @@ func TestLoadBackgroundImage_SharedPrefix(t *testing.T) {
 	}
 	if name != "sunset.jpg" {
 		t.Fatalf("name: %q", name)
+	}
+}
+
+func TestBuildBrowserBackground(t *testing.T) {
+	// The browser stack references background images by URL. The litehtml
+	// stack still inlines the bytes (buildBackground) because litehtml
+	// fetches nothing over the network — see TestBuildBackgroundStillInlines.
+	cases := []struct {
+		name string
+		bg   *dashboard.Background
+		want string
+	}{
+		{"nil", nil, ""},
+		{"none", &dashboard.Background{Type: "none", Value: "x"}, ""},
+		{"empty value", &dashboard.Background{Type: "color", Value: ""}, ""},
+		{"color", &dashboard.Background{Type: "color", Value: "#c0ffee"}, "#c0ffee"},
+		{
+			"gradient",
+			&dashboard.Background{Type: "gradient", Value: "linear-gradient(to bottom, #fff, #000)"},
+			"linear-gradient(to bottom, #fff, #000)",
+		},
+		{
+			"theme image",
+			&dashboard.Background{Type: "image", Value: "theme:default/bg.jpg"},
+			"url('/api/v0/themes/default/backgrounds/bg.jpg') center/cover no-repeat",
+		},
+		{
+			"dashboard asset",
+			&dashboard.Background{Type: "image", Value: "dashboard:images/bg.png"},
+			"url('/api/v0/dashboards/abc123/assets/images/bg.png') center/cover no-repeat",
+		},
+		{
+			"shared background",
+			&dashboard.Background{Type: "image", Value: "shared:sunset.jpg"},
+			"url('/api/v0/data/backgrounds/sunset.jpg') center/cover no-repeat",
+		},
+		{"malformed theme ref", &dashboard.Background{Type: "image", Value: "theme:nofile"}, ""},
+		{"unknown scheme", &dashboard.Background{Type: "image", Value: "ftp:bg.jpg"}, ""},
+		{"unknown type", &dashboard.Background{Type: "weird", Value: "x"}, ""},
+	}
+
+	for _, tc := range cases {
+		dash := dashboard.Dashboard{ID: "abc123", Background: tc.bg}
+		if got := buildBrowserBackground(dash); got != tc.want {
+			t.Errorf("%s: buildBrowserBackground = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestBuildBrowserBackgroundEscapesUnsafeCharacters(t *testing.T) {
+	// The value lands in a double-quoted HTML attribute inside url('...'),
+	// so quotes and angle brackets must not survive as literals.
+	dash := dashboard.Dashboard{
+		ID:         "abc123",
+		Background: &dashboard.Background{Type: "image", Value: `dashboard:a'b"c<d>.png`},
+	}
+	got := buildBrowserBackground(dash)
+	if strings.ContainsAny(got, `'"<>`[1:]) || strings.Count(got, "'") != 2 {
+		t.Errorf("unsafe characters survived escaping: %q", got)
+	}
+	if !isSafeAttributeValueForTest(got) {
+		t.Errorf("value would be rejected by the renderer's attribute check: %q", got)
+	}
+}
+
+// isSafeAttributeValueForTest mirrors the browser renderer's check so this
+// package can assert the values it produces will not be dropped there.
+func isSafeAttributeValueForTest(s string) bool {
+	for _, r := range s {
+		switch r {
+		case '"', '<', '>', '\\':
+			return false
+		}
+		if r < 0x20 || r == 0x7F {
+			return false
+		}
+	}
+	return true
+}
+
+func TestBuildBackgroundStillInlinesForTheImageStack(t *testing.T) {
+	// litehtml fetches nothing over the network, so the image stack's
+	// contract — a data URI plus the raw bytes for the canvas — must not
+	// change. This is a deployed-firmware contract.
+	bs, err := backgrounds.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := []byte{0xFF, 0xD8, 0xFF, 0xE0}
+	if err := bs.Save("sunset.jpg", raw); err != nil {
+		t.Fatal(err)
+	}
+
+	dash := dashboard.Dashboard{
+		ID:         "abc123",
+		Background: &dashboard.Background{Type: "image", Value: "shared:sunset.jpg"},
+	}
+	css, data := buildBackground(dash, nil, nil, bs)
+
+	if !strings.HasPrefix(css, "url('data:image/jpeg;base64,") {
+		t.Errorf("image stack must still receive a data URI, got %q", css)
+	}
+	if !strings.HasSuffix(css, "') center/cover no-repeat") {
+		t.Errorf("image stack background lost its positioning, got %q", css)
+	}
+	if string(data) != string(raw) {
+		t.Error("image stack must still receive the raw bytes for the canvas")
 	}
 }

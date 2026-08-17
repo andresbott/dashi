@@ -1,0 +1,7 @@
+.dashi-sysinfo__bar-fill {
+    transition: width 300ms ease-out;
+}
+
+.dashi-sysinfo[data-dashi-error] {
+    opacity: 0.6;
+}

@@ -47,14 +47,15 @@ type bookmarkConfig struct {
 }
 
 type bookmarkData struct {
-	URL      string
-	Title    string
-	Subtitle string
+	URL        string
+	Title      string
+	Subtitle   string
+	MutedColor string
 }
 
 // NewStaticRenderer returns a StaticRenderer for bookmark widgets.
 func NewStaticRenderer() func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
-	return func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
+	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
 		var cfg bookmarkConfig
 		if len(config) > 0 {
 			if err := json.Unmarshal(config, &cfg); err != nil {
@@ -63,9 +64,10 @@ func NewStaticRenderer() func(json.RawMessage, widgets.RenderContext) (template.
 		}
 
 		data := bookmarkData{
-			URL:      sanitizeURL(cfg.URL),
-			Title:    cfg.Title,
-			Subtitle: cfg.Subtitle,
+			URL:        sanitizeURL(cfg.URL),
+			Title:      cfg.Title,
+			Subtitle:   cfg.Subtitle,
+			MutedColor: ctx.EffectivePalette().Muted,
 		}
 
 		var buf bytes.Buffer
