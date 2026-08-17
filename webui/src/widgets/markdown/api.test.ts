@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { listMarkdownFiles, getMarkdownHtml, getMarkdownRaw, saveMarkdown } from './api'
+import { listMarkdownFiles, getMarkdownHtml, getMarkdownRaw, saveMarkdown, deleteMarkdown } from './api'
 import { apiClient } from '@/lib/api/client'
 
 vi.mock('@/lib/api/client', () => ({
@@ -68,6 +68,20 @@ describe('markdown API', () => {
             const call = vi.mocked(apiClient.post).mock.calls[0]
             expect(call[0]).toBe('/data/notes/a.md')
             expect(call[2]).toEqual({ headers: { 'Content-Type': 'application/octet-stream' } })
+        })
+    })
+
+    describe('deleteMarkdown', () => {
+        it('calls DELETE on the note path', async () => {
+            vi.mocked(apiClient.delete).mockResolvedValue({ data: undefined })
+            await deleteMarkdown('a.md')
+            expect(apiClient.delete).toHaveBeenCalledWith('/data/notes/a.md')
+        })
+
+        it('URL-encodes the name', async () => {
+            vi.mocked(apiClient.delete).mockResolvedValue({ data: undefined })
+            await deleteMarkdown('a b.md')
+            expect(apiClient.delete).toHaveBeenCalledWith('/data/notes/a%20b.md')
         })
     })
 })

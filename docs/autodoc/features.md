@@ -25,6 +25,18 @@ saved via PUT.
 dashboard.json and all assets). Zip import creates a new dashboard from an
 uploaded zip, available via the "Import" button on the dashboard list.
 
+## Admin Section
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| `/admin` sidebar layout | Implemented | Shell view with sticky sidebar; 4 child routes (Dashboards, Notes, Images, Backgrounds) |
+| Dashboard management | Implemented | `/admin/dashboards` — moved from former `/dashboards` list view |
+| Notes management | Implemented | `/admin/notes` — list/create/edit/delete markdown files via `/api/v0/data/notes` |
+| Images management | Implemented | `/admin/images` — list/upload/delete via `/api/v0/data/images`; shared `DataTableView` |
+| Backgrounds management | Implemented | `/admin/backgrounds` — list/upload/delete via `/api/v0/data/backgrounds`; shared `DataTableView` |
+
+Editor-only. The viewer server does not expose `/admin`.
+
 ## Dashboard Display
 
 | Feature | Status | Notes |

@@ -299,7 +299,7 @@ func TestRenderStatic_ImageThemeUsesFilePath(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Write theme manifest
-	manifest := []byte("name: imgtheme\ndescription: test image theme\ntype: image\n")
+	manifest := []byte("name: imgtheme\ntype: icon\ndescription: test image theme\nicons:\n  type: image\n")
 	if err := os.WriteFile(filepath.Join(themePath, "theme.yaml"), manifest, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -443,7 +443,7 @@ func TestRenderStatic_ImageThemeWithExtraInfo(t *testing.T) {
 		}
 	}
 
-	manifest := []byte("name: imgtheme\ndescription: test image theme\ntype: image\n")
+	manifest := []byte("name: imgtheme\ntype: icon\ndescription: test image theme\nicons:\n  type: image\n")
 	if err := os.WriteFile(filepath.Join(themePath, "theme.yaml"), manifest, 0o600); err != nil {
 		t.Fatal(err)
 	}

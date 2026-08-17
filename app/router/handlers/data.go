@@ -14,7 +14,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const maxDataUpload = 10 << 20 // 10 MB, matches UploadAsset in dashboards.go
+const maxDataUpload = 10 << 20 // 10 MB
 
 // DataHandler exposes /api/v0/data/{notes,images,backgrounds} for the
 // shared cross-dashboard user-data layer.

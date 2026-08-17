@@ -9,9 +9,19 @@ const router = createRouter({
             component: () => import('@/views/dashboards/DashboardView.vue'),
         },
         {
-            path: '/dashboards',
-            name: 'dashboards',
-            component: () => import('@/views/dashboards/DashboardListView.vue')
+            path: '/admin',
+            component: () => import('@/views/admin/AdminLayout.vue'),
+            children: [
+                { path: '', redirect: { name: 'admin-dashboards' } },
+                { path: 'dashboards', name: 'admin-dashboards', component: () => import('@/views/admin/AdminDashboards.vue') },
+                { path: 'notes', name: 'admin-notes', component: () => import('@/views/admin/AdminNotes.vue') },
+                { path: 'images', name: 'admin-images', component: () => import('@/views/admin/AdminImages.vue') },
+                { path: 'backgrounds', name: 'admin-backgrounds', component: () => import('@/views/admin/AdminBackgrounds.vue') },
+                { path: 'themes', name: 'admin-themes', component: () => import('@/views/admin/AdminThemes.vue') },
+                { path: 'docs/dashboards', name: 'doc-dashboards', component: () => import('@/views/docs/DocDashboards.vue') },
+                { path: 'docs/widgets', name: 'doc-widgets', component: () => import('@/views/docs/DocWidgets.vue') },
+                { path: 'docs/theming', name: 'doc-theming', component: () => import('@/views/docs/DocTheming.vue') },
+            ],
         },
         {
             path: '/dashboards/:id/edit',
@@ -22,16 +32,6 @@ const router = createRouter({
             path: '/dashboards/:id/settings',
             name: 'dashboard-settings',
             component: () => import('@/views/dashboards/DashboardSettingsView.vue')
-        },
-        {
-            path: '/docs',
-            component: () => import('@/views/DocumentationView.vue'),
-            children: [
-                { path: '', redirect: { name: 'doc-dashboards' } },
-                { path: 'dashboards', name: 'doc-dashboards', component: () => import('@/views/docs/DocDashboards.vue') },
-                { path: 'widgets', name: 'doc-widgets', component: () => import('@/views/docs/DocWidgets.vue') },
-                { path: 'theming', name: 'doc-theming', component: () => import('@/views/docs/DocTheming.vue') },
-            ],
         },
         {
             path: '/:id',

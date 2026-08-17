@@ -24,3 +24,22 @@ export const getFontUrl = (themeName: string, fontName: string): string => {
 export const getThemeBackgroundUrl = (themeName: string, fileName: string): string => {
     return `/api/v0${THEMES_PATH}/${encodeURIComponent(themeName)}/backgrounds/${encodeURIComponent(fileName)}`
 }
+
+// ---------- admin CRUD ----------
+
+export const uploadTheme = async (zipBytes: ArrayBuffer): Promise<ThemeInfo> => {
+    const { data } = await apiClient.post<ThemeInfo>(
+        `${THEMES_PATH}/upload`,
+        zipBytes,
+        { headers: { 'Content-Type': 'application/zip' } },
+    )
+    return data
+}
+
+export const deleteTheme = async (name: string): Promise<void> => {
+    await apiClient.delete(`${THEMES_PATH}/${encodeURIComponent(name)}`)
+}
+
+export const themeDownloadUrl = (name: string): string => {
+    return `/api/v0${THEMES_PATH}/${encodeURIComponent(name)}/download`
+}

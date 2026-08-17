@@ -106,8 +106,10 @@ func bootstrapImageTheme(themeDir, name string) error {
 	}
 
 	manifest := fmt.Sprintf(`name: %q
+type: icon
 description: "Custom weather icons"
-type: image
+icons:
+  type: image
 `, name)
 
 	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
@@ -138,51 +140,124 @@ func bootstrapFontTheme(themeDir, name string) error {
 	}
 
 	manifest := fmt.Sprintf(`name: %q
+type: icon
 description: "Custom font icon theme"
-type: font
-font:
-  # URL or path to the icon font CSS file
-  css: ""
+icons:
+  type: font
   # CSS class prefix applied before each icon suffix
   classPrefix: ""
-  # Map canonical weather icon names to font icon class suffixes
+  # Path to the icon font TTF file relative to the theme directory
+  fontFile: ""
+  # Map canonical weather icon names to font icon class + codepoint
   icons:
-    clear-sky: ""
-    mainly-clear: ""
-    partly-cloudy: ""
-    overcast: ""
-    foggy: ""
-    drizzle-light: ""
-    drizzle-moderate: ""
-    drizzle-dense: ""
-    freezing-drizzle-light: ""
-    freezing-drizzle-dense: ""
-    rain-slight: ""
-    rain-moderate: ""
-    rain-heavy: ""
-    freezing-rain-light: ""
-    freezing-rain-heavy: ""
-    snow-slight: ""
-    snow-moderate: ""
-    snow-heavy: ""
-    snow-grains: ""
-    rain-showers-slight: ""
-    rain-showers-moderate: ""
-    rain-showers-violent: ""
-    snow-showers-slight: ""
-    snow-showers-heavy: ""
-    thunderstorm: ""
-    thunderstorm-hail-slight: ""
-    thunderstorm-hail-heavy: ""
-    unknown: ""
-    sunrise: ""
-    sunset: ""
-    wind: ""
-    humidity: ""
-    pressure: ""
-    uv-index: ""
-    visibility: ""
-    air-quality: ""
+    clear-sky:
+      class: ""
+      codepoint: ""
+    mainly-clear:
+      class: ""
+      codepoint: ""
+    partly-cloudy:
+      class: ""
+      codepoint: ""
+    overcast:
+      class: ""
+      codepoint: ""
+    foggy:
+      class: ""
+      codepoint: ""
+    drizzle-light:
+      class: ""
+      codepoint: ""
+    drizzle-moderate:
+      class: ""
+      codepoint: ""
+    drizzle-dense:
+      class: ""
+      codepoint: ""
+    freezing-drizzle-light:
+      class: ""
+      codepoint: ""
+    freezing-drizzle-dense:
+      class: ""
+      codepoint: ""
+    rain-slight:
+      class: ""
+      codepoint: ""
+    rain-moderate:
+      class: ""
+      codepoint: ""
+    rain-heavy:
+      class: ""
+      codepoint: ""
+    freezing-rain-light:
+      class: ""
+      codepoint: ""
+    freezing-rain-heavy:
+      class: ""
+      codepoint: ""
+    snow-slight:
+      class: ""
+      codepoint: ""
+    snow-moderate:
+      class: ""
+      codepoint: ""
+    snow-heavy:
+      class: ""
+      codepoint: ""
+    snow-grains:
+      class: ""
+      codepoint: ""
+    rain-showers-slight:
+      class: ""
+      codepoint: ""
+    rain-showers-moderate:
+      class: ""
+      codepoint: ""
+    rain-showers-violent:
+      class: ""
+      codepoint: ""
+    snow-showers-slight:
+      class: ""
+      codepoint: ""
+    snow-showers-heavy:
+      class: ""
+      codepoint: ""
+    thunderstorm:
+      class: ""
+      codepoint: ""
+    thunderstorm-hail-slight:
+      class: ""
+      codepoint: ""
+    thunderstorm-hail-heavy:
+      class: ""
+      codepoint: ""
+    unknown:
+      class: ""
+      codepoint: ""
+    sunrise:
+      class: ""
+      codepoint: ""
+    sunset:
+      class: ""
+      codepoint: ""
+    wind:
+      class: ""
+      codepoint: ""
+    humidity:
+      class: ""
+      codepoint: ""
+    pressure:
+      class: ""
+      codepoint: ""
+    uv-index:
+      class: ""
+      codepoint: ""
+    visibility:
+      class: ""
+      codepoint: ""
+    air-quality:
+      class: ""
+      codepoint: ""
 `, name)
 
 	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
@@ -190,6 +265,6 @@ font:
 	}
 
 	fmt.Printf("Font theme created at %s\n", themeDir)
-	fmt.Println("Edit theme.yaml to set the CSS URL, class prefix, and icon mappings.")
+	fmt.Println("Edit theme.yaml to set the font file path, class prefix, and icon mappings.")
 	return nil
 }

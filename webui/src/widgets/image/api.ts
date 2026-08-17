@@ -1,12 +1,5 @@
-import { apiClient } from '@/lib/api/client'
+import { listData, type DataItem } from '@/lib/api/data'
 
-export interface DataItem {
-    name: string
-    size: number
-    modTime: string
-}
+export type { DataItem }
 
-export const listDataImages = async (): Promise<DataItem[]> => {
-    const { data } = await apiClient.get<DataItem[]>('/data/images')
-    return data ?? []
-}
+export const listDataImages = (): Promise<DataItem[]> => listData('images')

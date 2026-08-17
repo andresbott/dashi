@@ -276,9 +276,9 @@ func NewEditorFromDeps(cfg Cfg, deps *sharedDeps) (*EditorHandler, error) {
 	attachReadAPIs(apiRouter, ad)
 	attachWriteAPIs(apiRouter, ad)
 
-	// Root "/" redirects to /dashboards
+	// Root "/" redirects to /admin
 	r.Path("/").Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/dashboards", http.StatusFound)
+		http.Redirect(w, r, "/admin", http.StatusFound)
 	})
 
 	// Static dashboard middleware (image rendering) + full SPA on all paths

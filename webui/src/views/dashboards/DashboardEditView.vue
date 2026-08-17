@@ -6,13 +6,12 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import DashboardRow from '@/components/dashboards/DashboardRow.vue'
 
-import { useGetDashboard, useUpdateDashboard, useUploadDashboardAsset } from '@/composables/useDashboards'
+import { useGetDashboard, useUpdateDashboard } from '@/composables/useDashboards'
 import { useToast } from 'primevue/usetoast'
 import type { Dashboard, Row } from '@/types/dashboard'
 import { v4 as uuidv4 } from 'uuid'
 import Dialog from 'primevue/dialog'
 import dashiIcon from '@/assets/icon-64.png'
-import FileUpload, { type FileUploadSelectEvent } from 'primevue/fileupload'
 
 const route = useRoute()
 const router = useRouter()
@@ -21,7 +20,6 @@ const id = computed(() => route.params.id as string)
 
 const { data: serverDashboard, isLoading, isError } = useGetDashboard(() => id.value)
 const { updateDashboard, isUpdating } = useUpdateDashboard()
-const { uploadAsset, isUploading } = useUploadDashboardAsset()
 
 const localDashboard = ref<Dashboard | null>(null)
 const activePageIndex = ref(0)
@@ -149,34 +147,15 @@ const save = async () => {
 }
 
 const cancel = () => {
-    router.push({ name: 'dashboards' })
+    router.push({ name: 'admin-dashboards' })
 }
 
-const uploadDialogVisible = ref(false)
-const selectedFile = ref<File | null>(null)
-
-const onFileSelect = (event: FileUploadSelectEvent) => {
-    selectedFile.value = event.files[0] ?? null
-}
-
-const confirmUpload = async () => {
-    if (!selectedFile.value) return
-    try {
-        const data = await selectedFile.value.arrayBuffer()
-        await uploadAsset({ dashboardId: id.value, filename: selectedFile.value.name, data })
-        toast.add({ severity: 'success', summary: 'Uploaded', detail: `${selectedFile.value.name} uploaded successfully`, life: 3000 })
-        uploadDialogVisible.value = false
-        selectedFile.value = null
-    } catch {
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to upload file', life: 5000 })
-    }
-}
 </script>
 
 <template>
     <header class="app-topbar">
         <img :src="dashiIcon" alt="Dashi" class="app-topbar-icon" />
-        <span class="app-topbar-title" @click="router.push('/dashboards')">Dashi</span>
+        <span class="app-topbar-title" @click="router.push('/admin')">Dashi</span>
     </header>
     <div class="dashboard-edit-view">
         <div v-if="isLoading" class="p-4">Loading...</div>
@@ -188,7 +167,7 @@ const confirmUpload = async () => {
                 severity="secondary"
                 text
                 rounded
-                @click="router.push({ name: 'dashboards' })"
+                @click="router.push({ name: 'admin-dashboards' })"
             />
             <span class="text-xl font-bold text-color flex-grow-1">{{ localDashboard.name }}</span>
             <Button
@@ -196,12 +175,6 @@ const confirmUpload = async () => {
                 label="Settings"
                 severity="secondary"
                 @click="router.push({ name: 'dashboard-settings', params: { id: id } })"
-            />
-            <Button
-                icon="ti ti-upload"
-                label="Upload"
-                severity="secondary"
-                @click="uploadDialogVisible = true"
             />
             <Button
                 label="Save"
@@ -319,29 +292,6 @@ const confirmUpload = async () => {
             <div class="flex justify-content-end gap-2 mt-4">
                 <Button label="Cancel" severity="secondary" @click="renamePageDialogVisible = false" />
                 <Button label="Confirm" icon="ti ti-check" @click="confirmRenamePage" />
-            </div>
-        </Dialog>
-        <Dialog
-            v-model:visible="uploadDialogVisible"
-            modal
-            :closable="true"
-            :draggable="false"
-            header="Upload File"
-        >
-            <div class="flex flex-column gap-3" style="min-width: 350px">
-                <FileUpload
-                    mode="basic"
-                    :auto="false"
-                    accept=".png,.jpg,.jpeg,.svg,.webp,.css"
-                    :maxFileSize="10485760"
-                    chooseLabel="Choose File"
-                    @select="onFileSelect"
-                />
-                <small class="text-color-secondary">Accepted: .png, .jpg, .jpeg, .svg, .webp, .css (max 10 MB)</small>
-            </div>
-            <div class="flex justify-content-end gap-2 mt-4">
-                <Button label="Cancel" severity="secondary" @click="uploadDialogVisible = false; selectedFile = null" />
-                <Button label="Upload" icon="ti ti-upload" :loading="isUploading" :disabled="!selectedFile" @click="confirmUpload" />
             </div>
         </Dialog>
         </template>

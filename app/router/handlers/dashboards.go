@@ -174,25 +174,6 @@ func (h *DashboardHandler) GetAsset(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *DashboardHandler) UploadAsset(w http.ResponseWriter, r *http.Request) {
-	id := mux.Vars(r)["id"]
-	assetPath := mux.Vars(r)["path"]
-
-	r.Body = http.MaxBytesReader(w, r.Body, 10<<20) // 10 MB limit
-	data, err := io.ReadAll(r.Body)
-	if err != nil {
-		ErrorJSON(w, "failed to read body", http.StatusBadRequest)
-		return
-	}
-
-	if err := h.store.SaveAsset(id, assetPath, data); err != nil {
-		h.logger.Error("save asset", slog.String("error", err.Error()))
-		ErrorJSON(w, "failed to save asset", http.StatusBadRequest)
-		return
-	}
-	w.WriteHeader(http.StatusCreated)
-}
-
 func (h *DashboardHandler) DeleteAsset(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	assetPath := mux.Vars(r)["path"]

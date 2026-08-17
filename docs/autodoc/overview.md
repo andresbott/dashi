@@ -42,7 +42,8 @@ dashi/
     market/                  Yahoo Finance API client + in-memory cache (tiered TTL)
   webui/                     Vue 3 + Vite + PrimeVue frontend
     src/
-      views/dashboards/      DashboardListView, DashboardView, DashboardEditView
+      views/dashboards/      DashboardView, DashboardEditView, DashboardSettingsView
+      views/admin/           AdminLayout shell + AdminDashboards, AdminNotes, AdminImages, AdminBackgrounds
       widgets/               Self-contained widget modules
         <type>/              One folder per widget type (name matches type string exactly)
           Widget.vue         Display component
@@ -53,12 +54,13 @@ dashi/
           composable.ts      Vue Query composable (optional)
         types.ts             WidgetModule interface
       components/dashboards/  Dashboard-level components (WidgetContainer, etc.)
-      composables/           Dashboard-level composables
-      lib/api/               Dashboard-level API clients
+      components/admin/      DataTableView (shared images/backgrounds table)
+      composables/           Dashboard-level composables (useDashboards, useAdminNotes, useDataItems, ...)
+      lib/api/               API clients (dashboard.ts, themes.ts, data.ts)
       lib/widgetRegistry.ts  Module-import registry (aggregates widgets/*/index.ts)
       types/                 Dashboard-level TypeScript interfaces
       store/                 Pinia stores (minimal UI state)
-      router/                Vue Router (/ → first dashboard or list, /dashboards, /:id, /dashboards/:id/edit)
+      router/                Vue Router (/, /admin/*, /:id, /dashboards/:id/edit, /dashboards/:id/settings, /docs)
   data/                      Default data directory (dashboards/, themes/)
 ```
 
@@ -67,11 +69,31 @@ dashi/
 ### Root Route
 
 ```
-GET / → beforeEnter guard fetches dashboard list
+Viewer `/` → beforeEnter guard fetches dashboard list
   → If a dashboard has default=true → redirect to /:defaultDashboardId
   → Else if dashboards exist → redirect to /:firstDashboardId (alphabetical)
-  → If no dashboards (or fetch error) → redirect to /dashboards (list/create view)
+  → If no dashboards (or fetch error) → redirect to /admin (list/create view)
+
+Editor `/` (backend redirect) → /admin → /admin/dashboards
 ```
+
+### Admin Section (editor only)
+
+```
+GET /admin                    → redirect to /admin/dashboards
+GET /admin/dashboards         → AdminDashboards (list/create/import/download/edit/settings/delete)
+GET /admin/notes              → AdminNotes (list/create/edit/delete; shared markdown files)
+GET /admin/images             → AdminImages (list/upload/delete; shared DataTableView, kind=images)
+GET /admin/backgrounds        → AdminBackgrounds (list/upload/delete; shared DataTableView, kind=backgrounds)
+```
+
+`AdminLayout.vue` hosts a sticky sidebar nav + `<router-view>`. Images and
+Backgrounds share `components/admin/DataTableView.vue`, a component
+parameterized by `kind: 'images' | 'backgrounds'`. All three data kinds
+(notes/images/backgrounds) go through `lib/api/data.ts`, with a
+`useDataItems(kind)` composable for images/backgrounds and a
+`useAdminNotes()` composable for notes. The topbar title click
+navigates to `/admin`.
 
 ### View Interactive Dashboard
 
@@ -240,12 +262,12 @@ enabled. When both are enabled, they share the same underlying stores and caches
 (built once via `sharedDeps`).
 
 The **viewer** serves only GET APIs (`attachReadAPIs`) and restricts SPA routes
-to dashboard ID paths (no `/dashboards`, `/docs`). Root `/` serves the SPA which
+to dashboard ID paths (no `/admin`, `/docs`). Root `/` serves the SPA which
 resolves the default dashboard client-side.
 
 The **editor** serves both read and write APIs (`attachReadAPIs` + `attachWriteAPIs`)
-and the full SPA including list, edit, and documentation views. Root `/` redirects
-to `/dashboards`.
+and the full SPA including the `/admin` section and documentation views. Root `/`
+redirects to `/admin`.
 
 Data warmup goroutines pre-fetch weather/market data for all configured
 dashboard locations/symbols at startup.

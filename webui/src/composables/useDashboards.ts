@@ -8,7 +8,6 @@ import {
     deleteDashboard,
     getBackgrounds,
     getDashboardAssets,
-    uploadDashboardAsset,
     uploadDashboardZip,
     getDashboardAuth,
     setDashboardAuth,
@@ -93,24 +92,6 @@ export function useBackgrounds(dashboardId: () => string) {
         queryFn: () => getBackgrounds(idRef.value),
         enabled: computed(() => !!idRef.value),
     })
-}
-
-export function useUploadDashboardAsset() {
-    const queryClient = useQueryClient()
-
-    const mutation = useMutation({
-        mutationFn: ({ dashboardId, filename, data }: { dashboardId: string; filename: string; data: ArrayBuffer }) =>
-            uploadDashboardAsset(dashboardId, filename, data),
-        onSuccess: (_data, variables) => {
-            invalidateAndRefetch(queryClient, ['dashboard-assets', variables.dashboardId])
-            invalidateAndRefetch(queryClient, ['backgrounds', variables.dashboardId])
-        }
-    })
-
-    return {
-        uploadAsset: mutation.mutateAsync,
-        isUploading: mutation.isPending
-    }
 }
 
 export function useDashboardAssets(dashboardId: () => string) {

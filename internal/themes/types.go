@@ -5,6 +5,23 @@ const (
 	ThemeTypeImage = "image"
 )
 
+// Theme kinds — the top-level classification of a theme as shown in the
+// admin UI. Required field in theme.yaml.
+const (
+	ThemeKindTheme = "theme" // full theme (fonts + icons + backgrounds)
+	ThemeKindIcon  = "icon"  // icon pack
+	ThemeKindStyle = "style" // style/font-only pack
+)
+
+// AllowedThemeKinds is the closed set of accepted values for the
+// top-level `type` field in theme.yaml. No inference — the field is
+// required and must be one of these.
+var AllowedThemeKinds = map[string]bool{
+	ThemeKindTheme: true,
+	ThemeKindIcon:  true,
+	ThemeKindStyle: true,
+}
+
 // FontInfo describes a display font provided by a theme.
 type FontInfo struct {
 	Name string `json:"name"`
@@ -13,10 +30,12 @@ type FontInfo struct {
 // ThemeInfo is the metadata returned by the list API.
 type ThemeInfo struct {
 	Name        string     `json:"name"`
+	Type        string     `json:"type"`
 	Description string     `json:"description"`
 	Fonts       []FontInfo `json:"fonts"`
 	HasIcons    bool       `json:"hasIcons"`
 	IconType    string     `json:"iconType,omitempty"`
+	Builtin     bool       `json:"builtin,omitempty"`
 }
 
 // ResolvedIcon is the result of resolving a canonical icon name through a theme.
@@ -29,18 +48,12 @@ type ResolvedIcon struct {
 }
 
 // themeManifest represents the parsed theme.yaml file.
-// Supports both new format (fonts + icons sections) and legacy format (type + font).
 type themeManifest struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
-
-	// New format
-	Fonts []manifestFont `yaml:"fonts,omitempty"`
-	Icons *manifestIcons `yaml:"icons,omitempty"`
-
-	// Legacy format (backwards compat)
-	Type string     `yaml:"type,omitempty"`
-	Font *fontTheme `yaml:"font,omitempty"`
+	Name        string         `yaml:"name"`
+	Type        string         `yaml:"type"` // ThemeKindIcon or ThemeKindStyle; required.
+	Description string         `yaml:"description"`
+	Fonts       []manifestFont `yaml:"fonts,omitempty"`
+	Icons       *manifestIcons `yaml:"icons,omitempty"`
 }
 
 type manifestFont struct {
@@ -60,38 +73,13 @@ type fontIcon struct {
 	Codepoint string `yaml:"codepoint"`
 }
 
-// Legacy type — kept for backwards compat parsing
-type fontTheme struct {
-	CSS         string              `yaml:"css"`
-	ClassPrefix string              `yaml:"classPrefix"`
-	FontFile    string              `yaml:"fontFile,omitempty"`
-	Icons       map[string]fontIcon `yaml:"icons"`
-}
-
 // theme is the internal representation of a loaded theme.
 type theme struct {
 	manifest themeManifest
-	dir      string
+	dir      string // empty for the embedded default
 }
 
-// icons returns the icon config, handling both new and legacy format.
-func (t *theme) icons() *manifestIcons {
-	if t.manifest.Icons != nil {
-		return t.manifest.Icons
-	}
-	if t.manifest.Font != nil {
-		return &manifestIcons{
-			Type:        ThemeTypeFont,
-			ClassPrefix: t.manifest.Font.ClassPrefix,
-			FontFile:    t.manifest.Font.FontFile,
-			Icons:       t.manifest.Font.Icons,
-		}
-	}
-	if t.manifest.Type == ThemeTypeImage {
-		return &manifestIcons{Type: ThemeTypeImage}
-	}
-	return nil
-}
+func (t *theme) icons() *manifestIcons { return t.manifest.Icons }
 
 func (t *theme) hasIcons() bool {
 	ic := t.icons()

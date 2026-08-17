@@ -37,3 +37,7 @@ export const listMarkdownFiles = async (): Promise<string[]> => {
     const { data } = await apiClient.get<DataItem[]>('/data/notes')
     return (data ?? []).map(item => item.name)
 }
+
+export const deleteMarkdown = async (filename: string): Promise<void> => {
+    await apiClient.delete(`/data/notes/${encodeURIComponent(filename)}`)
+}

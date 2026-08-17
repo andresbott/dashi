@@ -69,13 +69,18 @@ func attachWriteAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/dashboards/upload").Methods(http.MethodPost).HandlerFunc(dh.Upload)
 	r.Path("/dashboards/{id}").Methods(http.MethodPut).HandlerFunc(dh.Update)
 	r.Path("/dashboards/{id}").Methods(http.MethodDelete).HandlerFunc(dh.Delete)
-	r.Path("/dashboards/{id}/assets/{path:.*}").Methods(http.MethodPost).HandlerFunc(dh.UploadAsset)
 	r.Path("/dashboards/{id}/assets/{path:.*}").Methods(http.MethodDelete).HandlerFunc(dh.DeleteAsset)
 
 	// Dashboard auth routes (editor only)
 	r.Path("/dashboards/{id}/auth").Methods(http.MethodGet).HandlerFunc(dh.GetAuth)
 	r.Path("/dashboards/{id}/auth").Methods(http.MethodPut).HandlerFunc(dh.SetAuth)
 	r.Path("/dashboards/{id}/auth").Methods(http.MethodDelete).HandlerFunc(dh.DeleteAuth)
+
+	// Theme admin CRUD (editor only)
+	th := handlers.NewThemeHandler(deps.themeStore, deps.logger)
+	r.Path("/themes/upload").Methods(http.MethodPost).HandlerFunc(th.Upload)
+	r.Path("/themes/{name}").Methods(http.MethodDelete).HandlerFunc(th.Delete)
+	r.Path("/themes/{name}/download").Methods(http.MethodGet).HandlerFunc(th.Download)
 
 	// Shared user-data (write)
 	dataH := handlers.NewDataHandler(deps.notesStore, deps.imagesStore, deps.backgroundsStore, deps.logger)

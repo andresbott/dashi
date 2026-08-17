@@ -8,6 +8,7 @@ import { getWidgetEntry } from '@/lib/widgetRegistry'
 import { useGetDashboard, useListDashboards } from '@/composables/useDashboards'
 import { useThemes } from '@/composables/useThemes'
 import { getFontUrl, getThemeBackgroundUrl } from '@/lib/api/themes'
+import { dataUrl } from '@/lib/api/data'
 
 const route = useRoute()
 const router = useRouter()
@@ -106,6 +107,9 @@ const backgroundStyle = computed(() => {
                 // "dashboard:filename.jpg"
                 const fileName = bg.value.slice(10)
                 url = `/api/v0/dashboards/${id.value}/assets/${encodeURIComponent(fileName)}`
+            } else if (bg.value.startsWith('shared:')) {
+                // "shared:filename.jpg"
+                url = dataUrl('backgrounds', bg.value.slice(7))
             } else {
                 return {}
             }
@@ -199,7 +203,7 @@ function debugColor(index: number): string | undefined {
         <i class="ti ti-error-404" />
         <h1>Page not found</h1>
         <p>The dashboard you're looking for doesn't exist.</p>
-        <Button label="Go to Dashboards" icon="ti ti-arrow-left" @click="router.push({ name: 'dashboards' })" />
+        <Button label="Go to Admin" icon="ti ti-arrow-left" @click="router.push('/admin')" />
     </div>
     <div v-else-if="dashboard && isImageDashboard" class="dashboard-image-view" :class="{ 'dark-mode': colorMode === 'dark' }" :style="colorSchemeStyle">
         <div v-if="showTabs" class="dashboard-tabs">

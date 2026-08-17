@@ -175,7 +175,7 @@ const activeSection = ref('general')
 <template>
     <header class="app-topbar">
         <img :src="dashiIcon" alt="Dashi" class="app-topbar-icon" />
-        <span class="app-topbar-title" @click="router.push('/dashboards')">Dashi</span>
+        <span class="app-topbar-title" @click="router.push('/admin')">Dashi</span>
     </header>
     <div class="settings-view">
         <div v-if="isLoading" class="p-4">Loading...</div>
@@ -485,7 +485,7 @@ const activeSection = ref('general')
 
 <style scoped>
 .settings-view {
-    max-width: 900px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 1.5rem 1rem;
 }

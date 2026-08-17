@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -104,5 +106,72 @@ func (h *ThemeHandler) GetBackground(w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write(data); err != nil { //nolint:gosec // G705: background image bytes served with explicit Content-Type and nosniff; not HTML
 		// Error already committed to response, log only
 		return
+	}
+}
+
+// ---------- admin CRUD ----------
+
+// Upload extracts a zipped theme into the on-disk themes directory.
+// The archive must contain a valid theme.yaml at its root with `name`
+// and `type` (icon|style) fields.
+func (h *ThemeHandler) Upload(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, themes.MaxUploadSize)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		ErrorJSON(w, "failed to read body", http.StatusBadRequest)
+		return
+	}
+	info, err := h.store.Upload(body)
+	if err != nil {
+		h.themeWriteErr(w, "upload theme", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(info)
+}
+
+// Delete removes an uploaded theme. Builtin themes cannot be deleted.
+func (h *ThemeHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	name := mux.Vars(r)["name"]
+	if err := h.store.Delete(name); err != nil {
+		h.themeWriteErr(w, "delete theme", err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Download re-packages an uploaded theme's directory into a zip for
+// download. Builtin themes return 403.
+func (h *ThemeHandler) Download(w http.ResponseWriter, r *http.Request) {
+	name := mux.Vars(r)["name"]
+	data, err := h.store.Zip(name)
+	if err != nil {
+		h.themeWriteErr(w, "zip theme", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`.zip"`)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	_, _ = w.Write(data) //nolint:gosec // G705: zip bytes served with explicit Content-Type and nosniff; not HTML
+}
+
+func (h *ThemeHandler) themeWriteErr(w http.ResponseWriter, op string, err error) {
+	switch {
+	case errors.Is(err, themes.ErrNotFound):
+		ErrorJSON(w, "not found", http.StatusNotFound)
+	case errors.Is(err, themes.ErrConflict):
+		ErrorJSON(w, err.Error(), http.StatusConflict)
+	case errors.Is(err, themes.ErrBuiltin):
+		ErrorJSON(w, err.Error(), http.StatusForbidden)
+	case errors.Is(err, themes.ErrInvalidName),
+		errors.Is(err, themes.ErrInvalidArchive),
+		errors.Is(err, themes.ErrInvalidType):
+		ErrorJSON(w, err.Error(), http.StatusBadRequest)
+	default:
+		if h.logger != nil {
+			h.logger.Error(op, slog.String("error", err.Error()))
+		}
+		ErrorJSON(w, "internal server error", http.StatusInternalServerError)
 	}
 }

@@ -9,7 +9,6 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import CreateDashboardDialog from '@/components/dashboards/CreateDashboardDialog.vue'
 import { useListDashboards } from '@/composables/useDashboards'
 import { downloadDashboard } from '@/lib/api/dashboard'
-import dashiIcon from '@/assets/icon-64.png'
 import { useToast } from 'primevue/usetoast'
 
 const router = useRouter()
@@ -86,13 +85,9 @@ const handleDownload = async (id) => {
 </script>
 
 <template>
-    <header class="app-topbar">
-        <img :src="dashiIcon" alt="Dashi" class="app-topbar-icon" />
-        <span class="app-topbar-title" @click="router.push('/dashboards')">Dashi</span>
-    </header>
-    <div class="dashboard-list-view">
-        <div class="flex align-items-center justify-content-between mb-4">
-            <h1 class="text-2xl font-bold text-color">Dashboards</h1>
+    <div class="admin-section">
+        <div class="admin-section-header">
+            <h2 class="admin-section-title">Dashboards</h2>
             <div class="flex gap-2">
                 <Button
                     label="Documentation"
@@ -211,10 +206,24 @@ const handleDownload = async (id) => {
 </template>
 
 <style scoped>
-.dashboard-list-view {
-    max-width: 1600px;
-    margin: 0 auto;
-    padding: 1.5rem 1rem;
+.admin-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.admin-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.admin-section-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--p-text-color);
+    margin: 0;
 }
 
 .info-message {
@@ -232,5 +241,4 @@ const handleDownload = async (id) => {
     color: var(--p-primary-color);
     font-size: 1rem;
 }
-
 </style>
