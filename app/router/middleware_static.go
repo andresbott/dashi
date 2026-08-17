@@ -197,6 +197,15 @@ func parseDisplayHeaders(r *http.Request) (displayRequest, error) {
 	return displayRequest{Format: format, Width: width, Height: height, Rotation: rotation, Action: action}, nil
 }
 
+// pageRedirectTarget builds the swipe-navigation redirect target: the current
+// request path with the page query replaced. Reusing the request path verbatim
+// is safe here — the middleware only routes to a dashboard after store.Get
+// accepted the single path segment, and valid dashboard IDs are [a-z0-9]+, so
+// the target can hold neither a slash nor a scheme and cannot leave this host.
+func pageRedirectTarget(r *http.Request, page int) string {
+	return r.URL.Path + "?page=" + strconv.Itoa(page)
+}
+
 // serveImageDashboard handles rendering of image-type dashboards.
 func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store, backgroundsStore *backgrounds.Store) {
 	dreq, err := parseDisplayHeaders(r)
@@ -216,11 +225,11 @@ func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.
 	switch dreq.Action {
 	case "swipe_right":
 		nextPage := (pageIdx + 1) % totalPages
-		http.Redirect(w, r, r.URL.Path+"?page="+strconv.Itoa(nextPage), http.StatusTemporaryRedirect)
+		http.Redirect(w, r, pageRedirectTarget(r, nextPage), http.StatusTemporaryRedirect) //nolint:gosec // G710: target is a validated [a-z0-9]+ dashboard path, see pageRedirectTarget
 		return
 	case "swipe_left":
 		prevPage := (pageIdx - 1 + totalPages) % totalPages
-		http.Redirect(w, r, r.URL.Path+"?page="+strconv.Itoa(prevPage), http.StatusTemporaryRedirect)
+		http.Redirect(w, r, pageRedirectTarget(r, prevPage), http.StatusTemporaryRedirect) //nolint:gosec // G710: target is a validated [a-z0-9]+ dashboard path, see pageRedirectTarget
 		return
 	}
 

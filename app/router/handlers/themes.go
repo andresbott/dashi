@@ -157,7 +157,8 @@ func (h *ThemeHandler) Download(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`.zip"`)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	_, _ = w.Write(data) //nolint:gosec // G705: zip bytes served with explicit Content-Type and nosniff; not HTML
+	// Zip bytes served with an explicit Content-Type and nosniff; not HTML.
+	_, _ = w.Write(data)
 }
 
 func (h *ThemeHandler) themeWriteErr(w http.ResponseWriter, op string, err error) {
