@@ -127,11 +127,11 @@ Ported widgets: **clock** (no CSS), **sysinfo** (ships `sysinfo.css`). The
 remaining twelve widgets have not been ported and render through their image
 renderers in the browser (expected transition state, not a defect).
 
-Client packages live separately: `internal/weather/`, `internal/market/`,
-`internal/swisstransport/`, `internal/sysinfo/`, `internal/xkcd/` hold client
-+ cache. `internal/widgets/{name}/` holds module, renderers, templates and
-handler. Promote a client to its own `internal/{name}/` package only when a
-second consumer appears. Note: `docs/agents/widgets.md` prior to this refactor
+Client packages live separately under `internal/providers/`:
+`internal/providers/weather/`, `.../market/`, `.../swisstransport/`,
+`.../sysinfo/`, `.../xkcd/` hold client + cache. `internal/widgets/{name}/`
+holds module, renderers, templates and handler. Promote a client to its own
+`internal/providers/{name}/` package only when a second consumer appears. Note: `docs/agents/widgets.md` prior to this refactor
 claimed a merged layout — that was reverted.
 
 ## Widget registration: optional interfaces

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	swisstransportpkg "github.com/andresbott/dashi/internal/swisstransport"
+	swisstransportpkg "github.com/andresbott/dashi/internal/providers/swisstransport"
 )
 
 type handler struct {

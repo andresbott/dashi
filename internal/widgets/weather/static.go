@@ -15,8 +15,8 @@ import (
 
 	_ "embed"
 
+	weatherpkg "github.com/andresbott/dashi/internal/providers/weather"
 	"github.com/andresbott/dashi/internal/themes"
-	weatherpkg "github.com/andresbott/dashi/internal/weather"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/andresbott/dashi/internal/widgets/weather/chart"
 )

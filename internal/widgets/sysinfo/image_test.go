@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/andresbott/dashi/internal/sysinfo"
+	"github.com/andresbott/dashi/internal/providers/sysinfo"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 

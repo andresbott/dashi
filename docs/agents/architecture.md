@@ -18,6 +18,8 @@ Agent docs: [features.md](features.md) · [widgets.md](widgets.md) ·
     app/router/handlers (API v0)   app/spa (go:embed'd Vue build for editor)
         |
     internal/dashboard (types + file store)   internal/themes   internal/widgets/*
+        |                                                               |
+        |                              internal/providers/* (data-source clients + cache)
         |
     internal/dashboard/browser (HTML for browsers)  internal/dashboard/static (HTML)
         |                                              |
@@ -91,12 +93,13 @@ that command name and stdout redirection are stale; the code is the truth.
 - **Opaque widget config** (inception): each widget owns its schema on both
   sides; no central validation layer. Tradeoff accepted — see security note.
 - **Widget clients and widgets are separated** (current): clients live at
-  `internal/{name}/` (`internal/weather/`, `internal/market/`,
-  `internal/swisstransport/`, `internal/sysinfo/`, `internal/xkcd/`); widget
+  `internal/providers/{name}/` (`internal/providers/weather/`,
+  `.../market/`, `.../swisstransport/`, `.../sysinfo/`, `.../xkcd/`); widget
   packages at `internal/widgets/{name}/` hold module, renderers, templates and
   handler. A 2026-05-15 merge (commits `9d795bf`/`0b6e7fc`) folded clients
-  into widget packages; that has been reverted. Older docs predating the
-  revert are stale on this.
+  into widget packages; that has been reverted. Since 2026-08-17 the clients
+  are grouped under `internal/providers/` (they used to sit directly at
+  `internal/{name}/`). Older docs predating these moves are stale on this.
 - **Embedded SPA** (inception): `make package-ui` copies `webui/dist/` into
   `app/spa/files/ui/` for `go:embed`. Those files are build artifacts — never
   hand-edit them.

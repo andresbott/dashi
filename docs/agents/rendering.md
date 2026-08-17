@@ -74,7 +74,8 @@ in PNGs — no error. Fallback Inter TTFs are embedded in
 ## Analysis docs
 
 `docs/project/widget-rendering-architectures.md` — deep comparison of the two
-pipelines (its "shared `internal/weather`" style paths predate the 2026-05-15
-package merge). `docs/project/litehtml-rendering-reference.md` — what CSS
+pipelines (its "shared `internal/weather`" style paths predate both the
+2026-05-15 package merge and the 2026-08-17 move to
+`internal/providers/weather`). `docs/project/litehtml-rendering-reference.md` — what CSS
 litehtml actually supports. `docs/project/refactor-ideas.md` — the analyzed
 (not decided) idea of moving display-mode rendering to vanilla JS.

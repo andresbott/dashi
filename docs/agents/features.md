@@ -42,11 +42,11 @@ PNG — DIY-by-design gap, do not "fix" it).
 
 | Source | TTL | Where |
 |---|---|---|
-| Weather (Open-Meteo, no key) | 30 min | `internal/weather/` (client + cache) |
-| Market (Yahoo Finance) | tiered by range: 15 min intraday … 24 h | `internal/market/cache.go` |
-| XKCD | 1 h + disk cache dir `{dataDir}/cache/xkcd` | `internal/xkcd/` (client + cache) |
-| Swiss transport (transport.opendata.ch) | 30 s | `internal/swisstransport/` (client + cache) |
-| Sysinfo (gopsutil, local) | 30 s | `internal/sysinfo/` (client + cache) |
+| Weather (Open-Meteo, no key) | 30 min | `internal/providers/weather/` (client + cache) |
+| Market (Yahoo Finance) | tiered by range: 15 min intraday … 24 h | `internal/providers/market/cache.go` |
+| XKCD | 1 h + disk cache dir `{dataDir}/cache/xkcd` | `internal/providers/xkcd/` (client + cache) |
+| Swiss transport (transport.opendata.ch) | 30 s | `internal/providers/swisstransport/` (client + cache) |
+| Sysinfo (gopsutil, local) | 30 s | `internal/providers/sysinfo/` (client + cache) |
 
 ## Not implemented / partial (direction already chosen — don't re-design)
 

@@ -6,7 +6,7 @@ import (
 	"image/png"
 
 	"github.com/fogleman/gg"
-	mkt "github.com/andresbott/dashi/internal/market"
+	mkt "github.com/andresbott/dashi/internal/providers/market"
 )
 
 type chartOptions struct {

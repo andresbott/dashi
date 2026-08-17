@@ -10,7 +10,7 @@ import (
 
 	_ "embed"
 
-	tr "github.com/andresbott/dashi/internal/swisstransport"
+	tr "github.com/andresbott/dashi/internal/providers/swisstransport"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 

@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	weatherpkg "github.com/andresbott/dashi/internal/providers/weather"
 	"github.com/andresbott/dashi/internal/themes"
-	weatherpkg "github.com/andresbott/dashi/internal/weather"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 

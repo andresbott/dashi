@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	weatherpkg "github.com/andresbott/dashi/internal/weather"
+	weatherpkg "github.com/andresbott/dashi/internal/providers/weather"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/gorilla/mux"

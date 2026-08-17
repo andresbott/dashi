@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"html/template"
 
-	"github.com/andresbott/dashi/internal/sysinfo"
+	"github.com/andresbott/dashi/internal/providers/sysinfo"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 

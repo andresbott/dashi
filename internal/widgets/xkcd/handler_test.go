@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	xkcdclient "github.com/andresbott/dashi/internal/xkcd"
+	xkcdclient "github.com/andresbott/dashi/internal/providers/xkcd"
 )
 
 func setupXkcdTestServer() *httptest.Server {

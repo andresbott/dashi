@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/andresbott/dashi/internal/weather"
+	"github.com/andresbott/dashi/internal/providers/weather"
 )
 
 type WeatherHandler struct {

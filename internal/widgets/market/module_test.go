@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	marketpkg "github.com/andresbott/dashi/internal/market"
+	marketpkg "github.com/andresbott/dashi/internal/providers/market"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/gorilla/mux"
 )

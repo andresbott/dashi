@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	swisstransportpkg "github.com/andresbott/dashi/internal/swisstransport"
+	swisstransportpkg "github.com/andresbott/dashi/internal/providers/swisstransport"
 )
 
 func setupTransportTestServer() *httptest.Server {

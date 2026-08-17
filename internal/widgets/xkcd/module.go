@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	xkcdclient "github.com/andresbott/dashi/internal/xkcd"
+	xkcdclient "github.com/andresbott/dashi/internal/providers/xkcd"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/gorilla/mux"
 )

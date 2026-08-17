@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	sysinfopkg "github.com/andresbott/dashi/internal/sysinfo"
+	sysinfopkg "github.com/andresbott/dashi/internal/providers/sysinfo"
 )
 
 type handler struct {

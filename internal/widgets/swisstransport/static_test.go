@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	tr "github.com/andresbott/dashi/internal/providers/swisstransport"
 	"github.com/andresbott/dashi/internal/widgets"
-	tr "github.com/andresbott/dashi/internal/swisstransport"
 )
 
 func newTestClient(t *testing.T, response map[string]any) *tr.Client {

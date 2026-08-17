@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	mkt "github.com/andresbott/dashi/internal/market"
+	mkt "github.com/andresbott/dashi/internal/providers/market"
 )
 
 func TestGenerateChart(t *testing.T) {

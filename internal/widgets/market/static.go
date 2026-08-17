@@ -9,7 +9,7 @@ import (
 
 	_ "embed"
 
-	mkt "github.com/andresbott/dashi/internal/market"
+	mkt "github.com/andresbott/dashi/internal/providers/market"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 

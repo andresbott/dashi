@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	xkcdclient "github.com/andresbott/dashi/internal/providers/xkcd"
 	"github.com/andresbott/dashi/internal/widgets"
-	xkcdclient "github.com/andresbott/dashi/internal/xkcd"
 )
 
 func newTestClient(t *testing.T, response map[string]any) *xkcdclient.Client {

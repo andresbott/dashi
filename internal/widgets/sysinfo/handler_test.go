@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	sysinfopkg "github.com/andresbott/dashi/internal/sysinfo"
+	sysinfopkg "github.com/andresbott/dashi/internal/providers/sysinfo"
 )
 
 func TestSysinfoHandler_GetSysinfo(t *testing.T) {

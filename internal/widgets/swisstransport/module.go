@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	swisstransportpkg "github.com/andresbott/dashi/internal/swisstransport"
+	swisstransportpkg "github.com/andresbott/dashi/internal/providers/swisstransport"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/gorilla/mux"
 )

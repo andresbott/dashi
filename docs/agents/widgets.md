@@ -47,15 +47,17 @@ drift — the widget just silently renders a placeholder.
 
 Client packages and widget packages are separated:
 
-- **Clients + cache:** `internal/{name}/` — `internal/weather/`,
-  `internal/market/`, `internal/swisstransport/`, `internal/sysinfo/`,
-  `internal/xkcd/`
+- **Clients + cache:** `internal/providers/{name}/` —
+  `internal/providers/weather/`, `.../market/`, `.../swisstransport/`,
+  `.../sysinfo/`, `.../xkcd/`
 - **Widget packages:** `internal/widgets/{name}/` — module, renderers (image +
   browser), templates, handler
 
 A 2026-05-15 merge (commits `9d795bf`, `0b6e7fc`) folded clients into widget
 packages; that has been reverted. Docs written between 2026-05-15 and 2026-08
-use the merged-layout paths and are stale.
+use the merged-layout paths and are stale. On 2026-08-17 the client packages
+moved from `internal/{name}/` into the `internal/providers/` group; only the
+import paths changed (package names are unchanged).
 
 ## Adding a widget — the full checklist
 
