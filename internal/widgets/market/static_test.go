@@ -7,11 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	mkt "github.com/andresbott/dashi/internal/providers/market"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
 func TestNewStaticRenderer_EmptyConfig(t *testing.T) {
-	client := NewClient(nil)
+	client := mkt.NewClient(nil)
 	renderer := NewStaticRenderer(client)
 
 	html, err := renderer(nil, widgets.RenderContext{})
@@ -25,7 +26,7 @@ func TestNewStaticRenderer_EmptyConfig(t *testing.T) {
 }
 
 func TestNewStaticRenderer_InvalidJSON(t *testing.T) {
-	client := NewClient(nil)
+	client := mkt.NewClient(nil)
 	renderer := NewStaticRenderer(client)
 
 	_, err := renderer(json.RawMessage(`{invalid`), widgets.RenderContext{})
@@ -38,7 +39,7 @@ func TestNewStaticRenderer_InvalidJSON(t *testing.T) {
 }
 
 func TestNewStaticRenderer_NoSymbol(t *testing.T) {
-	client := NewClient(nil)
+	client := mkt.NewClient(nil)
 	renderer := NewStaticRenderer(client)
 
 	config := json.RawMessage(`{"range":"1mo"}`)
@@ -78,7 +79,7 @@ func TestNewStaticRenderer_WithSymbol(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.Client())
+	client := mkt.NewClient(server.Client())
 	client.BaseURL = server.URL
 	renderer := NewStaticRenderer(client)
 
@@ -128,7 +129,7 @@ func TestNewStaticRenderer_DefaultRange(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.Client())
+	client := mkt.NewClient(server.Client())
 	client.BaseURL = server.URL
 	renderer := NewStaticRenderer(client)
 
@@ -165,7 +166,7 @@ func TestNewStaticRenderer_ShowChartFalse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.Client())
+	client := mkt.NewClient(server.Client())
 	client.BaseURL = server.URL
 	renderer := NewStaticRenderer(client)
 
@@ -213,7 +214,7 @@ func TestNewStaticRenderer_ShowChangeFalse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.Client())
+	client := mkt.NewClient(server.Client())
 	client.BaseURL = server.URL
 	renderer := NewStaticRenderer(client)
 
@@ -257,7 +258,7 @@ func TestNewStaticRenderer_NegativeChange(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.Client())
+	client := mkt.NewClient(server.Client())
 	client.BaseURL = server.URL
 	renderer := NewStaticRenderer(client)
 
@@ -274,7 +275,7 @@ func TestNewStaticRenderer_NegativeChange(t *testing.T) {
 }
 
 func TestNewStaticRenderer_ClientError(t *testing.T) {
-	client := NewClient(nil)
+	client := mkt.NewClient(nil)
 	client.BaseURL = "http://invalid-url-that-does-not-exist.local"
 	renderer := NewStaticRenderer(client)
 
@@ -314,7 +315,7 @@ func TestNewStaticRenderer_WithChart(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.Client())
+	client := mkt.NewClient(server.Client())
 	client.BaseURL = server.URL
 	renderer := NewStaticRenderer(client)
 
@@ -356,7 +357,7 @@ func TestNewStaticRenderer_RangeLabels(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.Client())
+	client := mkt.NewClient(server.Client())
 	client.BaseURL = server.URL
 	renderer := NewStaticRenderer(client)
 
@@ -411,7 +412,7 @@ func TestNewStaticRenderer_SinglePoint(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.Client())
+	client := mkt.NewClient(server.Client())
 	client.BaseURL = server.URL
 	renderer := NewStaticRenderer(client)
 

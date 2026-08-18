@@ -8,6 +8,7 @@ import (
 
 	_ "embed"
 
+	xkcdclient "github.com/andresbott/dashi/internal/providers/xkcd"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
@@ -27,7 +28,7 @@ type xkcdTemplateData struct {
 	Alt   string
 }
 
-func NewStaticRenderer(client *Client) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+func NewStaticRenderer(client *xkcdclient.Client) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
 	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
 		var cfg xkcdConfig
 		if len(config) > 0 {
@@ -36,7 +37,7 @@ func NewStaticRenderer(client *Client) func(json.RawMessage, widgets.RenderConte
 			}
 		}
 
-		var comic Comic
+		var comic xkcdclient.Comic
 		var err error
 
 		switch cfg.Mode {

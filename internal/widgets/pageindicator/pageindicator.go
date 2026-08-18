@@ -21,7 +21,8 @@ type dot struct {
 }
 
 type pageIndicatorData struct {
-	Dots []dot
+	Dots       []dot
+	MutedColor string
 }
 
 // NewStaticRenderer returns a StaticRenderer for page indicator widgets.
@@ -37,8 +38,13 @@ func NewStaticRenderer() func(json.RawMessage, widgets.RenderContext) (template.
 			dots[i] = dot{Active: i == ctx.PageIndex}
 		}
 
+		data := pageIndicatorData{
+			Dots:       dots,
+			MutedColor: ctx.EffectivePalette().Muted,
+		}
+
 		var buf bytes.Buffer
-		if err := tmpl.Execute(&buf, pageIndicatorData{Dots: dots}); err != nil {
+		if err := tmpl.Execute(&buf, data); err != nil {
 			return "", fmt.Errorf("page-indicator render: %w", err)
 		}
 		return template.HTML(buf.String()), nil

@@ -27,11 +27,6 @@ export const deleteDashboard = async (id: string): Promise<void> => {
     await apiClient.delete(`${DASHBOARD_PATH}/${id}`)
 }
 
-export const deletePreviews = async (): Promise<{ deleted: number }> => {
-    const { data } = await apiClient.delete<{ deleted: number }>(`${DASHBOARD_PATH}/previews`)
-    return data
-}
-
 export interface BackgroundOption {
     name: string
     value: string
@@ -40,6 +35,7 @@ export interface BackgroundOption {
 export interface BackgroundsResponse {
     theme: BackgroundOption[]
     dashboard: BackgroundOption[]
+    shared: BackgroundOption[]
 }
 
 export const downloadDashboard = async (id: string): Promise<void> => {
@@ -63,12 +59,6 @@ export const downloadDashboard = async (id: string): Promise<void> => {
 export const getDashboardAssets = async (dashboardId: string): Promise<string[]> => {
     const { data } = await apiClient.get<{ items: string[] }>(`${DASHBOARD_PATH}/${dashboardId}/assets`)
     return data.items ?? []
-}
-
-export const uploadDashboardAsset = async (dashboardId: string, filename: string, data: ArrayBuffer): Promise<void> => {
-    await apiClient.post(`${DASHBOARD_PATH}/${dashboardId}/assets/${filename}`, data, {
-        headers: { 'Content-Type': 'application/octet-stream' },
-    })
 }
 
 export const uploadDashboardZip = async (data: ArrayBuffer): Promise<Dashboard> => {

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" data-color-mode="{{.ColorMode}}"{{if .RootStyle}} style="{{.RootStyle}}"{{end}}>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{.Name}}</title>
+    <link rel="stylesheet" href="/_dashi/assets/viewer.css">
+    <link rel="stylesheet" href="/_dashi/assets/widgets.css">
+    <link rel="stylesheet" href="/_dashi/theme/{{.ThemeName}}.css">
+    {{if .CustomCSS}}<style>{{.CustomCSS}}</style>{{end}}
+</head>
+<body class="min-h-screen">
+    <main class="mx-auto flex min-h-screen w-full flex-col px-4 py-4"
+          style="max-width: {{if .MaxWidth}}{{.MaxWidth}}{{else}}100%{{end}}; align-items: {{.HAlign}}; justify-content: {{.VAlign}};">
+        {{- range .Rows}}
+        <div class="dashi-row w-full"{{if .Height}} style="height: {{.Height}}"{{end}}>
+            {{if .Title}}<h2 class="mb-2 text-lg font-semibold text-[var(--dashi-fg)]">{{.Title}}</h2>{{end}}
+            <div class="flex flex-wrap items-stretch"{{if .Width}} style="width: {{.Width}}"{{end}}>
+                {{range .Widgets}}
+                <div class="dashi-cell p-2" style="width: {{printf "%.4f" .WidthPercent}}%">
+                    {{.HTML}}
+                </div>
+                {{end}}
+            </div>
+        </div>
+        {{- end}}
+    </main>
+    {{- if .Pages}}
+    <nav class="dashi-pages mx-auto flex w-full flex-wrap items-center justify-center gap-2 px-4 pb-4" aria-label="Dashboard pages">
+        {{- range .Pages}}
+        {{- if .Current}}
+        <a href="?page={{.Index}}" aria-current="page" class="rounded border border-[var(--dashi-accent)] bg-[var(--dashi-accent)] px-3 py-1 text-sm font-semibold text-[var(--dashi-accent-fg)]">{{.Name}}</a>
+        {{- else}}
+        <a href="?page={{.Index}}" class="rounded border border-[var(--dashi-border)] bg-[var(--dashi-surface)] px-3 py-1 text-sm text-[var(--dashi-fg)]">{{.Name}}</a>
+        {{- end}}
+        {{- end}}
+    </nav>
+    {{- end}}
+    {{range .WidgetTypes}}
+    <script type="module" src="/_dashi/widgets/{{.}}.js"></script>
+    {{- end}}
+</body>
+</html>

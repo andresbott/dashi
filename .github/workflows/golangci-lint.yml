@@ -24,4 +24,6 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.11
+          # Pinned to an exact patch: a floating minor (v2.11) silently picks up
+          # new gosec rules and turns CI red without a code change.
+          version: v2.12.2

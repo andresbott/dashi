@@ -26,6 +26,8 @@ dist/
 
 # application data
 /data
+# local scratch data dir (manual/visual testing against a throwaway DataDir)
+/.data
 
 # Node modules
 webui/node_modules/

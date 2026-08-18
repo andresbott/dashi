@@ -11,7 +11,6 @@ vi.mock('@/lib/api/dashboard', () => ({
     createDashboard: vi.fn(),
     updateDashboard: vi.fn(),
     deleteDashboard: vi.fn(),
-    deletePreviews: vi.fn(),
     getBackgrounds: vi.fn(),
     getDashboardAssets: vi.fn(),
 }))

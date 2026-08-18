@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	xkcd "github.com/andresbott/dashi/internal/widgets/xkcd"
+	"github.com/andresbott/dashi/internal/providers/xkcd"
 )
 
 type XkcdHandler struct {

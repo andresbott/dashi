@@ -22,26 +22,45 @@ dashi/
     dashboard/               Dashboard types, file-based store, ID generation
       image/                 PNG rendering via litehtml-go + fogleman/gg
       static/                HTML rendering via Go templates
-    widgets/                 Widget registry (type → StaticRenderer function)
-      weather/               Weather widget (static + chart rendering)
-      market/                Market widget (static + chart rendering)
-      bookmark/              Bookmark link widget
-      clock/                 Clock widget
-      battery/               Battery widget (reads query param)
-      pageindicator/         Page indicator dots widget
+    data/                    Shared user-data (cross-dashboard)
+      data.go                FsStore primitive + validateName + sentinels
+      notes/                 Markdown notes (string API, goldmark render)
+      images/                Images (bytes + mime)
+      backgrounds/           Background images (bytes + mime)
+    widgets/                 Widget Module interface + CollectConfigs helper
+      scanner.go             CollectConfigs helper + DashboardLister interface
+      weather/               Weather widget module (module.go, static.go, handler.go, tests)
+      market/                Market widget module (module.go, static.go, handler.go, tests)
+      bookmark/              Bookmark widget module (module.go, static.go, tests)
+      clock/                 Clock widget module (module.go, static.go, tests)
+      battery/               Battery widget module (module.go, static.go, tests)
+      pageindicator/         Page indicator widget module (module.go, static.go, tests)
+      markdown/              Markdown widget module (module.go, static.go, tests)
+      search/                Search widget module (module.go, placeholder static.go)
     themes/                  Theme store (embedded default + user themes from disk)
     weather/                 Open-Meteo API client + in-memory cache (30-min TTL)
     market/                  Yahoo Finance API client + in-memory cache (tiered TTL)
   webui/                     Vue 3 + Vite + PrimeVue frontend
     src/
-      views/dashboards/      DashboardListView, DashboardView, DashboardEditView
-      components/dashboards/  Widget display + config components
-      composables/           Vue Query composables (useDashboards, useWeather, etc.)
-      lib/api/               Axios API client modules
-      lib/widgetRegistry.ts  Frontend widget registry (component + config + metadata)
-      types/                 TypeScript interfaces
+      views/dashboards/      DashboardView, DashboardEditView, DashboardSettingsView
+      views/admin/           AdminLayout shell + AdminDashboards, AdminNotes, AdminImages, AdminBackgrounds
+      widgets/               Self-contained widget modules
+        <type>/              One folder per widget type (name matches type string exactly)
+          Widget.vue         Display component
+          WidgetConfig.vue   Configuration component (if applicable)
+          index.ts           WidgetModule export
+          types.ts           TypeScript types (optional)
+          api.ts             Axios API client (optional)
+          composable.ts      Vue Query composable (optional)
+        types.ts             WidgetModule interface
+      components/dashboards/  Dashboard-level components (WidgetContainer, etc.)
+      components/admin/      DataTableView (shared images/backgrounds table)
+      composables/           Dashboard-level composables (useDashboards, useAdminNotes, useDataItems, ...)
+      lib/api/               API clients (dashboard.ts, themes.ts, data.ts)
+      lib/widgetRegistry.ts  Module-import registry (aggregates widgets/*/index.ts)
+      types/                 Dashboard-level TypeScript interfaces
       store/                 Pinia stores (minimal UI state)
-      router/                Vue Router (/ → first dashboard or list, /dashboards, /:id, /dashboards/:id/edit)
+      router/                Vue Router (/, /admin/*, /:id, /dashboards/:id/edit, /dashboards/:id/settings, /docs)
   data/                      Default data directory (dashboards/, themes/)
 ```
 
@@ -50,11 +69,31 @@ dashi/
 ### Root Route
 
 ```
-GET / → beforeEnter guard fetches dashboard list
+Viewer `/` → beforeEnter guard fetches dashboard list
   → If a dashboard has default=true → redirect to /:defaultDashboardId
   → Else if dashboards exist → redirect to /:firstDashboardId (alphabetical)
-  → If no dashboards (or fetch error) → redirect to /dashboards (list/create view)
+  → If no dashboards (or fetch error) → redirect to /admin (list/create view)
+
+Editor `/` (backend redirect) → /admin → /admin/dashboards
 ```
+
+### Admin Section (editor only)
+
+```
+GET /admin                    → redirect to /admin/dashboards
+GET /admin/dashboards         → AdminDashboards (list/create/import/download/edit/settings/delete)
+GET /admin/notes              → AdminNotes (list/create/edit/delete; shared markdown files)
+GET /admin/images             → AdminImages (list/upload/delete; shared DataTableView, kind=images)
+GET /admin/backgrounds        → AdminBackgrounds (list/upload/delete; shared DataTableView, kind=backgrounds)
+```
+
+`AdminLayout.vue` hosts a sticky sidebar nav + `<router-view>`. Images and
+Backgrounds share `components/admin/DataTableView.vue`, a component
+parameterized by `kind: 'images' | 'backgrounds'`. All three data kinds
+(notes/images/backgrounds) go through `lib/api/data.ts`, with a
+`useDataItems(kind)` composable for images/backgrounds and a
+`useAdminNotes()` composable for notes. The topbar title click
+navigates to `/admin`.
 
 ### View Interactive Dashboard
 
@@ -98,48 +137,76 @@ GET    /api/v0/dashboards/{id}             → Get full dashboard
 GET    /api/v0/dashboards/{id}/download    → Export dashboard as zip
 PUT    /api/v0/dashboards/{id}             → Update (overwrites dashboard.json)
 DELETE /api/v0/dashboards/{id}             → Delete (removes folder)
-DELETE /api/v0/dashboards/previews         → Delete all preview dashboards
 POST   /api/v0/dashboards/{id}/assets/{path} → Upload asset (Content-Type: application/octet-stream, 10MB max)
 GET    /api/v0/dashboards/{id}/assets      → List assets
 GET    /api/v0/dashboards/{id}/assets/{path} → Get asset file
 DELETE /api/v0/dashboards/{id}/assets/{path} → Delete asset
 ```
 
-## Widget System
+### Shared Data Layer (`/api/v0/data/*`)
 
-### Backend: Static Rendering
+```
+GET    /api/v0/data/notes                → list of Items
+GET    /api/v0/data/notes/{name}         → {"html": ...} rendered HTML
+GET    /api/v0/data/notes/{name}/raw     → raw markdown (text/plain)
+POST   /api/v0/data/notes/{name}         → save (application/octet-stream, 10MB max)
+DELETE /api/v0/data/notes/{name}
 
-```go
-// Registry maps type string → renderer function
-type StaticRenderer func(config json.RawMessage, ctx RenderContext) (template.HTML, error)
+GET    /api/v0/data/images               → list of Items
+GET    /api/v0/data/images/{name}        → image bytes with correct mime
+POST   /api/v0/data/images/{name}
+DELETE /api/v0/data/images/{name}
 
-// RenderContext provides theme, query params, page info
-type RenderContext struct {
-    Theme       string
-    QueryParams map[string]string
-    PageIndex   int
-    TotalPages  int
-}
+GET    /api/v0/data/backgrounds          → list of Items
+GET    /api/v0/data/backgrounds/{name}
+POST   /api/v0/data/backgrounds/{name}
+DELETE /api/v0/data/backgrounds/{name}
 ```
 
-Registered in `router/main.go`. Each widget parses its own config from
-`json.RawMessage`, fetches data from cached clients, renders HTML via template.
+GET endpoints are available on viewer + editor; POST/DELETE only on editor.
+Content is shared across all dashboards — not scoped to any one dashboard.
+Not included in dashboard export/import zips.
 
-### Frontend: Interactive Rendering
+## Widget System
+
+### Backend: Module Interface
+
+Each widget implements the `widgets.Module` interface:
+
+```go
+type Module interface {
+    Type() string                                          // Widget type string (e.g., "weather")
+    Renderer() StaticRenderer                              // Returns renderer function for HTML/PNG mode
+    RegisterRoutes(r *mux.Router)                          // Optional: mount interactive API routes
+    Warmup(ctx context.Context, configs []json.RawMessage) // Optional: pre-fetch data at startup
+}
+
+type StaticRenderer func(config json.RawMessage, ctx RenderContext) (template.HTML, error)
+```
+
+The `widgets.NoopModule` type can be embedded to provide no-op implementations
+of optional methods (`RegisterRoutes`, `Warmup`). Modules are registered as a
+slice in `app/router/main.go`. The `widgets.CollectConfigs` helper scans
+dashboards and returns configs for a given widget type (used by warmup).
+
+### Frontend: WidgetModule Export
+
+Each widget folder exports a `WidgetModule` from `index.ts`:
 
 ```ts
-// lib/widgetRegistry.ts maps type string → Vue component + config component
-interface WidgetRegistryEntry {
-  component: Component           // display component
-  configComponent: Component     // config dialog (nullable)
+interface WidgetModule {
+  type: string                   // Widget type string (matches backend Module.Type())
+  component: Component           // Display component (asyncComponent)
+  configComponent: Component     // Config dialog (asyncComponent, nullable)
   label: string
   icon: string
   description: string
 }
 ```
 
-Widget config stored as `json.RawMessage` / opaque JSON — each widget type
-defines its own schema by convention.
+The `lib/widgetRegistry.ts` file imports all widget modules and exposes lookup
+functions by type. Widget config is stored as `json.RawMessage` (Go) / opaque
+JSON (TS) — each widget defines its own schema.
 
 ### Registered Widgets
 
@@ -152,7 +219,11 @@ defines its own schema by convention.
 | battery | Yes | Yes | No |
 | page-indicator | Yes | Yes | No |
 | market | Yes | Yes | No |
+| image | Yes | Yes | Yes |
+| markdown | Yes | Yes | Yes |
 | search | No | Yes | Yes |
+
+> `image` and `markdown` widgets read from the shared data layer (`/api/v0/data/*`) instead of owning their own routes.
 
 ## Data Storage
 
@@ -161,6 +232,9 @@ All file-based, no database.
 - **Dashboards:** `{dataDir}/dashboards/{snake_name}/dashboard.json`
   - In-memory index (`id → folder`) rebuilt on startup
   - Optional sidecar: `custom.css`, `assets/` directory
+- **Shared data:** `{dataDir}/data/{notes,images,backgrounds}/`
+  - Flat per-kind namespace, accessible from any dashboard.
+  - Not included in dashboard export/import zips.
 - **Themes:** Embedded default + `{dataDir}/themes/{name}/theme.yaml`
   - Fonts (TTF), icons (font or image), backgrounds
 - **Caches:** In-memory only (weather 30-min TTL, market tiered TTL)
@@ -188,12 +262,12 @@ enabled. When both are enabled, they share the same underlying stores and caches
 (built once via `sharedDeps`).
 
 The **viewer** serves only GET APIs (`attachReadAPIs`) and restricts SPA routes
-to dashboard ID paths (no `/dashboards`, `/docs`). Root `/` serves the SPA which
+to dashboard ID paths (no `/admin`, `/docs`). Root `/` serves the SPA which
 resolves the default dashboard client-side.
 
 The **editor** serves both read and write APIs (`attachReadAPIs` + `attachWriteAPIs`)
-and the full SPA including list, edit, and documentation views. Root `/` redirects
-to `/dashboards`.
+and the full SPA including the `/admin` section and documentation views. Root `/`
+redirects to `/admin`.
 
 Data warmup goroutines pre-fetch weather/market data for all configured
 dashboard locations/symbols at startup.

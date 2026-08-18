@@ -375,12 +375,10 @@ func TestIsValidID(t *testing.T) {
 		valid bool
 	}{
 		{"lowercase alphanumeric", "abc123", true},
-		{"with preview suffix", "abc123-prev", true},
 		{"uppercase letter", "Abc123", false},
 		{"special char dash", "abc-123", false},
 		{"special char underscore", "abc_123", false},
 		{"empty string", "", false},
-		{"only preview suffix", "-prev", false},
 		{"space", "abc 123", false},
 		{"numbers only", "123456", true},
 		{"letters only", "abcdef", true},
@@ -390,27 +388,6 @@ func TestIsValidID(t *testing.T) {
 			got := isValidID(tt.id)
 			if got != tt.valid {
 				t.Errorf("isValidID(%q) = %v, want %v", tt.id, got, tt.valid)
-			}
-		})
-	}
-}
-
-func TestIsPreviewID(t *testing.T) {
-	tests := []struct {
-		id      string
-		preview bool
-	}{
-		{"abc123-prev", true},
-		{"abc123", false},
-		{"", false},
-		{"prev", false},
-		{"test-prev-prev", true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.id, func(t *testing.T) {
-			got := isPreviewID(tt.id)
-			if got != tt.preview {
-				t.Errorf("isPreviewID(%q) = %v, want %v", tt.id, got, tt.preview)
 			}
 		})
 	}
@@ -476,60 +453,6 @@ func TestStore_GetCustomCSS_NotFound(t *testing.T) {
 	css := store.GetCustomCSS("nonexistent")
 	if css != "" {
 		t.Fatalf("expected empty CSS for nonexistent dashboard, got %q", css)
-	}
-}
-
-func TestStore_DeletePreviews(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(dir)
-
-	_, _ = store.Create(Dashboard{ID: "regular1", Name: "Regular 1", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
-	_, _ = store.Create(Dashboard{ID: "regular2", Name: "Regular 2", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
-	_, _ = store.Create(Dashboard{ID: "abc123-prev", Name: "Preview 1", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
-	_, _ = store.Create(Dashboard{ID: "def456-prev", Name: "Preview 2", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
-
-	count, err := store.DeletePreviews()
-	if err != nil {
-		t.Fatalf("delete previews: %v", err)
-	}
-	if count != 2 {
-		t.Fatalf("expected 2 previews deleted, got %d", count)
-	}
-
-	list, _ := store.List()
-	if len(list) != 2 {
-		t.Fatalf("expected 2 regular dashboards remaining, got %d", len(list))
-	}
-
-	_, err = store.Get("abc123-prev")
-	if err == nil {
-		t.Fatal("expected preview dashboard to be deleted")
-	}
-}
-
-func TestStore_DeletePreviews_EmptyDir(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(dir)
-
-	count, err := store.DeletePreviews()
-	if err != nil {
-		t.Fatalf("delete previews on empty dir: %v", err)
-	}
-	if count != 0 {
-		t.Fatalf("expected 0 previews deleted, got %d", count)
-	}
-}
-
-func TestStore_DeletePreviews_NoPreviewsDir(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "nonexistent")
-	store := NewStore(dir)
-
-	count, err := store.DeletePreviews()
-	if err != nil {
-		t.Fatalf("expected no error for nonexistent dir, got %v", err)
-	}
-	if count != 0 {
-		t.Fatalf("expected 0 previews deleted, got %d", count)
 	}
 }
 
@@ -645,27 +568,6 @@ func TestStore_UniqueFolder(t *testing.T) {
 	}
 	if base2 != "test_2" {
 		t.Errorf("expected second folder to be 'test_2', got %q", base2)
-	}
-}
-
-func TestStore_List_SkipsPreviews(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(dir)
-
-	_, _ = store.Create(Dashboard{ID: "regular", Name: "Regular", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
-	_, _ = store.Create(Dashboard{ID: "preview-prev", Name: "Preview", Icon: "ti-home", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
-
-	list, err := store.List()
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-
-	if len(list) != 1 {
-		t.Fatalf("expected 1 dashboard (previews should be skipped), got %d", len(list))
-	}
-
-	if list[0].ID == "preview-prev" {
-		t.Fatal("preview dashboard should not appear in list")
 	}
 }
 

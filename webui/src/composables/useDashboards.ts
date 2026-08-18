@@ -6,10 +6,8 @@ import {
     createDashboard,
     updateDashboard,
     deleteDashboard,
-    deletePreviews,
     getBackgrounds,
     getDashboardAssets,
-    uploadDashboardAsset,
     uploadDashboardZip,
     getDashboardAuth,
     setDashboardAuth,
@@ -39,11 +37,6 @@ export function useListDashboards() {
         onSuccess: doInvalidate
     })
 
-    const deletePreviewsMutation = useMutation({
-        mutationFn: () => deletePreviews(),
-        onSuccess: doInvalidate
-    })
-
     const uploadZipMutation = useMutation({
         mutationFn: (data: ArrayBuffer) => uploadDashboardZip(data),
         onSuccess: doInvalidate
@@ -60,9 +53,6 @@ export function useListDashboards() {
 
         deleteDashboard: deleteMutation.mutateAsync,
         isDeleting: deleteMutation.isPending,
-
-        deletePreviews: deletePreviewsMutation.mutateAsync,
-        isDeletingPreviews: deletePreviewsMutation.isPending,
 
         uploadZip: uploadZipMutation.mutateAsync,
         isUploadingZip: uploadZipMutation.isPending
@@ -95,33 +85,6 @@ export function useUpdateDashboard() {
     }
 }
 
-export function usePreviewDashboard() {
-    const queryClient = useQueryClient()
-    const doInvalidate = () => invalidateAndRefetch(queryClient, DASHBOARDS_QUERY_KEY)
-
-    const createMutation = useMutation({
-        mutationFn: (payload: CreateDashboardDTO) => createDashboard(payload),
-        onSuccess: doInvalidate,
-    })
-
-    const updateMutation = useMutation({
-        mutationFn: ({ id, payload }: { id: string; payload: Dashboard }) =>
-            updateDashboard(id, payload),
-        onSuccess: doInvalidate,
-    })
-
-    const deleteMutation = useMutation({
-        mutationFn: (id: string) => deleteDashboard(id),
-        onSuccess: doInvalidate,
-    })
-
-    return {
-        createPreview: createMutation.mutateAsync,
-        updatePreview: updateMutation.mutateAsync,
-        deletePreview: deleteMutation.mutateAsync,
-    }
-}
-
 export function useBackgrounds(dashboardId: () => string) {
     const idRef = computed(dashboardId)
     return useQuery({
@@ -129,24 +92,6 @@ export function useBackgrounds(dashboardId: () => string) {
         queryFn: () => getBackgrounds(idRef.value),
         enabled: computed(() => !!idRef.value),
     })
-}
-
-export function useUploadDashboardAsset() {
-    const queryClient = useQueryClient()
-
-    const mutation = useMutation({
-        mutationFn: ({ dashboardId, filename, data }: { dashboardId: string; filename: string; data: ArrayBuffer }) =>
-            uploadDashboardAsset(dashboardId, filename, data),
-        onSuccess: (_data, variables) => {
-            invalidateAndRefetch(queryClient, ['dashboard-assets', variables.dashboardId])
-            invalidateAndRefetch(queryClient, ['backgrounds', variables.dashboardId])
-        }
-    })
-
-    return {
-        uploadAsset: mutation.mutateAsync,
-        isUploading: mutation.isPending
-    }
 }
 
 export function useDashboardAssets(dashboardId: () => string) {

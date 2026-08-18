@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	sysinfo "github.com/andresbott/dashi/internal/widgets/sysinfo"
+	"github.com/andresbott/dashi/internal/providers/sysinfo"
 )
 
 type SysinfoHandler struct {

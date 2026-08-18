@@ -54,3 +54,18 @@ independent of the 6-char random ID, so renaming a dashboard doesn't move files.
 **Decision:** Separate server on different port for observability
 **Why:** Standard pattern for self-hosted apps. Allows firewall rules to expose
 only the app port while keeping metrics internal.
+
+## Self-Contained Widget Modules
+**Date:** 2026-05-01
+**Context:** Adding a widget previously touched 12 files across 8
+directories; app-layer warmup functions hard-coded widget type strings
+and config shapes.
+**Decision:** Each widget is a `widgets.Module` implementation living in
+its own backend folder (`internal/widgets/<type>/`) + mirrored frontend
+folder (`webui/src/widgets/<type>/`). Central wiring iterates a
+`[]widgets.Module` slice; a generic `widgets.CollectConfigs` helper
+replaces per-widget warmup scanners.
+**Why:** Collapses the integration surface to two folders + two one-line
+registrations. Widget-specific knowledge (handlers, warmup, config
+parsing) lives with the widget. The app layer has no widget-specific
+imports beyond the modules slice itself.

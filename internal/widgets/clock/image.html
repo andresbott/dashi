@@ -1,0 +1,8 @@
+<style>
+    .widget-clock .clock-time { font-size: 1.8em; font-weight: 600; }
+    .widget-clock .clock-date { display: block; font-size: 0.9em; color: {{.MutedColor}}; margin-top: 4px; }
+</style>
+<div class="widget-clock" style="text-align: center;">
+    <span class="clock-time"{{if .Font}} style="font-family: '{{.Font}}';"{{end}}>{{.Time}}</span>
+    {{if .ShowDate}}<span class="clock-date">{{.Date}}</span>{{end}}
+</div>

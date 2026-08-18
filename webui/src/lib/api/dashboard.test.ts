@@ -5,7 +5,6 @@ import {
     createDashboard,
     updateDashboard,
     deleteDashboard,
-    deletePreviews,
     getDashboardAssets,
     getBackgrounds,
 } from './dashboard'
@@ -80,14 +79,6 @@ describe('dashboard API', () => {
         })
     })
 
-    describe('deletePreviews', () => {
-        it('deletes previews and returns count', async () => {
-            vi.mocked(apiClient.delete).mockResolvedValue({ data: { deleted: 3 } })
-            const result = await deletePreviews()
-            expect(result).toEqual({ deleted: 3 })
-        })
-    })
-
     describe('getDashboardAssets', () => {
         it('returns asset list', async () => {
             vi.mocked(apiClient.get).mockResolvedValue({ data: { items: ['a.png', 'b.svg'] } })
@@ -107,10 +98,12 @@ describe('dashboard API', () => {
             const response = {
                 theme: [{ name: 'bg.jpg', value: 'theme:default/bg.jpg' }],
                 dashboard: [],
+                shared: [{ name: 'sunset.jpg', value: 'shared:sunset.jpg' }],
             }
             vi.mocked(apiClient.get).mockResolvedValue({ data: response })
             const result = await getBackgrounds('1')
             expect(result).toEqual(response)
+            expect(result.shared).toEqual([{ name: 'sunset.jpg', value: 'shared:sunset.jpg' }])
             expect(apiClient.get).toHaveBeenCalledWith('/backgrounds', { params: { dashboard: '1' } })
         })
     })

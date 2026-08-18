@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	weatherpkg "github.com/andresbott/dashi/internal/providers/weather"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 )
@@ -67,7 +68,7 @@ func TestRenderStatic_Basic(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -101,7 +102,7 @@ func TestRenderStatic_WithDetails(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -135,7 +136,7 @@ func TestRenderStatic_WithForecast(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -169,7 +170,7 @@ func TestRenderStatic_ForecastOnly(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -213,7 +214,7 @@ func TestRenderStatic_Compact(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -253,7 +254,7 @@ func TestRenderStatic_WithHourly(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -298,12 +299,12 @@ func TestRenderStatic_ImageThemeUsesFilePath(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Write theme manifest
-	manifest := []byte("name: imgtheme\ndescription: test image theme\ntype: image\n")
+	manifest := []byte("name: imgtheme\ntype: icon\ndescription: test image theme\nicons:\n  type: image\n")
 	if err := os.WriteFile(filepath.Join(themePath, "theme.yaml"), manifest, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore(themeDir)
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -335,7 +336,7 @@ func TestRenderStatic_FontIconCodepoint(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -368,7 +369,7 @@ func TestRenderStatic_WithExtraInfo(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -442,12 +443,12 @@ func TestRenderStatic_ImageThemeWithExtraInfo(t *testing.T) {
 		}
 	}
 
-	manifest := []byte("name: imgtheme\ndescription: test image theme\ntype: image\n")
+	manifest := []byte("name: imgtheme\ntype: icon\ndescription: test image theme\nicons:\n  type: image\n")
 	if err := os.WriteFile(filepath.Join(themePath, "theme.yaml"), manifest, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore(themeDir)
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -484,7 +485,7 @@ func TestRenderStatic_WithGraph(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
@@ -518,7 +519,7 @@ func TestRenderStatic_GraphCompactDisabled(t *testing.T) {
 	defer forecastSrv.Close()
 	defer aqSrv.Close()
 
-	client := NewClient(&http.Client{}, WithBaseURL(forecastSrv.URL), WithAirQualityBaseURL(aqSrv.URL))
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
 	themeStore := themes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",

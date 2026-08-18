@@ -10,6 +10,7 @@ import (
 
 	_ "embed"
 
+	tr "github.com/andresbott/dashi/internal/providers/swisstransport"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
@@ -50,7 +51,7 @@ func categoryIcon(category string) string {
 	}
 }
 
-func NewStaticRenderer(client *Client) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+func NewStaticRenderer(client *tr.Client) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
 	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
 		var cfg transportConfig
 		if len(config) > 0 {

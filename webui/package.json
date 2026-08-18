@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:viewer": "tailwindcss -i ./viewer/viewer.css -o ../internal/dashboard/browser/assets/viewer.css --minify",
     "preview": "vite preview",
     "test": "vue-tsc --noEmit && vitest run",
     "test:watch": "vitest",
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.10.4",
+    "@tailwindcss/cli": "^4.0.0",
     "@types/node": "^24.4.0",
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-vue": "^5.2.1",
@@ -45,6 +47,7 @@
     "jsdom": "^25.0.1",
     "prettier": "^3.4.1",
     "sass": "^1.82.0",
+    "tailwindcss": "^4.0.0",
     "typescript": "^5.9.2",
     "vite": "^6.0.2",
     "vitest": "^3.2.4",

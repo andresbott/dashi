@@ -39,8 +39,10 @@ func TestNewStore_LoadsUserTheme(t *testing.T) {
 	}
 
 	manifest := `name: "My Icons"
+type: icon
 description: "Custom weather icons"
-type: image
+icons:
+  type: image
 `
 	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
@@ -77,8 +79,10 @@ func TestStore_UserThemeOverridesEmbedded(t *testing.T) {
 	}
 
 	manifest := `name: "default"
+type: icon
 description: "User override of default"
-type: image
+icons:
+  type: image
 `
 	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
@@ -117,8 +121,10 @@ func TestStore_ResolveIcon_ImageTheme(t *testing.T) {
 	}
 
 	manifest := `name: "custom"
+type: icon
 description: "Custom icons"
-type: image
+icons:
+  type: image
 `
 	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
@@ -251,6 +257,7 @@ func TestStore_GetDisplayFontData_UserTheme(t *testing.T) {
 	}
 
 	manifest := `name: "custom"
+type: style
 description: "Custom theme with font"
 fonts:
   - name: "My Font"
@@ -287,6 +294,7 @@ func TestStore_NewFormatThemeWithFontsAndIcons(t *testing.T) {
 	}
 
 	manifest := `name: "newformat"
+type: icon
 description: "Theme with new manifest format"
 fonts:
   - name: "Display Font"
@@ -362,6 +370,7 @@ func TestStore_ResolveIcon_ThemeNoIconConfig(t *testing.T) {
 	}
 
 	manifest := `name: "noicons"
+type: style
 description: "Theme without icons"
 `
 	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
@@ -384,8 +393,10 @@ func TestStore_ResolveIcon_InvalidIconName(t *testing.T) {
 	}
 
 	manifest := `name: "custom"
+type: icon
 description: "Custom icons"
-type: image
+icons:
+  type: image
 `
 	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
@@ -414,6 +425,7 @@ func TestStore_ListBackgrounds(t *testing.T) {
 	}
 
 	manifest := `name: "mytheme"
+type: style
 description: "Theme with backgrounds"
 `
 	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
@@ -471,6 +483,7 @@ func TestStore_GetBackgroundData(t *testing.T) {
 	}
 
 	manifest := `name: "mytheme"
+type: style
 description: "Theme with backgrounds"
 `
 	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
@@ -501,6 +514,7 @@ func TestStore_GetBackgroundData_InvalidPath(t *testing.T) {
 	}
 
 	manifest := `name: "mytheme"
+type: style
 description: "Theme with backgrounds"
 `
 	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {

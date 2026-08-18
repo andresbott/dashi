@@ -3,7 +3,7 @@ package router
 import (
 	"context"
 	_ "embed"
-	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -11,8 +11,16 @@ import (
 
 	"github.com/andresbott/dashi/app/spa"
 	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/dashboard/browser"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
+	"github.com/andresbott/dashi/internal/data/backgrounds"
+	"github.com/andresbott/dashi/internal/data/images"
+	"github.com/andresbott/dashi/internal/data/notes"
+	"github.com/andresbott/dashi/internal/providers/market"
+	"github.com/andresbott/dashi/internal/providers/swisstransport"
+	"github.com/andresbott/dashi/internal/providers/weather"
+	"github.com/andresbott/dashi/internal/providers/xkcd"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	batterywidget "github.com/andresbott/dashi/internal/widgets/battery"
@@ -22,6 +30,7 @@ import (
 	markdownwidget "github.com/andresbott/dashi/internal/widgets/markdown"
 	marketwidget "github.com/andresbott/dashi/internal/widgets/market"
 	pageindicatorwidget "github.com/andresbott/dashi/internal/widgets/pageindicator"
+	searchwidget "github.com/andresbott/dashi/internal/widgets/search"
 	stackwidget "github.com/andresbott/dashi/internal/widgets/stack"
 	swisstransportwidget "github.com/andresbott/dashi/internal/widgets/swisstransport"
 	sysinfowidget "github.com/andresbott/dashi/internal/widgets/sysinfo"
@@ -63,50 +72,81 @@ func (h *EditorHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // sharedDeps holds all shared clients, stores, renderers and middleware
 // that are built once and reused by both viewer and editor handlers.
 type sharedDeps struct {
-	dashStore       *dashboard.Store
-	weatherClient   *weatherwidget.Client
-	marketClient    *marketwidget.Client
-	xkcdClient      *xkcdwidget.Client
-	transportClient *swisstransportwidget.Client
-	themeStore      *themes.Store
-	staticRenderer  *dashstatic.Renderer
-	imageRenderer   *dashimage.Renderer
-	staticMid       func(http.Handler) http.Handler
-	promHisto       middleware.Histogram
+	dashStore        *dashboard.Store
+	weatherClient    *weather.Client
+	marketClient     *market.Client
+	xkcdClient       *xkcd.Client
+	transportClient  *swisstransport.Client
+	themeStore       *themes.Store
+	notesStore       *notes.Store
+	imagesStore      *images.Store
+	backgroundsStore *backgrounds.Store
+	staticRenderer   *dashstatic.Renderer
+	imageRenderer    *dashimage.Renderer
+	browserRenderer  *browser.Renderer
+	browserAssets    *browser.Assets
+	staticMid        func(http.Handler) http.Handler
+	promHisto        middleware.Histogram
+	modules          []widgets.Module
 }
 
 func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	dashStore := dashboard.NewStore(filepath.Join(cfg.DataDir, "dashboards"))
-	weatherClient := weatherwidget.NewClient(nil)
-	marketClient := marketwidget.NewClient(nil)
-	xkcdClient := xkcdwidget.NewClient(filepath.Join(cfg.DataDir, "cache", "xkcd"))
-	transportClient := swisstransportwidget.NewClient(nil)
+	weatherClient := weather.NewClient(nil)
+	marketClient := market.NewClient(nil)
+	xkcdClient := xkcd.NewClient(filepath.Join(cfg.DataDir, "cache", "xkcd"))
+	transportClient := swisstransport.NewClient(nil)
 	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "themes"))
+	notesStore, err := notes.NewStore(filepath.Join(cfg.DataDir, "data", "notes"))
+	if err != nil {
+		return nil, fmt.Errorf("create notes store: %w", err)
+	}
+	imagesStore, err := images.NewStore(filepath.Join(cfg.DataDir, "data", "images"))
+	if err != nil {
+		return nil, fmt.Errorf("create images store: %w", err)
+	}
+	backgroundsStore, err := backgrounds.NewStore(filepath.Join(cfg.DataDir, "data", "backgrounds"))
+	if err != nil {
+		return nil, fmt.Errorf("create backgrounds store: %w", err)
+	}
 
-	// Pre-fetch weather and market data
+	// Static dashboard rendering
+	registry := widgets.NewRegistry()
+
+	modules := []widgets.Module{
+		weatherwidget.NewModule(weatherClient, themeStore, cfg.Logger),
+		weatherwidget.NewCompactModule(weatherClient, themeStore, cfg.Logger),
+		bookmarkwidget.NewModule(),
+		clockwidget.NewModule(),
+		batterywidget.NewModule(),
+		pageindicatorwidget.NewModule(),
+		marketwidget.NewModule(marketClient, cfg.Logger),
+		xkcdwidget.NewModule(xkcdClient, cfg.Logger),
+		swisstransportwidget.NewModule(transportClient, cfg.Logger),
+		sysinfowidget.NewModule(cfg.Logger),
+		stackwidget.NewModule(registry),
+		markdownwidget.NewModule(notesStore),
+		imagewidget.NewModule(imagesStore),
+		searchwidget.NewModule(),
+	}
+
 	warmupCtx := cfg.Ctx
 	if warmupCtx == nil {
 		warmupCtx = context.Background()
 	}
-	go warmupWeather(warmupCtx, dashStore, weatherClient, cfg.Logger)
-	go warmupMarket(warmupCtx, dashStore, marketClient, cfg.Logger)
 
-	// Static dashboard rendering
-	registry := widgets.NewRegistry()
-	registry.Register("weather", weatherwidget.NewStaticRenderer(weatherClient, themeStore))
-	registry.Register("weather-compact", weatherwidget.NewStaticCompactRenderer(weatherClient, themeStore))
-	registry.Register("bookmark", bookmarkwidget.NewStaticRenderer())
-	registry.Register("clock", clockwidget.NewStaticRenderer(nil))
-	registry.Register("battery", batterywidget.NewStaticRenderer())
-	registry.Register("page-indicator", pageindicatorwidget.NewStaticRenderer())
-	registry.Register("market", marketwidget.NewStaticRenderer(marketClient))
-	registry.Register("xkcd", xkcdwidget.NewStaticRenderer(xkcdClient))
-	registry.Register("transport", swisstransportwidget.NewStaticRenderer(transportClient))
-	registry.Register("sysinfo", sysinfowidget.NewStaticRenderer())
-	registry.Register("stack", stackwidget.NewStaticRenderer(registry))
-	registry.Register("markdown", markdownwidget.NewStaticRenderer(dashStore))
-	registry.Register("image", imagewidget.NewStaticRenderer(dashStore))
+	for _, m := range modules {
+		registry.Register(m.Type(), m.Renderer())
+		if br, ok := m.(widgets.BrowserRenderable); ok {
+			registry.RegisterBrowser(m.Type(), br.RenderBrowser)
+		}
+		configs := widgets.CollectConfigs(dashStore, m.Type())
+		go m.Warmup(warmupCtx, configs)
+	}
+
 	staticRenderer := dashstatic.NewRenderer(registry)
+	browserAssets := browser.NewAssets(modules)
+	browserRenderer := browser.NewRenderer(registry, browserAssets.JSTypes())
 	imageRenderer := dashimage.NewRenderer()
 
 	for _, themeInfo := range themeStore.List() {
@@ -129,32 +169,38 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		}
 	}
 
-	staticMid := NewStaticDashboardMiddleware(dashStore, staticRenderer, imageRenderer, themeStore)
+	staticMid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, backgroundsStore)
 	promHisto := middleware.NewPromHistogram("", nil, nil)
 
 	return &sharedDeps{
-		dashStore:       dashStore,
-		weatherClient:   weatherClient,
-		marketClient:    marketClient,
-		xkcdClient:      xkcdClient,
-		transportClient: transportClient,
-		themeStore:      themeStore,
-		staticRenderer:  staticRenderer,
-		imageRenderer:   imageRenderer,
-		staticMid:       staticMid,
-		promHisto:       promHisto,
+		dashStore:        dashStore,
+		weatherClient:    weatherClient,
+		marketClient:     marketClient,
+		xkcdClient:       xkcdClient,
+		transportClient:  transportClient,
+		themeStore:       themeStore,
+		notesStore:       notesStore,
+		imagesStore:      imagesStore,
+		backgroundsStore: backgroundsStore,
+		staticRenderer:   staticRenderer,
+		imageRenderer:    imageRenderer,
+		browserRenderer:  browserRenderer,
+		browserAssets:    browserAssets,
+		staticMid:        staticMid,
+		promHisto:        promHisto,
+		modules:          modules,
 	}, nil
 }
 
 func newAPIDeps(deps *sharedDeps, logger *slog.Logger) apiDeps {
 	return apiDeps{
-		dashStore:       deps.dashStore,
-		weatherClient:   deps.weatherClient,
-		marketClient:    deps.marketClient,
-		xkcdClient:      deps.xkcdClient,
-		transportClient: deps.transportClient,
-		themeStore:      deps.themeStore,
-		logger:          logger,
+		dashStore:        deps.dashStore,
+		themeStore:       deps.themeStore,
+		notesStore:       deps.notesStore,
+		imagesStore:      deps.imagesStore,
+		backgroundsStore: deps.backgroundsStore,
+		logger:           logger,
+		modules:          deps.modules,
 	}
 }
 
@@ -183,6 +229,10 @@ func NewViewerFromDeps(cfg Cfg, deps *sharedDeps) (*ViewerHandler, error) {
 	ad := newAPIDeps(deps, cfg.Logger)
 	attachReadAPIs(r.PathPrefix("/api/v0").Subrouter(), ad)
 
+	// Browser-stack assets (CSS/JS/theme). Registered before the SPA and
+	// dashboard-ID routes so the /_dashi prefix always wins.
+	attachDashiAssets(r, deps.browserAssets, deps.themeStore)
+
 	// Build the SPA handler once
 	spaHandler, err := spa.App("/")
 	if err != nil {
@@ -192,8 +242,22 @@ func NewViewerFromDeps(cfg Cfg, deps *sharedDeps) (*ViewerHandler, error) {
 	// SPA static assets (JS, CSS, fonts, images)
 	r.PathPrefix("/assets/").Methods(http.MethodGet).Handler(spaHandler)
 
-	// Root "/" — serve SPA directly (Vue resolves default dashboard client-side)
-	r.Path("/").Methods(http.MethodGet).Handler(spaHandler)
+	// Root "/" — resolve the default dashboard server-side and redirect.
+	r.Path("/").Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		list, err := deps.dashStore.List()
+		if err != nil || len(list) == 0 {
+			http.Error(w, "no dashboards configured", http.StatusNotFound)
+			return
+		}
+		target := list[0]
+		for _, meta := range list {
+			if meta.Default {
+				target = meta
+				break
+			}
+		}
+		http.Redirect(w, req, "/"+target.ID, http.StatusFound)
+	})
 
 	// "/:id" — single-segment paths only (no slashes), with static middleware + SPA
 	spaSubrouter := r.PathPrefix("/").Subrouter()
@@ -240,9 +304,13 @@ func NewEditorFromDeps(cfg Cfg, deps *sharedDeps) (*EditorHandler, error) {
 	attachReadAPIs(apiRouter, ad)
 	attachWriteAPIs(apiRouter, ad)
 
-	// Root "/" redirects to /dashboards
+	// Browser-stack assets (CSS/JS/theme). Registered before the SPA and
+	// dashboard-ID routes so the /_dashi prefix always wins.
+	attachDashiAssets(r, deps.browserAssets, deps.themeStore)
+
+	// Root "/" redirects to /admin
 	r.Path("/").Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/dashboards", http.StatusFound)
+		http.Redirect(w, r, "/admin", http.StatusFound)
 	})
 
 	// Static dashboard middleware (image rendering) + full SPA on all paths
@@ -290,91 +358,4 @@ func NewBoth(cfg Cfg) (*ViewerHandler, *EditorHandler, error) {
 		return nil, nil, err
 	}
 	return viewer, editor, nil
-}
-
-// warmupWeather scans all dashboards for weather widget configs and
-// pre-fetches the weather data so the cache is warm on first request.
-func warmupWeather(ctx context.Context, store *dashboard.Store, client *weatherwidget.Client, logger *slog.Logger) {
-	list, err := store.List()
-	if err != nil {
-		logger.Warn("weather warmup: failed to list dashboards", slog.String("error", err.Error()))
-		return
-	}
-
-	var locations [][2]float64
-
-	for _, meta := range list {
-		dash, err := store.Get(meta.ID)
-		if err != nil {
-			continue
-		}
-		for _, page := range dash.Pages {
-			for _, row := range page.Rows {
-				for _, w := range row.Widgets {
-					if w.Type != "weather" && w.Type != "weather-compact" {
-						continue
-					}
-					var cfg struct {
-						Latitude  float64 `json:"latitude"`
-						Longitude float64 `json:"longitude"`
-					}
-					if err := json.Unmarshal(w.Config, &cfg); err != nil {
-						continue
-					}
-					if cfg.Latitude != 0 || cfg.Longitude != 0 {
-						locations = append(locations, [2]float64{cfg.Latitude, cfg.Longitude})
-					}
-				}
-			}
-		}
-	}
-
-	if len(locations) > 0 {
-		logger.Info("weather warmup: pre-fetching data", slog.Int("locations", len(locations)))
-		client.WarmupLocations(ctx, locations)
-		logger.Info("weather warmup: done")
-	}
-}
-
-func warmupMarket(ctx context.Context, store *dashboard.Store, client *marketwidget.Client, logger *slog.Logger) {
-	list, err := store.List()
-	if err != nil {
-		logger.Warn("market warmup: failed to list dashboards", slog.String("error", err.Error()))
-		return
-	}
-
-	var targets []struct{ Symbol, Range string }
-
-	for _, meta := range list {
-		dash, err := store.Get(meta.ID)
-		if err != nil {
-			continue
-		}
-		for _, page := range dash.Pages {
-			for _, row := range page.Rows {
-				for _, w := range row.Widgets {
-					if w.Type != "market" {
-						continue
-					}
-					var cfg struct {
-						Symbol string `json:"symbol"`
-						Range  string `json:"range"`
-					}
-					if err := json.Unmarshal(w.Config, &cfg); err != nil || cfg.Symbol == "" {
-						continue
-					}
-					if cfg.Range == "" {
-						cfg.Range = "1mo"
-					}
-					targets = append(targets, struct{ Symbol, Range string }{cfg.Symbol, cfg.Range})
-				}
-			}
-		}
-	}
-
-	if len(targets) > 0 {
-		logger.Info("market warmup: pre-fetching data", slog.Int("symbols", len(targets)))
-		client.WarmupSymbols(ctx, targets)
-		logger.Info("market warmup: done")
-	}
 }

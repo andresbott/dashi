@@ -1,0 +1,63 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useMarkdownFiles } from './useMarkdownFiles'
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
+import { mount, flushPromises } from '@vue/test-utils'
+import { defineComponent } from 'vue'
+import * as markdownApi from './api'
+
+vi.mock('./api', () => ({
+    listMarkdownFiles: vi.fn(),
+    getMarkdownHtml: vi.fn(),
+    getMarkdownRaw: vi.fn(),
+    saveMarkdown: vi.fn(),
+}))
+
+function withQueryClient(setup: () => unknown) {
+    const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+    })
+    const Wrapper = defineComponent({
+        setup,
+        template: '<div />',
+    })
+    return mount(Wrapper, {
+        global: { plugins: [[VueQueryPlugin, { queryClient }]] },
+    })
+}
+
+describe('useMarkdownFiles', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+    })
+
+    it('fetches the file list', async () => {
+        vi.mocked(markdownApi.listMarkdownFiles).mockResolvedValue(['a.md', 'b.md'])
+
+        let result: ReturnType<typeof useMarkdownFiles>
+        withQueryClient(() => {
+            result = useMarkdownFiles()
+        })
+
+        await flushPromises()
+        expect(result!.files.value).toEqual(['a.md', 'b.md'])
+        expect(markdownApi.listMarkdownFiles).toHaveBeenCalled()
+    })
+
+    it('exposes invalidate that triggers a refetch', async () => {
+        vi.mocked(markdownApi.listMarkdownFiles)
+            .mockResolvedValueOnce(['a.md'])
+            .mockResolvedValueOnce(['a.md', 'b.md'])
+
+        let result: ReturnType<typeof useMarkdownFiles>
+        withQueryClient(() => {
+            result = useMarkdownFiles()
+        })
+
+        await flushPromises()
+        expect(result!.files.value).toEqual(['a.md'])
+
+        await result!.invalidate()
+        await flushPromises()
+        expect(result!.files.value).toEqual(['a.md', 'b.md'])
+    })
+})

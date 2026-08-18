@@ -9,6 +9,7 @@ import (
 
 	_ "embed"
 
+	mkt "github.com/andresbott/dashi/internal/providers/market"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
@@ -44,7 +45,7 @@ var rangeLabels = map[string]string{
 	"3mo": "3 Months", "6mo": "6 Months", "1y": "1 Year",
 }
 
-func NewStaticRenderer(client *Client) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+func NewStaticRenderer(client *mkt.Client) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
 	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
 		var cfg marketConfig
 		if len(config) > 0 {

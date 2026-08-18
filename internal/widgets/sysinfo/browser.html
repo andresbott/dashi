@@ -1,0 +1,26 @@
+<div class="dashi-sysinfo flex flex-col gap-2">
+    {{range .Disks}}
+    <div class="dashi-sysinfo__item flex items-center gap-2" data-disk="{{.Mountpoint}}">
+        <span class="dashi-sysinfo__label w-24 shrink-0 truncate text-sm text-[var(--dashi-fg)]">{{.Mountpoint}}</span>
+        <div class="dashi-sysinfo__bar h-2 flex-1 overflow-hidden rounded-full bg-[var(--dashi-surface)]">
+            <div class="dashi-sysinfo__bar-fill h-full bg-[var(--dashi-accent)]" style="width: {{printf "%.0f" .UsedPct}}%"></div>
+        </div>
+        <span class="dashi-sysinfo__value shrink-0 text-xs text-[var(--dashi-muted)]">{{.FreeHuman}} free / {{.TotalHuman}}</span>
+    </div>
+    {{end}}
+    {{if .ShowMemory}}
+    <div class="dashi-sysinfo__item flex items-center gap-2" data-mem>
+        <span class="dashi-sysinfo__label w-24 shrink-0 text-sm text-[var(--dashi-fg)]">Memory</span>
+        <div class="dashi-sysinfo__bar h-2 flex-1 overflow-hidden rounded-full bg-[var(--dashi-surface)]">
+            <div class="dashi-sysinfo__bar-fill h-full bg-[var(--dashi-accent)]" style="width: {{printf "%.0f" .MemUsedPct}}%"></div>
+        </div>
+        <span class="dashi-sysinfo__value shrink-0 text-xs text-[var(--dashi-muted)]">{{.MemUsedHuman}} / {{.MemTotalHuman}}</span>
+    </div>
+    {{end}}
+    {{if .ShowUptime}}
+    <div class="dashi-sysinfo__item flex items-center gap-2" data-uptime>
+        <span class="dashi-sysinfo__label w-24 shrink-0 text-sm text-[var(--dashi-fg)]">Uptime</span>
+        <span class="dashi-sysinfo__value text-xs text-[var(--dashi-muted)]">{{.UptimeHuman}}</span>
+    </div>
+    {{end}}
+</div>

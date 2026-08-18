@@ -10,19 +10,21 @@ import (
 	"strings"
 
 	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/data/backgrounds"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type DashboardHandler struct {
-	store      *dashboard.Store
-	themeStore *themes.Store
-	logger     *slog.Logger
+	store            *dashboard.Store
+	themeStore       *themes.Store
+	backgroundsStore *backgrounds.Store
+	logger           *slog.Logger
 }
 
-func NewDashboardHandler(store *dashboard.Store, themeStore *themes.Store, logger *slog.Logger) *DashboardHandler {
-	return &DashboardHandler{store: store, themeStore: themeStore, logger: logger}
+func NewDashboardHandler(store *dashboard.Store, themeStore *themes.Store, backgroundsStore *backgrounds.Store, logger *slog.Logger) *DashboardHandler {
+	return &DashboardHandler{store: store, themeStore: themeStore, backgroundsStore: backgroundsStore, logger: logger}
 }
 
 func (h *DashboardHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -106,17 +108,6 @@ func (h *DashboardHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *DashboardHandler) DeletePreviews(w http.ResponseWriter, r *http.Request) {
-	count, err := h.store.DeletePreviews()
-	if err != nil {
-		h.logger.Error("delete previews", slog.String("error", err.Error()))
-		ErrorJSON(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"deleted": count})
-}
-
 func (h *DashboardHandler) Download(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	d, err := h.store.Get(id)
@@ -183,25 +174,6 @@ func (h *DashboardHandler) GetAsset(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *DashboardHandler) UploadAsset(w http.ResponseWriter, r *http.Request) {
-	id := mux.Vars(r)["id"]
-	assetPath := mux.Vars(r)["path"]
-
-	r.Body = http.MaxBytesReader(w, r.Body, 10<<20) // 10 MB limit
-	data, err := io.ReadAll(r.Body)
-	if err != nil {
-		ErrorJSON(w, "failed to read body", http.StatusBadRequest)
-		return
-	}
-
-	if err := h.store.SaveAsset(id, assetPath, data); err != nil {
-		h.logger.Error("save asset", slog.String("error", err.Error()))
-		ErrorJSON(w, "failed to save asset", http.StatusBadRequest)
-		return
-	}
-	w.WriteHeader(http.StatusCreated)
-}
-
 func (h *DashboardHandler) DeleteAsset(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	assetPath := mux.Vars(r)["path"]
@@ -258,10 +230,23 @@ func (h *DashboardHandler) ListBackgrounds(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	// Shared backgrounds from the user-data store (nil-safe).
+	sharedOptions := make([]backgroundOption, 0)
+	if h.backgroundsStore != nil {
+		items, _ := h.backgroundsStore.List()
+		for _, it := range items {
+			sharedOptions = append(sharedOptions, backgroundOption{
+				Name:  it.Name,
+				Value: "shared:" + it.Name,
+			})
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"theme":     themeOptions,
 		"dashboard": dashOptions,
+		"shared":    sharedOptions,
 	})
 }
 

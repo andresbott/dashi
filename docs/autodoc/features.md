@@ -8,8 +8,6 @@
 | List dashboards | Implemented | Grid view with cards |
 | Edit dashboard | Implemented | Full editor: pages, rows, widgets, theme, background |
 | Delete dashboard | Implemented | With confirmation dialog |
-| Dashboard preview | Implemented | Creates "-prev" suffixed copy for image preview |
-| Delete previews | Implemented | Bulk delete all preview dashboards |
 | Default dashboard | Implemented | Boolean flag per dashboard; root `/` redirects to it |
 | Export dashboard (zip) | Implemented | Downloads dashboard folder as zip |
 | Import dashboard (zip) | Implemented | Upload zip to create new dashboard from dashboard list |
@@ -23,12 +21,21 @@ row management (add/delete/reorder, height/width/title), widget management
 (add/delete/reorder via drag, type/title/width/config). Local copy edited then
 saved via PUT.
 
-**Dashboard preview** — Creates a temporary copy with ID ending in "-prev" so
-image dashboards can be previewed before saving. Bulk delete cleans all previews.
-
 **Export/Import** — Dashboards can be exported as zip files (containing
 dashboard.json and all assets). Zip import creates a new dashboard from an
 uploaded zip, available via the "Import" button on the dashboard list.
+
+## Admin Section
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| `/admin` sidebar layout | Implemented | Shell view with sticky sidebar; 4 child routes (Dashboards, Notes, Images, Backgrounds) |
+| Dashboard management | Implemented | `/admin/dashboards` — moved from former `/dashboards` list view |
+| Notes management | Implemented | `/admin/notes` — list/create/edit/delete markdown files via `/api/v0/data/notes` |
+| Images management | Implemented | `/admin/images` — list/upload/delete via `/api/v0/data/images`; shared `DataTableView` |
+| Backgrounds management | Implemented | `/admin/backgrounds` — list/upload/delete via `/api/v0/data/backgrounds`; shared `DataTableView` |
+
+Editor-only. The viewer server does not expose `/admin`.
 
 ## Dashboard Display
 
