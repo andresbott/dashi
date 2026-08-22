@@ -9,6 +9,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import CreateDashboardDialog from '@/components/dashboards/CreateDashboardDialog.vue'
 import { useListDashboards } from '@/composables/useDashboards'
 import { downloadDashboard } from '@/lib/api/dashboard'
+import { dashboardViewUrl } from '@/lib/serverInfo'
 import { useToast } from 'primevue/usetoast'
 
 const router = useRouter()
@@ -20,6 +21,7 @@ const {
     deleteDashboard,
     uploadZip,
     isUploadingZip,
+    setDefaultDashboard,
 } = useListDashboards()
 
 const dashboards = computed(() => dashboardsData.value ?? [])
@@ -75,6 +77,34 @@ const handleUploadZip = async (event) => {
     }
 }
 
+// Picking the default dashboard behaves like a radio group: the backend clears
+// the flag on the previous default, so there is nothing to un-set here.
+// Clicking the row that is already default is not short-circuited on purpose —
+// data written before the backend enforced exclusivity (or by hand) can have
+// several defaults at once, and re-asserting is the only way to repair it.
+const pendingDefaultId = ref(null)
+
+const handleSetDefault = async (dashboard) => {
+    pendingDefaultId.value = dashboard.id
+    try {
+        await setDefaultDashboard(dashboard.id)
+    } catch (err) {
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to set default dashboard', life: 5000 })
+    } finally {
+        pendingDefaultId.value = null
+    }
+}
+
+// Visual cue for how a dashboard renders: interactive ones are served as live
+// HTML, image ones as a PNG for e-ink displays. Anything unset falls back to
+// interactive, which is the backend default.
+const DASHBOARD_TYPES = {
+    interactive: { icon: 'ti-device-desktop', label: 'Interactive dashboard' },
+    image: { icon: 'ti-photo', label: 'Image dashboard' },
+}
+
+const dashboardType = (d) => DASHBOARD_TYPES[d.type] ?? DASHBOARD_TYPES.interactive
+
 const handleDownload = async (id) => {
     try {
         await downloadDashboard(id)
@@ -89,12 +119,6 @@ const handleDownload = async (id) => {
         <div class="admin-section-header">
             <h2 class="admin-section-title">Dashboards</h2>
             <div class="flex gap-2">
-                <Button
-                    label="Documentation"
-                    icon="ti ti-book"
-                    severity="secondary"
-                    @click="router.push({ name: 'doc-dashboards' })"
-                />
                 <Button
                     label="Import"
                     icon="ti ti-upload"
@@ -136,16 +160,38 @@ const handleDownload = async (id) => {
                 >
                     <Column field="name" header="Name">
                         <template #body="{ data }">
-                            <span>{{ data.name }}</span>
-                            <i v-if="data.default" class="ti ti-home default-icon" title="Default dashboard" />
+                            <span class="flex align-items-center gap-2">
+                                <i
+                                    v-tooltip.top="dashboardType(data).label"
+                                    class="ti dashboard-type-icon"
+                                    :class="dashboardType(data).icon"
+                                    :aria-label="dashboardType(data).label"
+                                    role="img"
+                                />
+                                <span>{{ data.name }}</span>
+                            </span>
                         </template>
                     </Column>
-                    <Column header="Actions" style="width: 180px">
+                    <Column header="Actions" style="width: 220px">
                         <template #body="{ data }">
                             <div class="flex gap-1 justify-content-end">
                                 <Button
+                                    v-tooltip.top="data.default ? 'Default dashboard' : 'Make default dashboard'"
+                                    :aria-label="data.default ? 'Default dashboard' : 'Make default dashboard'"
+                                    icon="ti ti-home"
+                                    :text="!data.default"
+                                    :severity="data.default ? 'primary' : 'secondary'"
+                                    :loading="pendingDefaultId === data.id"
+                                    :aria-pressed="!!data.default"
+                                    rounded
+                                    class="p-1"
+                                    @click="handleSetDefault(data)"
+                                />
+                                <Button
                                     as="a"
-                                    :href="router.resolve({ name: 'dashboard-view', params: { id: data.id } }).href"
+                                    :href="dashboardViewUrl(data.id)"
+                                    target="_blank"
+                                    rel="noopener"
                                     icon="ti ti-eye"
                                     text
                                     rounded
@@ -236,9 +282,8 @@ const handleDownload = async (id) => {
     text-decoration: none;
 }
 
-.default-icon {
-    margin-left: 0.5rem;
-    color: var(--p-primary-color);
-    font-size: 1rem;
+.dashboard-type-icon {
+    font-size: 1.1rem;
+    color: var(--p-text-muted-color);
 }
 </style>

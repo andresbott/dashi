@@ -5,7 +5,6 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import ColorPicker from 'primevue/colorpicker'
-import Checkbox from 'primevue/checkbox'
 
 import { useGetDashboard, useUpdateDashboard, useBackgrounds, useDashboardAuth } from '@/composables/useDashboards'
 import { useThemes } from '@/composables/useThemes'
@@ -213,10 +212,6 @@ const activeSection = ref('general')
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Name</label>
                         <InputText v-model="localDashboard.name" placeholder="Dashboard name" />
-                    </div>
-                    <div class="flex align-items-center gap-2">
-                        <Checkbox v-model="localDashboard.default" :binary="true" inputId="dashboardDefault" />
-                        <label for="dashboardDefault" class="font-semibold text-sm">Default dashboard</label>
                     </div>
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Type</label>

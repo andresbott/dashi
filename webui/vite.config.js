@@ -3,6 +3,19 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
+// The Vue app is the admin/editor UI. In dev it talks only to the backend's
+// admin port (the editor server on :8088). The public, server-rendered
+// dashboard view lives on the separate public port (:8087) and is not served
+// through this dev server at all.
+const adminTarget = 'http://localhost:8088'
+
+const proxyToAdmin = {
+  target: adminTarget,
+  changeOrigin: true,
+  secure: false,
+  cookieDomainRewrite: { '*': '' }
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
@@ -16,18 +29,8 @@ export default defineConfig({
   base: "/",
   server: {
     proxy: {
-      '/auth': {
-        target: 'http://localhost:8088',
-        changeOrigin: true,
-        secure: false,
-        cookieDomainRewrite: { '*': '' }
-      },
-      '/api': {
-        target: 'http://localhost:8088',
-        changeOrigin: true,
-        secure: false,
-        cookieDomainRewrite: { '*': '' }
-      }
+      '/auth': proxyToAdmin,
+      '/api': proxyToAdmin
     }
   }
 })

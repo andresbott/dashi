@@ -6,6 +6,7 @@ import {
     createDashboard,
     updateDashboard,
     deleteDashboard,
+    setDefaultDashboard,
     getBackgrounds,
     getDashboardAssets,
     uploadDashboardZip,
@@ -42,6 +43,16 @@ export function useListDashboards() {
         onSuccess: doInvalidate
     })
 
+    const setDefaultMutation = useMutation({
+        mutationFn: (id: string) => setDefaultDashboard(id),
+        // The backend also clears the flag on the previous default, so every
+        // cached single-dashboard entry is stale, not just the one we wrote.
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+            return doInvalidate()
+        }
+    })
+
     return {
         dashboards: query.data,
         isLoading: query.isLoading,
@@ -55,7 +66,10 @@ export function useListDashboards() {
         isDeleting: deleteMutation.isPending,
 
         uploadZip: uploadZipMutation.mutateAsync,
-        isUploadingZip: uploadZipMutation.isPending
+        isUploadingZip: uploadZipMutation.isPending,
+
+        setDefaultDashboard: setDefaultMutation.mutateAsync,
+        isSettingDefault: setDefaultMutation.isPending
     }
 }
 

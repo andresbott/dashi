@@ -10,7 +10,7 @@ import (
 
 type AppCfg struct {
 	Server  serverCfg
-	Obs     obsCfg    `config:"Observability"`
+	Obs     obsCfg `config:"Observability"`
 	Auth    authConfig
 	Env     Env
 	Msgs    []Msg
@@ -31,6 +31,11 @@ type viewerCfg struct {
 	Enabled bool
 	BindIp  string
 	Port    int
+	// PublicUrl is the URL browsers use to reach the viewer, e.g.
+	// "https://dash.example.com". Only needed when the derived
+	// "<editor host>:<viewer port>" is wrong — typically behind a reverse
+	// proxy. The editor SPA reads it from GET /api/v0/info.
+	PublicUrl string
 }
 
 func (c viewerCfg) Addr() string {
@@ -75,9 +80,10 @@ var defaultCfg = AppCfg{
 	DataDir: "./data",
 	Server: serverCfg{
 		Viewer: viewerCfg{
-			Enabled: true,
-			BindIp:  "",
-			Port:    8087,
+			Enabled:   true,
+			BindIp:    "",
+			Port:      8087,
+			PublicUrl: "",
 		},
 		Editor: editorCfg{
 			Enabled: true,

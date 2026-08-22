@@ -59,6 +59,15 @@ in-memory index would go stale across instances. The read/write split lives in
 `app/router/api_v0.go`: never mount `attachWriteAPIs` on the viewer. At least
 one of viewer/editor must be enabled (validated in `app/cmd/config.go`).
 
+Because the two live on different ports, the SPA cannot guess where the public
+viewer is: `GET /api/v0/info` (`app/router/handlers/info.go`) advertises it as
+`{"viewer":{"enabled":…,"url":…}}`. The URL is `Server.Viewer.PublicUrl` when
+set, otherwise the request host with the viewer port swapped in — which covers
+both `vite dev` and a plain two-port deployment. Only http/https ever come out
+of it: the value lands in an SPA `href`, so a forged `Host`/`X-Forwarded-*`
+must not be able to smuggle another scheme in. The SPA loads it once at init
+(`webui/src/lib/serverInfo.ts`) and falls back to same-origin `/{id}` paths.
+
 ## Security model — know the boundaries
 
 - **Per-dashboard basic auth** (2026-04-08, PR #14): `NewDashboardAuthMiddleware`

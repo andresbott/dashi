@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/andresbott/dashi/app/router/handlers"
 	"github.com/andresbott/dashi/app/spa"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/dashboard/browser"
@@ -45,6 +46,14 @@ type Cfg struct {
 	Logger         *slog.Logger
 	ProductionMode bool
 	DataDir        string
+
+	// Where the public viewer is reachable from a browser. Advertised to the
+	// admin SPA through GET /api/v0/info: the SPA renders no dashboards, so it
+	// links to the viewer server instead. ViewerPublicURL overrides the URL
+	// derived from the request host (needed behind a reverse proxy).
+	ViewerEnabled   bool
+	ViewerPort      int
+	ViewerPublicURL string
 }
 
 // ViewerHandler serves the read-only dashboard viewer.
@@ -88,6 +97,7 @@ type sharedDeps struct {
 	staticMid        func(http.Handler) http.Handler
 	promHisto        middleware.Histogram
 	modules          []widgets.Module
+	publicViewer     handlers.PublicViewer
 }
 
 func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
@@ -189,6 +199,11 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		staticMid:        staticMid,
 		promHisto:        promHisto,
 		modules:          modules,
+		publicViewer: handlers.PublicViewer{
+			Enabled: cfg.ViewerEnabled,
+			Port:    cfg.ViewerPort,
+			BaseURL: cfg.ViewerPublicURL,
+		},
 	}, nil
 }
 
@@ -201,6 +216,7 @@ func newAPIDeps(deps *sharedDeps, logger *slog.Logger) apiDeps {
 		backgroundsStore: deps.backgroundsStore,
 		logger:           logger,
 		modules:          deps.modules,
+		publicViewer:     deps.publicViewer,
 	}
 }
 

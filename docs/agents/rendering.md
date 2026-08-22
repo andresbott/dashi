@@ -64,12 +64,20 @@ in PNGs — no error. Fallback Inter TTFs are embedded in
 - The viewer renders `/{id}` paths server-side (see [viewer.md](viewer.md)).
   Root `/` resolves the default dashboard server-side and redirects
   (`app/router/main.go`, viewer setup).
-- The editor is a Vue SPA: root `/` redirects to `/admin`; routes are `/`,
-  `/:id`, `/dashboards`, `/dashboards/:id/edit`, `/dashboards/:id/settings`,
-  `/docs/*` (`webui/src/router/index.ts`). The editor falls through to
-  `app/spa` (embedded Vue build).
+- The editor is a Vue SPA: root `/` redirects to `/admin`; routes are `/admin`
+  (+ `admin/*` children, incl. `admin/docs/*`), `/dashboards/:id/edit`,
+  `/dashboards/:id/settings` and `/:id` (`webui/src/router/index.ts`). The
+  editor falls through to `app/spa` (embedded Vue build).
+- **The SPA never renders a dashboard for viewing.** The admin list's view
+  action links to the server-rendered viewer, using the base URL that
+  `GET /api/v0/info` advertises (`webui/src/lib/serverInfo.ts`). Its `/:id`
+  route is a leftover: the Go servers intercept those paths with
+  `staticMid` before the SPA ever sees them, so it only ever triggers on the
+  Vite dev server.
 - Frontend dev: `cd webui && npm run dev` proxies `/api` and `/auth` to
   `http://localhost:8088` (the **editor** port) — run `make run` alongside.
+  Because the proxy sets `changeOrigin`, `/api/v0/info` reports the viewer at
+  `http://localhost:8087`, so view links leave the dev server and hit Go.
 
 ## Analysis docs
 

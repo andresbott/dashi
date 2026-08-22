@@ -206,10 +206,41 @@ func (s *Store) Create(d Dashboard) (Dashboard, error) {
 	s.index[d.ID] = folder
 	s.mu.Unlock()
 
+	if d.Default {
+		if err := s.clearDefaultExcept(d.ID); err != nil {
+			return Dashboard{}, err
+		}
+	}
+
 	if err := s.writeToDisk(d); err != nil {
 		return Dashboard{}, err
 	}
 	return d, nil
+}
+
+// clearDefaultExcept unsets the default flag on every dashboard other than
+// keepID. At most one dashboard may be the default: the viewer's root redirect
+// takes the first one it finds in List order, so a second default would make
+// that choice depend on the dashboard names. Callers must hold no lock.
+func (s *Store) clearDefaultExcept(keepID string) error {
+	metas, err := s.List()
+	if err != nil {
+		return fmt.Errorf("list dashboards: %w", err)
+	}
+	for _, m := range metas {
+		if !m.Default || m.ID == keepID {
+			continue
+		}
+		other, err := s.Get(m.ID)
+		if err != nil {
+			return fmt.Errorf("read dashboard %s: %w", m.ID, err)
+		}
+		other.Default = false
+		if err := s.writeToDisk(other); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) writeToDisk(d Dashboard) error {
@@ -311,6 +342,12 @@ func (s *Store) Update(d Dashboard) (Dashboard, error) {
 		}
 	}
 	s.mu.Unlock()
+
+	if d.Default {
+		if err := s.clearDefaultExcept(d.ID); err != nil {
+			return Dashboard{}, err
+		}
+	}
 
 	if err := s.writeToDisk(d); err != nil {
 		return Dashboard{}, err

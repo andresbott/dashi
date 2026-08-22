@@ -25,6 +25,7 @@ type apiDeps struct {
 	backgroundsStore *backgrounds.Store
 	logger           *slog.Logger
 	modules          []widgets.Module
+	publicViewer     handlers.PublicViewer
 }
 
 // attachReadAPIs mounts all read-only (GET) API endpoints on the given router.
@@ -34,6 +35,10 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
+
+	// Runtime info the SPA reads at init (where the public viewer lives)
+	ih := handlers.NewInfoHandler(deps.publicViewer)
+	r.Path("/info").Methods(http.MethodGet).HandlerFunc(ih.Get)
 
 	// Dashboard routes (read)
 	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.backgroundsStore, deps.logger)

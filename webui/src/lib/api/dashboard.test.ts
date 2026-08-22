@@ -5,6 +5,7 @@ import {
     createDashboard,
     updateDashboard,
     deleteDashboard,
+    setDefaultDashboard,
     getDashboardAssets,
     getBackgrounds,
 } from './dashboard'
@@ -76,6 +77,20 @@ describe('dashboard API', () => {
             vi.mocked(apiClient.delete).mockResolvedValue({})
             await deleteDashboard('1')
             expect(apiClient.delete).toHaveBeenCalledWith('/dashboards/1')
+        })
+    })
+
+    describe('setDefaultDashboard', () => {
+        it('reads the dashboard and puts it back marked as default', async () => {
+            const dash = { id: '1', name: 'test', default: false }
+            vi.mocked(apiClient.get).mockResolvedValue({ data: dash })
+            vi.mocked(apiClient.put).mockResolvedValue({ data: { ...dash, default: true } })
+
+            const result = await setDefaultDashboard('1')
+
+            expect(apiClient.get).toHaveBeenCalledWith('/dashboards/1')
+            expect(apiClient.put).toHaveBeenCalledWith('/dashboards/1', { ...dash, default: true })
+            expect(result.default).toBe(true)
         })
     })
 

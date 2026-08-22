@@ -838,3 +838,87 @@ func TestStore_ExportZip_ImportRoundTrip(t *testing.T) {
 		t.Fatalf("expected [bg.jpg], got %v", assets)
 	}
 }
+
+// seedDefaultDashboards creates three dashboards, the first of which is the default.
+func seedDefaultDashboards(t *testing.T, store *Store) (first, second, third Dashboard) {
+	t.Helper()
+	mk := func(id, name string, def bool) Dashboard {
+		d, err := store.Create(Dashboard{
+			ID:      id,
+			Name:    name,
+			Default: def,
+			Pages:   []Page{},
+		})
+		if err != nil {
+			t.Fatalf("create %s: %v", name, err)
+		}
+		return d
+	}
+	return mk("aaaaa1", "Alpha", true), mk("bbbbb2", "Bravo", false), mk("ccccc3", "Charlie", false)
+}
+
+func TestStore_Update_MakingADashboardDefaultClearsTheOthers(t *testing.T) {
+	store := NewStore(t.TempDir())
+	alpha, bravo, charlie := seedDefaultDashboards(t, store)
+
+	bravo.Default = true
+	if _, err := store.Update(bravo); err != nil {
+		t.Fatalf("update bravo: %v", err)
+	}
+
+	for _, tc := range []struct {
+		id   string
+		want bool
+	}{
+		{alpha.ID, false},
+		{bravo.ID, true},
+		{charlie.ID, false},
+	} {
+		got, err := store.Get(tc.id)
+		if err != nil {
+			t.Fatalf("get %s: %v", tc.id, err)
+		}
+		if got.Default != tc.want {
+			t.Errorf("dashboard %s: default = %v, want %v", tc.id, got.Default, tc.want)
+		}
+	}
+}
+
+func TestStore_Update_NotDefaultLeavesTheCurrentDefaultAlone(t *testing.T) {
+	store := NewStore(t.TempDir())
+	alpha, bravo, _ := seedDefaultDashboards(t, store)
+
+	bravo.Name = "Bravo renamed"
+	if _, err := store.Update(bravo); err != nil {
+		t.Fatalf("update bravo: %v", err)
+	}
+
+	got, err := store.Get(alpha.ID)
+	if err != nil {
+		t.Fatalf("get alpha: %v", err)
+	}
+	if !got.Default {
+		t.Error("alpha lost its default flag after an unrelated update")
+	}
+}
+
+func TestStore_Create_ADefaultDashboardClearsTheOthers(t *testing.T) {
+	store := NewStore(t.TempDir())
+	alpha, _, _ := seedDefaultDashboards(t, store)
+
+	created, err := store.Create(Dashboard{ID: "ddddd4", Name: "Delta", Default: true, Pages: []Page{}})
+	if err != nil {
+		t.Fatalf("create delta: %v", err)
+	}
+	if !created.Default {
+		t.Error("delta should be the default")
+	}
+
+	got, err := store.Get(alpha.ID)
+	if err != nil {
+		t.Fatalf("get alpha: %v", err)
+	}
+	if got.Default {
+		t.Error("alpha should no longer be the default")
+	}
+}

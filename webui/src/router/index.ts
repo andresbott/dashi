@@ -4,9 +4,10 @@ const router = createRouter({
     history: createWebHistory('/'),
     routes: [
         {
+            // The Vue app is the admin UI; landing goes straight to /admin.
+            // The public dashboard view is served by the backend's public port.
             path: '/',
-            name: 'default-dashboard',
-            component: () => import('@/views/dashboards/DashboardView.vue'),
+            redirect: '/admin',
         },
         {
             path: '/admin',

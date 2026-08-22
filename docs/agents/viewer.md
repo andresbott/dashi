@@ -264,6 +264,13 @@ back to `list[0]` (the **alphabetically first by name**, because
 `dashboard.Store.List` sorts case-insensitively by name at
 `internal/dashboard/store.go:274-276`).
 
+At most one dashboard carries the flag: `Store.Create` and `Store.Update` call
+`clearDefaultExcept`, which unsets `default` on every other dashboard whenever
+one is written with `default: true`. Enforce it there, not in a handler or the
+SPA — `ImportZip` already forces `default: false`, and the editor UI picks the
+default from the dashboard list (`webui/src/views/admin/AdminDashboards.vue`)
+with a single PUT that relies on this.
+
 An image-type dashboard with display headers still renders a PNG exactly as
 before; all other dashboard types render browser HTML. The HTML preview path
 (`serveImageHTMLPreview` and `inlineLocalImages`) was deleted in this refactor.

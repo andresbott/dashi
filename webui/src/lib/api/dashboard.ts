@@ -27,6 +27,14 @@ export const deleteDashboard = async (id: string): Promise<void> => {
     await apiClient.delete(`${DASHBOARD_PATH}/${id}`)
 }
 
+// setDefaultDashboard marks a dashboard as the default one. There is no
+// dedicated endpoint, so the full dashboard is read and written back; the
+// backend clears the flag on every other dashboard.
+export const setDefaultDashboard = async (id: string): Promise<Dashboard> => {
+    const dashboard = await getDashboard(id)
+    return updateDashboard(id, { ...dashboard, default: true })
+}
+
 export interface BackgroundOption {
     name: string
     value: string
