@@ -17,24 +17,17 @@ type Page struct {
 	Rows            []Row  `json:"rows"`
 }
 
-// Background defines the dashboard background appearance.
-type Background struct {
-	Type  string `json:"type"`  // "none", "image", "color", "gradient"
-	Value string `json:"value"` // image ref, hex color, or CSS gradient
-}
-
 // Dashboard represents a user-defined dashboard with a layout of widgets in rows.
 type Dashboard struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Icon        string      `json:"icon"`
-	Type        string      `json:"type"`
-	Default     bool        `json:"default,omitempty"`
-	Container   Container   `json:"container"`
-	Theme       string      `json:"theme,omitempty"`
-	ColorMode   string      `json:"colorMode,omitempty"`
-	AccentColor string      `json:"accentColor,omitempty"`
-	Background  *Background `json:"background,omitempty"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Icon        string    `json:"icon"`
+	Type        string    `json:"type"`
+	Default     bool      `json:"default,omitempty"`
+	Container   Container `json:"container"`
+	Theme       string    `json:"theme,omitempty"`
+	ColorMode   string    `json:"colorMode,omitempty"`
+	AccentColor string    `json:"accentColor,omitempty"`
 	// BackgroundID references a background entity (internal/backgrounds).
 	// Deliberately a different JSON key from the removed inline
 	// "background" object: a stale object under this name would fail to

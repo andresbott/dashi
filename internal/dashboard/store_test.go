@@ -922,3 +922,34 @@ func TestStore_Create_ADefaultDashboardClearsTheOthers(t *testing.T) {
 		t.Error("alpha should no longer be the default")
 	}
 }
+
+func TestStaleInlineBackgroundIsIgnoredNotFatal(t *testing.T) {
+	// Pre-refactor dashboards carry background:{type,value}. Reusing the
+	// "background" key for the new string reference would make these files
+	// fail to unmarshal and take the dashboard down; under the new key,
+	// encoding/json ignores the stale object.
+	dir := t.TempDir()
+	folder := filepath.Join(dir, "legacy")
+	if err := os.MkdirAll(folder, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	legacy := `{"id":"abc123","name":"Legacy","type":"interactive",
+		"background":{"type":"color","value":"#ff0000"},
+		"container":{"maxWidth":"100%","verticalAlign":"top","horizontalAlign":"left"},
+		"pages":[]}`
+	if err := os.WriteFile(filepath.Join(folder, "dashboard.json"), []byte(legacy), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	s := NewStore(dir)
+	d, err := s.Get("abc123")
+	if err != nil {
+		t.Fatalf("a legacy dashboard must still load: %v", err)
+	}
+	if d.Name != "Legacy" {
+		t.Errorf("got name %q", d.Name)
+	}
+	if d.BackgroundID != "" {
+		t.Errorf("expected no background reference, got %q", d.BackgroundID)
+	}
+}
