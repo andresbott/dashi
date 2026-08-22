@@ -23,11 +23,6 @@ export interface Container {
     showBoxes?: boolean
 }
 
-export interface Background {
-    type: 'none' | 'image' | 'color' | 'gradient'
-    value: string
-}
-
 export interface Page {
     name: string
     refreshInterval?: number
@@ -46,7 +41,10 @@ export interface Dashboard {
     theme?: string
     colorMode?: ColorMode
     accentColor?: string
-    background?: Background
+    // References a background entity (see types/background.ts). Deliberately a
+    // different key from the removed inline `background` object: the backend
+    // ignores that stale key rather than failing to parse older dashboards.
+    backgroundId?: string
     pages: Page[]
 }
 
@@ -67,6 +65,9 @@ export interface CreateDashboardDTO {
     theme?: string
     colorMode?: ColorMode
     accentColor?: string
-    background?: Background
+    // References a background entity (see types/background.ts). Deliberately a
+    // different key from the removed inline `background` object: the backend
+    // ignores that stale key rather than failing to parse older dashboards.
+    backgroundId?: string
     pages: Page[]
 }
