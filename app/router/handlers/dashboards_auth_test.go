@@ -19,7 +19,7 @@ func setupAuthTestHandler(t *testing.T) (*DashboardHandler, *dashboard.Store) {
 	dir := t.TempDir()
 	store := dashboard.NewStore(dir)
 	themeStore := themes.NewStore("")
-	h := NewDashboardHandler(store, themeStore, nil, slog.Default())
+	h := NewDashboardHandler(store, themeStore, slog.Default())
 	return h, store
 }
 

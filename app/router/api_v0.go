@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
@@ -22,6 +23,7 @@ type apiDeps struct {
 	notesStore     *notes.Store
 	imagesStore    *images.Store
 	sharedBgImages *images.Store
+	bgStore        *backgrounds.Store
 	logger         *slog.Logger
 	modules        []widgets.Module
 	publicViewer   handlers.PublicViewer
@@ -40,13 +42,19 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/info").Methods(http.MethodGet).HandlerFunc(ih.Get)
 
 	// Dashboard routes (read)
-	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.sharedBgImages, deps.logger)
+	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.logger)
 	r.Path("/dashboards").Methods(http.MethodGet).HandlerFunc(dh.List)
 	r.Path("/dashboards/{id}").Methods(http.MethodGet).HandlerFunc(dh.Get)
 	r.Path("/dashboards/{id}/download").Methods(http.MethodGet).HandlerFunc(dh.Download)
 	r.Path("/dashboards/{id}/assets").Methods(http.MethodGet).HandlerFunc(dh.ListAssets)
 	r.Path("/dashboards/{id}/assets/{path:.*}").Methods(http.MethodGet).HandlerFunc(dh.GetAsset)
-	r.Path("/backgrounds").Methods(http.MethodGet).HandlerFunc(dh.ListBackgrounds)
+
+	// Background entity (read)
+	bh := handlers.NewBackgroundHandler(deps.bgStore, deps.dashStore, deps.logger)
+	r.Path("/backgrounds").Methods(http.MethodGet).HandlerFunc(bh.List)
+	r.Path("/backgrounds/{id}").Methods(http.MethodGet).HandlerFunc(bh.Get)
+	r.Path("/backgrounds/{id}/assets").Methods(http.MethodGet).HandlerFunc(bh.ListAssets)
+	r.Path("/backgrounds/{id}/assets/{path:.*}").Methods(http.MethodGet).HandlerFunc(bh.GetAsset)
 
 	// Widget interactive routes (mounted by each widget's Module.RegisterRoutes)
 	for _, m := range deps.modules {
@@ -67,7 +75,7 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 
 // attachWriteAPIs mounts all write (POST/PUT/DELETE) API endpoints on the given router.
 func attachWriteAPIs(r *mux.Router, deps apiDeps) {
-	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.sharedBgImages, deps.logger)
+	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.logger)
 
 	r.Path("/dashboards").Methods(http.MethodPost).HandlerFunc(dh.Create)
 	r.Path("/dashboards/upload").Methods(http.MethodPost).HandlerFunc(dh.Upload)
@@ -89,4 +97,12 @@ func attachWriteAPIs(r *mux.Router, deps apiDeps) {
 	// Shared user-data (write)
 	dataH := handlers.NewDataHandler(deps.notesStore, deps.imagesStore, deps.sharedBgImages, deps.logger)
 	dataH.RegisterWrite(r)
+
+	// Background entity CRUD (editor only)
+	bh := handlers.NewBackgroundHandler(deps.bgStore, deps.dashStore, deps.logger)
+	r.Path("/backgrounds").Methods(http.MethodPost).HandlerFunc(bh.Create)
+	r.Path("/backgrounds/{id}").Methods(http.MethodPut).HandlerFunc(bh.Update)
+	r.Path("/backgrounds/{id}").Methods(http.MethodDelete).HandlerFunc(bh.Delete)
+	r.Path("/backgrounds/{id}/assets/{path:.*}").Methods(http.MethodPost).HandlerFunc(bh.SaveAsset)
+	r.Path("/backgrounds/{id}/assets/{path:.*}").Methods(http.MethodDelete).HandlerFunc(bh.DeleteAsset)
 }

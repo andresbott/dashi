@@ -11,6 +11,7 @@ import (
 
 	"github.com/andresbott/dashi/app/router/handlers"
 	"github.com/andresbott/dashi/app/spa"
+	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/dashboard/browser"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
@@ -89,6 +90,7 @@ type sharedDeps struct {
 	notesStore      *notes.Store
 	imagesStore     *images.Store
 	sharedBgImages  *images.Store
+	bgStore         *backgrounds.Store
 	staticRenderer  *dashstatic.Renderer
 	imageRenderer    *dashimage.Renderer
 	browserRenderer  *browser.Renderer
@@ -118,6 +120,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create shared background images store: %w", err)
 	}
+	bgStore := backgrounds.NewStore(filepath.Join(cfg.DataDir, "data", "backgrounds"), sharedBgImages)
 
 	// Static dashboard rendering
 	registry := widgets.NewRegistry()
@@ -191,6 +194,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		notesStore:      notesStore,
 		imagesStore:     imagesStore,
 		sharedBgImages:  sharedBgImages,
+		bgStore:         bgStore,
 		staticRenderer:  staticRenderer,
 		imageRenderer:   imageRenderer,
 		browserRenderer: browserRenderer,
@@ -213,6 +217,7 @@ func newAPIDeps(deps *sharedDeps, logger *slog.Logger) apiDeps {
 		notesStore:     deps.notesStore,
 		imagesStore:    deps.imagesStore,
 		sharedBgImages: deps.sharedBgImages,
+		bgStore:        deps.bgStore,
 		logger:         logger,
 		modules:        deps.modules,
 		publicViewer:   deps.publicViewer,

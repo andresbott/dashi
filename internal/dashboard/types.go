@@ -35,7 +35,14 @@ type Dashboard struct {
 	ColorMode   string      `json:"colorMode,omitempty"`
 	AccentColor string      `json:"accentColor,omitempty"`
 	Background  *Background `json:"background,omitempty"`
-	Pages       []Page      `json:"pages"`
+	// BackgroundID references a background entity (internal/backgrounds).
+	// Deliberately a different JSON key from the removed inline
+	// "background" object: a stale object under this name would fail to
+	// unmarshal into a string and take the whole dashboard down with it.
+	// Under this key, encoding/json ignores it and the dashboard renders
+	// the theme background.
+	BackgroundID string `json:"backgroundId,omitempty"`
+	Pages        []Page `json:"pages"`
 }
 
 // DashboardMeta is the lightweight listing representation (no rows).
