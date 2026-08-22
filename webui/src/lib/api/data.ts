@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api/client'
+import { withBase } from '@/lib/base'
 
 export type DataKind = 'notes' | 'images' | 'backgrounds'
 
@@ -26,5 +27,5 @@ export const deleteData = async (kind: DataKind, name: string): Promise<void> =>
 }
 
 export const dataUrl = (kind: DataKind, name: string): string => {
-    return `/api/v0/data/${kind}/${encodeURIComponent(name)}`
+    return withBase(`/api/v0/data/${kind}/${encodeURIComponent(name)}`)
 }

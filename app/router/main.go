@@ -9,12 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/andresbott/dashi/app/router/handlers"
 	"github.com/andresbott/dashi/app/spa"
+	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/dashboard/browser"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
-	"github.com/andresbott/dashi/internal/data/backgrounds"
 	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/data/notes"
 	"github.com/andresbott/dashi/internal/providers/market"
@@ -45,6 +46,14 @@ type Cfg struct {
 	Logger         *slog.Logger
 	ProductionMode bool
 	DataDir        string
+
+	// Where the public viewer is reachable from a browser. Advertised to the
+	// admin SPA through GET /api/v0/info: the SPA renders no dashboards, so it
+	// links to the viewer server instead. ViewerPublicURL overrides the URL
+	// derived from the request host (needed behind a reverse proxy).
+	ViewerEnabled   bool
+	ViewerPort      int
+	ViewerPublicURL string
 }
 
 // ViewerHandler serves the read-only dashboard viewer.
@@ -77,17 +86,19 @@ type sharedDeps struct {
 	marketClient     *market.Client
 	xkcdClient       *xkcd.Client
 	transportClient  *swisstransport.Client
-	themeStore       *themes.Store
-	notesStore       *notes.Store
-	imagesStore      *images.Store
-	backgroundsStore *backgrounds.Store
-	staticRenderer   *dashstatic.Renderer
+	themeStore      *themes.Store
+	notesStore      *notes.Store
+	imagesStore     *images.Store
+	sharedBgImages  *images.Store
+	bgStore         *backgrounds.Store
+	staticRenderer  *dashstatic.Renderer
 	imageRenderer    *dashimage.Renderer
 	browserRenderer  *browser.Renderer
 	browserAssets    *browser.Assets
 	staticMid        func(http.Handler) http.Handler
 	promHisto        middleware.Histogram
 	modules          []widgets.Module
+	publicViewer     handlers.PublicViewer
 }
 
 func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
@@ -105,10 +116,11 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create images store: %w", err)
 	}
-	backgroundsStore, err := backgrounds.NewStore(filepath.Join(cfg.DataDir, "data", "backgrounds"))
+	sharedBgImages, err := images.NewStore(filepath.Join(cfg.DataDir, "data", "shared-background-images"))
 	if err != nil {
-		return nil, fmt.Errorf("create backgrounds store: %w", err)
+		return nil, fmt.Errorf("create shared background images store: %w", err)
 	}
+	bgStore := backgrounds.NewStore(filepath.Join(cfg.DataDir, "data", "backgrounds"), sharedBgImages)
 
 	// Static dashboard rendering
 	registry := widgets.NewRegistry()
@@ -169,38 +181,46 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		}
 	}
 
-	staticMid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, backgroundsStore)
+	staticMid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, bgStore)
 	promHisto := middleware.NewPromHistogram("", nil, nil)
 
 	return &sharedDeps{
-		dashStore:        dashStore,
-		weatherClient:    weatherClient,
-		marketClient:     marketClient,
-		xkcdClient:       xkcdClient,
-		transportClient:  transportClient,
-		themeStore:       themeStore,
-		notesStore:       notesStore,
-		imagesStore:      imagesStore,
-		backgroundsStore: backgroundsStore,
-		staticRenderer:   staticRenderer,
-		imageRenderer:    imageRenderer,
-		browserRenderer:  browserRenderer,
-		browserAssets:    browserAssets,
-		staticMid:        staticMid,
-		promHisto:        promHisto,
-		modules:          modules,
+		dashStore:       dashStore,
+		weatherClient:   weatherClient,
+		marketClient:    marketClient,
+		xkcdClient:      xkcdClient,
+		transportClient: transportClient,
+		themeStore:      themeStore,
+		notesStore:      notesStore,
+		imagesStore:     imagesStore,
+		sharedBgImages:  sharedBgImages,
+		bgStore:         bgStore,
+		staticRenderer:  staticRenderer,
+		imageRenderer:   imageRenderer,
+		browserRenderer: browserRenderer,
+		browserAssets:   browserAssets,
+		staticMid:       staticMid,
+		promHisto:       promHisto,
+		modules:         modules,
+		publicViewer: handlers.PublicViewer{
+			Enabled: cfg.ViewerEnabled,
+			Port:    cfg.ViewerPort,
+			BaseURL: cfg.ViewerPublicURL,
+		},
 	}, nil
 }
 
 func newAPIDeps(deps *sharedDeps, logger *slog.Logger) apiDeps {
 	return apiDeps{
-		dashStore:        deps.dashStore,
-		themeStore:       deps.themeStore,
-		notesStore:       deps.notesStore,
-		imagesStore:      deps.imagesStore,
-		backgroundsStore: deps.backgroundsStore,
-		logger:           logger,
-		modules:          deps.modules,
+		dashStore:      deps.dashStore,
+		themeStore:     deps.themeStore,
+		notesStore:     deps.notesStore,
+		imagesStore:    deps.imagesStore,
+		sharedBgImages: deps.sharedBgImages,
+		bgStore:        deps.bgStore,
+		logger:         logger,
+		modules:        deps.modules,
+		publicViewer:   deps.publicViewer,
 	}
 }
 
@@ -308,19 +328,16 @@ func NewEditorFromDeps(cfg Cfg, deps *sharedDeps) (*EditorHandler, error) {
 	// dashboard-ID routes so the /_dashi prefix always wins.
 	attachDashiAssets(r, deps.browserAssets, deps.themeStore)
 
-	// Root "/" redirects to /admin
-	r.Path("/").Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/admin", http.StatusFound)
-	})
-
-	// Static dashboard middleware (image rendering) + full SPA on all paths
-	spaHandler, err := spa.App("/")
+	// SPA shell (with ingress base injected) + real files, behind the static
+	// dashboard middleware. No server-side "/"→"/admin" redirect: the client
+	// router does it, and an absolute redirect would escape the ingress prefix.
+	spaHandler, err := spa.EditorHandler()
 	if err != nil {
 		return nil, err
 	}
 	spaRouter := r.PathPrefix("/").Subrouter()
 	spaRouter.Use(deps.staticMid)
-	spaRouter.PathPrefix("/").Handler(spaHandler)
+	spaRouter.PathPrefix("/").Methods(http.MethodGet).HandlerFunc(spaHandler)
 
 	return h, nil
 }

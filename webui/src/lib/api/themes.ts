@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api/client'
 import type { ThemeInfo, FontIconResponse } from '@/types/theme'
+import { withBase } from '@/lib/base'
 
 const THEMES_PATH = '/themes'
 
@@ -14,15 +15,15 @@ export const getFontIcon = async (themeName: string, iconName: string): Promise<
 }
 
 export const getIconUrl = (themeName: string, iconName: string): string => {
-    return `/api/v0${THEMES_PATH}/${themeName}/icons/${iconName}`
+    return withBase(`/api/v0${THEMES_PATH}/${themeName}/icons/${iconName}`)
 }
 
 export const getFontUrl = (themeName: string, fontName: string): string => {
-    return `/api/v0${THEMES_PATH}/${encodeURIComponent(themeName)}/fonts/${encodeURIComponent(fontName)}`
+    return withBase(`/api/v0${THEMES_PATH}/${encodeURIComponent(themeName)}/fonts/${encodeURIComponent(fontName)}`)
 }
 
 export const getThemeBackgroundUrl = (themeName: string, fileName: string): string => {
-    return `/api/v0${THEMES_PATH}/${encodeURIComponent(themeName)}/backgrounds/${encodeURIComponent(fileName)}`
+    return withBase(`/api/v0${THEMES_PATH}/${encodeURIComponent(themeName)}/backgrounds/${encodeURIComponent(fileName)}`)
 }
 
 // ---------- admin CRUD ----------
@@ -41,5 +42,5 @@ export const deleteTheme = async (name: string): Promise<void> => {
 }
 
 export const themeDownloadUrl = (name: string): string => {
-    return `/api/v0${THEMES_PATH}/${encodeURIComponent(name)}/download`
+    return withBase(`/api/v0${THEMES_PATH}/${encodeURIComponent(name)}/download`)
 }

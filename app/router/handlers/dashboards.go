@@ -6,25 +6,21 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"path/filepath"
-	"strings"
 
 	"github.com/andresbott/dashi/internal/dashboard"
-	"github.com/andresbott/dashi/internal/data/backgrounds"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type DashboardHandler struct {
-	store            *dashboard.Store
-	themeStore       *themes.Store
-	backgroundsStore *backgrounds.Store
-	logger           *slog.Logger
+	store      *dashboard.Store
+	themeStore *themes.Store
+	logger     *slog.Logger
 }
 
-func NewDashboardHandler(store *dashboard.Store, themeStore *themes.Store, backgroundsStore *backgrounds.Store, logger *slog.Logger) *DashboardHandler {
-	return &DashboardHandler{store: store, themeStore: themeStore, backgroundsStore: backgroundsStore, logger: logger}
+func NewDashboardHandler(store *dashboard.Store, themeStore *themes.Store, logger *slog.Logger) *DashboardHandler {
+	return &DashboardHandler{store: store, themeStore: themeStore, logger: logger}
 }
 
 func (h *DashboardHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -182,72 +178,6 @@ func (h *DashboardHandler) DeleteAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-type backgroundOption struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
-func (h *DashboardHandler) ListBackgrounds(w http.ResponseWriter, r *http.Request) {
-	dashID := r.URL.Query().Get("dashboard")
-	if dashID == "" {
-		ErrorJSON(w, "dashboard query parameter required", http.StatusBadRequest)
-		return
-	}
-
-	dash, err := h.store.Get(dashID)
-	if err != nil {
-		ErrorJSON(w, "dashboard not found", http.StatusNotFound)
-		return
-	}
-
-	// Theme backgrounds
-	themeName := dash.Theme
-	if themeName == "" {
-		themeName = "default"
-	}
-	themeFiles := h.themeStore.ListBackgrounds(themeName)
-	themeOptions := make([]backgroundOption, 0, len(themeFiles))
-	for _, f := range themeFiles {
-		themeOptions = append(themeOptions, backgroundOption{
-			Name:  f,
-			Value: "theme:" + themeName + "/" + f,
-		})
-	}
-
-	// Dashboard asset backgrounds (image files only)
-	imageExts := map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".webp": true, ".svg": true}
-	assets, _ := h.store.ListAssets(dashID)
-	dashOptions := make([]backgroundOption, 0)
-	for _, a := range assets {
-		ext := strings.ToLower(filepath.Ext(a))
-		if imageExts[ext] {
-			dashOptions = append(dashOptions, backgroundOption{
-				Name:  a,
-				Value: "dashboard:" + a,
-			})
-		}
-	}
-
-	// Shared backgrounds from the user-data store (nil-safe).
-	sharedOptions := make([]backgroundOption, 0)
-	if h.backgroundsStore != nil {
-		items, _ := h.backgroundsStore.List()
-		for _, it := range items {
-			sharedOptions = append(sharedOptions, backgroundOption{
-				Name:  it.Name,
-				Value: "shared:" + it.Name,
-			})
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"theme":     themeOptions,
-		"dashboard": dashOptions,
-		"shared":    sharedOptions,
-	})
 }
 
 func (h *DashboardHandler) GetAuth(w http.ResponseWriter, r *http.Request) {

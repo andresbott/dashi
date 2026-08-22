@@ -11,7 +11,7 @@ vi.mock('@/lib/api/dashboard', () => ({
     createDashboard: vi.fn(),
     updateDashboard: vi.fn(),
     deleteDashboard: vi.fn(),
-    getBackgrounds: vi.fn(),
+    setDefaultDashboard: vi.fn(),
     getDashboardAssets: vi.fn(),
 }))
 
@@ -40,6 +40,33 @@ describe('useListDashboards', () => {
 
         await flushPromises()
         expect(result!.dashboards.value).toEqual(items)
+    })
+
+    it('sets a dashboard as default and refetches the list', async () => {
+        vi.mocked(dashboardApi.getDashboards).mockResolvedValue([
+            { id: '1', name: 'One', default: true },
+            { id: '2', name: 'Two' },
+        ] as any)
+        vi.mocked(dashboardApi.setDefaultDashboard).mockResolvedValue({ id: '2', default: true } as any)
+
+        let result: ReturnType<typeof useListDashboards>
+        withQueryClient(() => {
+            result = useListDashboards()
+        })
+        await flushPromises()
+
+        vi.mocked(dashboardApi.getDashboards).mockResolvedValue([
+            { id: '1', name: 'One' },
+            { id: '2', name: 'Two', default: true },
+        ] as any)
+        await result!.setDefaultDashboard('2')
+        await flushPromises()
+
+        expect(dashboardApi.setDefaultDashboard).toHaveBeenCalledWith('2')
+        expect(result!.dashboards.value).toEqual([
+            { id: '1', name: 'One' },
+            { id: '2', name: 'Two', default: true },
+        ])
     })
 })
 

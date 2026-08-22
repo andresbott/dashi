@@ -68,6 +68,10 @@ func runServer(configFile string) error {
 		Logger:         l,
 		ProductionMode: cfg.Env.Production,
 		DataDir:        cfg.DataDir,
+
+		ViewerEnabled:   cfg.Server.Viewer.Enabled,
+		ViewerPort:      cfg.Server.Viewer.Port,
+		ViewerPublicURL: cfg.Server.Viewer.PublicUrl,
 	}
 
 	// Build handlers based on which servers are enabled

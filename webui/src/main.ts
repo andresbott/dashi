@@ -56,4 +56,9 @@ app.use(VueQueryPlugin, {
     queryClient
 })
 
+// Ask the backend where the public viewer lives (used by the "view dashboard"
+// links). Non-blocking: the answer is reactive, so links update on arrival.
+import { loadServerInfo } from '@/lib/serverInfo'
+void loadServerInfo()
+
 app.mount('#app')

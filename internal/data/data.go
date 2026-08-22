@@ -1,12 +1,11 @@
 // Package data provides the shared, dashboard-independent user-data
-// layer. Content (notes, images, backgrounds) is stored under
-// {dataDir}/data/{kind}/ as flat collections that any dashboard can
-// reference by name.
+// layer. Content (notes, images) is stored under {dataDir}/data/{kind}/
+// as flat collections that any dashboard can reference by name.
 //
 // This package exports the shared types and errors used by the
-// per-kind sub-packages (data/notes, data/images, data/backgrounds).
-// The filesystem primitive FsStore is exported so the per-kind
-// sub-packages can wrap it with typed APIs.
+// per-kind sub-packages (data/notes, data/images). The filesystem
+// primitive FsStore is exported so the per-kind sub-packages can wrap
+// it with typed APIs.
 package data
 
 import (

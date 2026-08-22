@@ -5,8 +5,8 @@ import {
     createDashboard,
     updateDashboard,
     deleteDashboard,
+    setDefaultDashboard,
     getDashboardAssets,
-    getBackgrounds,
 } from './dashboard'
 import { apiClient } from './client'
 
@@ -79,6 +79,20 @@ describe('dashboard API', () => {
         })
     })
 
+    describe('setDefaultDashboard', () => {
+        it('reads the dashboard and puts it back marked as default', async () => {
+            const dash = { id: '1', name: 'test', default: false }
+            vi.mocked(apiClient.get).mockResolvedValue({ data: dash })
+            vi.mocked(apiClient.put).mockResolvedValue({ data: { ...dash, default: true } })
+
+            const result = await setDefaultDashboard('1')
+
+            expect(apiClient.get).toHaveBeenCalledWith('/dashboards/1')
+            expect(apiClient.put).toHaveBeenCalledWith('/dashboards/1', { ...dash, default: true })
+            expect(result.default).toBe(true)
+        })
+    })
+
     describe('getDashboardAssets', () => {
         it('returns asset list', async () => {
             vi.mocked(apiClient.get).mockResolvedValue({ data: { items: ['a.png', 'b.svg'] } })
@@ -90,21 +104,6 @@ describe('dashboard API', () => {
             vi.mocked(apiClient.get).mockResolvedValue({ data: { items: null } })
             const result = await getDashboardAssets('1')
             expect(result).toEqual([])
-        })
-    })
-
-    describe('getBackgrounds', () => {
-        it('returns grouped background options', async () => {
-            const response = {
-                theme: [{ name: 'bg.jpg', value: 'theme:default/bg.jpg' }],
-                dashboard: [],
-                shared: [{ name: 'sunset.jpg', value: 'shared:sunset.jpg' }],
-            }
-            vi.mocked(apiClient.get).mockResolvedValue({ data: response })
-            const result = await getBackgrounds('1')
-            expect(result).toEqual(response)
-            expect(result.shared).toEqual([{ name: 'sunset.jpg', value: 'shared:sunset.jpg' }])
-            expect(apiClient.get).toHaveBeenCalledWith('/backgrounds', { params: { dashboard: '1' } })
         })
     })
 })

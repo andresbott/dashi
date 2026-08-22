@@ -5,13 +5,13 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import ColorPicker from 'primevue/colorpicker'
-import Checkbox from 'primevue/checkbox'
 
-import { useGetDashboard, useUpdateDashboard, useBackgrounds, useDashboardAuth } from '@/composables/useDashboards'
+import { useGetDashboard, useUpdateDashboard, useDashboardAuth } from '@/composables/useDashboards'
+import { useListBackgrounds } from '@/composables/useBackgrounds'
 import { useThemes } from '@/composables/useThemes'
+import { pageBgValue } from '@/lib/backgroundCss'
 import { useToast } from 'primevue/usetoast'
-import type { Dashboard, Background } from '@/types/dashboard'
-import type { BackgroundOption } from '@/lib/api/dashboard'
+import type { Dashboard } from '@/types/dashboard'
 import dashiIcon from '@/assets/icon-64.png'
 
 const route = useRoute()
@@ -21,7 +21,7 @@ const id = computed(() => route.params.id as string)
 
 const { data: serverDashboard, isLoading, isError } = useGetDashboard(() => id.value)
 const { updateDashboard, isUpdating } = useUpdateDashboard()
-const { data: backgroundsData } = useBackgrounds(() => id.value)
+const { backgrounds: backgroundList } = useListBackgrounds()
 const { auth: dashAuth, isLoadingAuth, setAuth, isSettingAuth, deleteAuth, isDeletingAuth } = useDashboardAuth(() => id.value)
 
 const authUsername = ref('')
@@ -33,111 +33,33 @@ const themeOptions = computed(() => {
     return themesData.value.map(t => ({ label: t.name, value: t.name }))
 })
 
-const backgroundOptions = computed(() => backgroundsData.value ?? { theme: [] as BackgroundOption[], dashboard: [] as BackgroundOption[], shared: [] as BackgroundOption[] })
-
-const backgroundImageOptions = computed(() => {
-    const groups: { label: string; items: { label: string; value: string }[] }[] = []
-    if (backgroundOptions.value.theme.length > 0) {
-        groups.push({
-            label: 'Theme',
-            items: backgroundOptions.value.theme.map(o => ({ label: o.name, value: o.value })),
-        })
-    }
-    if (backgroundOptions.value.dashboard.length > 0) {
-        groups.push({
-            label: 'Dashboard',
-            items: backgroundOptions.value.dashboard.map(o => ({ label: o.name, value: o.value })),
-        })
-    }
-    if (backgroundOptions.value.shared.length > 0) {
-        groups.push({
-            label: 'Shared',
-            items: backgroundOptions.value.shared.map(o => ({ label: o.name, value: o.value })),
-        })
-    }
-    return groups
-})
-
 const localDashboard = ref<Dashboard | null>(null)
 
-const ensureBackground = () => {
-    if (!localDashboard.value) return
-    if (!localDashboard.value.background) {
-        localDashboard.value.background = { type: 'none', value: '' }
-    }
-}
+// A dashboard no longer describes its own background; it points at a background
+// entity, which is edited in the Backgrounds admin section.
+const backgroundOptions = computed(() => [
+    { label: 'None (theme background)', value: '' },
+    ...(backgroundList.value ?? []).map(b => ({ label: b.name, value: b.id })),
+])
 
-const backgroundType = computed({
-    get: (): Background['type'] => localDashboard.value?.background?.type ?? 'none',
-    set: (v: Background['type']) => {
-        ensureBackground()
-        localDashboard.value!.background!.type = v
-        if (v === 'gradient') {
-            localDashboard.value!.background!.value = gradientCSS.value
-        } else {
-            localDashboard.value!.background!.value = ''
-        }
-    }
-})
-
-const backgroundValue = computed({
-    get: () => localDashboard.value?.background?.value ?? '',
+const backgroundId = computed({
+    get: () => localDashboard.value?.backgroundId ?? '',
     set: (v: string) => {
-        ensureBackground()
-        localDashboard.value!.background!.value = v
-    }
+        if (localDashboard.value) localDashboard.value.backgroundId = v
+    },
 })
 
-// Gradient editor state
-const gradientDirection = ref('to right')
-const gradientCustomAngle = ref('135')
-const gradientColor1 = ref('#667eea')
-const gradientColor2 = ref('#764ba2')
+const selectedBackground = computed(
+    () => (backgroundList.value ?? []).find(b => b.id === backgroundId.value) ?? null,
+)
 
-const gradientDirectionOptions = [
-    { label: 'To Right', value: 'to right' },
-    { label: 'To Left', value: 'to left' },
-    { label: 'To Bottom', value: 'to bottom' },
-    { label: 'To Top', value: 'to top' },
-    { label: 'To Bottom Right', value: 'to bottom right' },
-    { label: 'To Top Right', value: 'to top right' },
-    { label: 'Custom Angle', value: 'custom' },
-]
-
-const gradientDirectionCSS = computed(() => {
-    return gradientDirection.value === 'custom'
-        ? gradientCustomAngle.value + 'deg'
-        : gradientDirection.value
-})
-
-const gradientCSS = computed(() => {
-    return `linear-gradient(${gradientDirectionCSS.value}, ${gradientColor1.value}, ${gradientColor2.value})`
-})
-
-function parseGradientValue(val: string) {
-    const match = val.match(/^linear-gradient\((.+?),\s*(.+?),\s*(.+?)\)$/)
-    if (!match) return
-    const dir = match[1].trim()
-    gradientColor1.value = match[2].trim()
-    gradientColor2.value = match[3].trim()
-    if (dir.endsWith('deg')) {
-        gradientDirection.value = 'custom'
-        gradientCustomAngle.value = dir.replace('deg', '')
-    } else {
-        gradientDirection.value = dir
-    }
-}
-
-function syncGradientToBackground() {
-    backgroundValue.value = gradientCSS.value
-}
+const swatchValue = computed(() =>
+    selectedBackground.value ? pageBgValue(selectedBackground.value.previewCss) : 'transparent',
+)
 
 watch(serverDashboard, (val) => {
     if (val && !localDashboard.value) {
         localDashboard.value = JSON.parse(JSON.stringify(val))
-        if (val.background?.type === 'gradient' && val.background.value) {
-            parseGradientValue(val.background.value)
-        }
     }
 }, { immediate: true })
 
@@ -213,10 +135,6 @@ const activeSection = ref('general')
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Name</label>
                         <InputText v-model="localDashboard.name" placeholder="Dashboard name" />
-                    </div>
-                    <div class="flex align-items-center gap-2">
-                        <Checkbox v-model="localDashboard.default" :binary="true" inputId="dashboardDefault" />
-                        <label for="dashboardDefault" class="font-semibold text-sm">Default dashboard</label>
                     </div>
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Type</label>
@@ -320,104 +238,28 @@ const activeSection = ref('general')
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Background</label>
                         <Select
-                            :modelValue="backgroundType"
-                            @update:modelValue="(v: Background['type'] | undefined) => { if (v !== undefined) backgroundType = v }"
-                            :options="[
-                                { label: 'None', value: 'none' },
-                                { label: 'Image', value: 'image' },
-                                { label: 'Color', value: 'color' },
-                                { label: 'Gradient', value: 'gradient' },
-                            ]"
+                            :modelValue="backgroundId"
+                            @update:modelValue="(v: string | undefined) => { if (v !== undefined) backgroundId = v }"
+                            :options="backgroundOptions"
                             optionLabel="label"
                             optionValue="value"
+                            placeholder="None (theme background)"
                             class="w-full"
                         />
+                        <small class="settings-hint">
+                            Backgrounds are shared between dashboards and edited in the
+                            Backgrounds admin section.
+                        </small>
                     </div>
-                    <div v-if="backgroundType === 'image'" class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Background Image</label>
-                        <Select
-                            :modelValue="backgroundValue"
-                            @update:modelValue="(v: string | undefined) => { if (v !== undefined) backgroundValue = v }"
-                            :options="backgroundImageOptions"
-                            optionLabel="label"
-                            optionValue="value"
-                            optionGroupLabel="label"
-                            optionGroupChildren="items"
-                            placeholder="Select an image..."
-                            class="w-full"
+                    <div v-if="selectedBackground" class="flex align-items-center gap-2">
+                        <div class="bg-swatch" :style="{ background: swatchValue }" />
+                        <Button
+                            label="Edit background"
+                            icon="ti ti-external-link"
+                            text
+                            @click="router.push({ name: 'admin-background-edit', params: { id: selectedBackground.id } })"
                         />
                     </div>
-                    <div v-if="backgroundType === 'color'" class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Background Color</label>
-                        <div class="flex align-items-center gap-2">
-                            <ColorPicker
-                                :modelValue="backgroundValue.replace('#', '')"
-                                @update:modelValue="(v: string | undefined) => { if (v !== undefined) backgroundValue = '#' + v }"
-                            />
-                            <InputText
-                                :modelValue="backgroundValue"
-                                @update:modelValue="(v: string | undefined) => { if (v !== undefined) backgroundValue = v }"
-                                placeholder="#1a1a2e"
-                                class="flex-grow-1"
-                            />
-                        </div>
-                    </div>
-                    <template v-if="backgroundType === 'gradient'">
-                        <div class="flex flex-column gap-1">
-                            <label class="font-semibold text-sm">Direction</label>
-                            <Select
-                                v-model="gradientDirection"
-                                :options="gradientDirectionOptions"
-                                optionLabel="label"
-                                optionValue="value"
-                                class="w-full"
-                                @update:modelValue="syncGradientToBackground"
-                            />
-                        </div>
-                        <div v-if="gradientDirection === 'custom'" class="flex flex-column gap-1">
-                            <label class="font-semibold text-sm">Angle (degrees)</label>
-                            <InputText
-                                v-model="gradientCustomAngle"
-                                placeholder="135"
-                                class="w-full"
-                                @update:modelValue="syncGradientToBackground"
-                            />
-                        </div>
-                        <div class="flex flex-column gap-1">
-                            <label class="font-semibold text-sm">Start Color</label>
-                            <div class="flex align-items-center gap-2">
-                                <ColorPicker
-                                    :modelValue="gradientColor1.replace('#', '')"
-                                    @update:modelValue="(v: string | undefined) => { if (v !== undefined) { gradientColor1 = '#' + v; syncGradientToBackground() } }"
-                                />
-                                <InputText
-                                    v-model="gradientColor1"
-                                    placeholder="#667eea"
-                                    class="flex-grow-1"
-                                    @update:modelValue="syncGradientToBackground"
-                                />
-                            </div>
-                        </div>
-                        <div class="flex flex-column gap-1">
-                            <label class="font-semibold text-sm">End Color</label>
-                            <div class="flex align-items-center gap-2">
-                                <ColorPicker
-                                    :modelValue="gradientColor2.replace('#', '')"
-                                    @update:modelValue="(v: string | undefined) => { if (v !== undefined) { gradientColor2 = '#' + v; syncGradientToBackground() } }"
-                                />
-                                <InputText
-                                    v-model="gradientColor2"
-                                    placeholder="#764ba2"
-                                    class="flex-grow-1"
-                                    @update:modelValue="syncGradientToBackground"
-                                />
-                            </div>
-                        </div>
-                        <div
-                            class="gradient-preview"
-                            :style="{ background: gradientCSS }"
-                        />
-                    </template>
 
                     <div class="settings-actions">
                         <Button label="Save" icon="ti ti-check" :loading="isUpdating" @click="save" />

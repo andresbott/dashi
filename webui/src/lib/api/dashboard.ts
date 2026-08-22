@@ -27,15 +27,12 @@ export const deleteDashboard = async (id: string): Promise<void> => {
     await apiClient.delete(`${DASHBOARD_PATH}/${id}`)
 }
 
-export interface BackgroundOption {
-    name: string
-    value: string
-}
-
-export interface BackgroundsResponse {
-    theme: BackgroundOption[]
-    dashboard: BackgroundOption[]
-    shared: BackgroundOption[]
+// setDefaultDashboard marks a dashboard as the default one. There is no
+// dedicated endpoint, so the full dashboard is read and written back; the
+// backend clears the flag on every other dashboard.
+export const setDefaultDashboard = async (id: string): Promise<Dashboard> => {
+    const dashboard = await getDashboard(id)
+    return updateDashboard(id, { ...dashboard, default: true })
 }
 
 export const downloadDashboard = async (id: string): Promise<void> => {
@@ -66,13 +63,6 @@ export const uploadDashboardZip = async (data: ArrayBuffer): Promise<Dashboard> 
         headers: { 'Content-Type': 'application/zip' },
     })
     return created
-}
-
-export const getBackgrounds = async (dashboardId: string): Promise<BackgroundsResponse> => {
-    const { data } = await apiClient.get<BackgroundsResponse>('/backgrounds', {
-        params: { dashboard: dashboardId },
-    })
-    return data
 }
 
 export interface DashboardAuthResponse {

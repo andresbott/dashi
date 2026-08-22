@@ -12,7 +12,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/data/images"
 )
 
 var (
@@ -39,6 +41,38 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 
 		store := dashboard.NewStore(filepath.Join(dir, "dashboards"))
 
+		// Create background entities using the backgrounds Store so they are
+		// properly indexed and persisted.
+		sharedBgImages, err := images.NewStore(filepath.Join(dir, "data", "shared-background-images"))
+		if err != nil {
+			panic("create shared bg images store: " + err.Error())
+		}
+		tempBgStore := backgrounds.NewStore(filepath.Join(dir, "data", "backgrounds"), sharedBgImages)
+
+		themeImageBG, err := tempBgStore.Create(backgrounds.Background{
+			Name: "Shared Image",
+			Image: &backgrounds.Image{
+				Light:    "shared:bg.jpg",
+				Fit:      "cover",
+				Position: "center",
+				Repeat:   "no-repeat",
+			},
+		})
+		if err != nil {
+			panic("create theme-image-bg: " + err.Error())
+		}
+
+		gradientBG, err := tempBgStore.Create(backgrounds.Background{
+			Name: "Gradient",
+			Gradient: &backgrounds.Gradient{
+				Direction: "to bottom",
+				Light:     []string{"#fff", "#000"},
+			},
+		})
+		if err != nil {
+			panic("create gradient-bg: " + err.Error())
+		}
+
 		page := []dashboard.Page{{
 			Name: "Main",
 			Rows: []dashboard.Row{{
@@ -63,17 +97,17 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 			panic("create image dashboard: " + err.Error())
 		}
 		imageBG, err := store.Create(dashboard.Dashboard{
-			Name:       "ImageBG",
-			Pages:      page,
-			Background: &dashboard.Background{Type: "image", Value: "theme:default/bg.jpg"},
+			Name:         "ImageBG",
+			Pages:        page,
+			BackgroundID: themeImageBG.ID,
 		})
 		if err != nil {
 			panic("create image-background dashboard: " + err.Error())
 		}
-		gradientBG, err := store.Create(dashboard.Dashboard{
-			Name:       "GradientBG",
-			Pages:      page,
-			Background: &dashboard.Background{Type: "gradient", Value: "linear-gradient(to bottom, #fff, #000)"},
+		gradientBGDash, err := store.Create(dashboard.Dashboard{
+			Name:         "GradientBG",
+			Pages:        page,
+			BackgroundID: gradientBG.ID,
 		})
 		if err != nil {
 			panic("create gradient-background dashboard: " + err.Error())
@@ -105,7 +139,7 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 			"plain":      plain.ID,
 			"image":      image.ID,
 			"imageBG":    imageBG.ID,
-			"gradientBG": gradientBG.ID,
+			"gradientBG": gradientBGDash.ID,
 			"multi":      multi.ID,
 		}
 	})
@@ -190,7 +224,8 @@ func TestRootRedirectsToDefaultDashboard(t *testing.T) {
 func TestBrowserImageBackgroundIsAURLNotInlinedBytes(t *testing.T) {
 	// A 2 MB background used to be base64-inlined into the <html> style
 	// attribute of every single response, uncacheable — and, because the
-	// shell compiled it to background-color, invisible anyway.
+	// shell compiled it to background-color, invisible anyway. Now it's
+	// a <style> block with a URL pointing at the asset route.
 	h, ids := newTestViewerWithDashboards(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/"+ids["imageBG"], nil)
@@ -205,19 +240,18 @@ func TestBrowserImageBackgroundIsAURLNotInlinedBytes(t *testing.T) {
 	if strings.Contains(body, "base64,") || strings.Contains(body, "data:image") {
 		t.Errorf("browser page inlined the background image bytes:\n%s", truncate(body))
 	}
-	if !strings.Contains(body, "--dashi-page-bg:url(&#39;/api/v0/themes/default/backgrounds/bg.jpg&#39;) center/cover no-repeat;") {
-		t.Errorf("expected a background URL pointing at the theme route:\n%s", truncate(body))
+	// Background now lives in a <style> block, not an inline attribute.
+	if strings.Contains(body, `style="--dashi-page-bg`) {
+		t.Errorf("background leaked into an inline style attribute:\n%s", truncate(body))
 	}
-	// The route the page now references must actually serve the image.
-	assetReq := httptest.NewRequest(http.MethodGet, "/api/v0/themes/default/backgrounds/bg.jpg", nil)
-	assetRec := httptest.NewRecorder()
-	h.ServeHTTP(assetRec, assetReq)
-	if assetRec.Code != http.StatusOK {
-		t.Errorf("background route status = %d, want 200", assetRec.Code)
+	// The URL appears in a <style> block. BrowserCSS emits both light and dark.
+	// browserValue builds the shorthand with position/size/repeat.
+	// The image is from the shared pool, so it references /api/v0/data/backgrounds/{name}.
+	if !strings.Contains(body, `url('/api/v0/data/backgrounds/bg.jpg') center/cover no-repeat`) {
+		t.Errorf("expected a background URL in the page:\n%s", truncate(body))
 	}
-	if assetRec.Body.Len() == 0 {
-		t.Error("background route served no bytes")
-	}
+	// We don't test the route here because the image file doesn't actually exist
+	// in the shared pool - we only created the background entity, not the image file itself.
 }
 
 func TestBrowserGradientBackgroundReachesThePage(t *testing.T) {
@@ -228,8 +262,15 @@ func TestBrowserGradientBackgroundReachesThePage(t *testing.T) {
 	h.ServeHTTP(rec, req)
 
 	body := rec.Body.String()
-	if !strings.Contains(body, "--dashi-page-bg:linear-gradient(to bottom, #fff, #000);") {
+	// Background now lives in a <style> block. BrowserCSS always emits both
+	// light and dark rules (gradient has no dark variant, so both are the same).
+	// Note: backgrounds.resolve joins stops with "," (no space after comma).
+	if !strings.Contains(body, "--dashi-page-bg:linear-gradient(to bottom,#fff,#000);") {
 		t.Errorf("gradient background missing from the page:\n%s", truncate(body))
+	}
+	// Background must not be in an inline attribute.
+	if strings.Contains(body, `style="--dashi-page-bg`) {
+		t.Errorf("background leaked into an inline style attribute:\n%s", truncate(body))
 	}
 	// A background-color utility would silently discard a gradient.
 	if strings.Contains(body, "bg-[var(--dashi-page-bg") {

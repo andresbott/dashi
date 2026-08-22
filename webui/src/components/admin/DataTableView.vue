@@ -17,7 +17,10 @@ const toast = useToast()
 const { items: itemsData, isLoading, uploadItem, isUploading, deleteItem } = useDataItems(props.kind)
 const items = computed(() => itemsData.value ?? [])
 
-const title = computed(() => (props.kind === 'images' ? 'Images' : 'Backgrounds'))
+// Both kinds this component serves are image libraries: 'images' feeds the
+// image widget, 'backgrounds' is the shared pool that backgrounds reference
+// with `shared:`. Background *configurations* live in AdminBackgrounds.vue.
+const title = computed(() => (props.kind === 'images' ? 'Images' : 'Shared background images'))
 
 // Upload
 const uploadInput = ref<HTMLInputElement | null>(null)
@@ -180,7 +183,7 @@ const formatTime = (t: string): string => {
     <ConfirmDialog
         v-model:visible="deleteDialogVisible"
         :name="itemToDelete ?? ''"
-        :title="'Delete ' + (kind === 'images' ? 'Image' : 'Background')"
+        title="Delete image"
         message="Are you sure you want to delete this file?"
         @confirm="confirmDelete"
     />

@@ -34,6 +34,11 @@ Server:
     BindIp: ""
     # Port to listen on.
     Port: 8087
+    # URL browsers use to reach the viewer, e.g. "https://dash.example.com".
+    # Leave empty to derive it from the request host and the port above; set it
+    # when that guess is wrong, typically behind a reverse proxy. The editor UI
+    # links to this URL when you view a dashboard.
+    PublicUrl: ""
   # Editor — dashboard editor with full CRUD access
   Editor:
     # Set to false to disable the editor server entirely.

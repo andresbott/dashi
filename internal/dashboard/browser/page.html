@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/_dashi/assets/viewer.css">
     <link rel="stylesheet" href="/_dashi/assets/widgets.css">
     <link rel="stylesheet" href="/_dashi/theme/{{.ThemeName}}.css">
+    {{if .BackgroundCSS}}<style>{{.BackgroundCSS}}</style>{{end}}
     {{if .CustomCSS}}<style>{{.CustomCSS}}</style>{{end}}
 </head>
 <body class="min-h-screen">

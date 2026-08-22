@@ -5,26 +5,28 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/gorilla/mux"
 
 	"github.com/andresbott/dashi/app/router/handlers"
-	"github.com/andresbott/dashi/internal/data/backgrounds"
 	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/data/notes"
 )
 
 // apiDeps holds shared dependencies for API route handlers.
 type apiDeps struct {
-	dashStore        *dashboard.Store
-	themeStore       *themes.Store
-	notesStore       *notes.Store
-	imagesStore      *images.Store
-	backgroundsStore *backgrounds.Store
-	logger           *slog.Logger
-	modules          []widgets.Module
+	dashStore      *dashboard.Store
+	themeStore     *themes.Store
+	notesStore     *notes.Store
+	imagesStore    *images.Store
+	sharedBgImages *images.Store
+	bgStore        *backgrounds.Store
+	logger         *slog.Logger
+	modules        []widgets.Module
+	publicViewer   handlers.PublicViewer
 }
 
 // attachReadAPIs mounts all read-only (GET) API endpoints on the given router.
@@ -35,14 +37,24 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
+	// Runtime info the SPA reads at init (where the public viewer lives)
+	ih := handlers.NewInfoHandler(deps.publicViewer)
+	r.Path("/info").Methods(http.MethodGet).HandlerFunc(ih.Get)
+
 	// Dashboard routes (read)
-	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.backgroundsStore, deps.logger)
+	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.logger)
 	r.Path("/dashboards").Methods(http.MethodGet).HandlerFunc(dh.List)
 	r.Path("/dashboards/{id}").Methods(http.MethodGet).HandlerFunc(dh.Get)
 	r.Path("/dashboards/{id}/download").Methods(http.MethodGet).HandlerFunc(dh.Download)
 	r.Path("/dashboards/{id}/assets").Methods(http.MethodGet).HandlerFunc(dh.ListAssets)
 	r.Path("/dashboards/{id}/assets/{path:.*}").Methods(http.MethodGet).HandlerFunc(dh.GetAsset)
-	r.Path("/backgrounds").Methods(http.MethodGet).HandlerFunc(dh.ListBackgrounds)
+
+	// Background entity (read)
+	bh := handlers.NewBackgroundHandler(deps.bgStore, deps.dashStore, deps.logger)
+	r.Path("/backgrounds").Methods(http.MethodGet).HandlerFunc(bh.List)
+	r.Path("/backgrounds/{id}").Methods(http.MethodGet).HandlerFunc(bh.Get)
+	r.Path("/backgrounds/{id}/assets").Methods(http.MethodGet).HandlerFunc(bh.ListAssets)
+	r.Path("/backgrounds/{id}/assets/{path:.*}").Methods(http.MethodGet).HandlerFunc(bh.GetAsset)
 
 	// Widget interactive routes (mounted by each widget's Module.RegisterRoutes)
 	for _, m := range deps.modules {
@@ -57,13 +69,13 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/themes/{name}/backgrounds/{file}").Methods(http.MethodGet).HandlerFunc(th.GetBackground)
 
 	// Shared user-data (read)
-	dataH := handlers.NewDataHandler(deps.notesStore, deps.imagesStore, deps.backgroundsStore, deps.logger)
+	dataH := handlers.NewDataHandler(deps.notesStore, deps.imagesStore, deps.sharedBgImages, deps.logger)
 	dataH.RegisterRead(r)
 }
 
 // attachWriteAPIs mounts all write (POST/PUT/DELETE) API endpoints on the given router.
 func attachWriteAPIs(r *mux.Router, deps apiDeps) {
-	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.backgroundsStore, deps.logger)
+	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.logger)
 
 	r.Path("/dashboards").Methods(http.MethodPost).HandlerFunc(dh.Create)
 	r.Path("/dashboards/upload").Methods(http.MethodPost).HandlerFunc(dh.Upload)
@@ -83,6 +95,14 @@ func attachWriteAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/themes/{name}/download").Methods(http.MethodGet).HandlerFunc(th.Download)
 
 	// Shared user-data (write)
-	dataH := handlers.NewDataHandler(deps.notesStore, deps.imagesStore, deps.backgroundsStore, deps.logger)
+	dataH := handlers.NewDataHandler(deps.notesStore, deps.imagesStore, deps.sharedBgImages, deps.logger)
 	dataH.RegisterWrite(r)
+
+	// Background entity CRUD (editor only)
+	bh := handlers.NewBackgroundHandler(deps.bgStore, deps.dashStore, deps.logger)
+	r.Path("/backgrounds").Methods(http.MethodPost).HandlerFunc(bh.Create)
+	r.Path("/backgrounds/{id}").Methods(http.MethodPut).HandlerFunc(bh.Update)
+	r.Path("/backgrounds/{id}").Methods(http.MethodDelete).HandlerFunc(bh.Delete)
+	r.Path("/backgrounds/{id}/assets/{path:.*}").Methods(http.MethodPost).HandlerFunc(bh.SaveAsset)
+	r.Path("/backgrounds/{id}/assets/{path:.*}").Methods(http.MethodDelete).HandlerFunc(bh.DeleteAsset)
 }

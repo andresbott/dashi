@@ -838,3 +838,118 @@ func TestStore_ExportZip_ImportRoundTrip(t *testing.T) {
 		t.Fatalf("expected [bg.jpg], got %v", assets)
 	}
 }
+
+// seedDefaultDashboards creates three dashboards, the first of which is the default.
+func seedDefaultDashboards(t *testing.T, store *Store) (first, second, third Dashboard) {
+	t.Helper()
+	mk := func(id, name string, def bool) Dashboard {
+		d, err := store.Create(Dashboard{
+			ID:      id,
+			Name:    name,
+			Default: def,
+			Pages:   []Page{},
+		})
+		if err != nil {
+			t.Fatalf("create %s: %v", name, err)
+		}
+		return d
+	}
+	return mk("aaaaa1", "Alpha", true), mk("bbbbb2", "Bravo", false), mk("ccccc3", "Charlie", false)
+}
+
+func TestStore_Update_MakingADashboardDefaultClearsTheOthers(t *testing.T) {
+	store := NewStore(t.TempDir())
+	alpha, bravo, charlie := seedDefaultDashboards(t, store)
+
+	bravo.Default = true
+	if _, err := store.Update(bravo); err != nil {
+		t.Fatalf("update bravo: %v", err)
+	}
+
+	for _, tc := range []struct {
+		id   string
+		want bool
+	}{
+		{alpha.ID, false},
+		{bravo.ID, true},
+		{charlie.ID, false},
+	} {
+		got, err := store.Get(tc.id)
+		if err != nil {
+			t.Fatalf("get %s: %v", tc.id, err)
+		}
+		if got.Default != tc.want {
+			t.Errorf("dashboard %s: default = %v, want %v", tc.id, got.Default, tc.want)
+		}
+	}
+}
+
+func TestStore_Update_NotDefaultLeavesTheCurrentDefaultAlone(t *testing.T) {
+	store := NewStore(t.TempDir())
+	alpha, bravo, _ := seedDefaultDashboards(t, store)
+
+	bravo.Name = "Bravo renamed"
+	if _, err := store.Update(bravo); err != nil {
+		t.Fatalf("update bravo: %v", err)
+	}
+
+	got, err := store.Get(alpha.ID)
+	if err != nil {
+		t.Fatalf("get alpha: %v", err)
+	}
+	if !got.Default {
+		t.Error("alpha lost its default flag after an unrelated update")
+	}
+}
+
+func TestStore_Create_ADefaultDashboardClearsTheOthers(t *testing.T) {
+	store := NewStore(t.TempDir())
+	alpha, _, _ := seedDefaultDashboards(t, store)
+
+	created, err := store.Create(Dashboard{ID: "ddddd4", Name: "Delta", Default: true, Pages: []Page{}})
+	if err != nil {
+		t.Fatalf("create delta: %v", err)
+	}
+	if !created.Default {
+		t.Error("delta should be the default")
+	}
+
+	got, err := store.Get(alpha.ID)
+	if err != nil {
+		t.Fatalf("get alpha: %v", err)
+	}
+	if got.Default {
+		t.Error("alpha should no longer be the default")
+	}
+}
+
+func TestStaleInlineBackgroundIsIgnoredNotFatal(t *testing.T) {
+	// Pre-refactor dashboards carry background:{type,value}. Reusing the
+	// "background" key for the new string reference would make these files
+	// fail to unmarshal and take the dashboard down; under the new key,
+	// encoding/json ignores the stale object.
+	dir := t.TempDir()
+	folder := filepath.Join(dir, "legacy")
+	if err := os.MkdirAll(folder, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	legacy := `{"id":"abc123","name":"Legacy","type":"interactive",
+		"background":{"type":"color","value":"#ff0000"},
+		"container":{"maxWidth":"100%","verticalAlign":"top","horizontalAlign":"left"},
+		"pages":[]}`
+	if err := os.WriteFile(filepath.Join(folder, "dashboard.json"), []byte(legacy), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	s := NewStore(dir)
+	d, err := s.Get("abc123")
+	if err != nil {
+		t.Fatalf("a legacy dashboard must still load: %v", err)
+	}
+	if d.Name != "Legacy" {
+		t.Errorf("got name %q", d.Name)
+	}
+	if d.BackgroundID != "" {
+		t.Errorf("expected no background reference, got %q", d.BackgroundID)
+	}
+}

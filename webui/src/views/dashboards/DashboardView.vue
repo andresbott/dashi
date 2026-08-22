@@ -7,8 +7,7 @@ import WidgetPlaceholder from '@/components/dashboards/WidgetPlaceholder.vue'
 import { getWidgetEntry } from '@/lib/widgetRegistry'
 import { useGetDashboard, useListDashboards } from '@/composables/useDashboards'
 import { useThemes } from '@/composables/useThemes'
-import { getFontUrl, getThemeBackgroundUrl } from '@/lib/api/themes'
-import { dataUrl } from '@/lib/api/data'
+import { getFontUrl } from '@/lib/api/themes'
 
 const route = useRoute()
 const router = useRouter()
@@ -86,40 +85,11 @@ const accentColorStyle = computed(() => {
 })
 
 const backgroundStyle = computed(() => {
-    const bg = dashboard.value?.background
-    if (!bg || bg.type === 'none' || !bg.value) return {}
-
-    switch (bg.type) {
-        case 'color':
-            return { background: bg.value }
-        case 'gradient':
-            return { background: bg.value }
-        case 'image': {
-            let url: string
-            if (bg.value.startsWith('theme:')) {
-                // "theme:themename/filename.jpg"
-                const rest = bg.value.slice(6)
-                const slashIdx = rest.indexOf('/')
-                const themeName = rest.slice(0, slashIdx)
-                const fileName = rest.slice(slashIdx + 1)
-                url = getThemeBackgroundUrl(themeName, fileName)
-            } else if (bg.value.startsWith('dashboard:')) {
-                // "dashboard:filename.jpg"
-                const fileName = bg.value.slice(10)
-                url = `/api/v0/dashboards/${id.value}/assets/${encodeURIComponent(fileName)}`
-            } else if (bg.value.startsWith('shared:')) {
-                // "shared:filename.jpg"
-                url = dataUrl('backgrounds', bg.value.slice(7))
-            } else {
-                return {}
-            }
-            return {
-                background: `url('${url}') center/cover no-repeat`,
-            }
-        }
-        default:
-            return {}
-    }
+    // Dashboards no longer carry an inline background: they reference a
+    // background entity, and the server-rendered viewer resolves it. This
+    // client-side view predates that and is superseded by the Go viewer, so it
+    // paints no background rather than re-implementing the resolution here.
+    return {}
 })
 
 onUnmounted(() => {
