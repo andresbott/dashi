@@ -70,8 +70,9 @@ func RefURL(bgID, ref string) (string, bool) {
 }
 
 // urlSegment percent-encodes one path segment and additionally escapes the
-// single quote, which url.PathEscape leaves alone but which would terminate
-// the url('…') value this package builds.
+// single quote, which would terminate the url('…') value this package builds.
+// url.PathEscape does escape the single quote to %27, but this extra call
+// is defence in depth should the encoding ever change.
 func urlSegment(s string) string {
 	return strings.ReplaceAll(url.PathEscape(s), "'", "%27")
 }

@@ -1,0 +1,154 @@
+import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { browserCss } from '@/lib/backgroundCss'
+import type { Background } from '@/types/background'
+
+interface FixtureCase {
+    name: string
+    background: Background
+    browserCss: string
+}
+
+// The Go generator is the contract. internal/backgrounds/css_test.go asserts
+// the same file; if these two disagree, this side is wrong.
+const fixture: FixtureCase[] = JSON.parse(
+    readFileSync(
+        resolve(__dirname, '../../../internal/backgrounds/testdata/css_fixture.json'),
+        'utf-8',
+    ),
+)
+
+describe('browserCss parity with Go', () => {
+    it('loads a non-empty fixture', () => {
+        expect(fixture.length).toBeGreaterThan(0)
+    })
+
+    for (const c of fixture) {
+        it(c.name, () => {
+            expect(browserCss(c.background)).toBe(c.browserCss)
+        })
+    }
+})
+
+describe('browserCss edge cases', () => {
+    it('returns an empty string when nothing is configured', () => {
+        expect(browserCss({ id: 'a1', name: 'Empty' })).toBe('')
+    })
+
+    it('drops a base value that is not a hex colour or a linear-gradient', () => {
+        const bg = { id: 'a1', name: 'X', color: { light: '#fff;}</style>' } } as Background
+        expect(browserCss(bg)).not.toContain('</style')
+    })
+
+    it('percent-encodes a single quote in a reference', () => {
+        const bg: Background = {
+            id: 'a1', name: 'X',
+            image: { light: "shared:it's.png", fit: 'cover', position: 'center', repeat: 'no-repeat' },
+        }
+        expect(browserCss(bg)).toContain('it%27s.png')
+    })
+})
+
+describe('urlSegment encoding parity with Go url.PathEscape', () => {
+    // urlSegment must match Go's url.PathEscape exactly. JS encodeURIComponent
+    // differs on ! * ( ) + ~ characters; we reconcile these in the implementation.
+    // Each test verifies an asset: reference encodes to the Go output.
+
+    it('escapes parentheses like Go does', () => {
+        const bg: Background = {
+            id: 'test', name: 'Photo',
+            image: { light: 'asset:my (photo).png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+        }
+        // Go encodes () to %28 and %29
+        expect(browserCss(bg)).toContain('my%20%28photo%29.png')
+    })
+
+    it('escapes exclamation like Go does', () => {
+        const bg: Background = {
+            id: 'test', name: 'Bang',
+            image: { light: 'asset:a!b.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+        }
+        // Go encodes ! to %21
+        expect(browserCss(bg)).toContain('a%21b.png')
+    })
+
+    it('escapes asterisk like Go does', () => {
+        const bg: Background = {
+            id: 'test', name: 'Star',
+            image: { light: 'asset:x*y.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+        }
+        // Go encodes * to %2A
+        expect(browserCss(bg)).toContain('x%2Ay.png')
+    })
+
+    it('does not escape plus like JS would', () => {
+        const bg: Background = {
+            id: 'test', name: 'Plus',
+            image: { light: 'asset:p+q.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+        }
+        // Go leaves + literal; JS would encode to %2B, but we undo it
+        expect(browserCss(bg)).toContain('p+q.png')
+    })
+
+    it('does not escape tilde', () => {
+        const bg: Background = {
+            id: 'test', name: 'Tilde',
+            image: { light: 'asset:t~u.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+        }
+        // Both Go and JS leave ~ literal
+        expect(browserCss(bg)).toContain('t~u.png')
+    })
+
+    it('matches Go output for composite filename with multiple special chars', () => {
+        const bg: Background = {
+            id: 'test', name: 'Complex',
+            image: { light: 'asset:photo (2024-08-22)!.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+        }
+        // ( ) ! all get encoded; spaces get %20
+        expect(browserCss(bg)).toContain('photo%20%282024-08-22%29%21.png')
+    })
+})
+
+describe('urlSegment exhaustive character encoding', () => {
+    // Table-driven test: all 11 divergent characters between Go's url.PathEscape
+    // and JS encodeURIComponent, plus characters that must remain unchanged.
+    // Expected values come from Go's url.PathEscape output.
+    const testCases: Array<{ char: string; expected: string; desc: string }> = [
+        // JS UNDER-escapes (Go escapes, JS leaves literal)
+        { char: '!', expected: '%21', desc: 'exclamation' },
+        { char: "'", expected: '%27', desc: 'single quote' },
+        { char: '(', expected: '%28', desc: 'open paren' },
+        { char: ')', expected: '%29', desc: 'close paren' },
+        { char: '*', expected: '%2A', desc: 'asterisk' },
+        // JS OVER-escapes (Go leaves literal, JS escapes)
+        { char: '$', expected: '$', desc: 'dollar' },
+        { char: '&', expected: '&', desc: 'ampersand' },
+        { char: '+', expected: '+', desc: 'plus' },
+        { char: ':', expected: ':', desc: 'colon' },
+        { char: '=', expected: '=', desc: 'equals' },
+        { char: '@', expected: '@', desc: 'at sign' },
+        // Characters that both agree on (must remain unchanged)
+        { char: ',', expected: '%2C', desc: 'comma (both escape)' },
+        { char: ';', expected: '%3B', desc: 'semicolon (both escape)' },
+    ]
+
+    testCases.forEach(({ char, expected, desc }) => {
+        it(`encodes ${desc} (${char}) to ${expected}`, () => {
+            const bg: Background = {
+                id: 'test', name: `Test ${desc}`,
+                image: { light: `asset:file${char}name.png`, fit: 'cover', position: 'center', repeat: 'no-repeat' },
+            }
+            expect(browserCss(bg)).toContain(`file${expected}name.png`)
+        })
+    })
+
+    it('handles percent sign as literal (becomes %25) without corruption', () => {
+        const bg: Background = {
+            id: 'test', name: 'Percent',
+            image: { light: 'asset:file%name.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+        }
+        // Literal % becomes %25; the test ensures replace() doesn't corrupt it
+        expect(browserCss(bg)).toContain('file%25name.png')
+    })
+})
