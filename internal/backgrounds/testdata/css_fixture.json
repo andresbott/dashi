@@ -1,0 +1,94 @@
+[
+  {
+    "name": "colour with dark override",
+    "background": {
+      "id": "abc123",
+      "name": "Paper",
+      "color": { "light": "#ffffff", "dark": "#101014" }
+    },
+    "browserCss": ":root{--dashi-page-bg:#ffffff;}\n:root[data-color-mode=\"dark\"]{--dashi-page-bg:#101014;}\n"
+  },
+  {
+    "name": "colour without dark override",
+    "background": {
+      "id": "abc123",
+      "name": "Paper",
+      "color": { "light": "#ffffff" }
+    },
+    "browserCss": ":root{--dashi-page-bg:#ffffff;}\n:root[data-color-mode=\"dark\"]{--dashi-page-bg:#ffffff;}\n"
+  },
+  {
+    "name": "gradient with dark stops",
+    "background": {
+      "id": "abc123",
+      "name": "Dusk",
+      "gradient": {
+        "direction": "to bottom right",
+        "light": ["#667eea", "#764ba2"],
+        "dark": ["#1e1b4b", "#0f172a"]
+      }
+    },
+    "browserCss": ":root{--dashi-page-bg:linear-gradient(to bottom right,#667eea,#764ba2);}\n:root[data-color-mode=\"dark\"]{--dashi-page-bg:linear-gradient(to bottom right,#1e1b4b,#0f172a);}\n"
+  },
+  {
+    "name": "gradient with custom angle and three stops",
+    "background": {
+      "id": "abc123",
+      "name": "Angle",
+      "gradient": {
+        "direction": "135deg",
+        "light": ["#000000", "#888888", "#ffffff"]
+      }
+    },
+    "browserCss": ":root{--dashi-page-bg:linear-gradient(135deg,#000000,#888888,#ffffff);}\n:root[data-color-mode=\"dark\"]{--dashi-page-bg:linear-gradient(135deg,#000000,#888888,#ffffff);}\n"
+  },
+  {
+    "name": "image over gradient, dark image from the shared pool",
+    "background": {
+      "id": "abc123",
+      "name": "Sunset",
+      "gradient": {
+        "direction": "to bottom right",
+        "light": ["#667eea", "#764ba2"],
+        "dark": ["#1e1b4b", "#0f172a"]
+      },
+      "image": {
+        "light": "asset:sunset.jpg",
+        "dark": "shared:night.png",
+        "fit": "cover",
+        "position": "center",
+        "repeat": "no-repeat"
+      }
+    },
+    "browserCss": ":root{--dashi-page-bg:url('/api/v0/backgrounds/abc123/assets/sunset.jpg') center/cover no-repeat,linear-gradient(to bottom right,#667eea,#764ba2);}\n:root[data-color-mode=\"dark\"]{--dashi-page-bg:url('/api/v0/data/backgrounds/night.png') center/cover no-repeat,linear-gradient(to bottom right,#1e1b4b,#0f172a);}\n"
+  },
+  {
+    "name": "image over colour, contain top left, repeat",
+    "background": {
+      "id": "abc123",
+      "name": "Tile",
+      "color": { "light": "#eeeeee" },
+      "image": {
+        "light": "shared:pattern.png",
+        "fit": "contain",
+        "position": "top left",
+        "repeat": "repeat"
+      }
+    },
+    "browserCss": ":root{--dashi-page-bg:url('/api/v0/data/backgrounds/pattern.png') top left/contain repeat,#eeeeee;}\n:root[data-color-mode=\"dark\"]{--dashi-page-bg:url('/api/v0/data/backgrounds/pattern.png') top left/contain repeat,#eeeeee;}\n"
+  },
+  {
+    "name": "image only, stretch",
+    "background": {
+      "id": "abc123",
+      "name": "Stretch",
+      "image": {
+        "light": "asset:wide.jpg",
+        "fit": "stretch",
+        "position": "center",
+        "repeat": "no-repeat"
+      }
+    },
+    "browserCss": ":root{--dashi-page-bg:url('/api/v0/backgrounds/abc123/assets/wide.jpg') center/100% 100% no-repeat;}\n:root[data-color-mode=\"dark\"]{--dashi-page-bg:url('/api/v0/backgrounds/abc123/assets/wide.jpg') center/100% 100% no-repeat;}\n"
+  }
+]
