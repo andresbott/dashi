@@ -1,4 +1,5 @@
 import type { Background, ImageFit } from '@/types/background'
+import { withBase } from '@/lib/base'
 
 // This file mirrors internal/backgrounds/css.go byte for byte so the editor
 // can preview a background without a round-trip. Go is the contract; the
@@ -24,10 +25,10 @@ const refUrl = (bgId: string, ref: string): string | null => {
     if (!path) return null
     if (scheme === 'asset') {
         const segments = path.split('/').map(urlSegment).join('/')
-        return `/api/v0/backgrounds/${urlSegment(bgId)}/assets/${segments}`
+        return withBase(`/api/v0/backgrounds/${urlSegment(bgId)}/assets/${segments}`)
     }
     if (scheme === 'shared') {
-        return `/api/v0/data/backgrounds/${urlSegment(path)}`
+        return withBase(`/api/v0/data/backgrounds/${urlSegment(path)}`)
     }
     return null
 }

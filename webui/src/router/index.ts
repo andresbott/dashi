@@ -1,7 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { appBase } from '@/lib/base'
 
 const router = createRouter({
-    history: createWebHistory('/'),
+    history: createWebHistory(appBase()),
     routes: [
         {
             // The Vue app is the admin UI; landing goes straight to /admin.

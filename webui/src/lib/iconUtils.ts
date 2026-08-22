@@ -1,3 +1,5 @@
+import { withBase } from '@/lib/base'
+
 export type IconType = 'tabler' | 'selfhst' | 'dashboard'
 
 export interface ParsedIcon {
@@ -23,7 +25,7 @@ export function getSelfhstIconUrl(filename: string): string {
 }
 
 export function getDashboardIconUrl(dashboardId: string, filename: string): string {
-    return `/api/v0/dashboards/${dashboardId}/assets/${encodeURIComponent(filename)}`
+    return withBase(`/api/v0/dashboards/${dashboardId}/assets/${encodeURIComponent(filename)}`)
 }
 
 export function isImageIcon(icon: string): boolean {

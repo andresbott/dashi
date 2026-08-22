@@ -24,6 +24,27 @@ The Release workflow then:
 Version metadata is injected via ldflags into `app/metainfo` (Version,
 BuildTime, ShaVer).
 
+## Home Assistant add-on
+
+On a `v*.*.*` tag, the `release-linux` job also builds per-arch add-on images
+and pushes them to `ghcr.io/andresbott/dashi-{aarch64,amd64}` (see
+`.github/workflows/release.yml`). The image copies the goreleaser binary into
+`ghcr.io/home-assistant/{arch}-base-debian` — no second CGO build. The runtime
+base image MUST stay Debian (glibc/litehtml); an Alpine/musl base would not run
+the binary.
+
+**Version sync (required before tagging):** bump `version:` in
+`ha-addon/config.yaml` to the new version (without the `v`). CI asserts it
+equals the tag and fails the release on mismatch. The add-on manifests live in
+this repo (`repository.yaml` at the root, `ha-addon/`), so users add
+`github.com/andresbott/dashi` as an add-on repository.
+
+The editor runs under HA ingress: it binds to the internal ingress port 8099,
+and `app/spa.EditorHandler` injects a runtime base path (from the
+`X-Ingress-Path` header) into `index.html`, which the SPA reads via
+`webui/src/lib/base.ts`. The viewer is exposed on host port 8087 for browsers
+and ESP32/e-ink devices.
+
 ## Traps
 
 - **CGO is required** (`CGO_ENABLED=1`, litehtml-go) — cross-compiles need the

@@ -19,7 +19,7 @@ Notes for editors:
   other free-form markdown placed between items is not kept.
 -->
 
-* migrate code as HA addon
+* migrate code as HA addon — DONE (ha-addon/, editor via ingress + viewer host port)
 * use enhanced dither
 * rework widgets as isolated component
 * remove preview fetaure
@@ -35,8 +35,8 @@ Notes for editors:
 
 # Release
 
-- [ ] Home Assistant integration
-  needs to be delivered as docker
+- [x] Home Assistant integration
+  delivered as a prebuilt HA add-on image; see ha-addon/ and docs/agents/releasing.md
 
 # Vuejs
 

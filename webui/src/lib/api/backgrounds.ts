@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api/client'
 import type { Background, BackgroundMeta, CreateBackgroundDTO } from '@/types/background'
+import { withBase } from '@/lib/base'
 
 export const listBackgrounds = async (): Promise<BackgroundMeta[]> => {
     const { data } = await apiClient.get<{ items?: BackgroundMeta[] }>('/backgrounds')
@@ -49,4 +50,4 @@ export const deleteBackgroundAsset = async (id: string, assetPath: string): Prom
 
 // backgroundAssetUrl is the browser-facing URL of a background's own image.
 export const backgroundAssetUrl = (id: string, assetPath: string): string =>
-    `/api/v0/backgrounds/${encodeURIComponent(id)}/assets/${encodeAssetPath(assetPath)}`
+    withBase(`/api/v0/backgrounds/${encodeURIComponent(id)}/assets/${encodeAssetPath(assetPath)}`)

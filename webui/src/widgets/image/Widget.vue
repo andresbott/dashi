@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { Widget } from '@/types/dashboard'
 import type { ImageWidgetConfig } from './types'
+import { withBase } from '@/lib/base'
 
 const props = defineProps<{
     widget: Widget
@@ -17,7 +18,7 @@ const config = computed<ImageWidgetConfig>(() => {
 
 const imageUrl = computed(() => {
     if (!config.value.image) return ''
-    return `/api/v0/data/images/${encodeURIComponent(config.value.image)}`
+    return withBase(`/api/v0/data/images/${encodeURIComponent(config.value.image)}`)
 })
 </script>
 

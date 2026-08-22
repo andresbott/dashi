@@ -26,6 +26,14 @@ dashi start --config config.yaml
 Open `http://localhost:8087` in your browser. From there you can create
 dashboards, add widgets, and configure them through the built-in editor.
 
+### Run as a Home Assistant add-on
+
+Add `https://github.com/andresbott/dashi` as an add-on repository
+(Settings → Add-ons → Add-on store → ⋮ → Repositories), then install **Dashi**.
+The editor appears in the Home Assistant sidebar (ingress); the read-only
+viewer is served on port `8087` for browsers and ESP32/e-ink devices. See
+[`ha-addon/DOCS.md`](ha-addon/DOCS.md).
+
 
 ## Features
 

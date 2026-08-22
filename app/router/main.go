@@ -328,19 +328,16 @@ func NewEditorFromDeps(cfg Cfg, deps *sharedDeps) (*EditorHandler, error) {
 	// dashboard-ID routes so the /_dashi prefix always wins.
 	attachDashiAssets(r, deps.browserAssets, deps.themeStore)
 
-	// Root "/" redirects to /admin
-	r.Path("/").Methods(http.MethodGet).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/admin", http.StatusFound)
-	})
-
-	// Static dashboard middleware (image rendering) + full SPA on all paths
-	spaHandler, err := spa.App("/")
+	// SPA shell (with ingress base injected) + real files, behind the static
+	// dashboard middleware. No server-side "/"→"/admin" redirect: the client
+	// router does it, and an absolute redirect would escape the ingress prefix.
+	spaHandler, err := spa.EditorHandler()
 	if err != nil {
 		return nil, err
 	}
 	spaRouter := r.PathPrefix("/").Subrouter()
 	spaRouter.Use(deps.staticMid)
-	spaRouter.PathPrefix("/").Handler(spaHandler)
+	spaRouter.PathPrefix("/").Methods(http.MethodGet).HandlerFunc(spaHandler)
 
 	return h, nil
 }
