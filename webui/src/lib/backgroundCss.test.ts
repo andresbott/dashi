@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { browserCss } from '@/lib/backgroundCss'
+import { browserCss, pageBgValue } from '@/lib/backgroundCss'
 import type { Background } from '@/types/background'
 
 interface FixtureCase {
@@ -29,6 +29,52 @@ describe('browserCss parity with Go', () => {
             expect(browserCss(c.background)).toBe(c.browserCss)
         })
     }
+})
+
+// pageBgValue parses what browserCss (and Go's BrowserCSS) produce. Driving it
+// from the same fixture means a change to the rule format breaks the generator
+// tests and this parser together, instead of leaving swatches silently blank.
+describe('pageBgValue round-trips every fixture case', () => {
+    for (const c of fixture) {
+        it(c.name, () => {
+            const light = pageBgValue(c.browserCss, 'light')
+            const dark = pageBgValue(c.browserCss, 'dark')
+
+            expect(light).not.toBe('transparent')
+            expect(dark).not.toBe('transparent')
+
+            // The extracted values must be exactly what the stylesheet declares.
+            expect(c.browserCss).toContain(`:root{--dashi-page-bg:${light};}`)
+            expect(c.browserCss).toContain(`:root[data-color-mode="dark"]{--dashi-page-bg:${dark};}`)
+        })
+    }
+})
+
+describe('pageBgValue edge cases', () => {
+    it('defaults to light mode', () => {
+        const css = ':root{--dashi-page-bg:#ffffff;}\n:root[data-color-mode="dark"]{--dashi-page-bg:#000000;}\n'
+        expect(pageBgValue(css)).toBe('#ffffff')
+    })
+
+    it('does not mistake the dark rule for the light one', () => {
+        // Both rules start with ":root", so a lazy pattern could match the dark
+        // rule's prefix and return the wrong colour.
+        const css = ':root{--dashi-page-bg:#ffffff;}\n:root[data-color-mode="dark"]{--dashi-page-bg:#000000;}\n'
+        expect(pageBgValue(css, 'light')).toBe('#ffffff')
+        expect(pageBgValue(css, 'dark')).toBe('#000000')
+    })
+
+    it('returns transparent for an empty stylesheet', () => {
+        expect(pageBgValue('')).toBe('transparent')
+        expect(pageBgValue('', 'dark')).toBe('transparent')
+    })
+
+    it('keeps a multi-layer value intact', () => {
+        const layered =
+            "url('/api/v0/data/backgrounds/a.png') center/cover no-repeat,linear-gradient(to right,#000000,#ffffff)"
+        const css = `:root{--dashi-page-bg:${layered};}\n:root[data-color-mode="dark"]{--dashi-page-bg:${layered};}\n`
+        expect(pageBgValue(css)).toBe(layered)
+    })
 })
 
 describe('browserCss edge cases', () => {

@@ -25,6 +25,7 @@ const groups = [
         items: [
             { key: 'admin-notes',  label: 'Notes',  icon: 'ti ti-notes' },
             { key: 'admin-images', label: 'Images', icon: 'ti ti-photo' },
+            { key: 'admin-background-images', label: 'Background images', icon: 'ti ti-library-photo' },
         ],
     },
     {
@@ -37,7 +38,16 @@ const groups = [
     },
 ]
 
-const activeKey = computed(() => (route.name as string) ?? '')
+// Child routes that have no nav entry of their own highlight their parent, so
+// the sidebar does not go blank while you are editing.
+const navParents: Record<string, string> = {
+    'admin-background-edit': 'admin-backgrounds',
+}
+
+const activeKey = computed(() => {
+    const name = (route.name as string) ?? ''
+    return navParents[name] ?? name
+})
 const isDocRoute = computed(() => activeKey.value.startsWith('doc-'))
 </script>
 

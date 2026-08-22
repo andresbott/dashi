@@ -93,3 +93,20 @@ export function browserCss(bg: Background): string {
         `:root[data-color-mode="dark"]{--dashi-page-bg:${dark};}\n`
     )
 }
+
+// pageBgValue extracts one colour mode's --dashi-page-bg value out of a
+// generated stylesheet, for UI that has only the server's `previewCss` string
+// and no full Background to regenerate from (the admin list, the settings
+// swatch).
+//
+// It parses the shape browserCss and Go's BrowserCSS both produce, so the
+// fixture-driven tests covering that shape also cover this parser: if the rule
+// format ever changes, they fail together instead of this silently returning
+// 'transparent' and every swatch going blank.
+export function pageBgValue(previewCss: string, mode: 'light' | 'dark' = 'light'): string {
+    const rule =
+        mode === 'dark'
+            ? /:root\[data-color-mode="dark"\]\{--dashi-page-bg:(.*?);\}/
+            : /(?:^|\n):root\{--dashi-page-bg:(.*?);\}/
+    return previewCss.match(rule)?.[1] ?? 'transparent'
+}
