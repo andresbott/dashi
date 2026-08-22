@@ -35,17 +35,6 @@ export const setDefaultDashboard = async (id: string): Promise<Dashboard> => {
     return updateDashboard(id, { ...dashboard, default: true })
 }
 
-export interface BackgroundOption {
-    name: string
-    value: string
-}
-
-export interface BackgroundsResponse {
-    theme: BackgroundOption[]
-    dashboard: BackgroundOption[]
-    shared: BackgroundOption[]
-}
-
 export const downloadDashboard = async (id: string): Promise<void> => {
     const response = await apiClient.get(`${DASHBOARD_PATH}/${id}/download`, {
         responseType: 'blob',
@@ -74,13 +63,6 @@ export const uploadDashboardZip = async (data: ArrayBuffer): Promise<Dashboard> 
         headers: { 'Content-Type': 'application/zip' },
     })
     return created
-}
-
-export const getBackgrounds = async (dashboardId: string): Promise<BackgroundsResponse> => {
-    const { data } = await apiClient.get<BackgroundsResponse>('/backgrounds', {
-        params: { dashboard: dashboardId },
-    })
-    return data
 }
 
 export interface DashboardAuthResponse {

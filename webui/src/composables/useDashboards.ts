@@ -7,7 +7,6 @@ import {
     updateDashboard,
     deleteDashboard,
     setDefaultDashboard,
-    getBackgrounds,
     getDashboardAssets,
     uploadDashboardZip,
     getDashboardAuth,
@@ -97,15 +96,6 @@ export function useUpdateDashboard() {
         updateDashboard: mutation.mutateAsync,
         isUpdating: mutation.isPending
     }
-}
-
-export function useBackgrounds(dashboardId: () => string) {
-    const idRef = computed(dashboardId)
-    return useQuery({
-        queryKey: ['backgrounds', idRef],
-        queryFn: () => getBackgrounds(idRef.value),
-        enabled: computed(() => !!idRef.value),
-    })
 }
 
 export function useDashboardAssets(dashboardId: () => string) {

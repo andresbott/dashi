@@ -12,7 +12,6 @@ vi.mock('@/lib/api/dashboard', () => ({
     updateDashboard: vi.fn(),
     deleteDashboard: vi.fn(),
     setDefaultDashboard: vi.fn(),
-    getBackgrounds: vi.fn(),
     getDashboardAssets: vi.fn(),
 }))
 

@@ -7,7 +7,6 @@ import {
     deleteDashboard,
     setDefaultDashboard,
     getDashboardAssets,
-    getBackgrounds,
 } from './dashboard'
 import { apiClient } from './client'
 
@@ -105,21 +104,6 @@ describe('dashboard API', () => {
             vi.mocked(apiClient.get).mockResolvedValue({ data: { items: null } })
             const result = await getDashboardAssets('1')
             expect(result).toEqual([])
-        })
-    })
-
-    describe('getBackgrounds', () => {
-        it('returns grouped background options', async () => {
-            const response = {
-                theme: [{ name: 'bg.jpg', value: 'theme:default/bg.jpg' }],
-                dashboard: [],
-                shared: [{ name: 'sunset.jpg', value: 'shared:sunset.jpg' }],
-            }
-            vi.mocked(apiClient.get).mockResolvedValue({ data: response })
-            const result = await getBackgrounds('1')
-            expect(result).toEqual(response)
-            expect(result.shared).toEqual([{ name: 'sunset.jpg', value: 'shared:sunset.jpg' }])
-            expect(apiClient.get).toHaveBeenCalledWith('/backgrounds', { params: { dashboard: '1' } })
         })
     })
 })
