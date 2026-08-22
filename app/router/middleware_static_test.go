@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/dashboard/browser"
 	"github.com/andresbott/dashi/internal/data/images"
@@ -47,7 +48,8 @@ func newTestMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.Han
 	})
 
 	bs, _ := images.NewStore(t.TempDir())
-	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themes.NewStore(""), bs)
+	bgStore := backgrounds.NewStore(t.TempDir(), bs)
+	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themes.NewStore(""), bs, bgStore)
 	return mid(spaHandler)
 }
 
@@ -658,83 +660,6 @@ func TestLoadBackgroundImage_SharedPrefix(t *testing.T) {
 	if name != "sunset.jpg" {
 		t.Fatalf("name: %q", name)
 	}
-}
-
-func TestBuildBrowserBackground(t *testing.T) {
-	// The browser stack references background images by URL. The litehtml
-	// stack still inlines the bytes (buildBackground) because litehtml
-	// fetches nothing over the network — see TestBuildBackgroundStillInlines.
-	cases := []struct {
-		name string
-		bg   *dashboard.Background
-		want string
-	}{
-		{"nil", nil, ""},
-		{"none", &dashboard.Background{Type: "none", Value: "x"}, ""},
-		{"empty value", &dashboard.Background{Type: "color", Value: ""}, ""},
-		{"color", &dashboard.Background{Type: "color", Value: "#c0ffee"}, "#c0ffee"},
-		{
-			"gradient",
-			&dashboard.Background{Type: "gradient", Value: "linear-gradient(to bottom, #fff, #000)"},
-			"linear-gradient(to bottom, #fff, #000)",
-		},
-		{
-			"theme image",
-			&dashboard.Background{Type: "image", Value: "theme:default/bg.jpg"},
-			"url('/api/v0/themes/default/backgrounds/bg.jpg') center/cover no-repeat",
-		},
-		{
-			"dashboard asset",
-			&dashboard.Background{Type: "image", Value: "dashboard:images/bg.png"},
-			"url('/api/v0/dashboards/abc123/assets/images/bg.png') center/cover no-repeat",
-		},
-		{
-			"shared background",
-			&dashboard.Background{Type: "image", Value: "shared:sunset.jpg"},
-			"url('/api/v0/data/backgrounds/sunset.jpg') center/cover no-repeat",
-		},
-		{"malformed theme ref", &dashboard.Background{Type: "image", Value: "theme:nofile"}, ""},
-		{"unknown scheme", &dashboard.Background{Type: "image", Value: "ftp:bg.jpg"}, ""},
-		{"unknown type", &dashboard.Background{Type: "weird", Value: "x"}, ""},
-	}
-
-	for _, tc := range cases {
-		dash := dashboard.Dashboard{ID: "abc123", Background: tc.bg}
-		if got := buildBrowserBackground(dash); got != tc.want {
-			t.Errorf("%s: buildBrowserBackground = %q, want %q", tc.name, got, tc.want)
-		}
-	}
-}
-
-func TestBuildBrowserBackgroundEscapesUnsafeCharacters(t *testing.T) {
-	// The value lands in a double-quoted HTML attribute inside url('...'),
-	// so quotes and angle brackets must not survive as literals.
-	dash := dashboard.Dashboard{
-		ID:         "abc123",
-		Background: &dashboard.Background{Type: "image", Value: `dashboard:a'b"c<d>.png`},
-	}
-	got := buildBrowserBackground(dash)
-	if strings.ContainsAny(got, `'"<>`[1:]) || strings.Count(got, "'") != 2 {
-		t.Errorf("unsafe characters survived escaping: %q", got)
-	}
-	if !isSafeAttributeValueForTest(got) {
-		t.Errorf("value would be rejected by the renderer's attribute check: %q", got)
-	}
-}
-
-// isSafeAttributeValueForTest mirrors the browser renderer's check so this
-// package can assert the values it produces will not be dropped there.
-func isSafeAttributeValueForTest(s string) bool {
-	for _, r := range s {
-		switch r {
-		case '"', '<', '>', '\\':
-			return false
-		}
-		if r < 0x20 || r == 0x7F {
-			return false
-		}
-	}
-	return true
 }
 
 func TestBuildBackgroundStillInlinesForTheImageStack(t *testing.T) {

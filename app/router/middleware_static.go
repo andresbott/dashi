@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"html/template"
 	"image"
 	"mime"
 	"net/http"
-	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/dashboard/browser"
 	"github.com/andresbott/dashi/internal/data/images"
@@ -25,7 +26,7 @@ import (
 // requested with display headers render as PNG for e-ink clients;
 // everything else renders as browser HTML. Non-dashboard paths fall
 // through to the next handler.
-func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Renderer, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store, backgroundsStore *images.Store) func(http.Handler) http.Handler {
+func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Renderer, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store, backgroundsStore *images.Store, bgStore *backgrounds.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet {
@@ -49,13 +50,13 @@ func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Ren
 				serveImageDashboard(w, r, dash, store, staticRenderer, imageRenderer, themeStore, backgroundsStore)
 				return
 			}
-			serveBrowserDashboard(w, r, dash, store, browserRenderer, themeStore, backgroundsStore)
+			serveBrowserDashboard(w, r, dash, store, browserRenderer, themeStore, backgroundsStore, bgStore)
 		})
 	}
 }
 
 // serveBrowserDashboard renders a dashboard as HTML for a real browser.
-func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, renderer *browser.Renderer, themeStore *themes.Store, backgroundsStore *images.Store) {
+func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, renderer *browser.Renderer, themeStore *themes.Store, backgroundsStore *images.Store, bgStore *backgrounds.Store) {
 	pageIdx, ok := parsePageIndex(r, len(dash.Pages))
 	if !ok {
 		http.NotFound(w, r)
@@ -78,10 +79,14 @@ func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboar
 		}
 	}
 
-	// The browser fetches image backgrounds over HTTP, so the shell emits a
-	// URL. Inlining the bytes as a data URI (what the litehtml stack needs)
-	// would add the whole file to every response, uncacheable, for no gain.
-	bgCSS := buildBrowserBackground(dash)
+	// Resolve the referenced background. A missing or dangling reference is
+	// not an error: the page simply falls back to the theme background.
+	var bgCSS template.CSS
+	if dash.BackgroundID != "" {
+		if bg, err := bgStore.Get(dash.BackgroundID); err == nil {
+			bgCSS = template.CSS(backgrounds.BrowserCSS(bg)) //nolint:gosec // G203: generated from validated enums, validated hex colours and percent-encoded URLs
+		}
+	}
 
 	pageNames := make([]string, len(dash.Pages))
 	for i, p := range dash.Pages {
@@ -89,22 +94,22 @@ func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboar
 	}
 
 	data := browser.RenderData{
-		Name:        dash.Name,
-		DashboardID: dash.ID,
-		Theme:       theme,
-		ColorMode:   colorMode,
-		MaxWidth:    dash.Container.MaxWidth,
-		HAlign:      dash.Container.HorizontalAlign,
-		VAlign:      dash.Container.VerticalAlign,
-		AccentColor: dash.AccentColor,
-		CustomCSS:   store.GetCustomCSS(dash.ID),
-		Background:  bgCSS,
-		QueryParams: queryParams,
-		Rows:        dash.Pages[pageIdx].Rows,
-		PageIndex:   pageIdx,
-		TotalPages:  len(dash.Pages),
-		PageNames:   pageNames,
-		Palette:     themeStore.Palette(theme, colorMode),
+		Name:          dash.Name,
+		DashboardID:   dash.ID,
+		Theme:         theme,
+		ColorMode:     colorMode,
+		MaxWidth:      dash.Container.MaxWidth,
+		HAlign:        dash.Container.HorizontalAlign,
+		VAlign:        dash.Container.VerticalAlign,
+		AccentColor:   dash.AccentColor,
+		CustomCSS:     store.GetCustomCSS(dash.ID),
+		BackgroundCSS: bgCSS,
+		QueryParams:   queryParams,
+		Rows:          dash.Pages[pageIdx].Rows,
+		PageIndex:     pageIdx,
+		TotalPages:    len(dash.Pages),
+		PageNames:     pageNames,
+		Palette:       themeStore.Palette(theme, colorMode),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -380,80 +385,6 @@ func buildBackground(dash dashboard.Dashboard, dashStore *dashboard.Store, theme
 	default:
 		return "", nil
 	}
-}
-
-// buildBrowserBackground returns the CSS background value for the browser
-// stack. Unlike buildBackground (which the litehtml stack uses, and which
-// must inline image bytes because litehtml fetches nothing over the
-// network), this emits a URL pointing at the route that already serves those
-// bytes: the browser caches it, and a large background no longer bloats every
-// page response.
-//
-// The referenced file is not read here, so a missing background simply 404s
-// and the page falls back to the theme background painted on <html>.
-func buildBrowserBackground(dash dashboard.Dashboard) string {
-	bg := dash.Background
-	if bg == nil || bg.Type == "none" || bg.Value == "" {
-		return ""
-	}
-	switch bg.Type {
-	case "color", "gradient":
-		return bg.Value
-	case "image":
-		url, ok := backgroundImageURL(bg.Value, dash.ID)
-		if !ok {
-			return ""
-		}
-		return "url('" + url + "') center/cover no-repeat"
-	default:
-		return ""
-	}
-}
-
-// backgroundImageURL maps a background reference to the existing read route
-// that serves it. The dashboard-asset route sits behind the per-dashboard
-// auth middleware, so a protected dashboard's background stays protected.
-func backgroundImageURL(bgValue, dashID string) (string, bool) {
-	switch {
-	case strings.HasPrefix(bgValue, "theme:"):
-		rest := bgValue[len("theme:"):]
-		slashIdx := strings.Index(rest, "/")
-		if slashIdx < 0 {
-			return "", false
-		}
-		themeName, fileName := rest[:slashIdx], rest[slashIdx+1:]
-		if themeName == "" || fileName == "" {
-			return "", false
-		}
-		return "/api/v0/themes/" + urlSegment(themeName) + "/backgrounds/" + urlSegment(fileName), true
-
-	case strings.HasPrefix(bgValue, "dashboard:"):
-		assetPath := bgValue[len("dashboard:"):]
-		if assetPath == "" {
-			return "", false
-		}
-		// The asset route matches {path:.*}, so slashes stay slashes.
-		segments := strings.Split(assetPath, "/")
-		for i, s := range segments {
-			segments[i] = urlSegment(s)
-		}
-		return "/api/v0/dashboards/" + urlSegment(dashID) + "/assets/" + strings.Join(segments, "/"), true
-
-	case strings.HasPrefix(bgValue, "shared:"):
-		fileName := bgValue[len("shared:"):]
-		if fileName == "" {
-			return "", false
-		}
-		return "/api/v0/data/backgrounds/" + urlSegment(fileName), true
-	}
-	return "", false
-}
-
-// urlSegment percent-encodes one path segment. It additionally escapes the
-// single quote, which url.PathEscape leaves alone but which would terminate
-// the url('…') CSS value the caller builds.
-func urlSegment(s string) string {
-	return strings.ReplaceAll(url.PathEscape(s), "'", "%27")
 }
 
 // buildImageBackground loads and encodes an image background.
