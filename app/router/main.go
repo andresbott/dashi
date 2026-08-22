@@ -15,7 +15,6 @@ import (
 	"github.com/andresbott/dashi/internal/dashboard/browser"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
-	"github.com/andresbott/dashi/internal/data/backgrounds"
 	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/data/notes"
 	"github.com/andresbott/dashi/internal/providers/market"
@@ -86,11 +85,11 @@ type sharedDeps struct {
 	marketClient     *market.Client
 	xkcdClient       *xkcd.Client
 	transportClient  *swisstransport.Client
-	themeStore       *themes.Store
-	notesStore       *notes.Store
-	imagesStore      *images.Store
-	backgroundsStore *backgrounds.Store
-	staticRenderer   *dashstatic.Renderer
+	themeStore      *themes.Store
+	notesStore      *notes.Store
+	imagesStore     *images.Store
+	sharedBgImages  *images.Store
+	staticRenderer  *dashstatic.Renderer
 	imageRenderer    *dashimage.Renderer
 	browserRenderer  *browser.Renderer
 	browserAssets    *browser.Assets
@@ -115,9 +114,9 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create images store: %w", err)
 	}
-	backgroundsStore, err := backgrounds.NewStore(filepath.Join(cfg.DataDir, "data", "backgrounds"))
+	sharedBgImages, err := images.NewStore(filepath.Join(cfg.DataDir, "data", "shared-background-images"))
 	if err != nil {
-		return nil, fmt.Errorf("create backgrounds store: %w", err)
+		return nil, fmt.Errorf("create shared background images store: %w", err)
 	}
 
 	// Static dashboard rendering
@@ -179,26 +178,26 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		}
 	}
 
-	staticMid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, backgroundsStore)
+	staticMid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, sharedBgImages)
 	promHisto := middleware.NewPromHistogram("", nil, nil)
 
 	return &sharedDeps{
-		dashStore:        dashStore,
-		weatherClient:    weatherClient,
-		marketClient:     marketClient,
-		xkcdClient:       xkcdClient,
-		transportClient:  transportClient,
-		themeStore:       themeStore,
-		notesStore:       notesStore,
-		imagesStore:      imagesStore,
-		backgroundsStore: backgroundsStore,
-		staticRenderer:   staticRenderer,
-		imageRenderer:    imageRenderer,
-		browserRenderer:  browserRenderer,
-		browserAssets:    browserAssets,
-		staticMid:        staticMid,
-		promHisto:        promHisto,
-		modules:          modules,
+		dashStore:       dashStore,
+		weatherClient:   weatherClient,
+		marketClient:    marketClient,
+		xkcdClient:      xkcdClient,
+		transportClient: transportClient,
+		themeStore:      themeStore,
+		notesStore:      notesStore,
+		imagesStore:     imagesStore,
+		sharedBgImages:  sharedBgImages,
+		staticRenderer:  staticRenderer,
+		imageRenderer:   imageRenderer,
+		browserRenderer: browserRenderer,
+		browserAssets:   browserAssets,
+		staticMid:       staticMid,
+		promHisto:       promHisto,
+		modules:         modules,
 		publicViewer: handlers.PublicViewer{
 			Enabled: cfg.ViewerEnabled,
 			Port:    cfg.ViewerPort,
@@ -209,14 +208,14 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 
 func newAPIDeps(deps *sharedDeps, logger *slog.Logger) apiDeps {
 	return apiDeps{
-		dashStore:        deps.dashStore,
-		themeStore:       deps.themeStore,
-		notesStore:       deps.notesStore,
-		imagesStore:      deps.imagesStore,
-		backgroundsStore: deps.backgroundsStore,
-		logger:           logger,
-		modules:          deps.modules,
-		publicViewer:     deps.publicViewer,
+		dashStore:      deps.dashStore,
+		themeStore:     deps.themeStore,
+		notesStore:     deps.notesStore,
+		imagesStore:    deps.imagesStore,
+		sharedBgImages: deps.sharedBgImages,
+		logger:         logger,
+		modules:        deps.modules,
+		publicViewer:   deps.publicViewer,
 	}
 }
 

@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/andresbott/dashi/internal/data"
-	"github.com/andresbott/dashi/internal/data/backgrounds"
 	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/data/notes"
 	"github.com/gorilla/mux"
@@ -21,11 +20,11 @@ const maxDataUpload = 10 << 20 // 10 MB
 type DataHandler struct {
 	notes       *notes.Store
 	images      *images.Store
-	backgrounds *backgrounds.Store
+	backgrounds *images.Store
 	logger      *slog.Logger
 }
 
-func NewDataHandler(n *notes.Store, i *images.Store, b *backgrounds.Store, logger *slog.Logger) *DataHandler {
+func NewDataHandler(n *notes.Store, i *images.Store, b *images.Store, logger *slog.Logger) *DataHandler {
 	return &DataHandler{notes: n, images: i, backgrounds: b, logger: logger}
 }
 

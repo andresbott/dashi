@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/andresbott/dashi/internal/data/backgrounds"
 	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/data/notes"
 	"github.com/gorilla/mux"
@@ -25,7 +24,7 @@ func newDataHandler(t *testing.T) (*DataHandler, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bs, err := backgrounds.NewStore(dir + "/backgrounds")
+	bs, err := images.NewStore(dir + "/backgrounds")
 	if err != nil {
 		t.Fatal(err)
 	}

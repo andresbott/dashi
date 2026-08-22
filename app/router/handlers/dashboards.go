@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/andresbott/dashi/internal/dashboard"
-	"github.com/andresbott/dashi/internal/data/backgrounds"
+	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
@@ -19,11 +19,11 @@ import (
 type DashboardHandler struct {
 	store            *dashboard.Store
 	themeStore       *themes.Store
-	backgroundsStore *backgrounds.Store
+	backgroundsStore *images.Store
 	logger           *slog.Logger
 }
 
-func NewDashboardHandler(store *dashboard.Store, themeStore *themes.Store, backgroundsStore *backgrounds.Store, logger *slog.Logger) *DashboardHandler {
+func NewDashboardHandler(store *dashboard.Store, themeStore *themes.Store, backgroundsStore *images.Store, logger *slog.Logger) *DashboardHandler {
 	return &DashboardHandler{store: store, themeStore: themeStore, backgroundsStore: backgroundsStore, logger: logger}
 }
 

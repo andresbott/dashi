@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/andresbott/dashi/internal/dashboard"
-	"github.com/andresbott/dashi/internal/data/backgrounds"
+	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/themes"
 )
 
@@ -30,7 +30,7 @@ func TestListBackgrounds_IncludesShared(t *testing.T) {
 		t.Fatalf("create dashboard: %v", err)
 	}
 
-	bs, err := backgrounds.NewStore(t.TempDir())
+	bs, err := images.NewStore(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

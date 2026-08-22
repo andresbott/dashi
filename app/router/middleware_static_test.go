@@ -12,7 +12,7 @@ import (
 
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/dashboard/browser"
-	"github.com/andresbott/dashi/internal/data/backgrounds"
+	"github.com/andresbott/dashi/internal/data/images"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
 	"github.com/andresbott/dashi/internal/themes"
@@ -46,7 +46,7 @@ func newTestMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.Han
 		_, _ = w.Write([]byte("SPA"))
 	})
 
-	bs, _ := backgrounds.NewStore(t.TempDir())
+	bs, _ := images.NewStore(t.TempDir())
 	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themes.NewStore(""), bs)
 	return mid(spaHandler)
 }
@@ -639,7 +639,7 @@ func TestImageDashboard_RotationQueryParam(t *testing.T) {
 }
 
 func TestLoadBackgroundImage_SharedPrefix(t *testing.T) {
-	bs, err := backgrounds.NewStore(t.TempDir())
+	bs, err := images.NewStore(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -741,7 +741,7 @@ func TestBuildBackgroundStillInlinesForTheImageStack(t *testing.T) {
 	// litehtml fetches nothing over the network, so the image stack's
 	// contract — a data URI plus the raw bytes for the canvas — must not
 	// change. This is a deployed-firmware contract.
-	bs, err := backgrounds.NewStore(t.TempDir())
+	bs, err := images.NewStore(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
