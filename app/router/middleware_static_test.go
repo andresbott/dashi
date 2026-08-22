@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"html/template"
+	"image"
+	"image/color"
 	"image/png"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/andresbott/dashi/internal/backgrounds"
@@ -49,7 +50,7 @@ func newTestMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.Han
 
 	bs, _ := images.NewStore(t.TempDir())
 	bgStore := backgrounds.NewStore(t.TempDir(), bs)
-	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themes.NewStore(""), bs, bgStore)
+	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themes.NewStore(""), bgStore)
 	return mid(spaHandler)
 }
 
@@ -640,54 +641,219 @@ func TestImageDashboard_RotationQueryParam(t *testing.T) {
 	}
 }
 
-func TestLoadBackgroundImage_SharedPrefix(t *testing.T) {
-	bs, err := images.NewStore(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
+func TestResolveImageBackgroundWithGradientOnly(t *testing.T) {
+	// When the background has a gradient but no image, resolveImageBackground
+	// should return the gradient CSS and nil bytes.
+	bgStore := backgrounds.NewStore(t.TempDir(), nil)
+	bg := backgrounds.Background{
+		ID:       "gradientonly",
+		Name:     "Gradient Only",
+		Gradient: &backgrounds.Gradient{Direction: "to right", Light: []string{"#000000", "#ffffff"}},
 	}
-	want := []byte{0xFF, 0xD8, 0xFF}
-	if err := bs.Save("sunset.jpg", want); err != nil {
+	if _, err := bgStore.Create(bg); err != nil {
 		t.Fatal(err)
 	}
 
-	data, name, err := loadBackgroundImage("shared:sunset.jpg", "anyid", nil, nil, bs)
-	if err != nil {
-		t.Fatalf("load: %v", err)
+	dash := dashboard.Dashboard{BackgroundID: "gradientonly", ColorMode: "light"}
+	css, imageData := resolveImageBackground(dash, bgStore)
+
+	if css != "linear-gradient(to right,#000000,#ffffff)" {
+		t.Errorf("expected gradient CSS, got %q", css)
 	}
-	if string(data) != string(want) {
-		t.Fatalf("bytes mismatch")
-	}
-	if name != "sunset.jpg" {
-		t.Fatalf("name: %q", name)
+	if imageData != nil {
+		t.Errorf("expected nil image data for gradient-only background, got %d bytes", len(imageData))
 	}
 }
 
-func TestBuildBackgroundStillInlinesForTheImageStack(t *testing.T) {
-	// litehtml fetches nothing over the network, so the image stack's
-	// contract — a data URI plus the raw bytes for the canvas — must not
-	// change. This is a deployed-firmware contract.
-	bs, err := images.NewStore(t.TempDir())
+func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
+	// When an image is present and loads successfully, resolveImageBackground
+	// must return "transparent" (not empty string) to prevent the template's
+	// else-branch from painting opaque theme colour over the pre-composited image.
+	imageStore, err := images.NewStore(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw := []byte{0xFF, 0xD8, 0xFF, 0xE0}
-	if err := bs.Save("sunset.jpg", raw); err != nil {
+	bgStore := backgrounds.NewStore(t.TempDir(), imageStore)
+
+	// Save a small test image
+	testPNG := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A} // PNG signature
+	if err := imageStore.Save("test.png", testPNG); err != nil {
 		t.Fatal(err)
 	}
 
-	dash := dashboard.Dashboard{
-		ID:         "abc123",
-		Background: &dashboard.Background{Type: "image", Value: "shared:sunset.jpg"},
+	bg := backgrounds.Background{
+		ID:   "withimage",
+		Name: "With Image",
+		Image: &backgrounds.Image{
+			Light: "shared:test.png", Fit: "cover", Position: "center", Repeat: "no-repeat",
+		},
 	}
-	css, data := buildBackground(dash, nil, nil, bs)
+	if _, err := bgStore.Create(bg); err != nil {
+		t.Fatal(err)
+	}
 
-	if !strings.HasPrefix(css, "url('data:image/jpeg;base64,") {
-		t.Errorf("image stack must still receive a data URI, got %q", css)
+	dash := dashboard.Dashboard{BackgroundID: "withimage", ColorMode: "light"}
+	css, imageData := resolveImageBackground(dash, bgStore)
+
+	if css != "transparent" {
+		t.Errorf("expected 'transparent' css to prevent theme-background paint-over, got %q", css)
 	}
-	if !strings.HasSuffix(css, "') center/cover no-repeat") {
-		t.Errorf("image stack background lost its positioning, got %q", css)
+	if imageData == nil {
+		t.Error("expected non-nil image data")
+	} else if len(imageData) != len(testPNG) {
+		t.Errorf("expected %d bytes, got %d", len(testPNG), len(imageData))
 	}
-	if string(data) != string(raw) {
-		t.Error("image stack must still receive the raw bytes for the canvas")
+}
+
+func TestImageDashboardWithDanglingBackgroundRefStillRenders(t *testing.T) {
+	// Create an image dashboard with a BackgroundID that references nothing.
+	dash := imageDashboard("dangling-bg-test")
+	dash.BackgroundID = "nonexistent-bg-id"
+
+	handler := newTestMiddleware(t, dash)
+
+	req := httptest.NewRequest(http.MethodGet, "/dangling-bg-test?format=png&width=200&height=100", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("a dangling background reference must not break rendering, got %d: %s", rec.Code, rec.Body)
+	}
+}
+
+func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
+	// Regression test for the bug where ImageCSS's empty string caused the
+	// template to fall back to opaque theme background, covering the
+	// pre-composited image. This test proves the full path: bgStore.LoadImage
+	// is called, bytes reach RenderToImage, and the color survives onto pixels.
+
+	// Create a distinctive solid-red 10x10 PNG
+	redImg := image.NewRGBA(image.Rect(0, 0, 10, 10))
+	for y := 0; y < 10; y++ {
+		for x := 0; x < 10; x++ {
+			redImg.SetRGBA(x, y, color.RGBA{R: 0xFF, G: 0x00, B: 0x00, A: 0xFF})
+		}
+	}
+	var redBuf bytes.Buffer
+	if err := png.Encode(&redBuf, redImg); err != nil {
+		t.Fatal(err)
+	}
+
+	// Set up stores - use same imageStore for both saving and bgStore
+	dashStore := dashboard.NewStore(t.TempDir())
+	imageStore, err := images.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	bgStore := backgrounds.NewStore(t.TempDir(), imageStore)
+
+	// Save the red image to the shared image store
+	if err := imageStore.Save("red.png", redBuf.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a background entity referencing it
+	bg := backgrounds.Background{
+		ID:   "redbg",
+		Name: "Red Background",
+		Image: &backgrounds.Image{
+			Light:    "shared:red.png",
+			Fit:      "cover",
+			Position: "center",
+			Repeat:   "no-repeat",
+		},
+	}
+	if _, err := bgStore.Create(bg); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create an image dashboard with real content and the background
+	dash := dashboard.Dashboard{
+		ID:           "testredbg",
+		Name:         "Red BG Test",
+		Type:         "image",
+		BackgroundID: "redbg",
+		Container: dashboard.Container{
+			MaxWidth:        "100%",
+			VerticalAlign:   "top",
+			HorizontalAlign: "center",
+		},
+		Pages: []dashboard.Page{
+			{
+				Name: "Main",
+				Rows: []dashboard.Row{
+					{
+						ID:     "r1",
+						Height: "200px",
+						Width:  "100%",
+						Widgets: []dashboard.Widget{
+							{ID: "w1", Type: "test", Title: "Content", Width: 12, Config: json.RawMessage(`{}`)},
+						},
+					},
+				},
+			},
+		},
+	}
+	if _, err := dashStore.Create(dash); err != nil {
+		t.Fatal(err)
+	}
+
+	// Build the middleware stack
+	reg := widgets.NewRegistry()
+	reg.Register("test", func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
+		return template.HTML("<p>content</p>"), nil
+	})
+	staticRenderer := dashstatic.NewRenderer(reg)
+	imageRenderer := dashimage.NewRenderer()
+	browserAssets := browser.NewAssets(nil)
+	browserRenderer := browser.NewRenderer(reg, browserAssets.JSTypes())
+	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("SPA"))
+	})
+	mid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themes.NewStore(""), bgStore)
+	handler := mid(spaHandler)
+
+	// Request the PNG
+	req := httptest.NewRequest(http.MethodGet, "/testredbg?format=png&width=200&height=150", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body)
+	}
+
+	// Decode and check for red pixels
+	img, err := png.Decode(bytes.NewReader(rec.Body.Bytes()))
+	if err != nil {
+		t.Fatalf("response is not a valid PNG: %v (body: %q)", err, rec.Body.String())
+	}
+
+	rgbaImg, ok := img.(*image.RGBA)
+	if !ok {
+		// Convert if needed
+		bounds := img.Bounds()
+		rgbaImg = image.NewRGBA(bounds)
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				rgbaImg.Set(x, y, img.At(x, y))
+			}
+		}
+	}
+
+	// Assert that red pixels are present
+	redCount := 0
+	bounds := rgbaImg.Bounds()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			r, g, b, _ := rgbaImg.At(x, y).RGBA()
+			// RGBA() returns 16-bit values, so full red is 0xFFFF, 0x0000, 0x0000
+			if r > 0xE000 && g < 0x1000 && b < 0x1000 {
+				redCount++
+			}
+		}
+	}
+
+	if redCount == 0 {
+		t.Errorf("expected red pixels in the output, found none (image likely painted over by opaque theme background)")
 	}
 }
