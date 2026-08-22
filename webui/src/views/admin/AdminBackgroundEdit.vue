@@ -4,8 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import InputText from 'primevue/inputtext'
-import InputNumber from 'primevue/inputnumber'
 import Select from 'primevue/select'
+import Slider from 'primevue/slider'
 import SelectButton from 'primevue/selectbutton'
 import ColorPicker from 'primevue/colorpicker'
 import ToggleSwitch from 'primevue/toggleswitch'
@@ -102,31 +102,28 @@ const imageDarkEnabled = computed({
 
 // ---- gradient direction ----
 
-const directionKeywords = [
-    'to top', 'to bottom', 'to left', 'to right',
-    'to top left', 'to top right', 'to bottom left', 'to bottom right',
-]
+// The direction is edited purely as an angle. A stored value may still be one
+// of the CSS keywords the backend also accepts, so those map onto their
+// equivalent angle for display: 0deg points up and the angle runs clockwise.
+const keywordAngles: Record<string, number> = {
+    'to top': 0,
+    'to top right': 45,
+    'to right': 90,
+    'to bottom right': 135,
+    'to bottom': 180,
+    'to bottom left': 225,
+    'to left': 270,
+    'to top left': 315,
+}
 
-const directionOptions = [
-    ...directionKeywords.map(k => ({ label: k, value: k })),
-    { label: 'Custom angle…', value: 'custom' },
-]
-
-// A direction is either one of the eight keywords or "{n}deg"; the Select shows
-// "custom" for the latter and reveals a number input.
-const directionChoice = computed({
+const angle = computed({
     get: () => {
         const dir = local.value?.gradient?.direction ?? ''
-        return directionKeywords.includes(dir) ? dir : 'custom'
+        if (dir in keywordAngles) return keywordAngles[dir]
+        return parseInt(dir.replace('deg', ''), 10) || 0
     },
-    set: (v: string) => {
-        if (!local.value?.gradient) return
-        local.value.gradient.direction = v === 'custom' ? '135deg' : v
-    },
-})
-
-const customAngle = computed({
-    get: () => parseInt((local.value?.gradient?.direction ?? '').replace('deg', ''), 10) || 0,
+    // Moving the slider converts the direction to degrees. A stored keyword is
+    // left untouched until then, so simply opening the editor never rewrites it.
     set: (v: number) => {
         if (!local.value?.gradient) return
         const n = Math.min(360, Math.max(0, Math.round(v || 0)))
@@ -339,26 +336,19 @@ const handleSave = async () => {
 
                             <template v-if="local.gradient">
                                 <div class="flex flex-column gap-1">
-                                    <label class="font-semibold text-sm">Direction</label>
-                                    <Select
-                                        :modelValue="directionChoice"
-                                        @update:modelValue="(v: string | undefined) => { if (v !== undefined) directionChoice = v }"
-                                        :options="directionOptions"
-                                        optionLabel="label"
-                                        optionValue="value"
-                                        class="w-full"
-                                    />
-                                </div>
-                                <div v-if="directionChoice === 'custom'" class="flex flex-column gap-1">
-                                    <label class="font-semibold text-sm">Angle</label>
-                                    <InputNumber
-                                        :modelValue="customAngle"
-                                        @update:modelValue="(v: number | null) => { customAngle = v ?? 0 }"
+                                    <div class="flex align-items-center justify-content-between">
+                                        <label class="font-semibold text-sm">Angle</label>
+                                        <span class="angle-readout">{{ angle }}°</span>
+                                    </div>
+                                    <Slider
+                                        :modelValue="angle"
+                                        @update:modelValue="(v: number | number[]) => { angle = Array.isArray(v) ? v[0] : v }"
                                         :min="0"
                                         :max="360"
-                                        suffix="°"
-                                        class="w-full"
+                                        :step="5"
+                                        class="angle-slider"
                                     />
+                                    <small class="edit-hint">0° points up, increasing clockwise.</small>
                                 </div>
 
                                 <div class="flex flex-column gap-1">
@@ -595,6 +585,17 @@ const handleSave = async () => {
 
 .edit-hint {
     color: var(--p-text-muted-color);
+}
+
+/* A slider has no visible value, so the angle is shown beside its label. */
+.angle-readout {
+    font-variant-numeric: tabular-nums;
+    color: var(--p-text-muted-color);
+    font-size: 0.875rem;
+}
+
+.angle-slider {
+    margin: 0.5rem 0.25rem;
 }
 
 /* The colour swatch is unbordered by default, so a white or near-white value
