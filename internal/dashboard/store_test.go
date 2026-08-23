@@ -88,7 +88,7 @@ func TestStore_List(t *testing.T) {
 	_, _ = store.Create(Dashboard{Name: "A", Icon: "ti-a", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{}})
 	_, _ = store.Create(Dashboard{Name: "B", Icon: "ti-b", Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"}, Pages: []Page{
 		{Rows: []Row{
-			{ID: "r1", Height: "100px", Width: "100%", Widgets: []Widget{{ID: "w1", Type: "placeholder", Title: "W", Width: 12}}},
+			{ID: "r1", Height: "100px", Width: "100%", Widgets: []Widget{{ID: "w1", Type: "clock", Title: "W", Width: 12}}},
 		}},
 	}})
 

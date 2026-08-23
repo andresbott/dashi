@@ -110,3 +110,56 @@ export function columnFromDrag(opts: {
     const delta = Math.round((opts.pointerX - opts.grabStartX) / opts.colWidth)
     return Math.max(opts.min, Math.min(opts.max, opts.originColumn + delta))
 }
+
+// moveWidgetToColumn moves the widget at fromIndex to targetColumn within its
+// own row, reordering the array so array order matches the new left-to-right
+// visual order (placeRow renders in array order). The dragged widget is
+// anchored at targetColumn — honouring a leading gap it is dropped into — while
+// the widgets it leapfrogs pack left to fill the space it vacated, so a reorder
+// never leaves an overlap or a stray gap. Dropping a widget back into its own
+// slot is a pure reposition: only its column changes, so every other widget
+// (and any parked gap) is left untouched. Ties (equal centres, e.g. a
+// same-width swap) break by drag direction so the widget lands on the side it
+// was dragged toward.
+export function moveWidgetToColumn(widgets: Widget[], fromIndex: number, targetColumn: number): Widget[] {
+    if (fromIndex < 0 || fromIndex >= widgets.length) return widgets
+
+    const placed = placeRow(widgets)
+    const originColumn = placed[fromIndex].column
+    const width = placed[fromIndex].width
+    const dragged = widgets[fromIndex]
+    const rest = widgets.filter((_, i) => i !== fromIndex)
+    const restPlaced = placeRow(rest)
+
+    // Insert before the first remaining widget whose centre sits past the
+    // dragged widget's centre; on an exact tie a rightward drag lands after it.
+    const draggedCenter = targetColumn + width / 2
+    const movingRight = targetColumn > originColumn
+    let newIndex = 0
+    for (let i = 0; i < rest.length; i++) {
+        const center = restPlaced[i].column + restPlaced[i].width / 2
+        if (center < draggedCenter || (center === draggedCenter && movingRight)) {
+            newIndex = i + 1
+        } else {
+            break
+        }
+    }
+
+    // Same slot: only the dragged widget's column changes, so parked gaps live.
+    if (newIndex === fromIndex) {
+        const out = [...widgets]
+        out[fromIndex] = { ...dragged, column: targetColumn }
+        return out
+    }
+
+    // Genuine reorder: pack the row in the new order, anchoring the dragged
+    // widget at its drop column (kept as a leading gap when it exceeds the flow).
+    const order = [...rest]
+    order.splice(newIndex, 0, dragged)
+    let cursor = 1
+    return order.map((widget) => {
+        const column = widget === dragged ? Math.max(cursor, targetColumn) : cursor
+        cursor = column + span(widget.width)
+        return { ...widget, column }
+    })
+}

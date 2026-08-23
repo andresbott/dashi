@@ -8,7 +8,7 @@ them in sync is **conventional, not enforced**: the backend registry keys in
 `app/router/main.go` and the frontend registry key in
 `webui/src/lib/widgetRegistry.ts` must be the identical string, and all sides
 must parse the same config shape. Nothing will fail at compile time if they
-drift — the widget just silently renders a placeholder.
+drift — an unknown type just renders nothing (no error).
 
 ## The registries
 
@@ -17,7 +17,7 @@ drift — the widget just silently renders a placeholder.
   type → `StaticRenderer func(config json.RawMessage, ctx RenderContext)
   (template.HTML, error)`. `Registry.RenderBrowser` falls back to the image
   renderer when a widget has not been ported to the browser stack yet (see
-  [viewer.md](viewer.md)). Unknown types render an empty placeholder div, **not
+  [viewer.md](viewer.md)). Unknown types render nothing (empty output), **not
   an error** — a misspelled type string fails silently by design.
 - **Frontend** (`webui/src/lib/widgetRegistry.ts`): type → `{component,
   configComponent | null, label, icon, description, noWidgetProp?}`. Components
@@ -33,7 +33,7 @@ dashboards created before column support carry). Placement is resolved once by
 `dashboard.PlaceRow` (`internal/dashboard/layout.go`), shared by both render
 stacks and mirrored in the editor (`webui/src/lib/rowLayout.ts`). It converts
 each column into a leading gap and pushes overlaps right, so a widget can sit in
-any column without a placeholder widget and adding widgets can never overlap.
+any column and adding widgets can never overlap.
 See [rendering.md](rendering.md) for the gap → `margin-left`/`col-offset`
 mechanism.
 

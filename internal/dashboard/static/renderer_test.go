@@ -69,8 +69,8 @@ func TestRenderer_Render(t *testing.T) {
 	if !strings.Contains(html, "<p>test-widget</p>") {
 		t.Error("expected rendered test widget")
 	}
-	if !strings.Contains(html, "widget-placeholder") {
-		t.Error("expected placeholder for unknown widget")
+	if strings.Contains(html, "widget-placeholder") {
+		t.Error("unknown widget should render nothing, not a placeholder")
 	}
 	if !strings.Contains(html, "width: 50.0000%") {
 		t.Error("expected percentage width for span-6 widget")

@@ -62,11 +62,11 @@ func (r *Registry) Register(widgetType string, renderer StaticRenderer) {
 }
 
 // Render calls the registered renderer for widgetType.
-// If the type is not registered, it returns an empty placeholder div.
+// If the type is not registered, it renders nothing (empty output).
 func (r *Registry) Render(widgetType string, config json.RawMessage, ctx RenderContext) (template.HTML, error) {
 	renderer, ok := r.renderers[widgetType]
 	if !ok {
-		return template.HTML(`<div class="widget-placeholder">&nbsp;</div>`), nil
+		return template.HTML(""), nil
 	}
 	return renderer(config, ctx)
 }

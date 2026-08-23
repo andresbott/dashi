@@ -8,6 +8,7 @@ import ColorPicker from 'primevue/colorpicker'
 
 import { useGetDashboard, useUpdateDashboard, useDashboardAuth } from '@/composables/useDashboards'
 import { useListBackgrounds } from '@/composables/useBackgrounds'
+import { useAutosave } from '@/composables/useAutosave'
 import { useThemes } from '@/composables/useThemes'
 import { pageBgValue } from '@/lib/backgroundCss'
 import { useToast } from 'primevue/usetoast'
@@ -20,7 +21,7 @@ const toast = useToast()
 const id = computed(() => route.params.id as string)
 
 const { data: serverDashboard, isLoading, isError } = useGetDashboard(() => id.value)
-const { updateDashboard, isUpdating } = useUpdateDashboard()
+const { updateDashboard } = useUpdateDashboard()
 const { backgrounds: backgroundList } = useListBackgrounds()
 const { auth: dashAuth, isLoadingAuth, setAuth, isSettingAuth, deleteAuth, isDeletingAuth } = useDashboardAuth(() => id.value)
 
@@ -63,22 +64,23 @@ watch(serverDashboard, (val) => {
     }
 }, { immediate: true })
 
-const goBack = () => {
+const { status: saveStatus, flush } = useAutosave<Dashboard>({
+    source: () => localDashboard.value,
+    save: (d) => updateDashboard({ id: id.value, payload: d }),
+})
+
+watch(saveStatus, (s) => {
+    if (s === 'error') {
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to save settings', life: 5000 })
+    }
+})
+
+const goBack = async () => {
+    await flush()
     if (window.history.length > 1) {
         router.back()
     } else {
         router.push({ name: 'dashboard-edit', params: { id: id.value } })
-    }
-}
-
-const save = async () => {
-    if (!localDashboard.value) return
-    try {
-        await updateDashboard({ id: id.value, payload: localDashboard.value })
-        toast.add({ severity: 'success', summary: 'Saved', detail: 'Settings saved successfully', life: 3000 })
-        goBack()
-    } catch (err) {
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to save settings', life: 5000 })
     }
 }
 
@@ -111,7 +113,7 @@ const activeSection = ref('general')
                     rounded
                     @click="goBack"
                 />
-                <span class="text-xl font-bold text-color">{{ localDashboard.name }} — Settings</span>
+                <span class="text-xl font-bold text-color flex-grow-1">{{ localDashboard.name }} — Settings</span>
             </div>
 
             <div class="settings-layout">
@@ -149,10 +151,6 @@ const activeSection = ref('general')
                             class="w-full"
                         />
                     </div>
-                    <div class="settings-actions">
-                        <Button label="Save" icon="ti ti-check" :loading="isUpdating" @click="save" />
-                        <Button label="Cancel" icon="ti ti-x" severity="secondary" @click="goBack" />
-                    </div>
                 </div>
 
                 <!-- Appearance (theme, colors, container, background) -->
@@ -167,6 +165,31 @@ const activeSection = ref('general')
                             optionLabel="label"
                             optionValue="value"
                             class="w-full"
+                        />
+                    </div>
+                    <div class="flex flex-column gap-1">
+                        <label class="font-semibold text-sm">Background</label>
+                        <Select
+                            :modelValue="backgroundId"
+                            @update:modelValue="(v: string | undefined) => { if (v !== undefined) backgroundId = v }"
+                            :options="backgroundOptions"
+                            optionLabel="label"
+                            optionValue="value"
+                            placeholder="None (theme background)"
+                            class="w-full"
+                        />
+                        <small class="settings-hint">
+                            Backgrounds are shared between dashboards and edited in the
+                            Backgrounds admin section.
+                        </small>
+                    </div>
+                    <div v-if="selectedBackground" class="flex align-items-center gap-2">
+                        <div class="bg-swatch" :style="{ background: swatchValue }" />
+                        <Button
+                            label="Edit background"
+                            icon="ti ti-external-link"
+                            text
+                            @click="router.push({ name: 'admin-background-edit', params: { id: selectedBackground.id } })"
                         />
                     </div>
                     <div class="flex flex-column gap-1">
@@ -234,37 +257,6 @@ const activeSection = ref('general')
                         />
                     </div>
 
-                    <label class="settings-subsection">Background</label>
-                    <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Background</label>
-                        <Select
-                            :modelValue="backgroundId"
-                            @update:modelValue="(v: string | undefined) => { if (v !== undefined) backgroundId = v }"
-                            :options="backgroundOptions"
-                            optionLabel="label"
-                            optionValue="value"
-                            placeholder="None (theme background)"
-                            class="w-full"
-                        />
-                        <small class="settings-hint">
-                            Backgrounds are shared between dashboards and edited in the
-                            Backgrounds admin section.
-                        </small>
-                    </div>
-                    <div v-if="selectedBackground" class="flex align-items-center gap-2">
-                        <div class="bg-swatch" :style="{ background: swatchValue }" />
-                        <Button
-                            label="Edit background"
-                            icon="ti ti-external-link"
-                            text
-                            @click="router.push({ name: 'admin-background-edit', params: { id: selectedBackground.id } })"
-                        />
-                    </div>
-
-                    <div class="settings-actions">
-                        <Button label="Save" icon="ti ti-check" :loading="isUpdating" @click="save" />
-                        <Button label="Cancel" icon="ti ti-x" severity="secondary" @click="goBack" />
-                    </div>
                 </div>
 
                 <!-- Protection -->

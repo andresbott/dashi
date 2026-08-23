@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
-import WidgetPlaceholder from '@/components/dashboards/WidgetPlaceholder.vue'
 import { getWidgetEntry } from '@/lib/widgetRegistry'
 import type { Widget } from '@/types/dashboard'
 
@@ -37,6 +36,11 @@ const saveSettings = () => {
     settingsVisible.value = false
 }
 
+const onDelete = () => {
+    settingsVisible.value = false
+    emit('delete')
+}
+
 const onUpdateConfig = (config: Record<string, unknown>) => {
     editConfig.value = config
 }
@@ -44,7 +48,8 @@ const onUpdateConfig = (config: Record<string, unknown>) => {
 
 <template>
     <div class="dashboard-widget">
-        <div class="widget-controls flex align-items-center gap-1">
+        <div class="widget-header">
+            <slot name="handle" />
             <Button
                 icon="ti ti-pencil"
                 text
@@ -53,23 +58,17 @@ const onUpdateConfig = (config: Record<string, unknown>) => {
                 @click="openSettings"
                 v-tooltip.top="'Widget settings'"
             />
-            <Button
-                icon="ti ti-trash"
-                text
-                rounded
-                severity="danger"
-                class="p-1"
-                @click="emit('delete')"
+        </div>
+        <div class="widget-body">
+            <component
+                v-if="entry"
+                :is="entry.component"
+                v-bind="entry.noWidgetProp ? {} : { widget }"
+                @update:widget="emit('update', $event)"
             />
         </div>
-        <component
-            v-if="entry"
-            :is="entry.component"
-            v-bind="entry.noWidgetProp ? {} : { widget }"
-            @update:widget="emit('update', $event)"
-        />
-        <WidgetPlaceholder v-else :title="widget.title" />
         <span class="widget-width-label">{{ widget.width }}/12</span>
+        <slot name="resize" />
     </div>
 
     <Dialog
@@ -92,7 +91,9 @@ const onUpdateConfig = (config: Record<string, unknown>) => {
                 @update:config="onUpdateConfig"
             />
         </div>
-        <div class="flex justify-content-end gap-3 mt-4">
+        <div class="flex align-items-center gap-3 mt-4">
+            <Button label="Delete" icon="ti ti-trash" severity="danger" text @click="onDelete" v-tooltip.top="'Delete widget'" />
+            <span class="flex-grow-1"></span>
             <Button label="Save" icon="ti ti-check" @click="saveSettings" />
             <Button label="Cancel" icon="ti ti-x" severity="secondary" @click="settingsVisible = false" />
         </div>
@@ -101,28 +102,35 @@ const onUpdateConfig = (config: Record<string, unknown>) => {
 
 <style scoped>
 .dashboard-widget {
+    position: relative;
     background: var(--p-surface-0);
     border: 1px solid var(--p-surface-300);
     border-radius: 8px;
-    padding: 0.5rem;
 }
 
-.widget-controls {
-    position: absolute;
-    top: 0.25rem;
-    right: 0.25rem;
-    z-index: 5;
+/* Grip (drag handle) sits at the left, the edit button at the right, so both
+   stay reachable even when the card is a single column wide. Delete lives in the
+   settings dialog rather than the header to keep only these two targets here. */
+.widget-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.25rem;
+    min-height: 2rem;
+    padding: 0.125rem 0.375rem;
+    border-bottom: 1px solid var(--p-surface-200);
 }
 
-.dashboard-widget {
-    position: relative;
+.widget-body {
+    padding: 0.5rem 0.75rem 1.5rem;
 }
 
 .widget-width-label {
     position: absolute;
-    bottom: 0.25rem;
-    right: 0.5rem;
+    bottom: 0.375rem;
+    left: 0.625rem;
     font-size: 0.75rem;
     color: var(--p-text-muted-color);
+    pointer-events: none;
 }
 </style>

@@ -5,7 +5,6 @@ import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import { getWidgetEntry, getWidgetTypeOptions } from '@/lib/widgetRegistry'
-import WidgetPlaceholder from '@/components/dashboards/WidgetPlaceholder.vue'
 import type { Widget } from '@/types/dashboard'
 import { EDITING_MODE } from '@/lib/injectionKeys'
 import { v4 as uuidv4 } from 'uuid'
@@ -125,7 +124,6 @@ const editingChildEntry = computed(() => {
                         : { widget: { ...child, width: props.widget.width } }
                 "
             />
-            <WidgetPlaceholder v-else :title="child.title" />
         </div>
     </div>
 
@@ -172,7 +170,6 @@ const editingChildEntry = computed(() => {
                                     : { widget: { ...element, width: props.widget.width } }
                             "
                         />
-                        <WidgetPlaceholder v-else :title="element.title" />
                     </div>
                 </div>
             </template>

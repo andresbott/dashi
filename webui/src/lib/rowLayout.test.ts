@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Widget } from '@/types/dashboard'
-import { placeRow, insertByColumn, firstFreeSpan, columnFromDrag } from './rowLayout'
+import { placeRow, insertByColumn, firstFreeSpan, columnFromDrag, moveWidgetToColumn } from './rowLayout'
 
 // Minimal widget factory — only width/column matter to the layout.
 let seq = 0
@@ -35,6 +35,17 @@ describe('placeRow', () => {
         expect(placeRow([w(6), w(6, 3)])).toEqual([
             { column: 1, gap: 0, width: 6 },
             { column: 7, gap: 0, width: 6 },
+        ])
+    })
+
+    it('shoves packed neighbours along when a widget is widened into them (resize push)', () => {
+        // Packed row A|B|C, each width 4. Widening A to 6 pushes B and C right
+        // rather than overlapping; C spills past column 12 and wraps (the grid
+        // is flex-wrap). This is the contract the editor resize handle relies on.
+        expect(placeRow([w(6, 1), w(4, 5), w(4, 9)])).toEqual([
+            { column: 1, gap: 0, width: 6 },
+            { column: 7, gap: 0, width: 4 },
+            { column: 11, gap: 0, width: 4 },
         ])
     })
 
@@ -123,5 +134,60 @@ describe('columnFromDrag', () => {
     it('clamps to the min and max start columns', () => {
         expect(columnFromDrag({ ...base, pointerX: -9000, grabStartX: 500 })).toBe(1)
         expect(columnFromDrag({ ...base, pointerX: 9000, grabStartX: 500 })).toBe(10)
+    })
+})
+
+describe('moveWidgetToColumn', () => {
+    it('moves a widget to an earlier slot, reordering the array (the reported bug)', () => {
+        // A at 1..6, B at 7..12; dragging B to column 1 must put B first.
+        const a = w(6, 1)
+        const b = w(6, 7)
+        const out = moveWidgetToColumn([a, b], 1, 1)
+        expect(out.map((x) => x.id)).toEqual([b.id, a.id])
+        expect(placeRow(out).map((p) => p.column)).toEqual([1, 7])
+    })
+
+    it('moves a widget to a later slot, reordering the array', () => {
+        // Mirror case: dragging A right onto B's column swaps them cleanly.
+        const a = w(6, 1)
+        const b = w(6, 7)
+        const out = moveWidgetToColumn([a, b], 0, 7)
+        expect(out.map((x) => x.id)).toEqual([b.id, a.id])
+        expect(placeRow(out).map((p) => p.column)).toEqual([1, 7])
+    })
+
+    it('reorders into the middle of a full row and packs cleanly', () => {
+        const a = w(4, 1)
+        const b = w(4, 5)
+        const c = w(4, 9)
+        const out = moveWidgetToColumn([a, b, c], 0, 5)
+        expect(out.map((x) => x.id)).toEqual([b.id, a.id, c.id])
+        expect(placeRow(out).map((p) => p.column)).toEqual([1, 5, 9])
+    })
+
+    it('honours a leading gap for the dragged widget on reorder', () => {
+        // Drag A past B to the far right; B packs left, A keeps its drop column.
+        const a = w(4, 1)
+        const b = w(4, 5)
+        const out = moveWidgetToColumn([a, b], 0, 9)
+        expect(out.map((x) => x.id)).toEqual([b.id, a.id])
+        expect(placeRow(out).map((p) => p.column)).toEqual([1, 9])
+    })
+
+    it('repositions within its own slot without reordering or disturbing others', () => {
+        // A at 1..3, B parked at 9..11 (gap 4..8). Nudging A to column 2 must
+        // not touch B's column, so its intentional gap survives.
+        const a = w(3, 1)
+        const b = w(3, 9)
+        const out = moveWidgetToColumn([a, b], 0, 2)
+        expect(out.map((x) => x.id)).toEqual([a.id, b.id])
+        expect(out[0].column).toBe(2)
+        expect(out[1].column).toBe(9)
+    })
+
+    it('returns the widgets unchanged for an out-of-range index', () => {
+        const a = w(6, 1)
+        const out = moveWidgetToColumn([a], 5, 1)
+        expect(out.map((x) => x.id)).toEqual([a.id])
     })
 })

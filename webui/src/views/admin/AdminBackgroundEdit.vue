@@ -13,6 +13,7 @@ import { useToast } from 'primevue/usetoast'
 
 import { useGetBackground, useUpdateBackground, useBackgroundAssets } from '@/composables/useBackgrounds'
 import { useDataItems } from '@/composables/useDataItems'
+import { useAutosave } from '@/composables/useAutosave'
 import { browserCss, pageBgValue } from '@/lib/backgroundCss'
 import type {
     Background,
@@ -27,11 +28,11 @@ const toast = useToast()
 const id = computed(() => route.params.id as string)
 
 const { data: serverBackground, isLoading, isError } = useGetBackground(() => id.value)
-const { updateBackground, isUpdating } = useUpdateBackground()
+const { updateBackground } = useUpdateBackground()
 const { assets, uploadAsset, isUploadingAsset } = useBackgroundAssets(() => id.value)
 const { items: sharedImages } = useDataItems('backgrounds')
 
-// Editing happens on a local clone so nothing is written until Save.
+// Editing happens on a local clone; autosave persists it after each change.
 const local = ref<Background | null>(null)
 
 watch(serverBackground, (val) => {
@@ -242,21 +243,26 @@ const previewStyle = computed(() => {
     return { background: value }
 })
 
-// ---- save ----
+// ---- autosave ----
 
-const handleSave = async () => {
-    if (!local.value) return
-    try {
-        await updateBackground({ id: id.value, payload: local.value })
-        toast.add({ severity: 'success', summary: 'Saved', detail: local.value.name, life: 3000 })
-    } catch (err: unknown) {
-        // A 400 carries the store's validation message — surface it rather than
-        // a generic failure, since it names the offending field.
-        const detail =
-            (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-            'Failed to save background'
-        toast.add({ severity: 'error', summary: 'Error', detail, life: 6000 })
-    }
+const { status: saveStatus, error: saveError, flush } = useAutosave<Background>({
+    source: () => local.value,
+    save: (bg) => updateBackground({ id: id.value, payload: bg }),
+})
+
+// A 400 carries the store's validation message (it names the offending field),
+// so surface that rather than a generic failure — same as the old manual Save.
+watch(saveStatus, (s) => {
+    if (s !== 'error') return
+    const detail =
+        (saveError.value as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        'Failed to save background'
+    toast.add({ severity: 'error', summary: 'Error', detail, life: 6000 })
+})
+
+const goBack = async () => {
+    await flush()
+    router.push({ name: 'admin-backgrounds' })
 }
 </script>
 
@@ -264,19 +270,12 @@ const handleSave = async () => {
     <div class="admin-section">
         <div class="admin-section-header">
             <h2 class="admin-section-title">Edit background</h2>
-            <div class="flex gap-2">
+            <div class="flex align-items-center gap-3">
                 <Button
                     label="Back"
                     icon="ti ti-arrow-left"
                     severity="secondary"
-                    @click="router.push({ name: 'admin-backgrounds' })"
-                />
-                <Button
-                    label="Save"
-                    icon="ti ti-device-floppy"
-                    :loading="isUpdating"
-                    :disabled="!local"
-                    @click="handleSave"
+                    @click="goBack"
                 />
             </div>
         </div>
@@ -502,7 +501,7 @@ const handleSave = async () => {
                             </div>
                             <div class="preview-box" :style="previewStyle" />
                             <small class="edit-hint">
-                                Unsaved changes are shown. Nothing is stored until you press Save.
+                                Changes are saved automatically.
                             </small>
                         </div>
                     </div>

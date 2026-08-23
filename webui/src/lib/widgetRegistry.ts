@@ -32,13 +32,7 @@ export function getWidgetTypes(): string[] {
 }
 
 export function getWidgetTypeOptions(): { value: string; label: string; icon: string; description: string }[] {
-    const opts: { value: string; label: string; icon: string; description: string }[] = [
-        { value: 'placeholder', label: 'Placeholder', icon: 'ti-layout-grid', description: 'Empty placeholder widget' },
-    ]
-    for (const m of modules) {
-        opts.push({ value: m.type, label: m.label, icon: m.icon, description: m.description })
-    }
-    return opts
+    return modules.map(m => ({ value: m.type, label: m.label, icon: m.icon, description: m.description }))
 }
 
 export type WidgetRegistryEntry = WidgetModule
