@@ -7,8 +7,10 @@ import InputText from 'primevue/inputtext'
 import DashboardRow from '@/components/dashboards/DashboardRow.vue'
 
 import { useGetDashboard, useUpdateDashboard } from '@/composables/useDashboards'
+import { useAutosave } from '@/composables/useAutosave'
 import { useToast } from 'primevue/usetoast'
 import type { Dashboard, Row } from '@/types/dashboard'
+import { insertByColumn } from '@/lib/rowLayout'
 import { v4 as uuidv4 } from 'uuid'
 import Dialog from 'primevue/dialog'
 import dashiIcon from '@/assets/icon-64.png'
@@ -19,7 +21,7 @@ const toast = useToast()
 const id = computed(() => route.params.id as string)
 
 const { data: serverDashboard, isLoading, isError } = useGetDashboard(() => id.value)
-const { updateDashboard, isUpdating } = useUpdateDashboard()
+const { updateDashboard } = useUpdateDashboard()
 
 const localDashboard = ref<Dashboard | null>(null)
 const activePageIndex = ref(0)
@@ -118,6 +120,22 @@ const updateRow = (index: number, row: Row) => {
     activePage.value.rows[index] = row
 }
 
+// Cross-row widget move: DashboardRow emits this on drop when the pointer was
+// over a different row than the widget's own. Remove it from the source row and
+// insert it into the target row at the drop column (placeRow resolves overlap).
+const moveWidgetAcross = (fromIndex: number, payload: { widgetId: string; toRowId: string; column: number }) => {
+    if (!activePage.value) return
+    const rows = activePage.value.rows
+    const fromRow = rows[fromIndex]
+    if (!fromRow) return
+    const widget = fromRow.widgets.find(w => w.id === payload.widgetId)
+    const toIndex = rows.findIndex(r => r.id === payload.toRowId)
+    if (!widget || toIndex < 0 || toIndex === fromIndex) return
+    rows[fromIndex] = { ...fromRow, widgets: fromRow.widgets.filter(w => w.id !== payload.widgetId) }
+    const toRow = rows[toIndex]
+    rows[toIndex] = { ...toRow, widgets: insertByColumn(toRow.widgets, { ...widget, column: payload.column }) }
+}
+
 const deleteRow = (index: number) => {
     if (!activePage.value) return
     activePage.value.rows.splice(index, 1)
@@ -136,18 +154,25 @@ const moveRowDown = (index: number) => {
     ;[rows[index], rows[index + 1]] = [rows[index + 1], rows[index]]
 }
 
-const save = async () => {
-    if (!localDashboard.value) return
-    try {
-        await updateDashboard({ id: id.value, payload: localDashboard.value })
-        toast.add({ severity: 'success', summary: 'Saved', detail: 'Dashboard saved successfully', life: 3000 })
-    } catch (err) {
+const { status: saveStatus, flush } = useAutosave<Dashboard>({
+    source: () => localDashboard.value,
+    save: (d) => updateDashboard({ id: id.value, payload: d }),
+})
+
+watch(saveStatus, (s) => {
+    if (s === 'error') {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to save dashboard', life: 5000 })
     }
+})
+
+const goToAdmin = async () => {
+    await flush()
+    router.push({ name: 'admin-dashboards' })
 }
 
-const cancel = () => {
-    router.push({ name: 'admin-dashboards' })
+const goToSettings = async () => {
+    await flush()
+    router.push({ name: 'dashboard-settings', params: { id: id.value } })
 }
 
 </script>
@@ -167,26 +192,14 @@ const cancel = () => {
                 severity="secondary"
                 text
                 rounded
-                @click="router.push({ name: 'admin-dashboards' })"
+                @click="goToAdmin"
             />
             <span class="text-xl font-bold text-color flex-grow-1">{{ localDashboard.name }}</span>
             <Button
                 icon="ti ti-settings"
                 label="Settings"
                 severity="secondary"
-                @click="router.push({ name: 'dashboard-settings', params: { id: id } })"
-            />
-            <Button
-                label="Save"
-                icon="ti ti-check"
-                :loading="isUpdating"
-                @click="save"
-            />
-            <Button
-                label="Cancel"
-                icon="ti ti-x"
-                severity="secondary"
-                @click="cancel"
+                @click="goToSettings"
             />
         </div>
 
@@ -254,6 +267,7 @@ const cancel = () => {
             @delete="deleteRow(index)"
             @move-up="moveRowUp(index)"
             @move-down="moveRowDown(index)"
+            @move-widget="moveWidgetAcross(index, $event)"
         />
 
         <div class="mt-2">

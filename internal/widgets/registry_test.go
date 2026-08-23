@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"html/template"
-	"strings"
 	"testing"
 
 	"github.com/andresbott/dashi/internal/themes"
@@ -33,7 +32,7 @@ func TestRegistry_Render_UnknownType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := template.HTML(`<div class="widget-placeholder">&nbsp;</div>`)
+	want := template.HTML("")
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -65,7 +64,7 @@ func TestRenderBrowserUsesBrowserRenderer(t *testing.T) {
 
 func TestRenderBrowserFallsBackToImageRenderer(t *testing.T) {
 	// An unported widget has no browser renderer; the browser view must
-	// still show something rather than a placeholder.
+	// still show something rather than nothing.
 	r := NewRegistry()
 	r.Register("demo", func(json.RawMessage, RenderContext) (template.HTML, error) {
 		return "<b>image</b>", nil
@@ -80,14 +79,14 @@ func TestRenderBrowserFallsBackToImageRenderer(t *testing.T) {
 	}
 }
 
-func TestRenderBrowserUnknownTypeYieldsPlaceholder(t *testing.T) {
+func TestRenderBrowserUnknownTypeYieldsEmpty(t *testing.T) {
 	r := NewRegistry()
 	got, err := r.RenderBrowser("nope", nil, RenderContext{})
 	if err != nil {
 		t.Fatalf("RenderBrowser: %v", err)
 	}
-	if !strings.Contains(string(got), "widget-placeholder") {
-		t.Errorf("got %q, want a placeholder div", got)
+	if got != "" {
+		t.Errorf("got %q, want empty output for an unknown type", got)
 	}
 }
 

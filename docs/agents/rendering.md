@@ -79,6 +79,21 @@ in PNGs — no error. Fallback Inter TTFs are embedded in
   Because the proxy sets `changeOrigin`, `/api/v0/info` reports the viewer at
   `http://localhost:8087`, so view links leave the dev server and hit Go.
 
+## Row layout — column placement (12-column grid)
+
+Both render stacks lay a row's widgets on a 12-column grid. Each `Widget` has a
+`Width` (column span) and an optional `Column` (1-based start column; `0` = flow
+after the previous widget, which is what pre-column dashboards carry).
+`dashboard.PlaceRow` (`internal/dashboard/layout.go`) is the single resolver: it
+converts each widget's column into a **leading gap** (empty columns before it)
+and pushes any overlap right, so widgets never collide. Renderers apply the gap
+as `margin-left: gap/12*100%` and the span as `width: width/12*100%` on the cell
+— litehtml supports percentage margins
+(`docs/project/litehtml-rendering-reference.md`), so the same mechanism works in
+the PNG/litehtml stack and the browser. The editor mirrors `PlaceRow` in
+`webui/src/lib/rowLayout.ts` and renders the gap with PrimeFlex `col-offset-N`.
+A row whose spans exceed 12 columns still wraps to a second line, as before.
+
 ## Analysis docs
 
 `docs/project/widget-rendering-architectures.md` — deep comparison of the two

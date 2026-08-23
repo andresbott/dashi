@@ -111,8 +111,8 @@ func TestRenderStatic_UnknownChildType(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	html := string(got)
-	if !strings.Contains(html, "widget-placeholder") {
-		t.Errorf("expected placeholder for unknown type, got: %s", html)
+	if strings.Contains(html, "widget-placeholder") {
+		t.Errorf("unknown child type should render nothing, not a placeholder, got: %s", html)
 	}
 }
 

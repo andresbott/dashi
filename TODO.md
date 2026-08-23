@@ -41,7 +41,7 @@ Notes for editors:
 # Vuejs
 
 - [ ] autosave
-- [ ] Grid placement without placeholders
+- [x] Grid placement without placeholders
 
 # Backedn
 

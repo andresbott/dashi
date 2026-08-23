@@ -3,7 +3,6 @@ import { computed, ref, watch, onMounted, onUnmounted, provide } from 'vue'
 import { DASHBOARD_THEME, DASHBOARD_ID, ACTIVE_PAGE, TOTAL_PAGES } from '@/lib/injectionKeys'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
-import WidgetPlaceholder from '@/components/dashboards/WidgetPlaceholder.vue'
 import { getWidgetEntry } from '@/lib/widgetRegistry'
 import { useGetDashboard, useListDashboards } from '@/composables/useDashboards'
 import { useThemes } from '@/composables/useThemes'
@@ -239,7 +238,6 @@ function debugColor(index: number): string | undefined {
                                 :is="getWidgetEntry(widget.type)!.component"
                                 v-bind="getWidgetEntry(widget.type)!.noWidgetProp ? {} : { widget }"
                             />
-                            <WidgetPlaceholder v-else :title="widget.title" />
                         </div>
                     </div>
                 </div>

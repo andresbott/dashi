@@ -73,6 +73,23 @@ func TestRenderPlacesWidgetHTMLInSizedCell(t *testing.T) {
 	}
 }
 
+func TestRenderPositionsWidgetWithLeadingMargin(t *testing.T) {
+	data := baseData()
+	data.Rows = []dashboard.Row{{
+		Title:   "Top",
+		Widgets: []dashboard.Widget{{ID: "w1", Type: "demo", Width: 6, Column: 4}},
+	}}
+	out := render(t, NewRenderer(testRegistry(), nil), data)
+
+	// Column 4 leaves 3 empty columns (3/12 = 25%) before a span-6 (50%) widget.
+	if !strings.Contains(out, "margin-left: 25.0000%") {
+		t.Errorf("expected 25%% leading margin for a column-4 widget:\n%s", out)
+	}
+	if !strings.Contains(out, "width: 50.0000%") {
+		t.Errorf("expected the span-6 width to be preserved:\n%s", out)
+	}
+}
+
 func TestRenderIncludesWidgetScriptsOnlyForTypesPresentThatShipJS(t *testing.T) {
 	r := NewRenderer(testRegistry(), map[string]bool{"demo": true, "unused": true})
 	out := render(t, r, baseData())

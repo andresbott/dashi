@@ -69,8 +69,8 @@ func TestRenderer_Render(t *testing.T) {
 	if !strings.Contains(html, "<p>test-widget</p>") {
 		t.Error("expected rendered test widget")
 	}
-	if !strings.Contains(html, "widget-placeholder") {
-		t.Error("expected placeholder for unknown widget")
+	if strings.Contains(html, "widget-placeholder") {
+		t.Error("unknown widget should render nothing, not a placeholder")
 	}
 	if !strings.Contains(html, "width: 50.0000%") {
 		t.Error("expected percentage width for span-6 widget")
@@ -257,6 +257,63 @@ func TestRenderer_Render_WidgetWidthDefault(t *testing.T) {
 	html := buf.String()
 	if !strings.Contains(html, "width: 100.0000%") {
 		t.Error("expected 100% width for default width 12")
+	}
+}
+
+func TestRenderer_Render_ColumnProducesLeadingMargin(t *testing.T) {
+	reg := widgets.NewRegistry()
+	reg.Register("test", func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
+		return template.HTML("<p>widget</p>"), nil
+	})
+
+	renderer := NewRenderer(reg)
+
+	data := RenderData{
+		Name: "Positioned widget",
+		Rows: []dashboard.Row{
+			{
+				ID: "row-1",
+				Widgets: []dashboard.Widget{
+					{ID: "w1", Type: "test", Width: 6, Column: 4},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := renderer.Render(&buf, data); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	html := buf.String()
+	// Column 4 leaves 3 empty columns (3/12 = 25%) before a span-6 (50%) widget.
+	if !strings.Contains(html, "margin-left: 25.0000%") {
+		t.Errorf("expected 25%% leading margin for a column-4 widget, got: %s", html)
+	}
+	if !strings.Contains(html, "width: 50.0000%") {
+		t.Error("expected the span-6 width to be preserved alongside the margin")
+	}
+}
+
+func TestRenderer_Render_NoColumnHasZeroMargin(t *testing.T) {
+	reg := widgets.NewRegistry()
+	reg.Register("test", func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
+		return template.HTML("<p>widget</p>"), nil
+	})
+
+	var buf bytes.Buffer
+	err := NewRenderer(reg).Render(&buf, RenderData{
+		Name: "Flowing widget",
+		Rows: []dashboard.Row{{
+			ID:      "row-1",
+			Widgets: []dashboard.Widget{{ID: "w1", Type: "test", Width: 6}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(buf.String(), "margin-left: 0.0000%") {
+		t.Errorf("expected a zero leading margin for a widget without a column, got: %s", buf.String())
 	}
 }
 

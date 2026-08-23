@@ -66,10 +66,11 @@ type rowData struct {
 }
 
 type widgetData struct {
-	Width        int
-	WidthPercent float64
-	HTML         template.HTML
-	DebugColor   string
+	Width             int
+	WidthPercent      float64
+	MarginLeftPercent float64
+	HTML              template.HTML
+	DebugColor        string
 }
 
 var debugColors = []string{"#ffcccc", "#ccffcc", "#ccccff", "#ffffcc", "#ffccff", "#ccffff"}
@@ -106,19 +107,18 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 		ctx := widgets.RenderContext{DashboardID: data.DashboardID, Theme: data.Theme, ColorMode: data.ColorMode, Palette: data.Palette, QueryParams: data.QueryParams, PageIndex: data.PageIndex, TotalPages: data.TotalPages}
 		debug := data.QueryParams["debug"] == "1"
 		colorIdx := 0
-		for _, widget := range row.Widgets {
+		placements := dashboard.PlaceRow(row.Widgets)
+		for i, widget := range row.Widgets {
 			rendered, err := r.registry.Render(widget.Type, widget.Config, ctx)
 			if err != nil {
 				return fmt.Errorf("render widget %s (%s): %w", widget.ID, widget.Type, err)
 			}
-			w := widget.Width
-			if w < 1 {
-				w = 12
-			}
+			p := placements[i]
 			wd := widgetData{
-				Width:        w,
-				WidthPercent: float64(w) / 12.0 * 100.0,
-				HTML:         rendered,
+				Width:             p.Width,
+				WidthPercent:      float64(p.Width) / float64(dashboard.GridColumns) * 100.0,
+				MarginLeftPercent: float64(p.Gap) / float64(dashboard.GridColumns) * 100.0,
+				HTML:              rendered,
 			}
 			if debug {
 				wd.DebugColor = debugColors[colorIdx%len(debugColors)]

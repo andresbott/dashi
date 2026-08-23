@@ -95,8 +95,9 @@ type rowData struct {
 }
 
 type widgetData struct {
-	WidthPercent float64
-	HTML         template.HTML
+	WidthPercent      float64
+	MarginLeftPercent float64
+	HTML              template.HTML
 }
 
 // Render writes the complete HTML page for data to w.
@@ -140,18 +141,17 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 			continue
 		}
 		rd := rowData{Title: row.Title, Height: row.Height, Width: row.Width}
-		for _, widget := range row.Widgets {
+		placements := dashboard.PlaceRow(row.Widgets)
+		for i, widget := range row.Widgets {
 			html, err := r.registry.RenderBrowser(widget.Type, widget.Config, ctx)
 			if err != nil {
 				return fmt.Errorf("render widget %s (%s): %w", widget.ID, widget.Type, err)
 			}
-			width := widget.Width
-			if width < 1 {
-				width = 12
-			}
+			p := placements[i]
 			rd.Widgets = append(rd.Widgets, widgetData{
-				WidthPercent: float64(width) / 12.0 * 100.0,
-				HTML:         html,
+				WidthPercent:      float64(p.Width) / float64(dashboard.GridColumns) * 100.0,
+				MarginLeftPercent: float64(p.Gap) / float64(dashboard.GridColumns) * 100.0,
+				HTML:              html,
 			})
 			present[widget.Type] = true
 		}
