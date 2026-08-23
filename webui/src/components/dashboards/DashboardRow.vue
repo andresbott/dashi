@@ -1,3 +1,17 @@
+<script lang="ts">
+import { reactive } from 'vue'
+
+// Module-scoped, shared across all DashboardRow instances for the duration of a
+// drag. Lets any row the pointer moves over show the 12-column guides and
+// receive the drop at the pointer's column — so one drag sets row + column.
+const dragState = reactive({
+    active: false,
+    span: 1,
+    leftX: null as number | null,
+    pointerY: 0,
+})
+</script>
+
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import draggable from 'vuedraggable'
@@ -26,12 +40,12 @@ const emit = defineEmits<{
 const widgets = computed({
     get: () => props.row.widgets,
     // vuedraggable only mutates this on cross-row moves (within-row sorting is
-    // off). A widget dragged in from another row carries a stale column, so we
-    // reset it to flow (0) at its drop position; existing widgets are untouched
-    // and placeRow resolves any overlap defensively.
+    // off). A widget dragged in from another row is placed at the column under
+    // the drop point (dropColumn), so a single drag sets both row and column;
+    // existing widgets are untouched and placeRow resolves overlap defensively.
     set: (val: Widget[]) => {
         const known = new Set(props.row.widgets.map(w => w.id))
-        const next = val.map(w => (known.has(w.id) ? w : { ...w, column: 0 }))
+        const next = val.map(w => (known.has(w.id) ? w : { ...w, column: dropColumn(w) }))
         emit('update', { ...props.row, widgets: next })
     }
 })
@@ -102,11 +116,25 @@ let dragEl: HTMLElement | null = null
 // so releasing without moving leaves the widget exactly where it was.
 let originColumn = 1
 let grabStartX: number | null = null
+let originLeftX = 0
 
 // Capture the true grab point on pointer-down, before the native drag threshold
 // nudges it; fires before SortableJS starts the drag.
 const onGripDown = (e: PointerEvent) => {
     grabStartX = e.clientX
+}
+
+// Column for a widget dropped into THIS row from another row, derived from the
+// shared drag left-edge (viewport px) relative to this row's grid — so a single
+// drag sets both the row and the column. Falls back to flow (0) if unknown.
+const dropColumn = (widget: Widget): number => {
+    const gridEl = gridRef.value?.$el as HTMLElement | undefined
+    if (dragState.leftX === null || !gridEl) return 0
+    const rect = gridEl.getBoundingClientRect()
+    const colWidth = rect.width / GRID_COLUMNS
+    const width = widget.width && widget.width >= 1 ? widget.width : GRID_COLUMNS
+    const raw = Math.round((dragState.leftX - rect.left) / colWidth) + 1
+    return Math.max(1, Math.min(GRID_COLUMNS - width + 1, raw))
 }
 
 // Resolved 12-column placement (leading gap + span) for every widget, with the
@@ -120,6 +148,26 @@ const placements = computed(() => {
     })
     return placeRow(list)
 })
+
+// Guides for a row that is a potential drop target while another row is being
+// dragged from: where the widget would land if dropped here now (pointer over
+// this row). Null unless a drag is active and this row is not the source.
+const targetGuide = computed(() => {
+    if (!dragState.active || dragging.value || dragState.leftX === null) return null
+    const gridEl = gridRef.value?.$el as HTMLElement | undefined
+    if (!gridEl) return null
+    const rect = gridEl.getBoundingClientRect()
+    if (dragState.pointerY < rect.top || dragState.pointerY > rect.bottom) return null
+    const colWidth = rect.width / GRID_COLUMNS
+    const raw = Math.round((dragState.leftX - rect.left) / colWidth) + 1
+    return Math.max(1, Math.min(GRID_COLUMNS - dragState.span + 1, raw))
+})
+
+// The overlay renders this row's own in-row guide while it is the drag source,
+// otherwise the cross-row target guide — so the guides follow the pointer from
+// row to row during a single drag.
+const activeGuideColumn = computed(() => (dragging.value ? guideColumn.value : targetGuide.value))
+const activeGuideWidth = computed(() => (dragging.value ? guideWidth.value : dragState.span))
 
 const colWidthPx = (gridEl: HTMLElement) => gridEl.getBoundingClientRect().width / GRID_COLUMNS
 
@@ -177,6 +225,13 @@ const onDragStart = (evt: { oldIndex: number }) => {
     guideColumn.value = p.column
     originColumn = p.column
     dragEl = (gridRef.value?.$el as HTMLElement | undefined) ?? null
+    // Widget's left edge in viewport px; shared so the target row of a
+    // cross-row drop can place it at the drop column.
+    const startRect = dragEl?.getBoundingClientRect()
+    originLeftX = startRect ? startRect.left + (p.column - 1) * (startRect.width / GRID_COLUMNS) : 0
+    dragState.active = true
+    dragState.span = p.width
+    dragState.leftX = originLeftX
     dragging.value = true
     // The draggable runs in force-fallback (pointer) mode — native HTML5
     // drag-and-drop reported unreliable dragover coordinates — so we track the
@@ -191,14 +246,23 @@ const onDragMove = (e: MouseEvent) => {
     // anchor on the first move so there is still no jump.
     if (grabStartX === null) grabStartX = e.clientX
     const rect = dragEl.getBoundingClientRect()
-    guideColumn.value = columnFromDrag({
-        originColumn,
-        pointerX: e.clientX,
-        grabStartX,
-        colWidth: rect.width / GRID_COLUMNS,
-        min: dragMin,
-        max: dragMax,
-    })
+    // Share the widget's live left edge + pointer Y so any row can show guides
+    // and place it on drop.
+    dragState.leftX = originLeftX + (e.clientX - grabStartX)
+    dragState.pointerY = e.clientY
+    // This row's own (source) guides only while the pointer is over it; once it
+    // moves to another row, that row shows its own target guides instead.
+    const overThisRow = e.clientY >= rect.top && e.clientY <= rect.bottom
+    guideColumn.value = overThisRow
+        ? columnFromDrag({
+              originColumn,
+              pointerX: e.clientX,
+              grabStartX,
+              colWidth: rect.width / GRID_COLUMNS,
+              min: dragMin,
+              max: dragMax,
+          })
+        : null
 }
 
 const onDragEnd = (evt: { oldIndex: number; from: HTMLElement; to: HTMLElement }) => {
@@ -213,6 +277,8 @@ const onDragEnd = (evt: { oldIndex: number; from: HTMLElement; to: HTMLElement }
     guideColumn.value = null
     grabStartX = null
     dragEl = null
+    dragState.active = false
+    dragState.leftX = null
 }
 
 const getWidgetClass = (index: number) => {
@@ -267,13 +333,17 @@ const getWidgetClass = (index: number) => {
                 @click="emit('delete')"
             />
         </div>
-        <div class="grid-wrap">
-            <div v-if="dragging" class="column-guides" aria-hidden="true">
+        <div
+            class="grid-wrap"
+            :class="{ 'grid-wrap--empty': !row.widgets.length }"
+            @click="!row.widgets.length && (addWidgetDialogVisible = true)"
+        >
+            <div v-if="activeGuideColumn !== null" class="column-guides" aria-hidden="true">
                 <div
                     v-for="c in 12"
                     :key="c"
                     class="guide-col"
-                    :class="{ 'guide-col--active': guideColumn !== null && c >= guideColumn && c < guideColumn + guideWidth }"
+                    :class="{ 'guide-col--active': c >= activeGuideColumn && c < activeGuideColumn + activeGuideWidth }"
                 />
             </div>
             <draggable
@@ -284,6 +354,7 @@ const getWidgetClass = (index: number) => {
                 handle=".widget-drag-handle"
                 :sort="false"
                 :force-fallback="true"
+                :style="!row.widgets.length ? { minHeight: '72px' } : undefined"
                 ref="gridRef"
                 @start="onDragStart"
                 @end="onDragEnd"
@@ -310,9 +381,7 @@ const getWidgetClass = (index: number) => {
                     </div>
                 </template>
             </draggable>
-        </div>
-        <div v-if="!row.widgets.length" class="empty-row" @click="addWidgetDialogVisible = true">
-            Click to add a widget
+            <div v-if="!row.widgets.length" class="empty-hint">Click to add a widget</div>
         </div>
     </div>
 
@@ -435,16 +504,25 @@ const getWidgetClass = (index: number) => {
     background: color-mix(in srgb, var(--p-primary-color) 16%, transparent);
 }
 
-.empty-row {
-    padding: 2rem;
-    text-align: center;
-    color: var(--p-text-muted-color);
-    border: 1px dashed var(--p-surface-300);
-    border-radius: 8px;
+.grid-wrap--empty {
     cursor: pointer;
 }
 
-.empty-row:hover {
+/* Placeholder for an empty row. pointer-events: none so it never intercepts a
+   cross-row drop onto the (now min-height) empty draggable behind it. */
+.empty-hint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--p-text-muted-color);
+    border: 1px dashed var(--p-surface-300);
+    border-radius: 8px;
+    pointer-events: none;
+}
+
+.grid-wrap--empty:hover .empty-hint {
     background: var(--p-surface-50);
 }
 
