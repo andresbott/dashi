@@ -260,6 +260,63 @@ func TestRenderer_Render_WidgetWidthDefault(t *testing.T) {
 	}
 }
 
+func TestRenderer_Render_ColumnProducesLeadingMargin(t *testing.T) {
+	reg := widgets.NewRegistry()
+	reg.Register("test", func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
+		return template.HTML("<p>widget</p>"), nil
+	})
+
+	renderer := NewRenderer(reg)
+
+	data := RenderData{
+		Name: "Positioned widget",
+		Rows: []dashboard.Row{
+			{
+				ID: "row-1",
+				Widgets: []dashboard.Widget{
+					{ID: "w1", Type: "test", Width: 6, Column: 4},
+				},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := renderer.Render(&buf, data); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	html := buf.String()
+	// Column 4 leaves 3 empty columns (3/12 = 25%) before a span-6 (50%) widget.
+	if !strings.Contains(html, "margin-left: 25.0000%") {
+		t.Errorf("expected 25%% leading margin for a column-4 widget, got: %s", html)
+	}
+	if !strings.Contains(html, "width: 50.0000%") {
+		t.Error("expected the span-6 width to be preserved alongside the margin")
+	}
+}
+
+func TestRenderer_Render_NoColumnHasZeroMargin(t *testing.T) {
+	reg := widgets.NewRegistry()
+	reg.Register("test", func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
+		return template.HTML("<p>widget</p>"), nil
+	})
+
+	var buf bytes.Buffer
+	err := NewRenderer(reg).Render(&buf, RenderData{
+		Name: "Flowing widget",
+		Rows: []dashboard.Row{{
+			ID:      "row-1",
+			Widgets: []dashboard.Widget{{ID: "w1", Type: "test", Width: 6}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(buf.String(), "margin-left: 0.0000%") {
+		t.Errorf("expected a zero leading margin for a widget without a column, got: %s", buf.String())
+	}
+}
+
 func TestRenderer_Render_HAlignVariants(t *testing.T) {
 	reg := widgets.NewRegistry()
 	renderer := NewRenderer(reg)

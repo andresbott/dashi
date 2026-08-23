@@ -57,11 +57,19 @@ type Row struct {
 }
 
 // Widget represents a single widget placed within a row.
+//
+// Column is the 1-based grid column (1..12) where the widget starts, letting a
+// widget sit anywhere in the row without a leading placeholder widget. A value
+// of 0 (the zero value, and what older dashboards carry) means "flow after the
+// previous widget", so pre-existing dashboards render unchanged. Width is the
+// span in columns. Placement (column → leading gap, plus overlap resolution)
+// is computed by PlaceRow.
 type Widget struct {
 	ID     string          `json:"id"`
 	Type   string          `json:"type"`
 	Title  string          `json:"title"`
 	Width  int             `json:"width"`
+	Column int             `json:"column,omitempty"`
 	Config json.RawMessage `json:"config,omitempty"`
 }
 

@@ -7,6 +7,7 @@ import Button from 'primevue/button'
 import DashboardWidget from '@/components/dashboards/DashboardWidget.vue'
 import type { Row, Widget } from '@/types/dashboard'
 import { getWidgetTypeOptions } from '@/lib/widgetRegistry'
+import { placeRow, firstFreeSpan, insertByColumn, columnFromDrag, GRID_COLUMNS } from '@/lib/rowLayout'
 import { v4 as uuidv4 } from 'uuid'
 
 const props = defineProps<{
@@ -24,7 +25,15 @@ const emit = defineEmits<{
 
 const widgets = computed({
     get: () => props.row.widgets,
-    set: (val: Widget[]) => emit('update', { ...props.row, widgets: val })
+    // vuedraggable only mutates this on cross-row moves (within-row sorting is
+    // off). A widget dragged in from another row carries a stale column, so we
+    // reset it to flow (0) at its drop position; existing widgets are untouched
+    // and placeRow resolves any overlap defensively.
+    set: (val: Widget[]) => {
+        const known = new Set(props.row.widgets.map(w => w.id))
+        const next = val.map(w => (known.has(w.id) ? w : { ...w, column: 0 }))
+        emit('update', { ...props.row, widgets: next })
+    }
 })
 
 const settingsVisible = ref(false)
@@ -61,13 +70,17 @@ const widgetTypeOptions = getWidgetTypeOptions()
 
 const addWidget = (type: string) => {
     const option = widgetTypeOptions.find(o => o.value === type)
+    // Drop the widget into the first free span so it never overlaps an
+    // existing one, then splice it in at the matching column position.
+    const span = firstFreeSpan(props.row.widgets, 6)
     const newWidget: Widget = {
         id: uuidv4(),
         type,
         title: option?.label ?? 'New Widget',
-        width: 6
+        width: span.width,
+        column: span.column
     }
-    emit('update', { ...props.row, widgets: [...props.row.widgets, newWidget] })
+    emit('update', { ...props.row, widgets: insertByColumn(props.row.widgets, newWidget) })
     addWidgetDialogVisible.value = false
 }
 
@@ -75,22 +88,60 @@ const gridRef = ref<InstanceType<typeof draggable> | null>(null)
 const resizingIndex = ref<number | null>(null)
 const resizePreviewWidth = ref<number | null>(null)
 
+// Grip-drag ("move") state. Positioning lands on drop, so the widget doesn't
+// move live; instead we show a 12-column guide overlay and highlight the target
+// span (guideColumn .. guideColumn + guideWidth - 1) while the pointer moves.
+const dragging = ref(false)
+const guideColumn = ref<number | null>(null)
+const guideWidth = ref(0)
+let dragMin = 1
+let dragMax = GRID_COLUMNS
+let dragEl: HTMLElement | null = null
+// The widget's column when the drag began and the pointer x where it was
+// grabbed. Positioning is resolved from how far the pointer has moved since,
+// so releasing without moving leaves the widget exactly where it was.
+let originColumn = 1
+let grabStartX: number | null = null
+
+// Capture the true grab point on pointer-down, before the native drag threshold
+// nudges it; fires before SortableJS starts the drag.
+const onGripDown = (e: PointerEvent) => {
+    grabStartX = e.clientX
+}
+
+// Resolved 12-column placement (leading gap + span) for every widget, with the
+// in-progress resize preview folded in so the editor grid updates live.
+const placements = computed(() => {
+    const list = props.row.widgets.map((widget, i) => {
+        if (i === resizingIndex.value && resizePreviewWidth.value !== null) {
+            return { width: resizePreviewWidth.value, column: widget.column }
+        }
+        return { width: widget.width, column: widget.column }
+    })
+    return placeRow(list)
+})
+
+const colWidthPx = (gridEl: HTMLElement) => gridEl.getBoundingClientRect().width / GRID_COLUMNS
+
+// Right edge → column span, clamped so it never overlaps the next widget or
+// spills past the grid.
 const startResize = (index: number, event: MouseEvent) => {
     event.preventDefault()
     resizingIndex.value = index
     resizePreviewWidth.value = null
 
     const gridEl = gridRef.value?.$el as HTMLElement | undefined
+    const base = placeRow(props.row.widgets)
+    const col = base[index].column
+    const nextStart = index < base.length - 1 ? base[index + 1].column : GRID_COLUMNS + 1
+    const maxWidth = Math.min(GRID_COLUMNS - col + 1, nextStart - col)
 
     const onMouseMove = (e: MouseEvent) => {
         if (resizingIndex.value === null || !gridEl) return
-        const gridRect = gridEl.getBoundingClientRect()
-        const colWidth = gridRect.width / 12
         const widgetEl = gridEl.children[resizingIndex.value] as HTMLElement
         const widgetRect = widgetEl.getBoundingClientRect()
-        const newCols = Math.round((e.clientX - widgetRect.left) / colWidth)
-        const clamped = Math.max(1, Math.min(12, newCols))
-        resizePreviewWidth.value = clamped
+        const newCols = Math.round((e.clientX - widgetRect.left) / colWidthPx(gridEl))
+        resizePreviewWidth.value = Math.max(1, Math.min(maxWidth, newCols))
     }
 
     const onMouseUp = () => {
@@ -110,11 +161,63 @@ const startResize = (index: number, event: MouseEvent) => {
     document.addEventListener('mouseup', onMouseUp)
 }
 
-const getWidgetClass = (element: Widget, index: number) => {
-    if (resizingIndex.value === index && resizePreviewWidth.value !== null) {
-        return 'col-' + resizePreviewWidth.value
+// Grip drag ("move" handle). vuedraggable owns the drag: dropping onto another
+// row moves the widget there (reset to flow in the widgets setter). Dropping
+// within the same row sets the widget's start column from where it was
+// released, clamped between its neighbours so it never overlaps. The guides
+// track the pointer during the drag; the widget lands on release.
+const onDragStart = (evt: { oldIndex: number }) => {
+    const index = evt.oldIndex
+    const base = placeRow(props.row.widgets)
+    const p = base[index]
+    guideWidth.value = p.width
+    dragMin = index > 0 ? base[index - 1].column + base[index - 1].width : 1
+    const nextStart = index < base.length - 1 ? base[index + 1].column : GRID_COLUMNS + 1
+    dragMax = Math.max(dragMin, Math.min(GRID_COLUMNS - p.width + 1, nextStart - p.width))
+    guideColumn.value = p.column
+    originColumn = p.column
+    dragEl = (gridRef.value?.$el as HTMLElement | undefined) ?? null
+    dragging.value = true
+    // The draggable runs in force-fallback (pointer) mode — native HTML5
+    // drag-and-drop reported unreliable dragover coordinates — so we track the
+    // pointer via pointermove (mousemove kept as a belt-and-suspenders).
+    document.addEventListener('pointermove', onDragMove)
+    document.addEventListener('mousemove', onDragMove)
+}
+
+const onDragMove = (e: MouseEvent) => {
+    if (!dragEl || e.clientX === 0) return
+    // Fallback if pointer-down was never seen (e.g. a non-pointer input path):
+    // anchor on the first move so there is still no jump.
+    if (grabStartX === null) grabStartX = e.clientX
+    const rect = dragEl.getBoundingClientRect()
+    guideColumn.value = columnFromDrag({
+        originColumn,
+        pointerX: e.clientX,
+        grabStartX,
+        colWidth: rect.width / GRID_COLUMNS,
+        min: dragMin,
+        max: dragMax,
+    })
+}
+
+const onDragEnd = (evt: { oldIndex: number; from: HTMLElement; to: HTMLElement }) => {
+    document.removeEventListener('pointermove', onDragMove)
+    document.removeEventListener('mousemove', onDragMove)
+    dragging.value = false
+    const index = evt.oldIndex
+    const sameRow = evt.from === evt.to
+    if (sameRow && guideColumn.value !== null && index >= 0 && index < props.row.widgets.length) {
+        updateWidget(index, { ...props.row.widgets[index], column: guideColumn.value })
     }
-    return 'col-' + element.width
+    guideColumn.value = null
+    grabStartX = null
+    dragEl = null
+}
+
+const getWidgetClass = (index: number) => {
+    const p = placements.value[index]
+    return `col-${p.width} col-offset-${p.gap}`
 }
 </script>
 
@@ -164,33 +267,50 @@ const getWidgetClass = (element: Widget, index: number) => {
                 @click="emit('delete')"
             />
         </div>
-        <draggable
-            v-model="widgets"
-            group="widgets"
-            item-key="id"
-            class="grid"
-            handle=".widget-drag-handle"
-            :invert-swap="true"
-            :swap-threshold="0.65"
-            ref="gridRef"
-        >
-            <template #item="{ element, index }">
-                <div :class="getWidgetClass(element, index)" class="widget-col">
-                    <div class="widget-drag-handle" style="cursor: grab; text-align: center">
-                        <i class="ti ti-grip-horizontal" style="color: var(--p-text-muted-color)" />
+        <div class="grid-wrap">
+            <div v-if="dragging" class="column-guides" aria-hidden="true">
+                <div
+                    v-for="c in 12"
+                    :key="c"
+                    class="guide-col"
+                    :class="{ 'guide-col--active': guideColumn !== null && c >= guideColumn && c < guideColumn + guideWidth }"
+                />
+            </div>
+            <draggable
+                v-model="widgets"
+                group="widgets"
+                item-key="id"
+                class="grid"
+                handle=".widget-drag-handle"
+                :sort="false"
+                :force-fallback="true"
+                ref="gridRef"
+                @start="onDragStart"
+                @end="onDragEnd"
+            >
+                <template #item="{ element, index }">
+                    <div :class="getWidgetClass(index)" class="widget-col">
+                        <div
+                            class="widget-drag-handle"
+                            style="cursor: grab; text-align: center"
+                            v-tooltip.top="'Drag to move / position'"
+                            @pointerdown="onGripDown"
+                        >
+                            <i class="ti ti-grip-horizontal" style="color: var(--p-text-muted-color)" />
+                        </div>
+                        <DashboardWidget
+                            :widget="element"
+                            @update="updateWidget(index, $event)"
+                            @delete="deleteWidget(index)"
+                        />
+                        <div
+                            class="resize-handle"
+                            @mousedown="startResize(index, $event)"
+                        />
                     </div>
-                    <DashboardWidget
-                        :widget="element"
-                        @update="updateWidget(index, $event)"
-                        @delete="deleteWidget(index)"
-                    />
-                    <div
-                        class="resize-handle"
-                        @mousedown="startResize(index, $event)"
-                    />
-                </div>
-            </template>
-        </draggable>
+                </template>
+            </draggable>
+        </div>
         <div v-if="!row.widgets.length" class="empty-row" @click="addWidgetDialogVisible = true">
             Click to add a widget
         </div>
@@ -284,6 +404,37 @@ const getWidgetClass = (element: Widget, index: number) => {
     border-radius: 4px;
 }
 
+.grid-wrap {
+    position: relative;
+}
+
+/* 12-column guide overlay shown only while dragging a widget by its move
+   handle. Matches the PrimeFlex .grid negative gutter so the dividers line up
+   with the columns. pointer-events: none keeps it clear of the drag. */
+.column-guides {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -0.5rem;
+    right: -0.5rem;
+    display: flex;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.guide-col {
+    flex: 1 1 0;
+    border-right: 1px dashed var(--p-surface-400);
+}
+
+.guide-col:last-child {
+    border-right: none;
+}
+
+.guide-col--active {
+    background: color-mix(in srgb, var(--p-primary-color) 16%, transparent);
+}
+
 .empty-row {
     padding: 2rem;
     text-align: center;
@@ -315,5 +466,16 @@ const getWidgetClass = (element: Widget, index: number) => {
     width: 2rem;
     text-align: center;
     flex-shrink: 0;
+}
+</style>
+
+<style>
+/* SortableJS clones the dragged cell — including its col-offset-N margin — as
+   the floating fallback drag preview. On that fixed-position clone the
+   percentage margin is applied on top of the computed position and shoves it
+   far to the right (proportional to the start column), so neutralise it. Not
+   scoped: SortableJS creates the clone outside the component's scoped subtree. */
+.sortable-fallback {
+    margin-left: 0 !important;
 }
 </style>

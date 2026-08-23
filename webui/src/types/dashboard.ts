@@ -3,6 +3,11 @@ export interface Widget {
     type: string
     title: string
     width: number
+    // 1-based grid column (1..12) where the widget starts, so it can sit
+    // anywhere in the row without a leading placeholder widget. Omitted / 0
+    // means "flow after the previous widget" (the pre-column behaviour), which
+    // keeps older dashboards rendering unchanged. See lib/rowLayout.ts.
+    column?: number
     config?: Record<string, unknown>
 }
 

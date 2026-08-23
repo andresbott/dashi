@@ -18,7 +18,7 @@
             {{if .Title}}<h2 class="mb-2 text-lg font-semibold text-[var(--dashi-fg)]">{{.Title}}</h2>{{end}}
             <div class="flex flex-wrap items-stretch"{{if .Width}} style="width: {{.Width}}"{{end}}>
                 {{range .Widgets}}
-                <div class="dashi-cell p-2" style="width: {{printf "%.4f" .WidthPercent}}%">
+                <div class="dashi-cell p-2" style="width: {{printf "%.4f" .WidthPercent}}%; margin-left: {{printf "%.4f" .MarginLeftPercent}}%">
                     {{.HTML}}
                 </div>
                 {{end}}

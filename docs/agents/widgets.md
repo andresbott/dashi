@@ -25,6 +25,18 @@ drift — the widget just silently renders a placeholder.
   for the admin/editor SPA only; the viewer is server-rendered (see
   [viewer.md](viewer.md)).
 
+## Row placement
+
+Widgets carry a `Width` (1–12 column span) and an optional `Column` (1-based
+start column; `0`/absent = flow after the previous widget, which is what
+dashboards created before column support carry). Placement is resolved once by
+`dashboard.PlaceRow` (`internal/dashboard/layout.go`), shared by both render
+stacks and mirrored in the editor (`webui/src/lib/rowLayout.ts`). It converts
+each column into a leading gap and pushes overlaps right, so a widget can sit in
+any column without a placeholder widget and adding widgets can never overlap.
+See [rendering.md](rendering.md) for the gap → `margin-left`/`col-offset`
+mechanism.
+
 ## Current matrix (verified 2026-07-22)
 
 | Type | Static (Go) | Interactive (Vue) | Config UI | Notes |
