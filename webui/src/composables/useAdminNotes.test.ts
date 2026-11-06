@@ -3,9 +3,9 @@ import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { mount, flushPromises } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { useAdminNotes } from './useAdminNotes'
-import * as markdownApi from '@/widgets/markdown/api'
+import * as markdownApi from '@/lib/api/notes'
 
-vi.mock('@/widgets/markdown/api', () => ({
+vi.mock('@/lib/api/notes', () => ({
     listMarkdownFiles: vi.fn(),
     deleteMarkdown: vi.fn(),
 }))

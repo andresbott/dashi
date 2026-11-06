@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
-import { listMarkdownFiles } from './api'
+import { listMarkdownFiles } from '@/lib/api/notes'
 import { computed } from 'vue'
 
 export function useMarkdownFiles() {

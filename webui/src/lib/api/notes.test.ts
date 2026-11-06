@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { listMarkdownFiles, getMarkdownHtml, getMarkdownRaw, saveMarkdown, deleteMarkdown } from './api'
+import { listMarkdownFiles, getMarkdownHtml, getMarkdownRaw, saveMarkdown, deleteMarkdown } from './notes'
 import { apiClient } from '@/lib/api/client'
 
 vi.mock('@/lib/api/client', () => ({
@@ -11,7 +11,7 @@ vi.mock('@/lib/api/client', () => ({
     },
 }))
 
-describe('markdown API', () => {
+describe('notes API', () => {
     beforeEach(() => {
         vi.clearAllMocks()
     })

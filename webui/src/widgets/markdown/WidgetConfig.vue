@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { getMarkdownRaw, saveMarkdown } from './api'
+import { getMarkdownRaw, saveMarkdown } from '@/lib/api/notes'
 import { useMarkdownFiles } from './useMarkdownFiles'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'

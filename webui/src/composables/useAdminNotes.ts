@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
-import { listMarkdownFiles, deleteMarkdown } from '@/widgets/markdown/api'
+import { listMarkdownFiles, deleteMarkdown } from '@/lib/api/notes'
 import { invalidateAndRefetch } from '@/composables/queryUtils'
 
 const NOTES_QUERY_KEY = ['admin-notes']

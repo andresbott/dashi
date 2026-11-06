@@ -1,13 +1,8 @@
 import { apiClient } from '@/lib/api/client'
+import type { DataItem } from './data'
 
 export interface MarkdownResponse {
     html: string
-}
-
-export interface DataItem {
-    name: string
-    size: number
-    modTime: string
 }
 
 export const getMarkdownHtml = async (filename: string): Promise<string> => {

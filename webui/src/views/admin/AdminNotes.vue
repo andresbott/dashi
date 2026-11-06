@@ -9,7 +9,7 @@ import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useAdminNotes } from '@/composables/useAdminNotes'
-import { getMarkdownRaw, saveMarkdown } from '@/widgets/markdown/api'
+import { getMarkdownRaw, saveMarkdown } from '@/lib/api/notes'
 import { useToast } from 'primevue/usetoast'
 
 const toast = useToast()

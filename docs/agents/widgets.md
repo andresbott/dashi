@@ -134,9 +134,6 @@ that metadata, and the tests above close the drift for less work.
   in the viewer.
 - **stack:** `stack.go` renders children through `registry.Render`, so ported
   children still use their image templates inside a stack.
-- **markdown:** `AdminNotes.vue` and `useAdminNotes.ts` import
-  `widgets/markdown/api`, so admin code depends on a widget. Move it to
-  `lib/api`, as the widget boundary implies.
 
 ### Open questions
 
