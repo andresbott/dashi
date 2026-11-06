@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useMarkdown } from './useMarkdown'
+import type { MarkdownWidgetConfig } from './types'
 import type { Widget } from '@/types/dashboard'
 
 const props = defineProps<{
@@ -8,7 +9,7 @@ const props = defineProps<{
 }>()
 
 const filename = computed(() => {
-    const cfg = props.widget.config as { filename?: string } | null | undefined
+    const cfg = props.widget.config as MarkdownWidgetConfig | null | undefined
     return cfg?.filename ?? ''
 })
 

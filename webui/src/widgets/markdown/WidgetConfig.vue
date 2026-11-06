@@ -2,13 +2,14 @@
 import { ref, watch, computed } from 'vue'
 import { getMarkdownRaw, saveMarkdown } from '@/lib/api/notes'
 import { useMarkdownFiles } from './useMarkdownFiles'
+import type { MarkdownWidgetConfig } from './types'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import Button from 'primevue/button'
 import Select from 'primevue/select'
 
 const props = defineProps<{
-    config: { filename?: string } | null
+    config: MarkdownWidgetConfig | null
 }>()
 
 const emit = defineEmits<{

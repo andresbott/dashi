@@ -144,6 +144,8 @@ not for current paths.
   the remaining twelve render through their image renderers when viewed in a
   browser. See [viewer.md](viewer.md). Whether all twelve need porting is open;
   see [widgets.md](widgets.md#open-questions).
-- **Widget config drift**: form options and Go config disagree for sysinfo and
-  clock, with no test to catch it yet; see
+- **Widget config drift**: a [contract test](widgets.md#config-contract) now
+  fails when form and Go config fields disagree. Sysinfo's unused form options
+  remain a recorded exception, and clock's defaults still differ, which that test
+  doesn't check; see
   [widgets.md](widgets.md#known-mismatches-verified-2026-11-06).

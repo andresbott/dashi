@@ -11,6 +11,10 @@ import (
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
+type markdownConfig struct {
+	Filename string `json:"filename"`
+}
+
 // NewStaticRenderer returns a StaticRenderer for markdown widgets.
 // Config: {"filename": "foo.md"}. The file is read from the shared
 // notes store (internal/data/notes). An empty/missing filename
@@ -19,13 +23,11 @@ func NewStaticRenderer(store *notes.Store) func(json.RawMessage, widgets.RenderC
 	return func(config json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
 		var filename string
 		if len(config) > 0 {
-			var obj struct {
-				Filename string `json:"filename"`
-			}
-			if err := json.Unmarshal(config, &obj); err != nil {
+			var cfg markdownConfig
+			if err := json.Unmarshal(config, &cfg); err != nil {
 				return "", fmt.Errorf("markdown config: %w", err)
 			}
-			filename = obj.Filename
+			filename = cfg.Filename
 		}
 
 		if filename == "" {

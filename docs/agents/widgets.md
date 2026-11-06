@@ -117,23 +117,41 @@ A generic schema-driven form was also rejected: by a size and import estimate,
 
 ### Planned, not built yet
 
-1. Add a test that form fields and Go config fields match, then fix the known
-   mismatches below.
-2. Spike a per-widget iframe preview in the editor before deleting any
+1. Spike a per-widget iframe preview in the editor before deleting any
    `Widget.vue` (see open questions).
 
 Go-served widget metadata (spec plan 03) is **deferred**: only the editor uses
 that metadata, and the tests above close the drift for less work.
 
+### Config contract
+
+`configs` in `internal/widgets/testdata/widget_contract.json` lists each widget's
+config fields, keyed by type string. `internal/widgets/contract_test.go` compares
+it to the JSON tags of every `<key>Config` struct under `internal/widgets/{package}/`,
+and `webui/src/widgets/contract.test.ts` compares it to the `*WidgetConfig`
+interface in each `webui/src/widgets/{folder}/types.ts`, so both naming patterns
+are required.
+
+- `fields` must match both sides.
+- `editorOnly` fields exist only in the editor type. These are known gaps, not
+  approved design.
+- `noForm` skips the editor side. `stack` uses it, because its `widgets` hold
+  child widgets rather than form values.
+
+`weather-compact` has no entry because it shares `weatherConfig` and
+`WeatherWidgetConfig`.
+
 ### Known mismatches (verified 2026-11-06)
 
 - **sysinfo:** the form offers 10 options, but `internal/widgets/sysinfo/` only
   reads `showMemory`, `showUptime` and `disks`. The other 7 do nothing in the
-  viewer.
+  viewer. They are listed under `editorOnly` in the
+  [contract](#config-contract); removing or implementing them is still open.
 - **clock:** with no saved config, `Widget.vue` shows seconds and date, while
   the Go config defaults them to off.
 - **search:** the Go renderer outputs a blank placeholder, so it shows nothing
-  in the viewer.
+  in the viewer. Its `engine` and `placeholder` are `editorOnly` in the
+  [contract](#config-contract) for the same reason.
 - **stack:** `stack.go` renders children through `registry.Render`, so ported
   children still use their image templates inside a stack.
 
@@ -187,7 +205,8 @@ that metadata, and the tests above close the drift for less work.
    `api.ts` + `composable.ts` if it fetches data (TanStack Vue Query). The
    registry finds the folder by itself; `index.ts` must declare the **same type
    string** as the Go module. Add that string to `types` in
-   `internal/widgets/testdata/widget_contract.json`.
+   `internal/widgets/testdata/widget_contract.json`, and any config fields to
+   `configs` (see [Config contract](#config-contract)).
 6. **Warmup (if data-backed):** implement `Module.Warmup`, which `newSharedDeps`
    calls with every saved config of that type, so first render is warm. Widgets
    with nothing to warm embed `widgets.NoopModule`.
