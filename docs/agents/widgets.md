@@ -8,7 +8,8 @@ them in sync is **conventional, not enforced**: the backend registry keys in
 `app/router/main.go` and the frontend registry key in
 `webui/src/lib/widgetRegistry.ts` must be the identical string, and all sides
 must parse the same config shape. Nothing will fail at compile time if they
-drift — an unknown type just renders nothing (no error).
+drift — an unknown type just renders nothing (no error). The planned tests that
+close this are listed under [Widget boundary](#widget-boundary-decided-2026-11-06).
 
 ## The registries
 
@@ -19,7 +20,8 @@ drift — an unknown type just renders nothing (no error).
   renderer when a widget has not been ported to the browser stack yet (see
   [viewer.md](viewer.md)). Unknown types render nothing (empty output), **not
   an error** — a misspelled type string fails silently by design.
-- **Frontend** (`webui/src/lib/widgetRegistry.ts`): type → `{component,
+- **Frontend** (`webui/src/lib/widgetRegistry.ts`): a hand-kept list importing
+  each `webui/src/widgets/{name}/index.ts`, giving type → `{component,
   configComponent | null, label, icon, description, noWidgetProp?}`. Components
   are `defineAsyncComponent` — each widget is its own chunk. This registry is
   for the admin/editor SPA only; the viewer is server-rendered (see
@@ -71,6 +73,95 @@ use the merged-layout paths and are stale. On 2026-08-17 the client packages
 moved from `internal/{name}/` into the `internal/providers/` group; only the
 import paths changed (package names are unchanged).
 
+## Widget boundary (decided 2026-11-06)
+
+**A widget is self-contained up to the language boundary.** Everything the
+server ships lives in the Go widget folder; editor forms stay in `webui/`; tests
+keep the two sides in agreement. This overrides D6 and the "move `Config.vue`
+and `types.ts` into widget folders" step of plan 03 in
+`docs/superpowers/specs/2026-08-17-vanilla-viewer-architecture.md`. Don't
+re-propose full colocation unless a trigger below applies.
+
+| Part | Lives in |
+|---|---|
+| Module, image and browser renderers, templates, CSS, viewer JS, handler, tests | `internal/widgets/{name}/` |
+| Editor metadata (`index.ts`), `WidgetConfig.vue`, `types.ts`, editor API helpers | `webui/src/widgets/{name}/` |
+| Data client and cache | `internal/providers/{name}/` |
+
+### Why
+
+- `go:embed` forces server assets next to the Go code. Nothing forces the forms
+  there: only Vite consumes them.
+- Colocation fixes navigation, not drift. Type strings match on both sides; the
+  mismatches are in config fields (see below), and moving files doesn't catch
+  those.
+- The folder still wouldn't be self-contained. All 11 forms need PrimeVue from
+  `webui/node_modules`, and clock, bookmark and weather-compact import shared
+  SPA code through `@/`, so `internal/` would depend on the SPA.
+- Moving forms is technically possible (tried on a scratch copy) but needs
+  permanent Vite, TypeScript and Vitest config.
+- Dashi has no third-party widgets, which is what drives colocation in most
+  comparable projects. WordPress colocates even its core blocks; Grafana and
+  Perses keep languages apart inside each plugin; Home Assistant splits backend
+  and frontend across repos.
+
+A generic schema-driven form was also rejected: by a size and import estimate,
+5 of the 11 forms (about 67% of the lines) would need a custom escape hatch.
+
+### Planned, not built yet
+
+1. Replace the hand-kept list in `widgetRegistry.ts` with `import.meta.glob`
+   over `webui/src/widgets/*/index.ts`.
+2. Add a test that Go module types match the frontend types. Compare type
+   strings, not folder names: `swisstransport` and `pageindicator` differ from
+   their types, and the `weather` package hosts two.
+3. Add a test that form fields and Go config fields match, then fix the known
+   mismatches below.
+4. Spike a per-widget iframe preview in the editor before deleting any
+   `Widget.vue` (see open questions).
+
+Go-served widget metadata (spec plan 03) is **deferred**: only the editor uses
+that metadata, and the tests above close the drift for less work.
+
+### Known mismatches (verified 2026-11-06)
+
+- **sysinfo:** the form offers 10 options, but `internal/widgets/sysinfo/` only
+  reads `showMemory`, `showUptime` and `disks`. The other 7 do nothing in the
+  viewer.
+- **clock:** with no saved config, `Widget.vue` shows seconds and date, while
+  the Go config defaults them to off.
+- **search:** the Go renderer outputs a blank placeholder, so it shows nothing
+  in the viewer.
+- **stack:** `stack.go` renders children through `registry.Render`, so ported
+  children still use their image templates inside a stack.
+- **markdown:** `AdminNotes.vue` and `useAdminNotes.ts` import
+  `widgets/markdown/api`, so admin code depends on a widget. Move it to
+  `lib/api`, as the widget boundary implies.
+
+### Open questions
+
+- **Can `Widget.vue` be deleted?** Spec plan 03 replaces the 14 files with a
+  server-rendered preview, but two things stand in the way:
+  - Stack's drag and child editing live in its `Widget.vue` and the spec doesn't
+    cover them. They need a home, so a Vue registry stays regardless.
+  - Viewer scripts start once per page, so a re-mounted clock probably stops
+    ticking, and `viewer.css` may collide with the editor's styles (both
+    inferred, not run). An iframe per widget should solve both, at the cost of
+    height syncing and drag handling. If the spike fails, keep the Vue versions
+    as editor-only previews.
+- **Which widgets need a browser port?** Weather, weather-compact, market,
+  transport and xkcd need a template and script; search needs a template; stack
+  needs a small change. Battery, page-indicator, image, bookmark and markdown
+  could stay on the image-template fallback, with plainer styling. Not decided.
+
+### What would reopen this
+
+- Installable third-party widgets (favours colocation).
+- One-widget changes that keep missing one side despite the field-parity test
+  (favours colocation).
+- A small set of field types that shrinks custom forms to about two (favours
+  schema-driven forms).
+
 ## Adding a widget — the full checklist
 
 1. **Widget package:** `internal/widgets/{name}/` with `module.go`
@@ -80,7 +171,7 @@ import paths changed (package names are unchanged).
    `module_test.go`. If the widget ships CSS, add a scoping test enforcing all
    selectors descend from `.dashi-{type}` (pattern:
    `internal/widgets/sysinfo/browser_test.go:83-92`).
-2. **Client package (if needed):** `internal/{name}/` with client + cache +
+2. **Client package (if needed):** `internal/providers/{name}/` with client + cache +
    `client_test.go`. Inject `*http.Client` so tests don't hit real APIs.
 3. **Register:** in `app/router/main.go` (`newSharedDeps`), add the module to
    the `modules` slice. The loop registers both the image renderer
@@ -90,11 +181,10 @@ import paths changed (package names are unchanged).
    `app/router/handlers/{name}.go`, route in `attachReadAPIs`
    (`app/router/api_v0.go`). Write routes go in `attachWriteAPIs` only — never
    expose writes on the viewer.
-5. **Frontend (editor/admin):** `webui/src/components/dashboards/{Name}Widget.vue`
-   (+ `{Name}WidgetConfig.vue` if configurable), TS types in
-   `webui/src/types/`, composable in `webui/src/composables/` if it fetches
-   data (TanStack Vue Query). Register in `webui/src/lib/widgetRegistry.ts`
-   with the **same type string**.
+5. **Frontend (editor/admin):** `webui/src/widgets/{type}/` with `index.ts`,
+   `Widget.vue`, and `WidgetConfig.vue` + `types.ts` if configurable; add
+   `api.ts` + `composable.ts` if it fetches data (TanStack Vue Query). Register
+   in `webui/src/lib/widgetRegistry.ts` with the **same type string**.
 6. **Warmup (if data-backed):** add a warmup pass in `app/router/main.go`
    (pattern: `warmupWeather`/`warmupMarket`), so first render is warm.
 

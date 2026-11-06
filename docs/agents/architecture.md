@@ -109,6 +109,11 @@ that command name and stdout redirection are stale; the code is the truth.
   into widget packages; that has been reverted. Since 2026-08-17 the clients
   are grouped under `internal/providers/` (they used to sit directly at
   `internal/{name}/`). Older docs predating these moves are stale on this.
+- **Widgets are self-contained up to the language boundary** (2026-11-06):
+  server-shipped parts live in `internal/widgets/{name}/`, editor forms stay in
+  `webui/src/widgets/{name}/`, and planned tests keep them in agreement. This
+  overrides D6 of the 2026-08-17 viewer spec; see
+  [widgets.md](widgets.md#widget-boundary-decided-2026-11-06).
 - **Embedded SPA** (inception): `make package-ui` copies `webui/dist/` into
   `app/spa/files/ui/` for `go:embed`. Those files are build artifacts — never
   hand-edit them.
@@ -136,4 +141,8 @@ not for current paths.
 - Observability server: enabled flag exists, handler is `nil`.
 - **Browser-stack widget port is mid-flight**: clock and sysinfo are ported;
   the remaining twelve render through their image renderers when viewed in a
-  browser. See [viewer.md](viewer.md).
+  browser. See [viewer.md](viewer.md). Whether all twelve need porting is open;
+  see [widgets.md](widgets.md#open-questions).
+- **Widget config drift**: form options and Go config disagree for sysinfo and
+  clock, with no test to catch it yet; see
+  [widgets.md](widgets.md#known-mismatches-verified-2026-11-06).

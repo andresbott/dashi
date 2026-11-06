@@ -123,9 +123,13 @@ internal/widgets/clock/
   image_test.go  browser_test.go  module_test.go  clock.test.js
 ```
 
+Editor forms stay in `webui/src/widgets/{name}/`; see
+[widgets.md](widgets.md#widget-boundary-decided-2026-11-06).
+
 Ported widgets: **clock** (no CSS), **sysinfo** (ships `sysinfo.css`). The
 remaining twelve widgets have not been ported and render through their image
-renderers in the browser (expected transition state, not a defect).
+renderers in the browser (expected transition state, not a defect). Which of
+them still need a port is an [open question](widgets.md#open-questions).
 
 Client packages live separately under `internal/providers/`:
 `internal/providers/weather/`, `.../market/`, `.../swisstransport/`,
