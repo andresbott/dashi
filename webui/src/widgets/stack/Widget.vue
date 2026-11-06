@@ -131,10 +131,11 @@ const editingChildEntry = computed(() => {
     <div v-else class="widget-stack-editor">
         <draggable
             v-model="localChildren"
-            group="widgets"
+            :group="{ name: 'stack-children', pull: false, put: false }"
             item-key="id"
             handle=".stack-drag-handle"
             class="stack-children"
+            :force-fallback="true"
             @change="emitChildren"
         >
             <template #item="{ element, index }">
