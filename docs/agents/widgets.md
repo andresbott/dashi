@@ -20,10 +20,13 @@ close this are listed under [Widget boundary](#widget-boundary-decided-2026-11-0
   renderer when a widget has not been ported to the browser stack yet (see
   [viewer.md](viewer.md)). Unknown types render nothing (empty output), **not
   an error** — a misspelled type string fails silently by design.
-- **Frontend** (`webui/src/lib/widgetRegistry.ts`): a hand-kept list importing
-  each `webui/src/widgets/{name}/index.ts`, giving type → `{component,
-  configComponent | null, label, icon, description, noWidgetProp?}`. Components
-  are `defineAsyncComponent` — each widget is its own chunk. This registry is
+- **Frontend** (`webui/src/lib/widgetRegistry.ts`): discovers every
+  `webui/src/widgets/{folder}/index.ts` with `import.meta.glob`, giving type →
+  `{component, configComponent | null, label, icon, description,
+  noWidgetProp?}`, ordered by label. There is no list to edit. Each folder holds
+  one module, which is why `weather-compact` has its own folder and imports from
+  `weather`. Components are `defineAsyncComponent` — each widget is its own
+  chunk, so an `index.ts` must not import a component directly. This registry is
   for the admin/editor SPA only; the viewer is server-rendered (see
   [viewer.md](viewer.md)).
 
@@ -110,14 +113,12 @@ A generic schema-driven form was also rejected: by a size and import estimate,
 
 ### Planned, not built yet
 
-1. Replace the hand-kept list in `widgetRegistry.ts` with `import.meta.glob`
-   over `webui/src/widgets/*/index.ts`.
-2. Add a test that Go module types match the frontend types. Compare type
+1. Add a test that Go module types match the frontend types. Compare type
    strings, not folder names: `swisstransport` and `pageindicator` differ from
    their types, and the `weather` package hosts two.
-3. Add a test that form fields and Go config fields match, then fix the known
+2. Add a test that form fields and Go config fields match, then fix the known
    mismatches below.
-4. Spike a per-widget iframe preview in the editor before deleting any
+3. Spike a per-widget iframe preview in the editor before deleting any
    `Widget.vue` (see open questions).
 
 Go-served widget metadata (spec plan 03) is **deferred**: only the editor uses
@@ -182,8 +183,9 @@ that metadata, and the tests above close the drift for less work.
    viewer.
 5. **Frontend (editor/admin):** `webui/src/widgets/{type}/` with `index.ts`,
    `Widget.vue`, and `WidgetConfig.vue` + `types.ts` if configurable; add
-   `api.ts` + `composable.ts` if it fetches data (TanStack Vue Query). Register
-   in `webui/src/lib/widgetRegistry.ts` with the **same type string**.
+   `api.ts` + `composable.ts` if it fetches data (TanStack Vue Query). The
+   registry finds the folder by itself; `index.ts` must declare the **same type
+   string** as the Go module.
 6. **Warmup (if data-backed):** implement `Module.Warmup`, which `newSharedDeps`
    calls with every saved config of that type, so first render is warm. Widgets
    with nothing to warm embed `widgets.NoopModule`.
