@@ -9,7 +9,8 @@ import (
 
 // TestWidgetTypesMatchContract pins the widget types the backend registers.
 // webui/src/lib/widgetRegistry.test.ts checks the same file for the frontend,
-// so a widget added on one side only fails. It lives here because only
+// so a widget added on one side only fails. Go is the contract: if the two sides
+// disagree, change the frontend to match. It lives here because only
 // newSharedDeps holds the full module list.
 func TestWidgetTypesMatchContract(t *testing.T) {
 	raw, err := os.ReadFile("../../internal/widgets/testdata/widget_contract.json")

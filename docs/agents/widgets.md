@@ -4,7 +4,7 @@ Every widget renders in independent pipelines that share only the type string
 and the config JSON (see [viewer.md](viewer.md), [rendering.md](rendering.md)).
 The backend has two render stacks (browser + image/e-ink); the frontend has a
 Vue component registry for the admin/editor panel. The invariant that keeps
-them in sync is **conventional, not enforced**: the backend registry keys in
+them in sync is **not checked by the compiler**: the backend registry keys in
 `app/router/main.go` and the frontend registry key in
 `webui/src/widgets/*/index.ts` must be the identical string, and all sides must
 parse the same config shape. Nothing fails at compile time if they drift, and an
