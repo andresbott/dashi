@@ -14,7 +14,7 @@ import (
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
-//go:embed static.html
+//go:embed image.html
 var staticHTML string
 
 var tmpl = template.Must(template.New("transport").Parse(staticHTML))

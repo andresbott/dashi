@@ -21,7 +21,7 @@ import (
 	"github.com/andresbott/dashi/internal/widgets/weather/chart"
 )
 
-//go:embed static.html
+//go:embed image.html
 var staticHTML string
 
 var tmpl = template.Must(template.New("weather").Parse(staticHTML))

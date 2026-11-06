@@ -118,7 +118,7 @@ func (s *Store) FontFamily(themeName string) string {
 
 // IconFontFamily returns the CSS font-family name under which a theme's
 // icon font is registered. It matches what the widget templates emit
-// (see internal/widgets/weather/static.go) and what the litehtml renderer
+// (see internal/widgets/weather/image.go) and what the litehtml renderer
 // registers at startup (app/router/main.go), so image-stack markup rendered
 // into a browser resolves the same family.
 func IconFontFamily(themeName string) string {

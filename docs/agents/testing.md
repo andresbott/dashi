@@ -37,9 +37,9 @@ CLAUDE.md).
 ## Conventions
 
 - Go: table-driven tests, `_test.go` next to the source; each widget package
-  tests its image renderer output (`image_test.go` for ported widgets,
-  `static_test.go` for unported ones) and, if data-backed, its client with a
-  stubbed HTTP server (`client_test.go` or `handler_test.go`).
+  tests its image renderer output (`image_test.go`, or `{name}_test.go` in
+  battery, bookmark, pageindicator and stack) and, if data-backed, its client
+  with a stubbed HTTP server (`client_test.go` or `handler_test.go`).
 - Handler auth behavior has dedicated tests: `dashboards_auth_test.go`,
   `middleware_auth_test.go`, `store_auth_test.go` — extend these when touching
   the auth path.

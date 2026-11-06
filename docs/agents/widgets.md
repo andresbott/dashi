@@ -57,7 +57,7 @@ mechanism.
 | page-indicator | yes | yes | no | `noWidgetProp: true` on frontend |
 | market | yes | yes | yes | |
 | xkcd | yes | yes | yes | disk-cached comics |
-| transport | yes | yes | yes | Swiss transport; package `swisstransport` |
+| transport | yes | yes | yes | Swiss transport; `swisstransport` folder on both sides |
 | sysinfo | yes | yes | yes | gopsutil, host metrics |
 | stack | yes | yes | no | container: renders children via the registry itself (`NewStaticRenderer(registry)`) |
 | markdown | yes | yes | yes | reads `.md` from dashboard `md/` dir via `dashboard.Store` (spec: `docs/superpowers/specs/2026-04-16-markdown-widget-design.md`) |
@@ -200,7 +200,7 @@ are required.
    every module. Those routes are read-only because both servers mount them;
    write routes go in `attachWriteAPIs` only — never expose writes on the
    viewer.
-5. **Frontend (editor/admin):** `webui/src/widgets/{type}/` with `index.ts`,
+5. **Frontend (editor/admin):** `webui/src/widgets/{folder}/` with `index.ts`,
    `Widget.vue`, and `WidgetConfig.vue` + `types.ts` if configurable; add
    `api.ts` + `composable.ts` if it fetches data (TanStack Vue Query). The
    registry finds the folder by itself; `index.ts` must declare the **same type
@@ -212,7 +212,9 @@ are required.
    with nothing to warm embed `widgets.NoopModule`.
 
 Naming: type string is lowercase-kebab (`weather-compact`); Go package is the
-type without hyphens; Vue components are PascalCase. Browser assets are served
+type without hyphens; the webui folder is the type string; Vue components are
+PascalCase. The exception is `swisstransport`, the folder on both sides, whose
+type stays `transport` so saved dashboards keep working. Browser assets are served
 at `/_dashi/widgets/{type}.js` — see [viewer.md](viewer.md).
 
 ## Image-renderer constraints (break these and PNGs render wrong)

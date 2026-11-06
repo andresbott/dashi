@@ -139,7 +139,7 @@ func TestFontDataResolvesDisplayAndIconFonts(t *testing.T) {
 }
 
 func TestIconFontFamilyMatchesWidgetMarkup(t *testing.T) {
-	// internal/widgets/weather/static.go emits exactly this family name, and
+	// internal/widgets/weather/image.go emits exactly this family name, and
 	// app/router/main.go registers it with the litehtml renderer. The
 	// @font-face family has to agree with both.
 	if got := IconFontFamily("mytheme"); got != "icon-font-mytheme" {

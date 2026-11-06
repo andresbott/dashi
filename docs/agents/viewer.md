@@ -205,8 +205,8 @@ the theme serves, ahead of the variable blocks:
   `name` (this is what `--dashi-font` selects)
 - one for the icon font when `icons.type: font`, family =
   `themes.IconFontFamily(theme)` = `icon-font-{theme}` — exactly the family
-  widget markup emits (`internal/widgets/weather/static.go`,
-  `internal/widgets/swisstransport/static.go`) and the same name
+  widget markup emits (`internal/widgets/weather/image.go`,
+  `internal/widgets/swisstransport/image.go`) and the same name
   `app/router/main.go` registers with the litehtml renderer. Without it,
   font-icon themes render tofu in a browser, including on a default install
   via the unported-widget fallback.
@@ -308,7 +308,7 @@ value tables on the Go and JS sides. Go is the contract. See
 
 1. **Font-based icon themes now work; image-type icon themes still do not.**
    Weather's
-   `resolveIconHTML` (`internal/widgets/weather/static.go:231-233`) emits `<img
+   `resolveIconHTML` (`internal/widgets/weather/image.go:231-233`) emits `<img
    src="{absolute filesystem path}">`, which only worked because the deleted
    `inlineLocalImages` helper base64-inlined it for the HTML preview. In the
    browser stack, those file paths do not resolve. **The fix belongs to a
