@@ -117,9 +117,10 @@ that command name and stdout redirection are stale; the code is the truth.
 - **Embedded SPA** (inception): `make package-ui` copies `webui/dist/` into
   `app/spa/files/ui/` for `go:embed`. Those files are build artifacts — never
   hand-edit them.
-- **Startup warmup**: `warmupWeather`/`warmupMarket` (app/router/main.go) scan
-  all dashboard configs and pre-fetch data so first render is warm. A new
-  data-backed widget that should be warm at boot needs its own warmup pass.
+- **Startup warmup**: `newSharedDeps` (app/router/main.go) collects every saved
+  config of each widget type and passes it to that module's `Warmup`, which
+  pre-fetches data so first render is warm. A new data-backed widget that should
+  be warm at boot implements `Warmup`.
 
 ## Historical docs — what wins
 

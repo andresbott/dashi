@@ -178,15 +178,18 @@ that metadata, and the tests above close the drift for less work.
    (`registry.Register`) and, if the module implements
    `widgets.BrowserRenderable`, the browser renderer (`registry.RegisterBrowser`).
 4. **API endpoint (if interactive):** handler in
-   `app/router/handlers/{name}.go`, route in `attachReadAPIs`
-   (`app/router/api_v0.go`). Write routes go in `attachWriteAPIs` only — never
-   expose writes on the viewer.
+   `internal/widgets/{name}/handler.go`, mounted by the module's
+   `RegisterRoutes`, which `attachReadAPIs` (`app/router/api_v0.go`) calls for
+   every module. Those routes are read-only because both servers mount them;
+   write routes go in `attachWriteAPIs` only — never expose writes on the
+   viewer.
 5. **Frontend (editor/admin):** `webui/src/widgets/{type}/` with `index.ts`,
    `Widget.vue`, and `WidgetConfig.vue` + `types.ts` if configurable; add
    `api.ts` + `composable.ts` if it fetches data (TanStack Vue Query). Register
    in `webui/src/lib/widgetRegistry.ts` with the **same type string**.
-6. **Warmup (if data-backed):** add a warmup pass in `app/router/main.go`
-   (pattern: `warmupWeather`/`warmupMarket`), so first render is warm.
+6. **Warmup (if data-backed):** implement `Module.Warmup`, which `newSharedDeps`
+   calls with every saved config of that type, so first render is warm. Widgets
+   with nothing to warm embed `widgets.NoopModule`.
 
 Naming: type string is lowercase-kebab (`weather-compact`); Go package is the
 type without hyphens; Vue components are PascalCase. Browser assets are served

@@ -18,10 +18,12 @@ import (
 )
 
 var (
-	sharedHandler http.Handler
-	sharedIDs     map[string]string
-	sharedOnce    sync.Once
-	sharedTempDir string
+	sharedHandler  http.Handler
+	sharedIDs      map[string]string
+	sharedOnce     sync.Once
+	sharedTempDir  string
+	sharedTestCfg  Cfg
+	sharedTestDeps *sharedDeps
 )
 
 // newTestViewerWithDashboards returns a viewer handler with two dashboards
@@ -135,6 +137,8 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 		}
 
 		sharedHandler = h
+		sharedTestCfg = cfg
+		sharedTestDeps = deps
 		sharedIDs = map[string]string{
 			"plain":      plain.ID,
 			"image":      image.ID,
