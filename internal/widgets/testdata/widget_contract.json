@@ -1,0 +1,7 @@
+{
+  "types": [
+    "battery", "bookmark", "clock", "image", "markdown", "market",
+    "page-indicator", "search", "stack", "sysinfo", "transport",
+    "weather", "weather-compact", "xkcd"
+  ]
+}

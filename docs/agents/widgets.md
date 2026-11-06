@@ -6,10 +6,14 @@ The backend has two render stacks (browser + image/e-ink); the frontend has a
 Vue component registry for the admin/editor panel. The invariant that keeps
 them in sync is **conventional, not enforced**: the backend registry keys in
 `app/router/main.go` and the frontend registry key in
-`webui/src/lib/widgetRegistry.ts` must be the identical string, and all sides
-must parse the same config shape. Nothing will fail at compile time if they
-drift — an unknown type just renders nothing (no error). The planned tests that
-close this are listed under [Widget boundary](#widget-boundary-decided-2026-11-06).
+`webui/src/widgets/*/index.ts` must be the identical string, and all sides must
+parse the same config shape. Nothing fails at compile time if they drift, and an
+unknown type just renders nothing (no error), so tests enforce it instead:
+`internal/widgets/testdata/widget_contract.json` lists every type, and
+`app/router/widget_contract_test.go` and `webui/src/lib/widgetRegistry.test.ts`
+check their side against it. Compare type strings, not folder names:
+`swisstransport` and `pageindicator` differ from their types, and the `weather`
+package hosts two.
 
 ## The registries
 
@@ -113,12 +117,9 @@ A generic schema-driven form was also rejected: by a size and import estimate,
 
 ### Planned, not built yet
 
-1. Add a test that Go module types match the frontend types. Compare type
-   strings, not folder names: `swisstransport` and `pageindicator` differ from
-   their types, and the `weather` package hosts two.
-2. Add a test that form fields and Go config fields match, then fix the known
+1. Add a test that form fields and Go config fields match, then fix the known
    mismatches below.
-3. Spike a per-widget iframe preview in the editor before deleting any
+2. Spike a per-widget iframe preview in the editor before deleting any
    `Widget.vue` (see open questions).
 
 Go-served widget metadata (spec plan 03) is **deferred**: only the editor uses
@@ -185,7 +186,8 @@ that metadata, and the tests above close the drift for less work.
    `Widget.vue`, and `WidgetConfig.vue` + `types.ts` if configurable; add
    `api.ts` + `composable.ts` if it fetches data (TanStack Vue Query). The
    registry finds the folder by itself; `index.ts` must declare the **same type
-   string** as the Go module.
+   string** as the Go module. Add that string to `types` in
+   `internal/widgets/testdata/widget_contract.json`.
 6. **Warmup (if data-backed):** implement `Module.Warmup`, which `newSharedDeps`
    calls with every saved config of that type, so first render is warm. Widgets
    with nothing to warm embed `widgets.NoopModule`.
