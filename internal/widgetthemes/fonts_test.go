@@ -132,6 +132,33 @@ fonts:
 	}
 }
 
+// TestFontFacesAlwaysDeclareDefaultIconFont: widgets with hard-coded Tabler
+// code points (swisstransport) paint with icon-font-default regardless of
+// the pack, so the browser stack must declare that family even when the pack
+// ships its own icon font.
+func TestFontFacesAlwaysDeclareDefaultIconFont(t *testing.T) {
+	s := NewStore(t.TempDir())
+	if _, err := s.Upload(buildThemeZip(t, `name: "fontpack"
+icons:
+  type: font
+  fontFile: "icons.ttf"
+  icons:
+    sunny:
+      codepoint: "e001"
+`, map[string]string{"icons.ttf": "x"})); err != nil {
+		t.Fatalf("upload fontpack: %v", err)
+	}
+	css := string(s.FontFacesCSS("fontpack"))
+	for _, fam := range []string{"icon-font-fontpack", "icon-font-default"} {
+		if !strings.Contains(css, "@font-face{font-family:'"+fam+"'") {
+			t.Errorf("missing @font-face for %s:\n%s", fam, css)
+		}
+	}
+	if n := strings.Count(string(s.FontFacesCSS("default")), "'icon-font-default'"); n != 1 {
+		t.Errorf("default pack declares icon-font-default %d times, want 1", n)
+	}
+}
+
 func TestIconFontFamilyMatchesWidgetMarkup(t *testing.T) {
 	// internal/widgets/weather/image.go emits exactly this family name, and
 	// app/router/main.go registers it with the litehtml renderer. The

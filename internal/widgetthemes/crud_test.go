@@ -138,6 +138,73 @@ fonts:
 	}
 }
 
+func TestUploadRejectsUnsafeFontPaths(t *testing.T) {
+	tests := map[string]string{
+		"font file traversal": `name: "evil"
+fonts:
+  - name: "Evil"
+    file: "../../etc/passwd"
+`,
+		"font file absolute": `name: "evil"
+fonts:
+  - name: "Evil"
+    file: "/etc/passwd"
+`,
+		"icon font traversal": `name: "evil"
+icons:
+  type: font
+  fontFile: "../../etc/passwd"
+  icons:
+    clear-sky: {class: "sun", codepoint: "1234"}
+`,
+		"font file missing from archive": `name: "evil"
+fonts:
+  - name: "Evil"
+    file: "nope.ttf"
+`,
+		"icon font missing from archive": `name: "evil"
+icons:
+  type: font
+  fontFile: "nope.ttf"
+  icons:
+    clear-sky: {class: "sun", codepoint: "1234"}
+`,
+	}
+	for name, manifest := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			store := NewStore(dir)
+			_, err := store.Upload(buildThemeZip(t, manifest, nil))
+			if !errors.Is(err, ErrInvalidArchive) {
+				t.Fatalf("got %v, want ErrInvalidArchive", err)
+			}
+			if _, err := os.Stat(filepath.Join(dir, "evil")); !os.IsNotExist(err) {
+				t.Errorf("rejected pack was extracted: %v", err)
+			}
+		})
+	}
+}
+
+func TestUploadAcceptsFontsInSubdir(t *testing.T) {
+	store := NewStore(t.TempDir())
+	zipBytes := buildThemeZip(t, `name: "nested"
+fonts:
+  - name: "Inter"
+    file: "fonts/Inter.ttf"
+icons:
+  type: font
+  fontFile: "./fonts/icons.ttf"
+  icons:
+    clear-sky: {class: "sun", codepoint: "1234"}
+`, map[string]string{"fonts/Inter.ttf": "x", "fonts/icons.ttf": "y"})
+	if _, err := store.Upload(zipBytes); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if data, err := store.GetFontData("nested"); err != nil || string(data) != "y" {
+		t.Fatalf("GetFontData = %q, %v", data, err)
+	}
+}
+
 func TestUpload_Conflict(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)

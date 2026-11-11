@@ -234,6 +234,14 @@ has never downloaded. `widgetthemes.Store.FontFacesCSS(name)`, served at
   `widgetthemes.IconFontFamily(name)` = `icon-font-{name}` - exactly the family
   widget markup emits and the same name `app/router/main.go` registers with
   the litehtml renderer. Without it, font-icon themes render tofu in a browser.
+- `icon-font-default` as well, when the pack ships its own icon font:
+  `swisstransport` hard-codes Tabler code points and always paints with the
+  default's family, whatever the pack.
+
+Manifest font paths (`fonts[].file`, `icons.fontFile`) must be local paths
+inside the pack: upload rejects anything else (and a file missing from the
+archive) with `ErrInvalidArchive`, packs placed on disk by hand have such
+entries dropped at load, and the font getters re-check the joined path.
 
 Both point at `GET /api/v0/widget-themes/{name}/fonts/{font}`. No `format()`
 hint is emitted: the route serves whatever bytes the theme shipped, so browsers

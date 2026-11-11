@@ -96,8 +96,79 @@ func (s *Store) loadUserThemes(dir string) {
 		if err := yaml.Unmarshal(data, &m); err != nil {
 			continue
 		}
-		s.themes[entry.Name()] = &theme{manifest: m, dir: themeDir}
+		s.themes[entry.Name()] = &theme{manifest: sanitizeManifestPaths(m), dir: themeDir}
 	}
+}
+
+// localManifestPath reports whether a manifest file reference is a relative
+// path that stays inside the pack directory.
+func localManifestPath(p string) bool {
+	return p != "" && filepath.IsLocal(filepath.FromSlash(p))
+}
+
+// sanitizeManifestPaths neutralises file references in a manifest loaded
+// from disk that would escape the pack directory: such display fonts are
+// dropped and such an icon font is cleared (the pack then falls back to the
+// default's icon font). Upload rejects these outright; this covers packs
+// placed on disk by hand.
+func sanitizeManifestPaths(m themeManifest) themeManifest {
+	fonts := make([]manifestFont, 0, len(m.Fonts))
+	for _, f := range m.Fonts {
+		if localManifestPath(f.File) {
+			fonts = append(fonts, f)
+		}
+	}
+	m.Fonts = fonts
+	if m.Icons != nil && m.Icons.FontFile != "" && !localManifestPath(m.Icons.FontFile) {
+		ic := *m.Icons
+		ic.FontFile = ""
+		m.Icons = &ic
+	}
+	return m
+}
+
+// validateManifestPaths rejects an uploaded manifest whose font or icon
+// font file is not a local path, or is not a file in the archive. members
+// holds the cleaned, slash-separated names of the archive's files.
+func validateManifestPaths(m themeManifest, members map[string]bool) error {
+	check := func(field, p string) error {
+		if !localManifestPath(p) {
+			return fmt.Errorf("%w: %s %q must be a relative path inside the archive", ErrInvalidArchive, field, p)
+		}
+		if !members[cleanSlashPath(p)] {
+			return fmt.Errorf("%w: %s %q not found in the archive", ErrInvalidArchive, field, p)
+		}
+		return nil
+	}
+	for _, f := range m.Fonts {
+		if err := check("font file", f.File); err != nil {
+			return err
+		}
+	}
+	if m.Icons != nil && m.Icons.FontFile != "" {
+		if err := check("icon fontFile", m.Icons.FontFile); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// cleanSlashPath normalises an archive or manifest path for comparison.
+func cleanSlashPath(p string) string {
+	return filepath.ToSlash(filepath.Clean(filepath.FromSlash(p)))
+}
+
+// packFilePath joins a manifest file reference onto a pack directory and
+// verifies the result stays inside it.
+func packFilePath(dir, rel string) (string, error) {
+	if !localManifestPath(rel) {
+		return "", fmt.Errorf("font file %q is outside the theme", rel)
+	}
+	p := filepath.Join(dir, filepath.FromSlash(rel))
+	if !strings.HasPrefix(p, filepath.Clean(dir)+string(filepath.Separator)) {
+		return "", fmt.Errorf("font file %q is outside the theme", rel)
+	}
+	return p, nil
 }
 
 func (s *Store) themeInfoLocked(name string, th *theme) Info {
@@ -168,17 +239,28 @@ func (s *Store) effective(name string, need func(*theme) bool) (string, *theme) 
 
 func hasFonts(t *theme) bool { return len(t.manifest.Fonts) > 0 }
 
-func hasIcons(t *theme) bool { return t.hasIcons() }
-
 func hasIconFont(t *theme) bool {
 	ic := t.icons()
 	return ic != nil && ic.Type == ThemeTypeFont && ic.FontFile != ""
 }
 
+// hasResolvableIcons reports whether a pack can serve icons itself: image
+// icons, or font icons together with the icon font that paints them. It
+// agrees with hasIconFont, so ResolveIcon and IconFontFamilyFor never name
+// different packs for font icons.
+func hasResolvableIcons(t *theme) bool {
+	ic := t.icons()
+	if ic == nil {
+		return false
+	}
+	return ic.Type == ThemeTypeImage || (hasIconFont(t) && len(ic.Icons) > 0)
+}
+
 // ResolveIcon resolves a canonical icon name through the named widget theme.
-// An unknown name, or a pack without icons, resolves through the default.
+// An unknown name, or a pack without usable icons, resolves through the
+// default.
 func (s *Store) ResolveIcon(themeName, canonicalName string) (ResolvedIcon, error) {
-	name, th := s.effective(themeName, hasIcons)
+	name, th := s.effective(themeName, hasResolvableIcons)
 	ic := th.icons()
 	if ic == nil {
 		return ResolvedIcon{}, fmt.Errorf("theme %q has no icon config", name)
@@ -201,7 +283,11 @@ func (s *Store) resolveFontIcon(effName string, th *theme, ic *manifestIcons, ca
 	fontFile := ""
 	if ic.FontFile != "" {
 		if th.dir != "" {
-			fontFile = filepath.Join(th.dir, ic.FontFile)
+			p, err := packFilePath(th.dir, ic.FontFile)
+			if err != nil {
+				return ResolvedIcon{}, fmt.Errorf("theme %q: %w", effName, err)
+			}
+			fontFile = p
 		} else {
 			fontFile = "embedded:default"
 		}
@@ -250,7 +336,10 @@ func (s *Store) GetFontData(themeName string) ([]byte, error) {
 		}
 		return nil, fmt.Errorf("embedded font %q not found", ic.FontFile)
 	}
-	fontPath := filepath.Join(th.dir, ic.FontFile)
+	fontPath, err := packFilePath(th.dir, ic.FontFile)
+	if err != nil {
+		return nil, fmt.Errorf("theme %q: %w", themeName, err)
+	}
 	return os.ReadFile(fontPath)
 }
 
@@ -267,7 +356,10 @@ func (s *Store) GetDisplayFontData(themeName, fontName string) ([]byte, error) {
 				}
 				return nil, fmt.Errorf("embedded font file %q not found", f.File)
 			}
-			fontPath := filepath.Join(th.dir, f.File)
+			fontPath, err := packFilePath(th.dir, f.File)
+			if err != nil {
+				return nil, fmt.Errorf("theme %q: %w", themeName, err)
+			}
 			return os.ReadFile(fontPath)
 		}
 	}
@@ -325,39 +417,9 @@ func (s *Store) Upload(zipBytes []byte) (Info, error) {
 		return Info{}, fmt.Errorf("%w: %v", ErrInvalidArchive, err)
 	}
 
-	// 1. Sanity-check every entry up front (name, traversal) before we
-	//    touch the filesystem.
-	var manifestEntry *zip.File
-	legacy := false
-	for _, f := range zr.File {
-		if err := validateZipMemberName(f.Name); err != nil {
-			return Info{}, err
-		}
-		switch f.Name {
-		case ManifestFile:
-			manifestEntry = f
-		case legacyManifestFile:
-			legacy = true
-		}
-	}
-	if manifestEntry == nil {
-		if legacy {
-			return Info{}, fmt.Errorf("%w: found legacy %s; rename it to %s and drop its type field",
-				ErrInvalidArchive, legacyManifestFile, ManifestFile)
-		}
-		return Info{}, fmt.Errorf("%w: missing %s at archive root", ErrInvalidArchive, ManifestFile)
-	}
-
-	// 2. Parse the manifest and validate required fields.
-	manifestBytes, err := readZipFile(manifestEntry)
+	// 1-2. Validate the archive and its manifest before touching the disk.
+	m, err := readUploadManifest(zr)
 	if err != nil {
-		return Info{}, fmt.Errorf("%w: read %s: %v", ErrInvalidArchive, ManifestFile, err)
-	}
-	var m themeManifest
-	if err := yaml.Unmarshal(manifestBytes, &m); err != nil {
-		return Info{}, fmt.Errorf("%w: parse %s: %v", ErrInvalidArchive, ManifestFile, err)
-	}
-	if err := validateThemeName(m.Name); err != nil {
 		return Info{}, err
 	}
 
@@ -401,6 +463,51 @@ func (s *Store) Upload(zipBytes []byte) (Info, error) {
 	info := s.themeInfoLocked(m.Name, s.themes[m.Name])
 	s.mu.Unlock()
 	return info, nil
+}
+
+// readUploadManifest sanity-checks every archive entry (name, traversal),
+// then parses widget_theme.yaml and validates its name and file references.
+func readUploadManifest(zr *zip.Reader) (themeManifest, error) {
+	var manifestEntry *zip.File
+	legacy := false
+	members := make(map[string]bool, len(zr.File))
+	for _, f := range zr.File {
+		if err := validateZipMemberName(f.Name); err != nil {
+			return themeManifest{}, err
+		}
+		if !strings.HasSuffix(f.Name, "/") {
+			members[cleanSlashPath(f.Name)] = true
+		}
+		switch f.Name {
+		case ManifestFile:
+			manifestEntry = f
+		case legacyManifestFile:
+			legacy = true
+		}
+	}
+	if manifestEntry == nil {
+		if legacy {
+			return themeManifest{}, fmt.Errorf("%w: found legacy %s; rename it to %s and drop its type field",
+				ErrInvalidArchive, legacyManifestFile, ManifestFile)
+		}
+		return themeManifest{}, fmt.Errorf("%w: missing %s at archive root", ErrInvalidArchive, ManifestFile)
+	}
+
+	manifestBytes, err := readZipFile(manifestEntry)
+	if err != nil {
+		return themeManifest{}, fmt.Errorf("%w: read %s: %v", ErrInvalidArchive, ManifestFile, err)
+	}
+	var m themeManifest
+	if err := yaml.Unmarshal(manifestBytes, &m); err != nil {
+		return themeManifest{}, fmt.Errorf("%w: parse %s: %v", ErrInvalidArchive, ManifestFile, err)
+	}
+	if err := validateThemeName(m.Name); err != nil {
+		return themeManifest{}, err
+	}
+	if err := validateManifestPaths(m, members); err != nil {
+		return themeManifest{}, err
+	}
+	return m, nil
 }
 
 // Delete removes an uploaded theme by name. Builtin themes cannot be

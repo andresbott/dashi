@@ -87,9 +87,19 @@ func (s *Store) fontFaces(b *strings.Builder, themeName string) {
 			cssIdent(font.Name), url.PathEscape(fontsName), url.PathEscape(font.Name))
 	}
 	iconName, _ := s.effective(themeName, hasIconFont)
-	family := IconFontFamily(iconName)
+	writeIconFontFace(b, iconName)
+	// Widgets with hard-coded Tabler code points (swisstransport) always
+	// paint with the default's icon font, so declare it too. Browsers only
+	// download a face that is actually used.
+	if iconName != DefaultName {
+		writeIconFontFace(b, DefaultName)
+	}
+}
+
+func writeIconFontFace(b *strings.Builder, packName string) {
+	family := IconFontFamily(packName)
 	fmt.Fprintf(b, "@font-face{font-family:'%s';src:url('/api/v0/widget-themes/%s/fonts/%s');font-display:block;}\n",
-		cssIdent(family), url.PathEscape(iconName), url.PathEscape(family))
+		cssIdent(family), url.PathEscape(packName), url.PathEscape(family))
 }
 
 // FontFacesCSS renders a widget theme's fonts for the browser stack: its

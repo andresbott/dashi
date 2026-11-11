@@ -489,3 +489,103 @@ icons:
 		t.Error("expected error for icon name with slash")
 	}
 }
+
+// writeTraversalPack places a pack whose manifest points both font paths at
+// a file outside the pack dir, and returns the store root.
+func writeTraversalPack(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "secret.ttf"), []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	themeDir := filepath.Join(dir, "evil")
+	if err := os.MkdirAll(themeDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `name: "evil"
+fonts:
+  - name: "Evil"
+    file: "../secret.ttf"
+icons:
+  type: font
+  classPrefix: "x-"
+  fontFile: "../secret.ttf"
+  icons:
+    clear-sky:
+      class: "sun"
+      codepoint: "1234"
+`
+	if err := os.WriteFile(filepath.Join(themeDir, "widget_theme.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func TestLoadedPackWithTraversalFontPathsCannotReadOutside(t *testing.T) {
+	store := NewStore(writeTraversalPack(t))
+	if data, err := store.GetFontData("evil"); err == nil {
+		t.Fatalf("GetFontData read outside the pack: %q", data)
+	}
+	if data, err := store.GetDisplayFontData("evil", "Evil"); err == nil {
+		t.Fatalf("GetDisplayFontData read outside the pack: %q", data)
+	}
+}
+
+func TestFontGettersRejectTraversalEvenIfLoaded(t *testing.T) {
+	// Defence in depth: even a manifest that bypassed load-time sanitising
+	// must not read outside its pack dir.
+	root := writeTraversalPack(t)
+	store := NewStore("")
+	store.themes["evil"] = &theme{
+		manifest: themeManifest{
+			Name:  "evil",
+			Fonts: []manifestFont{{Name: "Evil", File: "../secret.ttf"}},
+			Icons: &manifestIcons{Type: ThemeTypeFont, FontFile: "../secret.ttf",
+				Icons: map[string]fontIcon{"clear-sky": {Class: "sun", Codepoint: "1234"}}},
+		},
+		dir: filepath.Join(root, "evil"),
+	}
+	if data, err := store.GetFontData("evil"); err == nil {
+		t.Fatalf("GetFontData read outside the pack: %q", data)
+	}
+	if data, err := store.GetDisplayFontData("evil", "Evil"); err == nil {
+		t.Fatalf("GetDisplayFontData read outside the pack: %q", data)
+	}
+	if _, err := store.ResolveIcon("evil", "clear-sky"); err == nil {
+		t.Fatal("ResolveIcon accepted a font file outside the pack")
+	}
+}
+
+// TestResolveIconFontTypeWithoutFontFileFallsBack pins M2: a font icon
+// config with no fontFile cannot paint its glyphs, so it resolves through the
+// default, matching IconFontFamilyFor.
+func TestResolveIconFontTypeWithoutFontFileFallsBack(t *testing.T) {
+	dir := t.TempDir()
+	themeDir := filepath.Join(dir, "nofile")
+	if err := os.MkdirAll(themeDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `name: "nofile"
+icons:
+  type: font
+  classPrefix: "x-"
+  icons:
+    clear-sky:
+      class: "sun"
+      codepoint: "1234"
+`
+	if err := os.WriteFile(filepath.Join(themeDir, "widget_theme.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store := NewStore(dir)
+	got, err := store.ResolveIcon("nofile", "clear-sky")
+	if err != nil {
+		t.Fatalf("ResolveIcon: %v", err)
+	}
+	if got.FontFamily != "icon-font-default" || got.Codepoint == "1234" {
+		t.Errorf("got %+v, want the default pack's icon", got)
+	}
+	if fam := store.IconFontFamilyFor("nofile"); fam != got.FontFamily {
+		t.Errorf("IconFontFamilyFor = %q, ResolveIcon family = %q; must agree", fam, got.FontFamily)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"log/slog"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -239,6 +240,33 @@ description: "bright"
 	handler.Delete(rec, req)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("delete status = %d, want 204; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestWidgetThemeHandlerDownloadEscapesFilename pins M6: a pack name may
+// contain a double quote, which must not break out of the filename
+// parameter of Content-Disposition.
+func TestWidgetThemeHandlerDownloadEscapesFilename(t *testing.T) {
+	store := widgetthemes.NewStore(t.TempDir())
+	handler := NewWidgetThemeHandler(store, slog.Default())
+	name := `say "hi"; x=1`
+	if _, err := store.Upload(buildThemeZip(t, "name: '"+name+"'\n", nil)); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/widget-themes/x/download", nil)
+	req = mux.SetURLVars(req, map[string]string{"name": name})
+	rec := httptest.NewRecorder()
+	handler.Download(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("download status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	cd := rec.Header().Get("Content-Disposition")
+	disp, params, err := mime.ParseMediaType(cd)
+	if err != nil {
+		t.Fatalf("unparseable Content-Disposition %q: %v", cd, err)
+	}
+	if disp != "attachment" || params["filename"] != name+".zip" || len(params) != 1 {
+		t.Fatalf("Content-Disposition %q parsed as %q %v", cd, disp, params)
 	}
 }
 

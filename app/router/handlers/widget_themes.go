@@ -126,7 +126,14 @@ func (h *WidgetThemeHandler) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`.zip"`)
+	// FormatMediaType quotes and escapes the name (RFC 2231 for non-ASCII);
+	// it returns "" only for an unencodable value, then the browser picks
+	// the filename.
+	disposition := mime.FormatMediaType("attachment", map[string]string{"filename": name + ".zip"})
+	if disposition == "" {
+		disposition = "attachment"
+	}
+	w.Header().Set("Content-Disposition", disposition)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	// Zip bytes served with an explicit Content-Type and nosniff; not HTML.
 	_, _ = w.Write(data)
