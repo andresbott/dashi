@@ -11,13 +11,14 @@ Agent docs: [features.md](features.md) · [widgets.md](widgets.md) ·
 
 ## Layering
 
-    app/cmd (Cobra CLI: start, config, theme, version)
+    app/cmd (Cobra CLI: start, config, widget-theme, version)
         |
     app/router (viewer + editor mux routers, middleware)
         |            \
     app/router/handlers (API v0)   app/spa (go:embed'd Vue build for editor)
         |
-    internal/dashboard (types + file store)   internal/themes   internal/widgets/*
+    internal/dashboard (types + file store)   internal/themes   internal/widgetthemes
+    internal/widgets/*
         |                                                               |
         |                              internal/providers/* (data-source clients + cache)
         |
@@ -133,7 +134,7 @@ not for current paths.
 
 ## Known debt
 
-- Root `TODO.md`: HA-addon migration, enhanced dithering, theme rework, e-ink
+- Root `TODO.md`: HA-addon migration, enhanced dithering, e-ink
   preview dialog, migrate to user-data dir. Check here before redesigning any
   of these — the direction is chosen. Note: "widgets as isolated components"
   and "remove the preview feature" have shipped; they remain in the file as

@@ -39,19 +39,19 @@
                     <td>Icon identifier shown in listings.</td>
                 </tr>
                 <tr>
-                    <td><code>theme</code></td>
+                    <td><code>themeId</code></td>
                     <td>string</td>
-                    <td>Theme name. Defaults to <code>"default"</code>. Controls fonts and icon set.</td>
+                    <td>Theme ID. Defaults to <code>"default"</code>. Controls the background and the light/dark colour palette.</td>
+                </tr>
+                <tr>
+                    <td><code>widgetTheme</code></td>
+                    <td>string</td>
+                    <td>Widget theme name. Defaults to <code>"default"</code>. Controls fonts and the icon set.</td>
                 </tr>
                 <tr>
                     <td><code>colorMode</code></td>
                     <td><code>auto</code> | <code>light</code> | <code>dark</code></td>
                     <td>Color scheme. <code>auto</code> follows system preference.</td>
-                </tr>
-                <tr>
-                    <td><code>accentColor</code></td>
-                    <td>hex color</td>
-                    <td>Custom accent color override.</td>
                 </tr>
                 <tr>
                     <td><code>pages[].refreshInterval</code></td>
@@ -92,18 +92,7 @@
         </table>
 
         <h4>Background</h4>
-        <p>Sets the full-screen background behind the dashboard content. Images can come from the dashboard's own assets or from a theme.</p>
-        <table>
-            <thead>
-                <tr><th>Type</th><th>Value</th></tr>
-            </thead>
-            <tbody>
-                <tr><td><code>none</code></td><td>No background (white).</td></tr>
-                <tr><td><code>color</code></td><td>Hex color, e.g. <code>#1a1a2e</code>.</td></tr>
-                <tr><td><code>gradient</code></td><td>CSS gradient string.</td></tr>
-                <tr><td><code>image</code></td><td><code>dashboard:filename.jpg</code> or <code>theme:name/file.png</code>.</td></tr>
-            </tbody>
-        </table>
+        <p>The dashboard background is not a dashboard property: it is part of the selected theme (<code>themeId</code>) and can be a gradient or an image. Without one, the theme palette <code>bg</code> colour is used. See <a href="#theme-themes">Theming</a>.</p>
 
         <hr class="doc-divider" />
         <h3 id="dash-pages">Pages</h3>
@@ -298,6 +287,6 @@
                 <tr><td>Max file size</td><td>10 MB per file</td></tr>
             </tbody>
         </table>
-        <p>Uploaded assets can be used as dashboard backgrounds (<code>dashboard:filename.jpg</code>) or referenced in custom CSS.</p>
+        <p>Uploaded assets can be used by widgets (e.g. the image widget) or referenced in custom CSS.</p>
     </section>
 </template>

@@ -14,12 +14,13 @@ file covers that pipeline and its invariants. For widget-level rules see
       → type == "image" + no display headers → fall through (browser HTML)
       → type == "image" + display headers present:
           parseDisplayHeaders (validate) → optional swipe redirect
-          → buildRenderData (theme font, custom.css, query params, page rows)
+          → buildRenderData (flattened theme palette, widget-theme font,
+             custom.css, query params, page rows)
           → static.Render: widgets emit HTML fragments → master.html template
           → image.RenderToImage: litehtml-go layout → *image.RGBA
              (background image drawn directly on canvas — litehtml has no
-             CSS background-image support, which is why buildBackground
-             returns raw bytes separately from the CSS string)
+             CSS background-image support, which is why themes.ImageCSS
+             returns the image ref separately from the CSS string)
           → optional RotateImage (90/180/270)
           → encodeForFormat → bytes + Content-Type
 
@@ -53,10 +54,19 @@ path) is catalogued debt in root `TODO.md`.
 
 ## Fonts
 
-litehtml needs fonts registered up front: `newSharedDeps` iterates all themes
-and calls `imageRenderer.RegisterFont` for icon fonts (`icon-font-{theme}`) and
-display fonts. A new theme font that isn't registered there simply won't render
-in PNGs — no error. Fallback Inter TTFs are embedded in
+litehtml needs fonts registered up front: `newSharedDeps` iterates all widget
+themes and calls `imageRenderer.RegisterFont` for icon fonts
+(`icon-font-{name}`) and display fonts. A new widget-theme font that isn't
+registered there simply won't render in PNGs — no error.
+
+## Palette in the image stack
+
+litehtml has no CSS custom properties, so widgets read concrete colours from
+`RenderContext.Palette`, built as `theme.Palette(colorMode).Flatten()`.
+`Flatten` composites any `#rrggbbaa` value over `bg` into an opaque `#rrggbb`
+(a translucent `surface` would otherwise reach litehtml as 8 digits). The
+eleven roles are listed in [viewer.md](viewer.md#theming-two-entities-css-variables-and-concrete-values).
+Image-stack widgets paint with these roles rather than hardcoded greys. Fallback Inter TTFs are embedded in
 `internal/dashboard/image/`.
 
 ## Viewer and editor notes

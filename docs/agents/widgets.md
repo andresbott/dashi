@@ -246,6 +246,6 @@ at `/_dashi/widgets/{type}.js` — see [viewer.md](viewer.md).
 - `template.HTML` returns are exempt from gosec G203 in `internal/widgets/`
   (`.golangci.yaml`) because templates are trusted — do not pass user input
   unescaped into that HTML.
-- Renderers get data via `widgets.RenderContext` (DashboardID, Theme,
+- Renderers get data via `widgets.RenderContext` (DashboardID, WidgetTheme,
   ColorMode, Palette, QueryParams, PageIndex, TotalPages) and their injected
   client — they must not do per-request slow fetches; hit the package cache.

@@ -23,9 +23,9 @@ Notes for editors:
 * use enhanced dither
 * rework widgets as isolated component
 * remove preview fetaure
-* recreate themes
+* recreate themes — DONE (internal/themes + internal/widgetthemes)
 * make custom preview dialog for eink dispalayus
-* custom themes
+* custom themes — DONE (themes editor, widget theme upload)
 * json not passed directly to backend
 * make sure mobile view works
 * classify main sections in the admin SPA (e.g. notes/images = user content, backgrounds/themes = theming)
@@ -51,7 +51,7 @@ Notes for editors:
 
 - [ ] background editor
   a background is a self contained unit 
-- [ ] themes define fonts etc
+- [x] themes define fonts etc
   themes define fonts, colors, icons etc
-- [ ] theme still bakces in background, now that we have moved that as sepearete entity
+- [x] theme still bakces in background, now that we have moved that as sepearete entity
   cleanup

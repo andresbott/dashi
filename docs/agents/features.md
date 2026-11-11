@@ -35,8 +35,13 @@ PNG — DIY-by-design gap, do not "fix" it).
 | E-ink dithering | Implemented (2026-05-01, PR #18) | `lib/einkimage` (library) + `internal/dashboard/image/dither.go` (integration); "enhanced dither" listed as debt in TODO.md |
 | Swipe navigation for displays | Implemented | `X-Action: swipe_left/right` → redirect with new `?page=` |
 | Image dashboards viewed in browser | Implemented | Image-type dashboards with no display headers render through the browser stack (see [viewer.md](viewer.md)); `serveImageHTMLPreview` was removed |
-| Themes (fonts, icons, backgrounds) | Implemented | `internal/themes`; embedded default (Inter + Tabler); user themes `{dataDir}/themes/{name}/theme.yaml`; legacy manifest format still parsed |
-| Theme bootstrap CLI | Implemented | `dashi widget-theme create [name] --type image|font` |
+| Themes (background + light/dark palette) | Implemented | `internal/themes`; `{dataDir}/data/themes/{name}/theme.json` + `assets/`; builtin read-only `default`; copy (`POST /themes/{id}/copy`); dashboards select via `themeId`; editor UI under themes in `webui/` |
+| Widget themes (fonts + icons) | Implemented | `internal/widgetthemes`; embedded default (Inter + Tabler); user packs `{dataDir}/data/widget_themes/{name}/widget_theme.yaml`; zip upload/download; dashboards select via `widgetTheme`; old `theme.yaml` packs are rejected on upload |
+| Widget theme bootstrap CLI | Implemented | `dashi widget-theme create [name] --type image|font` (`app/cmd/widget_theme.go`) |
+
+No migration: old `data/backgrounds`, `{dataDir}/themes` packs and the dashboard
+keys `theme`, `backgroundId`, `accentColor` are ignored; dangling references
+fall back to `default`. Details: [viewer.md](viewer.md#theming-two-entities-css-variables-and-concrete-values).
 
 ## Data sources (all in-memory cached, warmup at startup for weather/market)
 
@@ -60,5 +65,5 @@ PNG — DIY-by-design gap, do not "fix" it).
 - **Market widget config UI exists** (`MarketWidgetConfig.vue`) — older
   autodoc saying "Not implemented" is stale.
 - Root `TODO.md` backlog: HA addon, enhanced dither, isolated widget
-  components, remove previews, recreate themes, e-ink preview dialog,
+  components, remove previews, e-ink preview dialog,
   user-data dir migration.
