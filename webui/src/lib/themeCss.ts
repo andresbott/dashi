@@ -47,6 +47,10 @@ const DEFAULT_PALETTES: Record<'light' | 'dark', Palette> = {
 export const isValidRoleColor = (role: PaletteRole, value: string): boolean =>
     (role === 'bg' ? OPAQUE_HEX : HEX).test(value)
 
+// isValidStopColor reports whether a value is an acceptable gradient stop
+// (Go: validateColor): any hex colour, alpha allowed.
+export const isValidStopColor = (value: string): boolean => HEX.test(value)
+
 const FIT_VALUES = new Set(['cover', 'contain', 'stretch', 'original'])
 const POSITION_VALUES = new Set([
     'center', 'top', 'bottom', 'left', 'right',

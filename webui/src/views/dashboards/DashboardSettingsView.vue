@@ -54,12 +54,22 @@ const removeAuth = async () => {
 // A dashboard points at a theme (colours and background) by ID and at a widget
 // theme (fonts and icons) by name. Both are edited in their admin sections; an
 // empty reference renders the builtin "default".
+//
+// A dangling reference (the theme was deleted) also renders "default", so it
+// is displayed as such. That is decided only once the list has loaded, so a
+// valid reference never flashes "Default" first, and the stored value is left
+// alone until the user picks another one.
+const displayedRef = (stored: string | undefined, known: string[] | undefined): string => {
+    const v = stored || 'default'
+    return known && !known.includes(v) ? 'default' : v
+}
+
 const themeOptions = computed(() =>
     (themeList.value ?? []).map(t => ({ label: t.name, value: t.id })),
 )
 
 const themeId = computed({
-    get: () => localDashboard.value?.themeId || 'default',
+    get: () => displayedRef(localDashboard.value?.themeId, themeList.value?.map(t => t.id)),
     set: (v: string) => {
         if (localDashboard.value) localDashboard.value.themeId = v
     },
@@ -88,7 +98,7 @@ const widgetThemeOptions = computed(() =>
 )
 
 const widgetTheme = computed({
-    get: () => localDashboard.value?.widgetTheme || 'default',
+    get: () => displayedRef(localDashboard.value?.widgetTheme, widgetThemeList.value?.map(t => t.name)),
     set: (v: string) => {
         if (localDashboard.value) localDashboard.value.widgetTheme = v
     },

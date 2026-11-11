@@ -36,7 +36,7 @@
         <p class="doc-hint">Two more variables exist: <code>--dashi-page-bg</code> (the theme background, only set for a gradient or image) and <code>--dashi-font</code> (the widget theme font). On e-ink image dashboards, translucent colours are flattened over <code>bg</code> into opaque colours.</p>
 
         <h4>Backgrounds</h4>
-        <p>A theme image can be uploaded into the theme itself or picked from the shared background images. Theme images are private to the theme and are copied along with it. For image-type dashboards the background is drawn onto the canvas, scaled according to its fit setting.</p>
+        <p>A theme image can be uploaded into the theme itself or picked from the shared background images. Theme images are private to the theme and are copied along with it. For image-type dashboards the background image is drawn onto the canvas scaled to cover it completely; the fit, position and repeat settings apply in browsers only.</p>
 
         <hr class="doc-divider" />
         <h3 id="theme-widget-themes">Widget Themes</h3>

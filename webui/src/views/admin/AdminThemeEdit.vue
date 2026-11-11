@@ -14,7 +14,7 @@ import { useToast } from 'primevue/usetoast'
 import { useGetTheme, useUpdateTheme, useThemeAssets } from '@/composables/useThemes'
 import { useDataItems } from '@/composables/useDataItems'
 import { useAutosave } from '@/composables/useAutosave'
-import { browserCss, cssVars, isValidRoleColor, PALETTE_ROLES } from '@/lib/themeCss'
+import { browserCss, cssVars, isValidRoleColor, isValidStopColor, PALETTE_ROLES } from '@/lib/themeCss'
 import type {
     Theme,
     ImageFit,
@@ -76,7 +76,8 @@ const roleLabels: Record<PaletteRole, string> = {
 const roles = PALETTE_ROLES.map(r => r.role)
 
 // ColorPicker understands only six-digit hex: expand #rgb and drop the alpha
-// of #rrggbbaa for display, and keep that alpha when the picker writes back.
+// of #rrggbbaa for display, and keep that alpha when the picker writes back —
+// except for bg, which must stay opaque.
 const pickerValue = (v: string): string => {
     const h = (v ?? '').replace('#', '')
     if (/^[0-9a-fA-F]{3}$/.test(h)) return h.split('').map(c => c + c).join('')
@@ -88,7 +89,7 @@ const setFromPicker = (role: PaletteRole, v: string | undefined) => {
     if (v === undefined || !local.value) return
     const palette = local.value.colors[mode.value]
     const prev = palette[role] ?? ''
-    const alpha = /^#[0-9a-fA-F]{8}$/.test(prev) ? prev.slice(7) : ''
+    const alpha = role !== 'bg' && /^#[0-9a-fA-F]{8}$/.test(prev) ? prev.slice(7) : ''
     palette[role] = `#${v}${alpha}`
 }
 
@@ -285,12 +286,33 @@ const previewChips: { role: PaletteRole; label: string }[] = [
     { role: 'danger', label: 'Danger' },
 ]
 
+// ---- validity ----
+// Mirrors the server's Validate for the fields the editor lets you break, so
+// a half-typed value is highlighted instead of autosaved into a 400.
+
+const nameInvalid = computed(() => !local.value?.name.trim())
+const imageLightInvalid = computed(() => local.value?.background.image?.light === '')
+
+const isValid = computed(() => {
+    const t = local.value
+    if (!t || nameInvalid.value || imageLightInvalid.value) return false
+    for (const m of ['light', 'dark'] as const) {
+        if (!roles.every(role => isValidRoleColor(role, t.colors[m][role]))) return false
+    }
+    const g = t.background.gradient
+    if (g && ![...g.light, ...(g.dark ?? [])].every(isValidStopColor)) return false
+    return true
+})
+
 // ---- autosave ----
 
+// Invalid states are neither scheduled nor sent: a save timer started by an
+// earlier valid edit is skipped too. The edit that makes the theme valid
+// again schedules a save of the whole theme.
 const { status: saveStatus, error: saveError, flush } = useAutosave<Theme>({
     source: () => local.value,
-    save: (theme) => updateTheme({ id: id.value, payload: theme }),
-    enabled: () => !isBuiltin.value,
+    save: (theme) => (isValid.value ? updateTheme({ id: id.value, payload: theme }) : Promise.resolve()),
+    enabled: () => !isBuiltin.value && isValid.value,
 })
 
 // A 400 carries the store's validation message (it names the offending field),
@@ -347,7 +369,7 @@ const goBack = async () => {
                         <div class="edit-fields">
                             <div class="flex flex-column gap-1">
                                 <label class="font-semibold text-sm">Name</label>
-                                <InputText v-model="local.name" class="w-full" />
+                                <InputText v-model="local.name" :invalid="nameInvalid" class="w-full" />
                             </div>
 
                             <!-- Colours: one palette per colour mode -->
@@ -420,7 +442,12 @@ const goBack = async () => {
                                             :modelValue="pickerValue(local.background.gradient.light[i])"
                                             @update:modelValue="(v: string | undefined) => { if (v !== undefined && local?.background.gradient) local.background.gradient.light[i] = '#' + v }"
                                         />
-                                        <InputText v-model="local.background.gradient.light[i]" class="flex-grow-1" />
+                                        <InputText
+                                        v-model="local.background.gradient.light[i]"
+                                        :invalid="!isValidStopColor(local.background.gradient.light[i])"
+                                        :data-testid="`stop-light-${i}`"
+                                        class="flex-grow-1"
+                                    />
                                         <Button
                                             icon="ti ti-trash"
                                             text
@@ -454,7 +481,12 @@ const goBack = async () => {
                                             :modelValue="pickerValue(local.background.gradient.dark[i])"
                                             @update:modelValue="(v: string | undefined) => { if (v !== undefined && local?.background.gradient?.dark) local.background.gradient.dark[i] = '#' + v }"
                                         />
-                                        <InputText v-model="local.background.gradient.dark[i]" class="flex-grow-1" />
+                                        <InputText
+                                            v-model="local.background.gradient.dark[i]"
+                                            :invalid="!isValidStopColor(local.background.gradient.dark[i])"
+                                            :data-testid="`stop-dark-${i}`"
+                                            class="flex-grow-1"
+                                        />
                                         <Button
                                             icon="ti ti-trash"
                                             text
@@ -470,7 +502,7 @@ const goBack = async () => {
 
                             <!-- Image layer, painted over the base -->
                             <div class="flex align-items-center gap-2">
-                                <ToggleSwitch v-model="imageEnabled" />
+                                <ToggleSwitch v-model="imageEnabled" data-testid="image-toggle" />
                                 <span class="text-sm">Use an image</span>
                             </div>
 
@@ -480,6 +512,7 @@ const goBack = async () => {
                                     <div class="flex gap-2">
                                         <Select
                                             v-model="local.background.image.light"
+                                            :invalid="imageLightInvalid"
                                             :options="imageOptions"
                                             optionLabel="label"
                                             optionValue="value"
@@ -575,7 +608,8 @@ const goBack = async () => {
                                 </div>
                             </div>
                             <small class="edit-hint">
-                                Changes are saved automatically.
+                                <template v-if="isValid">Changes are saved automatically.</template>
+                                <template v-else>Fix the highlighted fields to save your changes.</template>
                             </small>
                         </div>
                     </div>
