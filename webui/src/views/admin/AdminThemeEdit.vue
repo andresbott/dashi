@@ -11,62 +11,104 @@ import ColorPicker from 'primevue/colorpicker'
 import ToggleSwitch from 'primevue/toggleswitch'
 import { useToast } from 'primevue/usetoast'
 
-import { useGetBackground, useUpdateBackground, useBackgroundAssets } from '@/composables/useBackgrounds'
+import { useGetTheme, useUpdateTheme, useThemeAssets } from '@/composables/useThemes'
 import { useDataItems } from '@/composables/useDataItems'
 import { useAutosave } from '@/composables/useAutosave'
-import { browserCss, pageBgValue } from '@/lib/backgroundCss'
+import { browserCss, cssVars, isValidRoleColor, PALETTE_ROLES } from '@/lib/themeCss'
 import type {
-    Background,
+    Theme,
     ImageFit,
     ImagePosition,
     ImageRepeat,
-} from '@/types/background'
+    PaletteRole,
+} from '@/types/theme'
 
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 const id = computed(() => route.params.id as string)
 
-const { data: serverBackground, isLoading, isError } = useGetBackground(() => id.value)
-const { updateBackground } = useUpdateBackground()
-const { assets, uploadAsset, isUploadingAsset } = useBackgroundAssets(() => id.value)
+// The builtin is served read-only (the server answers 403 to writes); the list
+// hides its Edit button, but the URL can still be typed.
+const isBuiltin = computed(() => id.value === 'default')
+
+const { data: serverTheme, isLoading, isError } = useGetTheme(() => id.value)
+const { updateTheme } = useUpdateTheme()
+const { assets, uploadAsset, isUploadingAsset } = useThemeAssets(() => id.value)
 const { items: sharedImages } = useDataItems('backgrounds')
 
 // Editing happens on a local clone; autosave persists it after each change.
-const local = ref<Background | null>(null)
+const local = ref<Theme | null>(null)
 
-watch(serverBackground, (val) => {
+watch(serverTheme, (val) => {
     if (val && !local.value) {
         local.value = JSON.parse(JSON.stringify(val))
+        // An empty background may arrive as null from hand-edited data.
+        if (local.value && !local.value.background) local.value.background = {}
     }
 }, { immediate: true })
 
-// ---- base: colour or gradient, never both ----
+// One colour mode drives both the colour rows and the preview, so editing the
+// dark palette shows the dark preview.
+type Mode = 'light' | 'dark'
+const mode = ref<Mode>('light')
+const modeOptions = [
+    { label: 'Light', value: 'light' },
+    { label: 'Dark', value: 'dark' },
+]
 
-type BaseKind = 'none' | 'color' | 'gradient'
+// ---- colours ----
+
+const roleLabels: Record<PaletteRole, string> = {
+    bg: 'Page background',
+    surface: 'Card surface',
+    border: 'Border',
+    text: 'Text',
+    textMuted: 'Muted text',
+    primary: 'Primary',
+    onPrimary: 'Text on primary',
+    secondary: 'Secondary',
+    success: 'Success',
+    warning: 'Warning',
+    danger: 'Danger',
+}
+
+const roles = PALETTE_ROLES.map(r => r.role)
+
+// ColorPicker understands only six-digit hex: expand #rgb and drop the alpha
+// of #rrggbbaa for display, and keep that alpha when the picker writes back.
+const pickerValue = (v: string): string => {
+    const h = (v ?? '').replace('#', '')
+    if (/^[0-9a-fA-F]{3}$/.test(h)) return h.split('').map(c => c + c).join('')
+    if (/^[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/.test(h)) return h.slice(0, 6)
+    return '000000'
+}
+
+const setFromPicker = (role: PaletteRole, v: string | undefined) => {
+    if (v === undefined || !local.value) return
+    const palette = local.value.colors[mode.value]
+    const prev = palette[role] ?? ''
+    const alpha = /^#[0-9a-fA-F]{8}$/.test(prev) ? prev.slice(7) : ''
+    palette[role] = `#${v}${alpha}`
+}
+
+// ---- background: palette bg or gradient ----
+
+type BaseKind = 'none' | 'gradient'
 
 const baseKindOptions = [
-    { label: 'None', value: 'none' },
-    { label: 'Colour', value: 'color' },
+    { label: 'Palette background', value: 'none' },
     { label: 'Gradient', value: 'gradient' },
 ]
 
-const baseKind = computed<BaseKind>(() => {
-    if (local.value?.color) return 'color'
-    if (local.value?.gradient) return 'gradient'
-    return 'none'
-})
+const baseKind = computed<BaseKind>(() => (local.value?.background.gradient ? 'gradient' : 'none'))
 
-// The server rejects a background carrying both a colour and a gradient, so
-// selecting one deletes the other rather than leaving it behind.
 const setBaseKind = (kind: BaseKind) => {
     if (!local.value) return
-    delete local.value.color
-    delete local.value.gradient
-    if (kind === 'color') {
-        local.value.color = { light: '#ffffff' }
-    } else if (kind === 'gradient') {
-        local.value.gradient = { direction: 'to bottom right', light: ['#667eea', '#764ba2'] }
+    if (kind === 'gradient') {
+        local.value.background.gradient ??= { direction: 'to bottom right', light: ['#667eea', '#764ba2'] }
+    } else {
+        delete local.value.background.gradient
     }
 }
 
@@ -74,30 +116,23 @@ const setBaseKind = (kind: BaseKind) => {
 // An absent `dark` key means "fall back to light". The toggles therefore delete
 // the key rather than writing an empty string, which would fail validation.
 
-const colorDarkEnabled = computed({
-    get: () => local.value?.color?.dark !== undefined,
-    set: (on: boolean) => {
-        if (!local.value?.color) return
-        if (on) local.value.color.dark = local.value.color.light
-        else delete local.value.color.dark
-    },
-})
-
 const gradientDarkEnabled = computed({
-    get: () => local.value?.gradient?.dark !== undefined,
+    get: () => local.value?.background.gradient?.dark !== undefined,
     set: (on: boolean) => {
-        if (!local.value?.gradient) return
-        if (on) local.value.gradient.dark = [...local.value.gradient.light]
-        else delete local.value.gradient.dark
+        const gradient = local.value?.background.gradient
+        if (!gradient) return
+        if (on) gradient.dark = [...gradient.light]
+        else delete gradient.dark
     },
 })
 
 const imageDarkEnabled = computed({
-    get: () => local.value?.image?.dark !== undefined,
+    get: () => local.value?.background.image?.dark !== undefined,
     set: (on: boolean) => {
-        if (!local.value?.image) return
-        if (on) local.value.image.dark = local.value.image.light
-        else delete local.value.image.dark
+        const image = local.value?.background.image
+        if (!image) return
+        if (on) image.dark = image.light
+        else delete image.dark
     },
 })
 
@@ -119,27 +154,28 @@ const keywordAngles: Record<string, number> = {
 
 const angle = computed({
     get: () => {
-        const dir = local.value?.gradient?.direction ?? ''
+        const dir = local.value?.background.gradient?.direction ?? ''
         if (dir in keywordAngles) return keywordAngles[dir]
         return parseInt(dir.replace('deg', ''), 10) || 0
     },
     // Moving the slider converts the direction to degrees. A stored keyword is
     // left untouched until then, so simply opening the editor never rewrites it.
     set: (v: number) => {
-        if (!local.value?.gradient) return
+        const gradient = local.value?.background.gradient
+        if (!gradient) return
         const n = Math.min(360, Math.max(0, Math.round(v || 0)))
-        local.value.gradient.direction = `${n}deg`
+        gradient.direction = `${n}deg`
     },
 })
 
-const addStop = (mode: 'light' | 'dark') => {
-    const stops = local.value?.gradient?.[mode]
+const addStop = (stopMode: Mode) => {
+    const stops = local.value?.background.gradient?.[stopMode]
     if (stops) stops.push('#ffffff')
 }
 
 // A gradient needs at least two stops, so the last two cannot be removed.
-const removeStop = (mode: 'light' | 'dark', index: number) => {
-    const stops = local.value?.gradient?.[mode]
+const removeStop = (stopMode: Mode, index: number) => {
+    const stops = local.value?.background.gradient?.[stopMode]
     if (stops && stops.length > 2) stops.splice(index, 1)
 }
 
@@ -172,30 +208,30 @@ const repeatOptions: { label: string; value: ImageRepeat }[] = [
 ]
 
 const imageEnabled = computed({
-    get: () => local.value?.image !== undefined,
+    get: () => local.value?.background.image !== undefined,
     set: (on: boolean) => {
         if (!local.value) return
         if (on) {
-            local.value.image = {
+            local.value.background.image = {
                 light: '',
                 fit: 'cover',
                 position: 'center',
                 repeat: 'no-repeat',
             }
         } else {
-            delete local.value.image
+            delete local.value.background.image
         }
     },
 })
 
-// Two sources, grouped: this background's own uploads (asset:) and the
+// Two sources, grouped: this theme's own uploads (asset:) and the
 // admin-curated shared pool (shared:).
 const imageOptions = computed(() => {
     const groups: { label: string; items: { label: string; value: string }[] }[] = []
     const own = assets.value ?? []
     if (own.length) {
         groups.push({
-            label: 'This background',
+            label: 'This theme',
             items: own.map(a => ({ label: a, value: `asset:${a}` })),
         })
     }
@@ -218,7 +254,7 @@ const handleUpload = async (event: Event) => {
     try {
         await uploadAsset({ name: file.name, bytes: await file.arrayBuffer() })
         // Select what was just uploaded — that is invariably why it was uploaded.
-        if (local.value?.image) local.value.image.light = `asset:${file.name}`
+        if (local.value?.background.image) local.value.background.image.light = `asset:${file.name}`
         toast.add({ severity: 'success', summary: 'Uploaded', detail: file.name, life: 3000 })
     } catch {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to upload image', life: 5000 })
@@ -229,25 +265,32 @@ const handleUpload = async (event: Event) => {
 
 // ---- preview ----
 
-const previewMode = ref<'light' | 'dark'>('light')
-const previewModeOptions = [
-    { label: 'Light', value: 'light' },
-    { label: 'Dark', value: 'dark' },
-]
-
 // Generated by the same logic the server uses, so the preview shows what the
-// dashboard will actually render — no save and no round-trip required.
+// dashboard will actually render — no save and no round-trip required. The
+// variables are applied inline to the preview box only, never to :root, so
+// the admin UI around it keeps its own styling.
 const previewStyle = computed(() => {
     if (!local.value) return {}
-    const value = pageBgValue(browserCss(local.value), previewMode.value)
-    return { background: value }
+    return {
+        ...cssVars(browserCss(local.value), mode.value),
+        background: 'var(--dashi-page-bg, var(--dashi-bg))',
+    }
 })
+
+const previewChips: { role: PaletteRole; label: string }[] = [
+    { role: 'primary', label: 'Primary' },
+    { role: 'secondary', label: 'Secondary' },
+    { role: 'success', label: 'Success' },
+    { role: 'warning', label: 'Warning' },
+    { role: 'danger', label: 'Danger' },
+]
 
 // ---- autosave ----
 
-const { status: saveStatus, error: saveError, flush } = useAutosave<Background>({
+const { status: saveStatus, error: saveError, flush } = useAutosave<Theme>({
     source: () => local.value,
-    save: (bg) => updateBackground({ id: id.value, payload: bg }),
+    save: (theme) => updateTheme({ id: id.value, payload: theme }),
+    enabled: () => !isBuiltin.value,
 })
 
 // A 400 carries the store's validation message (it names the offending field),
@@ -256,20 +299,20 @@ watch(saveStatus, (s) => {
     if (s !== 'error') return
     const detail =
         (saveError.value as { response?: { data?: { error?: string } } })?.response?.data?.error ??
-        'Failed to save background'
+        'Failed to save theme'
     toast.add({ severity: 'error', summary: 'Error', detail, life: 6000 })
 })
 
 const goBack = async () => {
     await flush()
-    router.push({ name: 'admin-backgrounds' })
+    router.push({ name: 'admin-themes' })
 }
 </script>
 
 <template>
     <div class="admin-section">
         <div class="admin-section-header">
-            <h2 class="admin-section-title">Edit background</h2>
+            <h2 class="admin-section-title">Edit theme</h2>
             <div class="flex align-items-center gap-3">
                 <Button
                     label="Back"
@@ -285,7 +328,16 @@ const goBack = async () => {
         </Card>
 
         <Card v-else-if="isError">
-            <template #content><div class="info-message">Background not found.</div></template>
+            <template #content><div class="info-message">Theme not found.</div></template>
+        </Card>
+
+        <Card v-else-if="isBuiltin">
+            <template #content>
+                <div class="info-message">
+                    The built-in theme cannot be edited. Copy it from the Themes list
+                    and edit the copy.
+                </div>
+            </template>
         </Card>
 
         <template v-else-if="local">
@@ -298,8 +350,39 @@ const goBack = async () => {
                                 <InputText v-model="local.name" class="w-full" />
                             </div>
 
-                            <!-- Base: colour or gradient, mutually exclusive -->
-                            <label class="edit-subsection">Base</label>
+                            <!-- Colours: one palette per colour mode -->
+                            <label class="edit-subsection">Colours</label>
+                            <SelectButton
+                                v-model="mode"
+                                :options="modeOptions"
+                                optionLabel="label"
+                                optionValue="value"
+                                :allowEmpty="false"
+                            />
+                            <div class="color-rows">
+                                <div v-for="role in roles" :key="role" class="color-row">
+                                    <label class="text-sm" :for="`color-${role}`">{{ roleLabels[role] }}</label>
+                                    <div class="flex align-items-center gap-2">
+                                        <ColorPicker
+                                            :modelValue="pickerValue(local.colors[mode][role])"
+                                            @update:modelValue="(v: string | undefined) => setFromPicker(role, v)"
+                                        />
+                                        <InputText
+                                            :id="`color-${role}`"
+                                            v-model="local.colors[mode][role]"
+                                            :invalid="!isValidRoleColor(role, local.colors[mode][role])"
+                                            class="flex-grow-1"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <small class="edit-hint">
+                                Hex colours: #rgb, #rrggbb or #rrggbbaa. The page background
+                                must be opaque.
+                            </small>
+
+                            <!-- Background: palette bg or gradient, optionally an image over it -->
+                            <label class="edit-subsection">Background</label>
                             <SelectButton
                                 :modelValue="baseKind"
                                 :options="baseKindOptions"
@@ -309,31 +392,7 @@ const goBack = async () => {
                                 @update:modelValue="(v: BaseKind) => setBaseKind(v)"
                             />
 
-                            <template v-if="local.color">
-                                <div class="flex flex-column gap-1">
-                                    <label class="font-semibold text-sm">Colour</label>
-                                    <div class="flex align-items-center gap-2">
-                                        <ColorPicker
-                                            :modelValue="local.color.light.replace('#', '')"
-                                            @update:modelValue="(v: string | undefined) => { if (v !== undefined && local?.color) local.color.light = '#' + v }"
-                                        />
-                                        <InputText v-model="local.color.light" class="flex-grow-1" placeholder="#ffffff" />
-                                    </div>
-                                </div>
-                                <div class="flex align-items-center gap-2">
-                                    <ToggleSwitch v-model="colorDarkEnabled" />
-                                    <span class="text-sm">Different colour in dark mode</span>
-                                </div>
-                                <div v-if="local.color.dark !== undefined" class="flex align-items-center gap-2">
-                                    <ColorPicker
-                                        :modelValue="local.color.dark.replace('#', '')"
-                                        @update:modelValue="(v: string | undefined) => { if (v !== undefined && local?.color) local.color.dark = '#' + v }"
-                                    />
-                                    <InputText v-model="local.color.dark" class="flex-grow-1" placeholder="#101014" />
-                                </div>
-                            </template>
-
-                            <template v-if="local.gradient">
+                            <template v-if="local.background.gradient">
                                 <div class="flex flex-column gap-1">
                                     <div class="flex align-items-center justify-content-between">
                                         <label class="font-semibold text-sm">Angle</label>
@@ -353,21 +412,21 @@ const goBack = async () => {
                                 <div class="flex flex-column gap-1">
                                     <label class="font-semibold text-sm">Colour stops</label>
                                     <div
-                                        v-for="(_stop, i) in local.gradient.light"
+                                        v-for="(_stop, i) in local.background.gradient.light"
                                         :key="'l' + i"
                                         class="flex align-items-center gap-2"
                                     >
                                         <ColorPicker
-                                            :modelValue="local.gradient.light[i].replace('#', '')"
-                                            @update:modelValue="(v: string | undefined) => { if (v !== undefined && local?.gradient) local.gradient.light[i] = '#' + v }"
+                                            :modelValue="pickerValue(local.background.gradient.light[i])"
+                                            @update:modelValue="(v: string | undefined) => { if (v !== undefined && local?.background.gradient) local.background.gradient.light[i] = '#' + v }"
                                         />
-                                        <InputText v-model="local.gradient.light[i]" class="flex-grow-1" />
+                                        <InputText v-model="local.background.gradient.light[i]" class="flex-grow-1" />
                                         <Button
                                             icon="ti ti-trash"
                                             text
                                             rounded
                                             severity="danger"
-                                            :disabled="local.gradient.light.length <= 2"
+                                            :disabled="local.background.gradient.light.length <= 2"
                                             @click="removeStop('light', i)"
                                         />
                                     </div>
@@ -384,24 +443,24 @@ const goBack = async () => {
                                     <ToggleSwitch v-model="gradientDarkEnabled" />
                                     <span class="text-sm">Different stops in dark mode</span>
                                 </div>
-                                <div v-if="local.gradient.dark" class="flex flex-column gap-1">
+                                <div v-if="local.background.gradient.dark" class="flex flex-column gap-1">
                                     <label class="font-semibold text-sm">Dark stops</label>
                                     <div
-                                        v-for="(_stop, i) in local.gradient.dark"
+                                        v-for="(_stop, i) in local.background.gradient.dark"
                                         :key="'d' + i"
                                         class="flex align-items-center gap-2"
                                     >
                                         <ColorPicker
-                                            :modelValue="local.gradient.dark[i].replace('#', '')"
-                                            @update:modelValue="(v: string | undefined) => { if (v !== undefined && local?.gradient?.dark) local.gradient.dark[i] = '#' + v }"
+                                            :modelValue="pickerValue(local.background.gradient.dark[i])"
+                                            @update:modelValue="(v: string | undefined) => { if (v !== undefined && local?.background.gradient?.dark) local.background.gradient.dark[i] = '#' + v }"
                                         />
-                                        <InputText v-model="local.gradient.dark[i]" class="flex-grow-1" />
+                                        <InputText v-model="local.background.gradient.dark[i]" class="flex-grow-1" />
                                         <Button
                                             icon="ti ti-trash"
                                             text
                                             rounded
                                             severity="danger"
-                                            :disabled="local.gradient.dark.length <= 2"
+                                            :disabled="local.background.gradient.dark.length <= 2"
                                             @click="removeStop('dark', i)"
                                         />
                                     </div>
@@ -410,18 +469,17 @@ const goBack = async () => {
                             </template>
 
                             <!-- Image layer, painted over the base -->
-                            <label class="edit-subsection">Image</label>
                             <div class="flex align-items-center gap-2">
                                 <ToggleSwitch v-model="imageEnabled" />
                                 <span class="text-sm">Use an image</span>
                             </div>
 
-                            <template v-if="local.image">
+                            <template v-if="local.background.image">
                                 <div class="flex flex-column gap-1">
                                     <label class="font-semibold text-sm">Image</label>
                                     <div class="flex gap-2">
                                         <Select
-                                            v-model="local.image.light"
+                                            v-model="local.background.image.light"
                                             :options="imageOptions"
                                             optionLabel="label"
                                             optionValue="value"
@@ -451,10 +509,10 @@ const goBack = async () => {
                                     <ToggleSwitch v-model="imageDarkEnabled" />
                                     <span class="text-sm">Different image in dark mode</span>
                                 </div>
-                                <div v-if="local.image.dark !== undefined" class="flex flex-column gap-1">
+                                <div v-if="local.background.image.dark !== undefined" class="flex flex-column gap-1">
                                     <label class="font-semibold text-sm">Dark image</label>
                                     <Select
-                                        v-model="local.image.dark"
+                                        v-model="local.background.image.dark"
                                         :options="imageOptions"
                                         optionLabel="label"
                                         optionValue="value"
@@ -468,15 +526,15 @@ const goBack = async () => {
                                 <div class="edit-row">
                                     <div class="flex flex-column gap-1 flex-grow-1">
                                         <label class="font-semibold text-sm">Fit</label>
-                                        <Select v-model="local.image.fit" :options="fitOptions" optionLabel="label" optionValue="value" />
+                                        <Select v-model="local.background.image.fit" :options="fitOptions" optionLabel="label" optionValue="value" />
                                     </div>
                                     <div class="flex flex-column gap-1 flex-grow-1">
                                         <label class="font-semibold text-sm">Position</label>
-                                        <Select v-model="local.image.position" :options="positionOptions" optionLabel="label" optionValue="value" />
+                                        <Select v-model="local.background.image.position" :options="positionOptions" optionLabel="label" optionValue="value" />
                                     </div>
                                     <div class="flex flex-column gap-1 flex-grow-1">
                                         <label class="font-semibold text-sm">Repeat</label>
-                                        <Select v-model="local.image.repeat" :options="repeatOptions" optionLabel="label" optionValue="value" />
+                                        <Select v-model="local.background.image.repeat" :options="repeatOptions" optionLabel="label" optionValue="value" />
                                     </div>
                                 </div>
                                 <small class="edit-hint">
@@ -486,20 +544,36 @@ const goBack = async () => {
                             </template>
                         </div>
 
-                        <!-- Live preview -->
+                        <!-- Live preview, scoped to the box -->
                         <div class="edit-preview">
                             <div class="flex align-items-center justify-content-between">
                                 <label class="font-semibold text-sm">Preview</label>
                                 <SelectButton
-                                    v-model="previewMode"
-                                    :options="previewModeOptions"
+                                    v-model="mode"
+                                    :options="modeOptions"
                                     optionLabel="label"
                                     optionValue="value"
                                     :allowEmpty="false"
                                     size="small"
                                 />
                             </div>
-                            <div class="preview-box" :style="previewStyle" />
+                            <div class="preview-box" :style="previewStyle">
+                                <div class="preview-card">
+                                    <div class="preview-title">Card title</div>
+                                    <div class="preview-muted">Muted secondary text</div>
+                                    <div class="preview-chips">
+                                        <span
+                                            v-for="chip in previewChips"
+                                            :key="chip.role"
+                                            class="preview-chip"
+                                            :class="{ 'preview-chip-primary': chip.role === 'primary' }"
+                                            :style="{ background: `var(--dashi-${chip.role})` }"
+                                        >
+                                            {{ chip.label }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                             <small class="edit-hint">
                                 Changes are saved automatically.
                             </small>
@@ -566,6 +640,58 @@ const goBack = async () => {
     border-radius: 6px;
     border: 1px solid var(--p-surface-border);
     background-size: cover;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.preview-card {
+    width: 100%;
+    background: var(--dashi-surface);
+    border: 1px solid var(--dashi-border);
+    border-radius: 6px;
+    padding: 0.75rem;
+    color: var(--dashi-text);
+}
+
+.preview-title {
+    font-weight: 600;
+}
+
+.preview-muted {
+    color: var(--dashi-text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+.preview-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.preview-chip {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    color: #ffffff;
+}
+
+.preview-chip-primary {
+    color: var(--dashi-on-primary);
+}
+
+.color-rows {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.5rem 1rem;
+}
+
+.color-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
 }
 
 .edit-row {

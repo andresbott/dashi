@@ -43,13 +43,13 @@ export interface Dashboard {
     type: DashboardType
     default?: boolean
     container: Container
-    theme?: string
+    // References a theme entity (colours and background, see types/theme.ts)
+    // by ID. Empty or dangling renders the builtin "default".
+    themeId?: string
+    // References a widget theme (fonts and icons, see types/widgetTheme.ts)
+    // by name. Empty or unknown renders "default".
+    widgetTheme?: string
     colorMode?: ColorMode
-    accentColor?: string
-    // References a background entity (see types/background.ts). Deliberately a
-    // different key from the removed inline `background` object: the backend
-    // ignores that stale key rather than failing to parse older dashboards.
-    backgroundId?: string
     pages: Page[]
 }
 
@@ -67,12 +67,8 @@ export interface CreateDashboardDTO {
     icon: string
     type: DashboardType
     container: Container
-    theme?: string
+    themeId?: string
+    widgetTheme?: string
     colorMode?: ColorMode
-    accentColor?: string
-    // References a background entity (see types/background.ts). Deliberately a
-    // different key from the removed inline `background` object: the backend
-    // ignores that stale key rather than failing to parse older dashboards.
-    backgroundId?: string
     pages: Page[]
 }

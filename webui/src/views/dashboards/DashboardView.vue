@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted, provide } from 'vue'
-import { DASHBOARD_THEME, DASHBOARD_ID, ACTIVE_PAGE, TOTAL_PAGES } from '@/lib/injectionKeys'
+import { computed, onMounted, onUnmounted, provide } from 'vue'
+import { DASHBOARD_ID, ACTIVE_PAGE, TOTAL_PAGES } from '@/lib/injectionKeys'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import { getWidgetEntry } from '@/lib/widgetRegistry'
 import { placeRow } from '@/lib/rowLayout'
 import type { Row } from '@/types/dashboard'
 import { useGetDashboard, useListDashboards } from '@/composables/useDashboards'
-import { useThemes } from '@/composables/useThemes'
-import { getFontUrl } from '@/lib/api/themes'
+
+// This SPA view is the editor's preview and is deliberately theme-agnostic: it
+// applies neither the dashboard's theme nor its widget theme and keeps the
+// PrimeVue styling with the builtin icons and fonts. Themed rendering is the
+// Go viewer's job.
 
 const route = useRoute()
 const router = useRouter()
@@ -26,45 +29,7 @@ const resolvedDefaultId = computed(() => {
 const id = computed(() => (route.params.id as string) || resolvedDefaultId.value || '')
 const { data: dashboard, isLoading, isError } = useGetDashboard(() => id.value)
 
-const { data: themesData } = useThemes()
-
-const fontStyleEl = ref<HTMLStyleElement | null>(null)
-
-const injectFonts = () => {
-    if (fontStyleEl.value) {
-        fontStyleEl.value.remove()
-        fontStyleEl.value = null
-    }
-
-    if (!dashboard.value || !themesData.value) return
-
-    const themeName = dashboard.value.theme || 'default'
-    const themeInfo = themesData.value.find(t => t.name === themeName)
-    if (!themeInfo || !themeInfo.fonts?.length) return
-
-    const rules = themeInfo.fonts.map(f =>
-        `@font-face { font-family: '${f.name}'; src: url('${getFontUrl(themeName, f.name)}') format('truetype'); }`
-    ).join('\n')
-
-    const style = document.createElement('style')
-    style.textContent = rules
-    document.head.appendChild(style)
-    fontStyleEl.value = style
-}
-
-watch([() => dashboard.value, () => themesData.value], injectFonts, { immediate: true })
-
-const dashboardTheme = computed(() => dashboard.value?.theme || 'default')
-provide(DASHBOARD_THEME, dashboardTheme)
 provide(DASHBOARD_ID, id)
-
-const themeFontFamily = computed(() => {
-    if (!dashboard.value || !themesData.value) return undefined
-    const themeName = dashboard.value.theme || 'default'
-    const themeInfo = themesData.value.find(t => t.name === themeName)
-    if (!themeInfo?.fonts?.length) return undefined
-    return themeInfo.fonts[0].name
-})
 
 const colorMode = computed(() => dashboard.value?.colorMode || 'auto')
 
@@ -76,26 +41,6 @@ const colorSchemeStyle = computed(() => {
             return { colorScheme: 'dark' }
         default:
             return { colorScheme: 'light dark' }
-    }
-})
-
-const accentColorStyle = computed(() => {
-    const color = dashboard.value?.accentColor
-    if (!color) return {}
-    return { '--p-primary-color': color }
-})
-
-const backgroundStyle = computed(() => {
-    // Dashboards no longer carry an inline background: they reference a
-    // background entity, and the server-rendered viewer resolves it. This
-    // client-side view predates that and is superseded by the Go viewer, so it
-    // paints no background rather than re-implementing the resolution here.
-    return {}
-})
-
-onUnmounted(() => {
-    if (fontStyleEl.value) {
-        fontStyleEl.value.remove()
     }
 })
 
@@ -199,7 +144,7 @@ function debugColor(index: number): string | undefined {
             <img :src="imageUrl" :alt="dashboard.name" class="dashboard-rendered-image" />
         </div>
     </div>
-    <div v-else-if="dashboard" class="dashboard-view" :class="{ 'show-boxes': dashboard.container.showBoxes || isDebug, 'dark-mode': colorMode === 'dark' }" :style="{ fontFamily: themeFontFamily, ...backgroundStyle, ...colorSchemeStyle, ...accentColorStyle }">
+    <div v-else-if="dashboard" class="dashboard-view" :class="{ 'show-boxes': dashboard.container.showBoxes || isDebug, 'dark-mode': colorMode === 'dark' }" :style="colorSchemeStyle">
         <div
             class="dashboard-container"
             :style="{

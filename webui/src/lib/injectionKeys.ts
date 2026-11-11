@@ -1,6 +1,9 @@
 import type { InjectionKey, Ref } from 'vue'
 
-export const DASHBOARD_THEME: InjectionKey<Ref<string>> = Symbol('dashboardTheme')
+// The dashboard's widget theme name. Provided only by the editor and read only
+// by widget config forms (e.g. the clock font picker); the editor preview
+// itself is theme-agnostic.
+export const DASHBOARD_WIDGET_THEME: InjectionKey<Ref<string>> = Symbol('dashboardWidgetTheme')
 export const DASHBOARD_ID: InjectionKey<Ref<string>> = Symbol('dashboardId')
 export const ACTIVE_PAGE: InjectionKey<Ref<number>> = Symbol('activePage')
 export const TOTAL_PAGES: InjectionKey<Ref<number>> = Symbol('totalPages')

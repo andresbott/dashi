@@ -16,8 +16,8 @@ const groups = [
     {
         label: 'Theming',
         items: [
-            { key: 'admin-backgrounds', label: 'Backgrounds', icon: 'ti ti-wallpaper' },
-            { key: 'admin-themes',      label: 'Themes',      icon: 'ti ti-palette' },
+            { key: 'admin-themes',        label: 'Themes',        icon: 'ti ti-palette' },
+            { key: 'admin-widget-themes', label: 'Widget themes', icon: 'ti ti-typography' },
         ],
     },
     {
@@ -41,7 +41,7 @@ const groups = [
 // Child routes that have no nav entry of their own highlight their parent, so
 // the sidebar does not go blank while you are editing.
 const navParents: Record<string, string> = {
-    'admin-background-edit': 'admin-backgrounds',
+    'admin-theme-edit': 'admin-themes',
 }
 
 const activeKey = computed(() => {

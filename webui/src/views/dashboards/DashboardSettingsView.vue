@@ -4,13 +4,12 @@ import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
-import ColorPicker from 'primevue/colorpicker'
 
 import { useDashboardAuth } from '@/composables/useDashboards'
 import { useDashboardDraft } from '@/composables/useDashboardDraft'
-import { useListBackgrounds } from '@/composables/useBackgrounds'
-import { useThemes } from '@/composables/useThemes'
-import { pageBgValue } from '@/lib/backgroundCss'
+import { useListThemes } from '@/composables/useThemes'
+import { useWidgetThemes } from '@/composables/useWidgetThemes'
+import { pageBgValue } from '@/lib/themeCss'
 import { useToast } from 'primevue/usetoast'
 import type { ColorMode } from '@/types/dashboard'
 import dashiIcon from '@/assets/icon-64.png'
@@ -21,7 +20,8 @@ const toast = useToast()
 const id = computed(() => route.params.id as string)
 
 const { draft: localDashboard, isLoading, isError, saveStatus, hasUnsaved, flush } = useDashboardDraft(() => id.value)
-const { backgrounds: backgroundList } = useListBackgrounds()
+const { themes: themeList } = useListThemes()
+const { data: widgetThemeList } = useWidgetThemes()
 const { auth: dashAuth, isLoadingAuth, setAuth, isSettingAuth, deleteAuth, isDeletingAuth } = useDashboardAuth(() => id.value)
 
 const authUsername = ref('')
@@ -51,35 +51,48 @@ const removeAuth = async () => {
     }
 }
 
-const { data: themesData } = useThemes()
-const themeOptions = computed(() => {
-    if (!themesData.value) return []
-    return themesData.value.map(t => ({ label: t.name, value: t.name }))
-})
+// A dashboard points at a theme (colours and background) by ID and at a widget
+// theme (fonts and icons) by name. Both are edited in their admin sections; an
+// empty reference renders the builtin "default".
+const themeOptions = computed(() =>
+    (themeList.value ?? []).map(t => ({ label: t.name, value: t.id })),
+)
 
-const accentColor = computed(() => localDashboard.value?.accentColor || '#3B82F6')
-
-// A dashboard no longer describes its own background; it points at a background
-// entity, which is edited in the Backgrounds admin section.
-const backgroundOptions = computed(() => [
-    { label: 'None (theme background)', value: '' },
-    ...(backgroundList.value ?? []).map(b => ({ label: b.name, value: b.id })),
-])
-
-const backgroundId = computed({
-    get: () => localDashboard.value?.backgroundId ?? '',
+const themeId = computed({
+    get: () => localDashboard.value?.themeId || 'default',
     set: (v: string) => {
-        if (localDashboard.value) localDashboard.value.backgroundId = v
+        if (localDashboard.value) localDashboard.value.themeId = v
     },
 })
 
-const selectedBackground = computed(
-    () => (backgroundList.value ?? []).find(b => b.id === backgroundId.value) ?? null,
+const selectedTheme = computed(
+    () => (themeList.value ?? []).find(t => t.id === themeId.value) ?? null,
 )
 
-const swatchValue = computed(() =>
-    selectedBackground.value ? pageBgValue(selectedBackground.value.previewCss) : 'transparent',
+// The swatch follows the dashboard's colour mode; "auto" previews light.
+const previewMode = computed(() => (localDashboard.value?.colorMode === 'dark' ? 'dark' : 'light'))
+
+const swatch = computed(() => {
+    const t = selectedTheme.value
+    if (!t) return null
+    const palette = t.colors[previewMode.value]
+    return {
+        background: pageBgValue(t.previewCss, previewMode.value),
+        primary: palette.primary,
+        secondary: palette.secondary,
+    }
+})
+
+const widgetThemeOptions = computed(() =>
+    (widgetThemeList.value ?? []).map(t => ({ label: t.name, value: t.name })),
 )
+
+const widgetTheme = computed({
+    get: () => localDashboard.value?.widgetTheme || 'default',
+    set: (v: string) => {
+        if (localDashboard.value) localDashboard.value.widgetTheme = v
+    },
+})
 
 const saveIndicator = computed(() => {
     if (saveStatus.value === 'error') return { icon: 'ti ti-alert-circle', label: 'Save failed' }
@@ -184,44 +197,47 @@ const activeSection = ref('general')
                     </div>
                 </div>
 
-                <!-- Appearance (theme, colors, container, background) -->
+                <!-- Appearance (theme, widget theme, colour mode, container) -->
                 <div v-if="activeSection === 'appearance'" class="flex flex-column gap-3">
-                    <label class="settings-subsection">Theme & Colors</label>
+                    <label class="settings-subsection">Theme</label>
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Theme</label>
                         <Select
-                            :modelValue="localDashboard.theme || 'default'"
-                            @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.theme = v }"
+                            :modelValue="themeId"
+                            @update:modelValue="(v: string | undefined) => { if (v !== undefined) themeId = v }"
                             :options="themeOptions"
                             optionLabel="label"
                             optionValue="value"
                             class="w-full"
                         />
-                    </div>
-                    <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Background</label>
-                        <Select
-                            :modelValue="backgroundId"
-                            @update:modelValue="(v: string | undefined) => { if (v !== undefined) backgroundId = v }"
-                            :options="backgroundOptions"
-                            optionLabel="label"
-                            optionValue="value"
-                            placeholder="None (theme background)"
-                            class="w-full"
-                        />
                         <small class="settings-hint">
-                            Backgrounds are shared between dashboards and edited in the
-                            Backgrounds admin section.
+                            Colours and background. Themes are shared between dashboards
+                            and edited in the Themes admin section.
                         </small>
                     </div>
-                    <div v-if="selectedBackground" class="flex align-items-center gap-2">
-                        <div class="bg-swatch" :style="{ background: swatchValue }" />
+                    <div v-if="selectedTheme && swatch" class="flex align-items-center gap-2">
+                        <div class="theme-swatch" :style="{ background: swatch.background }" />
+                        <span class="color-chip" :style="{ background: swatch.primary }" title="Primary" />
+                        <span class="color-chip" :style="{ background: swatch.secondary }" title="Secondary" />
                         <Button
-                            label="Edit background"
+                            v-if="!selectedTheme.builtin"
+                            label="Edit theme"
                             icon="ti ti-external-link"
                             text
-                            @click="router.push({ name: 'admin-background-edit', params: { id: selectedBackground.id } })"
+                            @click="router.push({ name: 'admin-theme-edit', params: { id: selectedTheme.id } })"
                         />
+                    </div>
+                    <div class="flex flex-column gap-1">
+                        <label class="font-semibold text-sm">Widget theme</label>
+                        <Select
+                            :modelValue="widgetTheme"
+                            @update:modelValue="(v: string | undefined) => { if (v !== undefined) widgetTheme = v }"
+                            :options="widgetThemeOptions"
+                            optionLabel="label"
+                            optionValue="value"
+                            class="w-full"
+                        />
+                        <small class="settings-hint">Fonts and icons.</small>
                     </div>
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Color Mode</label>
@@ -238,22 +254,6 @@ const activeSection = ref('general')
                             class="w-full"
                         />
                     </div>
-                    <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Accent Color</label>
-                        <div class="flex align-items-center gap-2">
-                            <ColorPicker
-                                :modelValue="accentColor.replace('#', '')"
-                                @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.accentColor = '#' + v }"
-                            />
-                            <InputText
-                                :modelValue="accentColor"
-                                @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.accentColor = v }"
-                                class="flex-1"
-                                placeholder="#3B82F6"
-                            />
-                        </div>
-                    </div>
-
                     <label class="settings-subsection">Container</label>
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Max Width</label>
@@ -424,10 +424,22 @@ const activeSection = ref('general')
     border-top: 1px solid var(--p-surface-200);
 }
 
-.gradient-preview {
-    width: 100%;
-    height: 24px;
+.settings-hint {
+    color: var(--p-text-muted-color);
+}
+
+.theme-swatch {
+    width: 64px;
+    height: 40px;
     border-radius: 4px;
+    border: 1px solid var(--p-surface-border);
+    background-size: cover;
+}
+
+.color-chip {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
     border: 1px solid var(--p-surface-border);
 }
 

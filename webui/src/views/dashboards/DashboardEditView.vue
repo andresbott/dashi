@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, provide } from 'vue'
-import { DASHBOARD_THEME, DASHBOARD_ID, ACTIVE_PAGE, TOTAL_PAGES, EDITING_MODE } from '@/lib/injectionKeys'
+import { DASHBOARD_WIDGET_THEME, DASHBOARD_ID, ACTIVE_PAGE, TOTAL_PAGES, EDITING_MODE } from '@/lib/injectionKeys'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
@@ -22,8 +22,9 @@ const { draft: localDashboard, isLoading, isError, saveStatus, hasUnsaved, flush
 
 const activePageIndex = ref(0)
 
-const dashboardTheme = computed(() => localDashboard.value?.theme || 'default')
-provide(DASHBOARD_THEME, dashboardTheme)
+// Consumed only by widget config forms; the preview itself is theme-agnostic.
+const dashboardWidgetTheme = computed(() => localDashboard.value?.widgetTheme || 'default')
+provide(DASHBOARD_WIDGET_THEME, dashboardWidgetTheme)
 provide(DASHBOARD_ID, id)
 const editTotalPages = computed(() => localDashboard.value ? localDashboard.value.pages.length : 1)
 provide(ACTIVE_PAGE, activePageIndex)

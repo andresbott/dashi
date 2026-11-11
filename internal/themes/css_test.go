@@ -268,9 +268,8 @@ func TestRefURL(t *testing.T) {
 }
 
 // TestBrowserCSSMatchesFixture pins the exact bytes BrowserCSS produces.
-// The TypeScript preview generator is meant to read the same file once it
-// is ported to themes; Go is the contract. The older css_fixture.json still
-// backs webui/src/lib/backgroundCss.test.ts until that port.
+// webui/src/lib/themeCss.test.ts asserts the same file against the
+// TypeScript preview generator; Go is the contract.
 func TestBrowserCSSMatchesFixture(t *testing.T) {
 	raw, err := os.ReadFile("testdata/theme_css_fixture.json")
 	if err != nil {

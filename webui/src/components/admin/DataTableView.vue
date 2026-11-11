@@ -18,8 +18,8 @@ const { items: itemsData, isLoading, uploadItem, isUploading, deleteItem } = use
 const items = computed(() => itemsData.value ?? [])
 
 // Both kinds this component serves are image libraries: 'images' feeds the
-// image widget, 'backgrounds' is the shared pool that backgrounds reference
-// with `shared:`. Background *configurations* live in AdminBackgrounds.vue.
+// image widget, 'backgrounds' is the shared pool that theme backgrounds
+// reference with `shared:`. Themes themselves live in AdminThemes.vue.
 const title = computed(() => (props.kind === 'images' ? 'Images' : 'Shared background images'))
 
 // Upload
