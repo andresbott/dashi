@@ -49,12 +49,12 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/dashboards/{id}/assets").Methods(http.MethodGet).HandlerFunc(dh.ListAssets)
 	r.Path("/dashboards/{id}/assets/{path:.*}").Methods(http.MethodGet).HandlerFunc(dh.GetAsset)
 
-	// Background entity (read)
-	bh := handlers.NewBackgroundHandler(deps.bgStore, deps.dashStore, deps.logger)
-	r.Path("/backgrounds").Methods(http.MethodGet).HandlerFunc(bh.List)
-	r.Path("/backgrounds/{id}").Methods(http.MethodGet).HandlerFunc(bh.Get)
-	r.Path("/backgrounds/{id}/assets").Methods(http.MethodGet).HandlerFunc(bh.ListAssets)
-	r.Path("/backgrounds/{id}/assets/{path:.*}").Methods(http.MethodGet).HandlerFunc(bh.GetAsset)
+	// Theme entity (read)
+	tmh := handlers.NewThemeHandler(deps.bgStore, deps.dashStore, deps.logger)
+	r.Path("/themes").Methods(http.MethodGet).HandlerFunc(tmh.List)
+	r.Path("/themes/{id}").Methods(http.MethodGet).HandlerFunc(tmh.Get)
+	r.Path("/themes/{id}/assets").Methods(http.MethodGet).HandlerFunc(tmh.ListAssets)
+	r.Path("/themes/{id}/assets/{path:.*}").Methods(http.MethodGet).HandlerFunc(tmh.GetAsset)
 
 	// Widget interactive routes (mounted by each widget's Module.RegisterRoutes)
 	for _, m := range deps.modules {
@@ -98,11 +98,12 @@ func attachWriteAPIs(r *mux.Router, deps apiDeps) {
 	dataH := handlers.NewDataHandler(deps.notesStore, deps.imagesStore, deps.sharedBgImages, deps.logger)
 	dataH.RegisterWrite(r)
 
-	// Background entity CRUD (editor only)
-	bh := handlers.NewBackgroundHandler(deps.bgStore, deps.dashStore, deps.logger)
-	r.Path("/backgrounds").Methods(http.MethodPost).HandlerFunc(bh.Create)
-	r.Path("/backgrounds/{id}").Methods(http.MethodPut).HandlerFunc(bh.Update)
-	r.Path("/backgrounds/{id}").Methods(http.MethodDelete).HandlerFunc(bh.Delete)
-	r.Path("/backgrounds/{id}/assets/{path:.*}").Methods(http.MethodPost).HandlerFunc(bh.SaveAsset)
-	r.Path("/backgrounds/{id}/assets/{path:.*}").Methods(http.MethodDelete).HandlerFunc(bh.DeleteAsset)
+	// Theme entity CRUD (editor only)
+	tmh := handlers.NewThemeHandler(deps.bgStore, deps.dashStore, deps.logger)
+	r.Path("/themes").Methods(http.MethodPost).HandlerFunc(tmh.Create)
+	r.Path("/themes/{id}").Methods(http.MethodPut).HandlerFunc(tmh.Update)
+	r.Path("/themes/{id}").Methods(http.MethodDelete).HandlerFunc(tmh.Delete)
+	r.Path("/themes/{id}/copy").Methods(http.MethodPost).HandlerFunc(tmh.Copy)
+	r.Path("/themes/{id}/assets/{path:.*}").Methods(http.MethodPost).HandlerFunc(tmh.SaveAsset)
+	r.Path("/themes/{id}/assets/{path:.*}").Methods(http.MethodDelete).HandlerFunc(tmh.DeleteAsset)
 }

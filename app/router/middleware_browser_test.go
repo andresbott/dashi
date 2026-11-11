@@ -43,33 +43,35 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 
 		store := dashboard.NewStore(filepath.Join(dir, "dashboards"))
 
-		// Create background entities using the backgrounds Store so they are
-		// properly indexed and persisted.
+		// Create theme entities using the themes Store so they are properly
+		// indexed and persisted where newSharedDeps will look for them.
 		sharedBgImages, err := images.NewStore(filepath.Join(dir, "data", "shared-background-images"))
 		if err != nil {
 			panic("create shared bg images store: " + err.Error())
 		}
-		tempBgStore := themes.NewStore(filepath.Join(dir, "data", "backgrounds"), sharedBgImages)
+		tempThemeStore := themes.NewStore(filepath.Join(dir, "data", "themes"), sharedBgImages)
 
-		themeImageBG, err := tempBgStore.Create(themes.Background{
-			Name: "Shared Image",
-			Image: &themes.Image{
+		themeImageBG, err := tempThemeStore.Create(themes.Theme{
+			Name:   "Shared Image",
+			Colors: themes.DefaultTheme().Colors,
+			Background: themes.Background{Image: &themes.Image{
 				Light:    "shared:bg.jpg",
 				Fit:      "cover",
 				Position: "center",
 				Repeat:   "no-repeat",
-			},
+			}},
 		})
 		if err != nil {
 			panic("create theme-image-bg: " + err.Error())
 		}
 
-		gradientBG, err := tempBgStore.Create(themes.Background{
-			Name: "Gradient",
-			Gradient: &themes.Gradient{
+		gradientBG, err := tempThemeStore.Create(themes.Theme{
+			Name:   "Gradient",
+			Colors: themes.DefaultTheme().Colors,
+			Background: themes.Background{Gradient: &themes.Gradient{
 				Direction: "to bottom",
 				Light:     []string{"#fff", "#000"},
-			},
+			}},
 		})
 		if err != nil {
 			panic("create gradient-bg: " + err.Error())
@@ -99,17 +101,17 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 			panic("create image dashboard: " + err.Error())
 		}
 		imageBG, err := store.Create(dashboard.Dashboard{
-			Name:         "ImageBG",
-			Pages:        page,
-			BackgroundID: themeImageBG.ID,
+			Name:    "ImageBG",
+			Pages:   page,
+			ThemeID: themeImageBG.ID,
 		})
 		if err != nil {
 			panic("create image-background dashboard: " + err.Error())
 		}
 		gradientBGDash, err := store.Create(dashboard.Dashboard{
-			Name:         "GradientBG",
-			Pages:        page,
-			BackgroundID: gradientBG.ID,
+			Name:    "GradientBG",
+			Pages:   page,
+			ThemeID: gradientBG.ID,
 		})
 		if err != nil {
 			panic("create gradient-background dashboard: " + err.Error())

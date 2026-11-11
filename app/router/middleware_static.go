@@ -75,14 +75,9 @@ func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboar
 		}
 	}
 
-	// Resolve the referenced background. A missing or dangling reference is
-	// not an error: the page simply falls back to the theme background.
-	var bgCSS template.CSS
-	if dash.BackgroundID != "" {
-		if bg, err := bgStore.Get(dash.BackgroundID); err == nil {
-			bgCSS = template.CSS(themes.BrowserCSS(bg)) //nolint:gosec // G203: generated from validated enums, validated hex colours and percent-encoded URLs
-		}
-	}
+	// Resolve the referenced theme. A missing or dangling reference is not
+	// an error: Resolve falls back to the builtin default.
+	bgCSS := template.CSS(themes.BrowserCSS(bgStore.Resolve(dash.ThemeID))) //nolint:gosec // G203: generated from closed enums, per-role-sanitised hex colours and percent-encoded URLs
 
 	pageNames := make([]string, len(dash.Pages))
 	for i, p := range dash.Pages {
@@ -373,18 +368,12 @@ func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]s
 // as the css. This prevents the template's {{else}}{{.Palette.BG}}{{end}}
 // fallback from painting an opaque theme colour over the pre-composited image.
 func resolveImageBackground(dash dashboard.Dashboard, bgStore *themes.Store) (css string, imageData []byte) {
-	if dash.BackgroundID == "" {
-		return "", nil
-	}
-	bg, err := bgStore.Get(dash.BackgroundID)
-	if err != nil {
-		return "", nil
-	}
-	css, ref := themes.ImageCSS(bg, dash.ColorMode)
+	theme := bgStore.Resolve(dash.ThemeID)
+	css, ref := themes.ImageCSS(theme, dash.ColorMode)
 	if ref == "" {
 		return css, nil
 	}
-	data, err := bgStore.LoadImage(bg.ID, ref)
+	data, err := bgStore.LoadImage(theme.ID, ref)
 	if err != nil {
 		return css, nil
 	}

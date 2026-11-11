@@ -8,50 +8,57 @@ import (
 // variant is one colour mode's fully resolved background.
 type variant struct {
 	image     string // ref, or "" when there is no image layer
-	baseValue string // concrete colour or linear-gradient(...), or ""
+	baseValue string // linear-gradient(...), or "" for the plain palette bg
 }
 
 // BrowserCSS returns the body of the <style> block the browser page shell
-// emits: --dashi-page-bg for light on :root, for dark under the
-// [data-color-mode="dark"] attribute the shell sets on <html>. This mirrors
-// widgetthemes.ThemeCSS deliberately — same mechanism, same override order.
+// emits: the palette vars, plus --dashi-page-bg when the theme has a
+// gradient or image, for light on :root and for dark under the
+// [data-color-mode="dark"] attribute the shell sets on <html>.
 //
-// Returns nil when b defines no background, so the caller emits no element
-// at all and the theme background shows through.
-func BrowserCSS(b Background) []byte {
-	light := browserValue(b, resolve(b, "light"))
-	dark := browserValue(b, resolve(b, "dark"))
-	if light == "" && dark == "" {
-		return nil
-	}
+// It is always non-nil. Palettes go through Theme.Palette, so a malformed
+// role falls back to its default instead of reaching the CSS.
+func BrowserCSS(t Theme) []byte {
 	var sb strings.Builder
-	sb.WriteString(":root{--dashi-page-bg:")
-	sb.WriteString(light)
-	sb.WriteString(";}\n")
-	sb.WriteString(`:root[data-color-mode="dark"]{--dashi-page-bg:`)
-	sb.WriteString(dark)
-	sb.WriteString(";}\n")
+	writeRule(&sb, ":root", t, "light")
+	writeRule(&sb, `:root[data-color-mode="dark"]`, t, "dark")
 	return []byte(sb.String())
 }
 
+func writeRule(sb *strings.Builder, selector string, t Theme, colorMode string) {
+	sb.WriteString(selector)
+	sb.WriteByte('{')
+	writePaletteVars(sb, t.Palette(colorMode))
+	if bg := browserValue(t, resolve(t.Background, colorMode)); bg != "" {
+		sb.WriteString("--dashi-page-bg:")
+		sb.WriteString(bg)
+		sb.WriteByte(';')
+	}
+	sb.WriteString("}\n")
+}
+
 // ImageCSS resolves one variant for the litehtml stack, which cannot read
-// CSS custom properties and needs concrete values.
+// CSS custom properties and needs concrete values. A plain background
+// returns two empty strings: the caller paints the palette bg.
 //
 // When an image is present it returns an empty css string and the image
 // ref: internal/dashboard/image pre-paints the image onto the canvas
 // *before* litehtml renders, so an opaque body background would paint over
 // it. Nothing is lost — that stack is cover-only, so the image always
 // covers the canvas and a base could never show.
-func ImageCSS(b Background, colorMode string) (css string, imageRef string) {
-	v := resolve(b, colorMode)
+func ImageCSS(t Theme, colorMode string) (css string, imageRef string) {
+	v := resolve(t.Background, colorMode)
 	if v.image != "" {
 		return "", v.image
+	}
+	if !safeBaseValue(v.baseValue) {
+		return "", ""
 	}
 	return v.baseValue, ""
 }
 
 // RefURL maps an image reference onto the HTTP route that serves it.
-func RefURL(bgID, ref string) (string, bool) {
+func RefURL(themeID, ref string) (string, bool) {
 	scheme, path, ok := strings.Cut(ref, ":")
 	if !ok || path == "" {
 		return "", false
@@ -62,7 +69,7 @@ func RefURL(bgID, ref string) (string, bool) {
 		for i, s := range segments {
 			segments[i] = urlSegment(s)
 		}
-		return "/api/v0/backgrounds/" + urlSegment(bgID) + "/assets/" + strings.Join(segments, "/"), true
+		return "/api/v0/themes/" + urlSegment(themeID) + "/assets/" + strings.Join(segments, "/"), true
 	case "shared":
 		return "/api/v0/data/backgrounds/" + urlSegment(path), true
 	}
@@ -90,13 +97,7 @@ func resolve(b Background, colorMode string) variant {
 			v.image = b.Image.Dark
 		}
 	}
-	switch {
-	case b.Color != nil:
-		v.baseValue = b.Color.Light
-		if dark && b.Color.Dark != "" {
-			v.baseValue = b.Color.Dark
-		}
-	case b.Gradient != nil:
+	if b.Gradient != nil {
 		stops := b.Gradient.Light
 		if dark && len(b.Gradient.Dark) > 0 {
 			stops = b.Gradient.Dark
@@ -109,14 +110,19 @@ func resolve(b Background, colorMode string) variant {
 }
 
 // browserValue builds the CSS background shorthand for one variant: the
-// image layer first, the base as the final layer. Only the final layer of
-// the shorthand may carry a colour, which is why the base goes last.
-func browserValue(b Background, v variant) string {
+// image layer first, the gradient as the final layer. Returns "" for a
+// plain background, which then shows the palette bg.
+//
+// The image's enum fields are checked here too: Validate rejects bad values
+// on save, but a hand-edited theme.json bypasses it, and this output lands
+// in a <style> element where html/template escapes nothing.
+func browserValue(t Theme, v variant) string {
 	layers := make([]string, 0, 2)
-	if v.image != "" && b.Image != nil {
-		if u, ok := RefURL(b.ID, v.image); ok {
+	img := t.Background.Image
+	if v.image != "" && img != nil && validateImageEnums(img) == nil {
+		if u, ok := RefURL(t.ID, v.image); ok {
 			layers = append(layers, "url('"+u+"') "+
-				b.Image.Position+"/"+cssSize(b.Image.Fit)+" "+b.Image.Repeat)
+				img.Position+"/"+cssSize(img.Fit)+" "+img.Repeat)
 		}
 	}
 	if v.baseValue != "" && safeBaseValue(v.baseValue) {
@@ -139,13 +145,10 @@ func cssSize(fit string) string {
 	}
 }
 
-// safeBaseValue is a defence-in-depth check for hand-edited background.json
+// safeBaseValue is a defence-in-depth check for hand-edited theme.json
 // files that bypassed Validate. Generated CSS lands inside a <style>
 // element, where html/template performs no escaping at all.
 func safeBaseValue(s string) bool {
-	if hexColorRe.MatchString(s) {
-		return true
-	}
 	if !strings.HasPrefix(s, "linear-gradient(") || !strings.HasSuffix(s, ")") {
 		return false
 	}

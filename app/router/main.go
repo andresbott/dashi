@@ -120,7 +120,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create shared background images store: %w", err)
 	}
-	bgStore := themes.NewStore(filepath.Join(cfg.DataDir, "data", "backgrounds"), sharedBgImages)
+	bgStore := themes.NewStore(filepath.Join(cfg.DataDir, "data", "themes"), sharedBgImages)
 
 	// Static dashboard rendering
 	registry := widgets.NewRegistry()

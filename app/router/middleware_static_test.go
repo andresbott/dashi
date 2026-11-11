@@ -645,16 +645,17 @@ func TestResolveImageBackgroundWithGradientOnly(t *testing.T) {
 	// When the background has a gradient but no image, resolveImageBackground
 	// should return the gradient CSS and nil bytes.
 	bgStore := themes.NewStore(t.TempDir(), nil)
-	bg := themes.Background{
-		ID:       "gradientonly",
-		Name:     "Gradient Only",
-		Gradient: &themes.Gradient{Direction: "to right", Light: []string{"#000000", "#ffffff"}},
+	bg := themes.Theme{
+		ID:         "gradientonly",
+		Name:       "Gradient Only",
+		Colors:     themes.DefaultTheme().Colors,
+		Background: themes.Background{Gradient: &themes.Gradient{Direction: "to right", Light: []string{"#000000", "#ffffff"}}},
 	}
 	if _, err := bgStore.Create(bg); err != nil {
 		t.Fatal(err)
 	}
 
-	dash := dashboard.Dashboard{BackgroundID: "gradientonly", ColorMode: "light"}
+	dash := dashboard.Dashboard{ThemeID: "gradientonly", ColorMode: "light"}
 	css, imageData := resolveImageBackground(dash, bgStore)
 
 	if css != "linear-gradient(to right,#000000,#ffffff)" {
@@ -681,18 +682,19 @@ func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bg := themes.Background{
-		ID:   "withimage",
-		Name: "With Image",
-		Image: &themes.Image{
+	bg := themes.Theme{
+		ID:     "withimage",
+		Name:   "With Image",
+		Colors: themes.DefaultTheme().Colors,
+		Background: themes.Background{Image: &themes.Image{
 			Light: "shared:test.png", Fit: "cover", Position: "center", Repeat: "no-repeat",
-		},
+		}},
 	}
 	if _, err := bgStore.Create(bg); err != nil {
 		t.Fatal(err)
 	}
 
-	dash := dashboard.Dashboard{BackgroundID: "withimage", ColorMode: "light"}
+	dash := dashboard.Dashboard{ThemeID: "withimage", ColorMode: "light"}
 	css, imageData := resolveImageBackground(dash, bgStore)
 
 	if css != "transparent" {
@@ -706,9 +708,9 @@ func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
 }
 
 func TestImageDashboardWithDanglingBackgroundRefStillRenders(t *testing.T) {
-	// Create an image dashboard with a BackgroundID that references nothing.
+	// Create an image dashboard with a ThemeID that references nothing.
 	dash := imageDashboard("dangling-bg-test")
-	dash.BackgroundID = "nonexistent-bg-id"
+	dash.ThemeID = "nonexistent-bg-id"
 
 	handler := newTestMiddleware(t, dash)
 
@@ -753,15 +755,16 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 	}
 
 	// Create a background entity referencing it
-	bg := themes.Background{
-		ID:   "redbg",
-		Name: "Red Background",
-		Image: &themes.Image{
+	bg := themes.Theme{
+		ID:     "redbg",
+		Name:   "Red Background",
+		Colors: themes.DefaultTheme().Colors,
+		Background: themes.Background{Image: &themes.Image{
 			Light:    "shared:red.png",
 			Fit:      "cover",
 			Position: "center",
 			Repeat:   "no-repeat",
-		},
+		}},
 	}
 	if _, err := bgStore.Create(bg); err != nil {
 		t.Fatal(err)
@@ -769,10 +772,10 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 
 	// Create an image dashboard with real content and the background
 	dash := dashboard.Dashboard{
-		ID:           "testredbg",
-		Name:         "Red BG Test",
-		Type:         "image",
-		BackgroundID: "redbg",
+		ID:      "testredbg",
+		Name:    "Red BG Test",
+		Type:    "image",
+		ThemeID: "redbg",
 		Container: dashboard.Container{
 			MaxWidth:        "100%",
 			VerticalAlign:   "top",

@@ -1,8 +1,10 @@
-// Package backgrounds stores reusable dashboard backgrounds as first-class
-// entities: one folder per background holding background.json plus an
-// assets/ folder of uploaded images. Dashboards reference a background by
-// ID. Every field other than a colour is a closed enum, so the CSS this
-// package generates never contains user-authored syntax.
+// Package themes stores dashboard themes as first-class entities: a
+// light/dark colour palette plus a page background. Each stored theme is one
+// folder holding theme.json and an assets/ folder of uploaded images; a
+// read-only builtin "default" theme lives in code and is never written to
+// disk. Dashboards reference a theme by ID. Every field other than a colour
+// is a closed enum, so the CSS this package generates never contains
+// user-authored syntax.
 package themes
 
 import (
@@ -14,17 +16,15 @@ import (
 	"strings"
 )
 
-var (
-	ErrNotFound      = errors.New("background not found")
-	ErrInvalidID     = errors.New("invalid background ID")
-	ErrInvalidConfig = errors.New("invalid background configuration")
-)
+// DefaultID is the ID of the builtin theme.
+const DefaultID = "default"
 
-// Color is a solid colour base, light with an optional dark override.
-type Color struct {
-	Light string `json:"light"`
-	Dark  string `json:"dark,omitempty"`
-}
+var (
+	ErrNotFound      = errors.New("theme not found")
+	ErrInvalidID     = errors.New("invalid theme ID")
+	ErrInvalidConfig = errors.New("invalid theme configuration")
+	ErrBuiltin       = errors.New("the builtin theme is read-only")
+)
 
 // Gradient is a linear-gradient base. Direction is shared by both modes;
 // only the colour stops vary.
@@ -44,23 +44,54 @@ type Image struct {
 	Repeat   string `json:"repeat"`
 }
 
-// Background is one stored background. Color and Gradient are mutually
-// exclusive; either may combine with Image. All three absent is the legal
-// empty state and renders the theme background.
+// Background is a theme's page background. Gradient and Image may combine,
+// the image painted over the gradient. Both absent is the legal plain state:
+// the page shows the palette bg. There is no solid colour: the base is
+// always Palette.BG.
 type Background struct {
-	ID       string    `json:"id"`
-	Name     string    `json:"name"`
-	Color    *Color    `json:"color,omitempty"`
 	Gradient *Gradient `json:"gradient,omitempty"`
 	Image    *Image    `json:"image,omitempty"`
+}
+
+// Theme is one theme: a background plus a palette per colour mode.
+type Theme struct {
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	Background Background `json:"background"`
+	Colors     Colors     `json:"colors"`
 }
 
 // Meta is the listing representation.
 type Meta struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
+	Builtin    bool   `json:"builtin,omitempty"`
 	UsedBy     int    `json:"usedBy"`
 	PreviewCSS string `json:"previewCss"`
+	Colors     Colors `json:"colors"`
+}
+
+// DefaultTheme returns the builtin theme: the default palettes over a plain
+// background.
+func DefaultTheme() Theme {
+	return Theme{
+		ID:   DefaultID,
+		Name: "Default",
+		Colors: Colors{
+			Light: DefaultPalette("light"),
+			Dark:  DefaultPalette("dark"),
+		},
+	}
+}
+
+// Palette returns the palette for colorMode ("dark" → dark, anything else →
+// light), leniently: every role that is not a valid colour falls back to the
+// default, so data that bypassed Validate still renders and cannot inject.
+func (t Theme) Palette(colorMode string) Palette {
+	if colorMode == "dark" {
+		return t.Colors.Dark.withDefaults("dark")
+	}
+	return t.Colors.Light.withDefaults("light")
 }
 
 var hexColorRe = regexp.MustCompile(`^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$`)
@@ -88,52 +119,33 @@ var imageExts = map[string]bool{
 	".png": true, ".jpg": true, ".jpeg": true, ".webp": true, ".svg": true,
 }
 
-// Validate reports whether b is safe to store and to render. It is the only
+// Validate reports whether t is safe to store and to render. It is the only
 // gate between user input and generated CSS, so it must reject anything it
-// does not positively recognise.
-func (b Background) Validate() error {
-	if strings.TrimSpace(b.Name) == "" {
+// does not positively recognise. Every palette role is required in both
+// modes.
+func (t Theme) Validate() error {
+	if strings.TrimSpace(t.Name) == "" {
 		return fmt.Errorf("%w: name is required", ErrInvalidConfig)
 	}
-	if err := validateBase(b); err != nil {
+	if err := t.Colors.Light.Validate(); err != nil {
+		return fmt.Errorf("light palette: %w", err)
+	}
+	if err := t.Colors.Dark.Validate(); err != nil {
+		return fmt.Errorf("dark palette: %w", err)
+	}
+	if err := validateGradient(t.Background.Gradient); err != nil {
 		return err
 	}
-	if err := validateImage(b); err != nil {
+	if err := validateImage(t.Background.Image); err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateBase(b Background) error {
-	if b.Color != nil && b.Gradient != nil {
-		return fmt.Errorf("%w: color and gradient are mutually exclusive", ErrInvalidConfig)
+func validateGradient(g *Gradient) error {
+	if g == nil {
+		return nil
 	}
-	if b.Color != nil {
-		if err := validateBaseColor(b.Color); err != nil {
-			return err
-		}
-	}
-	if b.Gradient != nil {
-		if err := validateBaseGradient(b.Gradient); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func validateBaseColor(c *Color) error {
-	if err := validateColor(c.Light); err != nil {
-		return err
-	}
-	if c.Dark != "" {
-		if err := validateColor(c.Dark); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func validateBaseGradient(g *Gradient) error {
 	if err := validateDirection(g.Direction); err != nil {
 		return err
 	}
@@ -148,16 +160,14 @@ func validateBaseGradient(g *Gradient) error {
 	return nil
 }
 
-func validateImage(b Background) error {
-	if b.Image != nil {
-		if err := validateImageRefs(b.Image); err != nil {
-			return err
-		}
-		if err := validateImageEnums(b.Image); err != nil {
-			return err
-		}
+func validateImage(img *Image) error {
+	if img == nil {
+		return nil
 	}
-	return nil
+	if err := validateImageRefs(img); err != nil {
+		return err
+	}
+	return validateImageEnums(img)
 }
 
 func validateImageRefs(img *Image) error {
@@ -218,9 +228,9 @@ func validateStops(stops []string) error {
 }
 
 // ValidateRef checks an image reference. Only two schemes exist: asset:
-// (this background's own uploads) and shared: (the admin pool). theme: and
-// dashboard: are deliberately unsupported — a background is global and
-// cannot reach into one dashboard's assets.
+// (this theme's own uploads) and shared: (the admin pool). theme: and
+// dashboard: are deliberately unsupported — a theme is global and cannot
+// reach into one dashboard's assets.
 func ValidateRef(ref string) error {
 	scheme, path, ok := strings.Cut(ref, ":")
 	if !ok {
