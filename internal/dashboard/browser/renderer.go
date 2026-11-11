@@ -14,8 +14,8 @@ import (
 	"sort"
 
 	"github.com/andresbott/dashi/internal/dashboard"
-	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
 //go:embed page.html
@@ -60,8 +60,8 @@ type RenderData struct {
 	Rows          []dashboard.Row
 	PageIndex     int
 	TotalPages    int
-	PageNames     []string       // one per dashboard page, for the page nav
-	Palette       themes.Palette // carried through to widget renderers
+	PageNames     []string             // one per dashboard page, for the page nav
+	Palette       widgetthemes.Palette // carried through to widget renderers
 }
 
 type pageData struct {

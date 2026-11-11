@@ -22,7 +22,6 @@ import (
 	"github.com/andresbott/dashi/internal/providers/swisstransport"
 	"github.com/andresbott/dashi/internal/providers/weather"
 	"github.com/andresbott/dashi/internal/providers/xkcd"
-	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	batterywidget "github.com/andresbott/dashi/internal/widgets/battery"
 	bookmarkwidget "github.com/andresbott/dashi/internal/widgets/bookmark"
@@ -37,6 +36,7 @@ import (
 	sysinfowidget "github.com/andresbott/dashi/internal/widgets/sysinfo"
 	weatherwidget "github.com/andresbott/dashi/internal/widgets/weather"
 	xkcdwidget "github.com/andresbott/dashi/internal/widgets/xkcd"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 	"github.com/go-bumbu/http/middleware"
 	"github.com/gorilla/mux"
 )
@@ -81,24 +81,24 @@ func (h *EditorHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // sharedDeps holds all shared clients, stores, renderers and middleware
 // that are built once and reused by both viewer and editor handlers.
 type sharedDeps struct {
-	dashStore        *dashboard.Store
-	weatherClient    *weather.Client
-	marketClient     *market.Client
-	xkcdClient       *xkcd.Client
-	transportClient  *swisstransport.Client
-	themeStore      *themes.Store
+	dashStore       *dashboard.Store
+	weatherClient   *weather.Client
+	marketClient    *market.Client
+	xkcdClient      *xkcd.Client
+	transportClient *swisstransport.Client
+	themeStore      *widgetthemes.Store
 	notesStore      *notes.Store
 	imagesStore     *images.Store
 	sharedBgImages  *images.Store
 	bgStore         *backgrounds.Store
 	staticRenderer  *dashstatic.Renderer
-	imageRenderer    *dashimage.Renderer
-	browserRenderer  *browser.Renderer
-	browserAssets    *browser.Assets
-	staticMid        func(http.Handler) http.Handler
-	promHisto        middleware.Histogram
-	modules          []widgets.Module
-	publicViewer     handlers.PublicViewer
+	imageRenderer   *dashimage.Renderer
+	browserRenderer *browser.Renderer
+	browserAssets   *browser.Assets
+	staticMid       func(http.Handler) http.Handler
+	promHisto       middleware.Histogram
+	modules         []widgets.Module
+	publicViewer    handlers.PublicViewer
 }
 
 func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
@@ -107,7 +107,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	marketClient := market.NewClient(nil)
 	xkcdClient := xkcd.NewClient(filepath.Join(cfg.DataDir, "cache", "xkcd"))
 	transportClient := swisstransport.NewClient(nil)
-	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "themes"))
+	themeStore := widgetthemes.NewStore(filepath.Join(cfg.DataDir, "themes"))
 	notesStore, err := notes.NewStore(filepath.Join(cfg.DataDir, "data", "notes"))
 	if err != nil {
 		return nil, fmt.Errorf("create notes store: %w", err)
@@ -162,7 +162,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	imageRenderer := dashimage.NewRenderer()
 
 	for _, themeInfo := range themeStore.List() {
-		if themeInfo.HasIcons && themeInfo.IconType == themes.ThemeTypeFont {
+		if themeInfo.HasIcons && themeInfo.IconType == widgetthemes.ThemeTypeFont {
 			fontData, err := themeStore.GetFontData(themeInfo.Name)
 			if err != nil {
 				continue

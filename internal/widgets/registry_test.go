@@ -6,7 +6,7 @@ import (
 	"html/template"
 	"testing"
 
-	"github.com/andresbott/dashi/internal/themes"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
 func TestRegistry_Render_KnownType(t *testing.T) {
@@ -91,7 +91,7 @@ func TestRenderBrowserUnknownTypeYieldsEmpty(t *testing.T) {
 }
 
 func TestEffectivePaletteReturnsContextPaletteWhenSet(t *testing.T) {
-	custom := themes.Palette{FG: "#111111", Muted: "#222222"}
+	custom := widgetthemes.Palette{FG: "#111111", Muted: "#222222"}
 	ctx := RenderContext{ColorMode: "dark", Palette: custom}
 
 	if got := ctx.EffectivePalette(); got.Muted != "#222222" {
@@ -103,20 +103,20 @@ func TestEffectivePaletteFallsBackPerColorMode(t *testing.T) {
 	// The bug this guards: falling back to the light palette regardless of
 	// ColorMode, which renders dark-mode output with light greys.
 	dark := RenderContext{ColorMode: "dark"}.EffectivePalette()
-	if want := themes.DefaultPalette("dark"); dark != want {
+	if want := widgetthemes.DefaultPalette("dark"); dark != want {
 		t.Errorf("unset palette in dark mode = %+v, want %+v", dark, want)
 	}
-	if dark == themes.DefaultPalette("light") {
+	if dark == widgetthemes.DefaultPalette("light") {
 		t.Error("dark mode must not fall back to the light palette")
 	}
 
 	light := RenderContext{ColorMode: "light"}.EffectivePalette()
-	if want := themes.DefaultPalette("light"); light != want {
+	if want := widgetthemes.DefaultPalette("light"); light != want {
 		t.Errorf("unset palette in light mode = %+v, want %+v", light, want)
 	}
 
 	// An empty ColorMode is treated as light, matching DefaultPalette.
-	if got := (RenderContext{}).EffectivePalette(); got != themes.DefaultPalette("light") {
+	if got := (RenderContext{}).EffectivePalette(); got != widgetthemes.DefaultPalette("light") {
 		t.Errorf("empty color mode = %+v, want the light palette", got)
 	}
 }

@@ -1,4 +1,4 @@
-package themes
+package widgetthemes
 
 import (
 	"bytes"
@@ -84,10 +84,10 @@ func TestThemeCSSEmitsFontFaceForDisplayAndIconFonts(t *testing.T) {
 	s := NewStore("")
 	css := string(s.ThemeCSS("default"))
 
-	if !strings.Contains(css, "@font-face{font-family:'Inter';src:url('/api/v0/themes/default/fonts/Inter')") {
+	if !strings.Contains(css, "@font-face{font-family:'Inter';src:url('/api/v0/widget-themes/default/fonts/Inter')") {
 		t.Errorf("missing display-font @font-face, got:\n%s", css)
 	}
-	if !strings.Contains(css, "@font-face{font-family:'icon-font-default';src:url('/api/v0/themes/default/fonts/icon-font-default')") {
+	if !strings.Contains(css, "@font-face{font-family:'icon-font-default';src:url('/api/v0/widget-themes/default/fonts/icon-font-default')") {
 		t.Errorf("missing icon-font @font-face, got:\n%s", css)
 	}
 	// The rules must precede the variable blocks that reference the family.

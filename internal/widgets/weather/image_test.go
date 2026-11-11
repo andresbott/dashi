@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	weatherpkg "github.com/andresbott/dashi/internal/providers/weather"
-	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
 func newTestWeatherServer() (*httptest.Server, *httptest.Server) {
@@ -30,11 +30,11 @@ func newTestWeatherServer() (*httptest.Server, *httptest.Server) {
 				"surface_pressure":     1013.25,
 			},
 			"hourly": map[string]any{
-				"time":                       []string{"2099-01-01T12:00", "2099-01-01T13:00", "2099-01-01T14:00"},
-				"temperature_2m":             []float64{18.0, 19.0, 20.0},
-				"weather_code":               []int{2, 3, 61},
-				"visibility":                 []float64{24000.0, 20000.0, 15000.0},
-				"precipitation_probability":  []float64{10.0, 30.0, 80.0},
+				"time":                      []string{"2099-01-01T12:00", "2099-01-01T13:00", "2099-01-01T14:00"},
+				"temperature_2m":            []float64{18.0, 19.0, 20.0},
+				"weather_code":              []int{2, 3, 61},
+				"visibility":                []float64{24000.0, 20000.0, 15000.0},
+				"precipitation_probability": []float64{10.0, 30.0, 80.0},
 			},
 			"daily": map[string]any{
 				"time":               []string{"2026-04-03", "2026-04-04"},
@@ -69,7 +69,7 @@ func TestRenderStatic_Basic(t *testing.T) {
 	defer aqSrv.Close()
 
 	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
-	themeStore := themes.NewStore("")
+	themeStore := widgetthemes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
 		"latitude": 47.558,
@@ -103,7 +103,7 @@ func TestRenderStatic_WithDetails(t *testing.T) {
 	defer aqSrv.Close()
 
 	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
-	themeStore := themes.NewStore("")
+	themeStore := widgetthemes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
 		"latitude": 47.558,
@@ -137,7 +137,7 @@ func TestRenderStatic_WithForecast(t *testing.T) {
 	defer aqSrv.Close()
 
 	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
-	themeStore := themes.NewStore("")
+	themeStore := widgetthemes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
 		"latitude": 47.558,
@@ -171,7 +171,7 @@ func TestRenderStatic_ForecastOnly(t *testing.T) {
 	defer aqSrv.Close()
 
 	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
-	themeStore := themes.NewStore("")
+	themeStore := widgetthemes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
 		"latitude": 47.558,
@@ -215,7 +215,7 @@ func TestRenderStatic_Compact(t *testing.T) {
 	defer aqSrv.Close()
 
 	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
-	themeStore := themes.NewStore("")
+	themeStore := widgetthemes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
 		"latitude": 47.558,
@@ -255,7 +255,7 @@ func TestRenderStatic_WithHourly(t *testing.T) {
 	defer aqSrv.Close()
 
 	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
-	themeStore := themes.NewStore("")
+	themeStore := widgetthemes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
 		"latitude": 47.558,
@@ -305,7 +305,7 @@ func TestRenderStatic_ImageThemeUsesFilePath(t *testing.T) {
 	}
 
 	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
-	themeStore := themes.NewStore(themeDir)
+	themeStore := widgetthemes.NewStore(themeDir)
 	config := json.RawMessage(`{
 		"city": "Basel",
 		"latitude": 47.558,
@@ -323,7 +323,7 @@ func TestRenderStatic_ImageThemeUsesFilePath(t *testing.T) {
 
 	html := string(got)
 	// Should contain an absolute file path, not an API URL
-	if strings.Contains(html, "/api/v0/themes/") {
+	if strings.Contains(html, "/api/v0/widget-themes/") {
 		t.Error("image theme should not use API URL in img src")
 	}
 	if !strings.Contains(html, iconsDir) {
@@ -337,7 +337,7 @@ func TestRenderStatic_FontIconCodepoint(t *testing.T) {
 	defer aqSrv.Close()
 
 	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
-	themeStore := themes.NewStore("")
+	themeStore := widgetthemes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
 		"latitude": 47.558,
@@ -370,7 +370,7 @@ func TestRenderStatic_WithExtraInfo(t *testing.T) {
 	defer aqSrv.Close()
 
 	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
-	themeStore := themes.NewStore("")
+	themeStore := widgetthemes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
 		"latitude": 47.558,
@@ -449,7 +449,7 @@ func TestRenderStatic_ImageThemeWithExtraInfo(t *testing.T) {
 	}
 
 	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
-	themeStore := themes.NewStore(themeDir)
+	themeStore := widgetthemes.NewStore(themeDir)
 	config := json.RawMessage(`{
 		"city": "Basel",
 		"latitude": 47.558,
@@ -486,7 +486,7 @@ func TestRenderStatic_WithGraph(t *testing.T) {
 	defer aqSrv.Close()
 
 	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
-	themeStore := themes.NewStore("")
+	themeStore := widgetthemes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
 		"latitude": 47.558,
@@ -520,7 +520,7 @@ func TestRenderStatic_GraphCompactDisabled(t *testing.T) {
 	defer aqSrv.Close()
 
 	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
-	themeStore := themes.NewStore("")
+	themeStore := widgetthemes.NewStore("")
 	config := json.RawMessage(`{
 		"city": "Basel",
 		"latitude": 47.558,

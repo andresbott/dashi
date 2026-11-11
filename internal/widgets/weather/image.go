@@ -16,9 +16,9 @@ import (
 	_ "embed"
 
 	weatherpkg "github.com/andresbott/dashi/internal/providers/weather"
-	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/andresbott/dashi/internal/widgets/weather/chart"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
 //go:embed image.html
@@ -27,37 +27,37 @@ var staticHTML string
 var tmpl = template.Must(template.New("weather").Parse(staticHTML))
 
 type weatherConfig struct {
-	City         string  `json:"city"`
-	Latitude     float64 `json:"latitude"`
-	Longitude    float64 `json:"longitude"`
-	Compact            bool  `json:"compact"`
-	CompactCity        *bool `json:"compactCity"`
-	CompactFeelsLike   bool  `json:"compactFeelsLike"`
-	CompactDescription *bool  `json:"compactDescription"`
-	CompactAlign       string `json:"compactAlign"`
-	ShowCurrent        *bool `json:"showCurrent"`
-	ShowDetails  bool    `json:"showDetails"`
-	ShowHourly   bool    `json:"showHourly"`
-	HourlyCount  int     `json:"hourlyCount"`
-	HourlySlots  int     `json:"hourlySlots"`
-	ShowForecast bool   `json:"showForecast"`
-	ForecastDays int    `json:"forecastDays"`
-	ShowSunrise    bool `json:"showSunrise"`
-	ShowSunset     bool `json:"showSunset"`
-	ShowWind       bool `json:"showWind"`
-	ShowHumidity   bool `json:"showHumidity"`
-	ShowPressure   bool `json:"showPressure"`
-	ShowUV         bool `json:"showUV"`
-	ShowVisibility bool `json:"showVisibility"`
-	ShowAirQuality bool   `json:"showAirQuality"`
-	ShowGraph      bool   `json:"showGraph"`
-	GraphHours     int    `json:"graphHours"`
-	GraphTempColor string `json:"graphTempColor"`
-	GraphRainColor string `json:"graphRainColor"`
-	GraphBgColor   string `json:"graphBgColor"`
-	GraphHeight     int    `json:"graphHeight"`
-	GraphShowTemp   *bool  `json:"graphShowTemp"`
-	GraphShowRain   *bool  `json:"graphShowRain"`
+	City               string  `json:"city"`
+	Latitude           float64 `json:"latitude"`
+	Longitude          float64 `json:"longitude"`
+	Compact            bool    `json:"compact"`
+	CompactCity        *bool   `json:"compactCity"`
+	CompactFeelsLike   bool    `json:"compactFeelsLike"`
+	CompactDescription *bool   `json:"compactDescription"`
+	CompactAlign       string  `json:"compactAlign"`
+	ShowCurrent        *bool   `json:"showCurrent"`
+	ShowDetails        bool    `json:"showDetails"`
+	ShowHourly         bool    `json:"showHourly"`
+	HourlyCount        int     `json:"hourlyCount"`
+	HourlySlots        int     `json:"hourlySlots"`
+	ShowForecast       bool    `json:"showForecast"`
+	ForecastDays       int     `json:"forecastDays"`
+	ShowSunrise        bool    `json:"showSunrise"`
+	ShowSunset         bool    `json:"showSunset"`
+	ShowWind           bool    `json:"showWind"`
+	ShowHumidity       bool    `json:"showHumidity"`
+	ShowPressure       bool    `json:"showPressure"`
+	ShowUV             bool    `json:"showUV"`
+	ShowVisibility     bool    `json:"showVisibility"`
+	ShowAirQuality     bool    `json:"showAirQuality"`
+	ShowGraph          bool    `json:"showGraph"`
+	GraphHours         int     `json:"graphHours"`
+	GraphTempColor     string  `json:"graphTempColor"`
+	GraphRainColor     string  `json:"graphRainColor"`
+	GraphBgColor       string  `json:"graphBgColor"`
+	GraphHeight        int     `json:"graphHeight"`
+	GraphShowTemp      *bool   `json:"graphShowTemp"`
+	GraphShowRain      *bool   `json:"graphShowRain"`
 }
 
 type hourlyEntry struct {
@@ -79,26 +79,26 @@ type weatherData struct {
 	CompactDescription bool
 	CompactAlign       string
 	City               string
-	Temperature  float64
-	Description  string
-	FeelsLike    float64
-	Humidity     int
-	WindSpeed    float64
-	ShowCurrent  bool
-	ShowDetails  bool
-	ShowHourly   bool
-	ShowForecast bool
-	Hourly       []hourlyEntry
-	Forecast     []forecastDay
-	IconHTML     template.HTML
-	ExtraInfo    []extraInfoItem
-	ShowGraph       bool
-	GraphImage      string // base64-encoded PNG
-	GraphTempMin    string
-	GraphTempMax    string
-	GraphTimeLabels []string
-	GraphShowTemp   bool
-	GraphShowRain   bool
+	Temperature        float64
+	Description        string
+	FeelsLike          float64
+	Humidity           int
+	WindSpeed          float64
+	ShowCurrent        bool
+	ShowDetails        bool
+	ShowHourly         bool
+	ShowForecast       bool
+	Hourly             []hourlyEntry
+	Forecast           []forecastDay
+	IconHTML           template.HTML
+	ExtraInfo          []extraInfoItem
+	ShowGraph          bool
+	GraphImage         string // base64-encoded PNG
+	GraphTempMin       string
+	GraphTempMax       string
+	GraphTimeLabels    []string
+	GraphShowTemp      bool
+	GraphShowRain      bool
 }
 
 type forecastDay struct {
@@ -113,7 +113,7 @@ type forecastDay struct {
 // NewStaticRenderer returns a StaticRenderer for weather widgets.
 // It uses the provided weather client to fetch live data and the
 // theme store to resolve canonical icon names.
-func NewStaticRenderer(client *weatherpkg.Client, themeStore *themes.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+func NewStaticRenderer(client *weatherpkg.Client, themeStore *widgetthemes.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
 	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
 		var cfg weatherConfig
 		if len(config) > 0 {
@@ -151,16 +151,16 @@ func NewStaticRenderer(client *weatherpkg.Client, themeStore *themes.Store) func
 			CompactDescription: compactDesc,
 			CompactAlign:       compactAlign,
 			City:               cfg.City,
-			Temperature:  wd.Current.Temperature,
-			Description:  wd.Current.Description,
-			FeelsLike:    wd.Current.FeelsLike,
-			Humidity:     wd.Current.Humidity,
-			WindSpeed:    wd.Current.WindSpeed,
-			ShowCurrent:  showCurrent,
-			ShowDetails:  cfg.ShowDetails,
-			ShowHourly:   cfg.ShowHourly && !cfg.Compact,
-			ShowForecast: cfg.ShowForecast && !cfg.Compact,
-			IconHTML:     currentIconHTML,
+			Temperature:        wd.Current.Temperature,
+			Description:        wd.Current.Description,
+			FeelsLike:          wd.Current.FeelsLike,
+			Humidity:           wd.Current.Humidity,
+			WindSpeed:          wd.Current.WindSpeed,
+			ShowCurrent:        showCurrent,
+			ShowDetails:        cfg.ShowDetails,
+			ShowHourly:         cfg.ShowHourly && !cfg.Compact,
+			ShowForecast:       cfg.ShowForecast && !cfg.Compact,
+			IconHTML:           currentIconHTML,
 		}
 
 		data.ExtraInfo = buildExtraInfo(cfg, wd, themeStore, themeName)
@@ -187,7 +187,7 @@ func NewStaticRenderer(client *weatherpkg.Client, themeStore *themes.Store) func
 
 // NewStaticCompactRenderer returns a StaticRenderer for compact weather widgets.
 // It works like NewStaticRenderer but always renders in compact mode.
-func NewStaticCompactRenderer(client *weatherpkg.Client, themeStore *themes.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+func NewStaticCompactRenderer(client *weatherpkg.Client, themeStore *widgetthemes.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
 	inner := NewStaticRenderer(client, themeStore)
 	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
 		// Inject compact:true into the config
@@ -208,13 +208,13 @@ func NewStaticCompactRenderer(client *weatherpkg.Client, themeStore *themes.Stor
 	}
 }
 
-func resolveIconHTML(store *themes.Store, themeName, canonicalName string) template.HTML {
+func resolveIconHTML(store *widgetthemes.Store, themeName, canonicalName string) template.HTML {
 	resolved, err := store.ResolveIcon(themeName, canonicalName)
 	if err != nil {
 		return template.HTML(`<i class="ti ti-cloud-question"></i>`)
 	}
 	switch resolved.Type {
-	case themes.ThemeTypeFont:
+	case widgetthemes.ThemeTypeFont:
 		if resolved.Codepoint != "" {
 			cp, err := strconv.ParseUint(resolved.Codepoint, 16, 32)
 			if err == nil && cp <= unicode.MaxRune {
@@ -227,7 +227,7 @@ func resolveIconHTML(store *themes.Store, themeName, canonicalName string) templ
 		// fallback: CSS class (won't render icons in PNG but harmless)
 		return template.HTML(fmt.Sprintf(`<i class="%s"></i>`,
 			template.HTMLEscapeString(resolved.CSSClass)))
-	case themes.ThemeTypeImage:
+	case widgetthemes.ThemeTypeImage:
 		return template.HTML(fmt.Sprintf(`<img src="%s" alt="%s" style="width:1.4em;height:1.4em;">`,
 			template.HTMLEscapeString(resolved.FilePath),
 			template.HTMLEscapeString(canonicalName)))
@@ -255,7 +255,7 @@ func parseHexColor(hex string, fallback color.NRGBA) color.NRGBA {
 }
 
 // buildExtraInfo collects and formats extra weather information (sunrise, sunset, etc).
-func buildExtraInfo(cfg weatherConfig, wd weatherpkg.WeatherData, themeStore *themes.Store, themeName string) []extraInfoItem {
+func buildExtraInfo(cfg weatherConfig, wd weatherpkg.WeatherData, themeStore *widgetthemes.Store, themeName string) []extraInfoItem {
 	var items []extraInfoItem
 	if cfg.ShowSunrise && len(wd.Forecast) > 0 && wd.Forecast[0].Sunrise != "" {
 		sunrise := extractTime(wd.Forecast[0].Sunrise)
@@ -327,7 +327,7 @@ func extractTime(timestamp string) string {
 }
 
 // buildHourlyEntries creates hourly forecast entries for display.
-func buildHourlyEntries(cfg weatherConfig, hourly []weatherpkg.HourlyForecast, themeStore *themes.Store, themeName string) []hourlyEntry {
+func buildHourlyEntries(cfg weatherConfig, hourly []weatherpkg.HourlyForecast, themeStore *widgetthemes.Store, themeName string) []hourlyEntry {
 	hourlyCount := cfg.HourlyCount
 	if hourlyCount <= 0 {
 		hourlyCount = 12
@@ -373,7 +373,7 @@ func buildHourlyEntries(cfg weatherConfig, hourly []weatherpkg.HourlyForecast, t
 }
 
 // buildForecastDays creates daily forecast entries.
-func buildForecastDays(cfg weatherConfig, forecast []weatherpkg.DailyForecast, themeStore *themes.Store, themeName string) []forecastDay {
+func buildForecastDays(cfg weatherConfig, forecast []weatherpkg.DailyForecast, themeStore *widgetthemes.Store, themeName string) []forecastDay {
 	forecastDays := cfg.ForecastDays
 	if forecastDays <= 0 {
 		forecastDays = 7

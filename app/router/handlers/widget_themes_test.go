@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/andresbott/dashi/internal/themes"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 	"github.com/gorilla/mux"
 )
 
@@ -45,11 +45,11 @@ func buildThemeZip(t *testing.T, yaml string, extra map[string]string) []byte {
 	return buf.Bytes()
 }
 
-func TestThemeHandler_List(t *testing.T) {
-	store := themes.NewStore("")
-	handler := NewThemeHandler(store, slog.Default())
+func TestWidgetThemeHandler_List(t *testing.T) {
+	store := widgetthemes.NewStore("")
+	handler := NewWidgetThemeHandler(store, slog.Default())
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/themes", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/widget-themes", nil)
 	rec := httptest.NewRecorder()
 	handler.List(rec, req)
 
@@ -57,7 +57,7 @@ func TestThemeHandler_List(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 
-	var result []themes.ThemeInfo
+	var result []widgetthemes.ThemeInfo
 	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
 		t.Fatalf("decode error: %v", err)
 	}
@@ -73,11 +73,11 @@ func TestThemeHandler_List(t *testing.T) {
 	}
 }
 
-func TestThemeHandler_GetIcon_Font(t *testing.T) {
-	store := themes.NewStore("")
-	handler := NewThemeHandler(store, slog.Default())
+func TestWidgetThemeHandler_GetIcon_Font(t *testing.T) {
+	store := widgetthemes.NewStore("")
+	handler := NewWidgetThemeHandler(store, slog.Default())
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/themes/default/icons/clear-sky", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/widget-themes/default/icons/clear-sky", nil)
 	req = mux.SetURLVars(req, map[string]string{"name": "default", "icon": "clear-sky"})
 	rec := httptest.NewRecorder()
 	handler.GetIcon(rec, req)
@@ -95,7 +95,7 @@ func TestThemeHandler_GetIcon_Font(t *testing.T) {
 	}
 }
 
-func TestThemeHandler_GetIcon_Image(t *testing.T) {
+func TestWidgetThemeHandler_GetIcon_Image(t *testing.T) {
 	dir := t.TempDir()
 	themeDir := filepath.Join(dir, "custom")
 	iconsDir := filepath.Join(themeDir, "widgets", "weather", "icons")
@@ -114,10 +114,10 @@ icons:
 		t.Fatal(err)
 	}
 
-	store := themes.NewStore(dir)
-	handler := NewThemeHandler(store, slog.Default())
+	store := widgetthemes.NewStore(dir)
+	handler := NewWidgetThemeHandler(store, slog.Default())
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/themes/custom/icons/clear-sky", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/widget-themes/custom/icons/clear-sky", nil)
 	req = mux.SetURLVars(req, map[string]string{"name": "custom", "icon": "clear-sky"})
 	rec := httptest.NewRecorder()
 	handler.GetIcon(rec, req)
@@ -131,11 +131,11 @@ icons:
 	}
 }
 
-func TestThemeHandler_GetIcon_NotFound(t *testing.T) {
-	store := themes.NewStore("")
-	handler := NewThemeHandler(store, slog.Default())
+func TestWidgetThemeHandler_GetIcon_NotFound(t *testing.T) {
+	store := widgetthemes.NewStore("")
+	handler := NewWidgetThemeHandler(store, slog.Default())
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/themes/nonexistent/icons/clear-sky", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/widget-themes/nonexistent/icons/clear-sky", nil)
 	req = mux.SetURLVars(req, map[string]string{"name": "nonexistent", "icon": "clear-sky"})
 	rec := httptest.NewRecorder()
 	handler.GetIcon(rec, req)
@@ -145,40 +145,40 @@ func TestThemeHandler_GetIcon_NotFound(t *testing.T) {
 	}
 }
 
-func TestThemeHandler_Upload_RoundTrip(t *testing.T) {
+func TestWidgetThemeHandler_Upload_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	store := themes.NewStore(dir)
-	handler := NewThemeHandler(store, slog.Default())
+	store := widgetthemes.NewStore(dir)
+	handler := NewWidgetThemeHandler(store, slog.Default())
 
 	zipBytes := buildThemeZip(t, `name: "sunny"
 type: style
 description: "bright"
 `, map[string]string{"readme.txt": "hi"})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/themes/upload", bytes.NewReader(zipBytes))
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/widget-themes/upload", bytes.NewReader(zipBytes))
 	rec := httptest.NewRecorder()
 	handler.Upload(rec, req)
 
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("upload status = %d, want 201; body=%s", rec.Code, rec.Body.String())
 	}
-	var info themes.ThemeInfo
+	var info widgetthemes.ThemeInfo
 	if err := json.NewDecoder(rec.Body).Decode(&info); err != nil {
 		t.Fatalf("decode upload response: %v", err)
 	}
-	if info.Name != "sunny" || info.Type != themes.ThemeKindStyle {
+	if info.Name != "sunny" || info.Type != widgetthemes.ThemeKindStyle {
 		t.Errorf("upload response mismatch: %+v", info)
 	}
 
 	// List should include it with type populated.
-	req = httptest.NewRequest(http.MethodGet, "/api/v0/themes", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v0/widget-themes", nil)
 	rec = httptest.NewRecorder()
 	handler.List(rec, req)
-	var list []themes.ThemeInfo
+	var list []widgetthemes.ThemeInfo
 	if err := json.NewDecoder(rec.Body).Decode(&list); err != nil {
 		t.Fatalf("decode list: %v", err)
 	}
-	var got *themes.ThemeInfo
+	var got *widgetthemes.ThemeInfo
 	for i := range list {
 		if list[i].Name == "sunny" {
 			got = &list[i]
@@ -187,12 +187,12 @@ description: "bright"
 	if got == nil {
 		t.Fatalf("sunny missing from list: %+v", list)
 	}
-	if got.Type != themes.ThemeKindStyle {
-		t.Errorf("list type = %q, want %q", got.Type, themes.ThemeKindStyle)
+	if got.Type != widgetthemes.ThemeKindStyle {
+		t.Errorf("list type = %q, want %q", got.Type, widgetthemes.ThemeKindStyle)
 	}
 
 	// Download and verify we get a valid zip back.
-	req = httptest.NewRequest(http.MethodGet, "/api/v0/themes/sunny/download", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v0/widget-themes/sunny/download", nil)
 	req = mux.SetURLVars(req, map[string]string{"name": "sunny"})
 	rec = httptest.NewRecorder()
 	handler.Download(rec, req)
@@ -218,7 +218,7 @@ description: "bright"
 	}
 
 	// Delete, then confirm 404 on download.
-	req = httptest.NewRequest(http.MethodDelete, "/api/v0/themes/sunny", nil)
+	req = httptest.NewRequest(http.MethodDelete, "/api/v0/widget-themes/sunny", nil)
 	req = mux.SetURLVars(req, map[string]string{"name": "sunny"})
 	rec = httptest.NewRecorder()
 	handler.Delete(rec, req)
@@ -227,15 +227,15 @@ description: "bright"
 	}
 }
 
-func TestThemeHandler_Upload_Conflict(t *testing.T) {
-	store := themes.NewStore(t.TempDir())
-	handler := NewThemeHandler(store, slog.Default())
+func TestWidgetThemeHandler_Upload_Conflict(t *testing.T) {
+	store := widgetthemes.NewStore(t.TempDir())
+	handler := NewWidgetThemeHandler(store, slog.Default())
 
 	// Upload with name "default" — the embedded builtin — must collide.
 	zipBytes := buildThemeZip(t, `name: "default"
 type: style
 `, nil)
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/themes/upload", bytes.NewReader(zipBytes))
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/widget-themes/upload", bytes.NewReader(zipBytes))
 	rec := httptest.NewRecorder()
 	handler.Upload(rec, req)
 	if rec.Code != http.StatusConflict {
@@ -243,14 +243,14 @@ type: style
 	}
 }
 
-func TestThemeHandler_Upload_InvalidType(t *testing.T) {
-	store := themes.NewStore(t.TempDir())
-	handler := NewThemeHandler(store, slog.Default())
+func TestWidgetThemeHandler_Upload_InvalidType(t *testing.T) {
+	store := widgetthemes.NewStore(t.TempDir())
+	handler := NewWidgetThemeHandler(store, slog.Default())
 
 	zipBytes := buildThemeZip(t, `name: "x"
 type: widget
 `, nil)
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/themes/upload", bytes.NewReader(zipBytes))
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/widget-themes/upload", bytes.NewReader(zipBytes))
 	rec := httptest.NewRecorder()
 	handler.Upload(rec, req)
 	if rec.Code != http.StatusBadRequest {
@@ -258,11 +258,11 @@ type: widget
 	}
 }
 
-func TestThemeHandler_Delete_Builtin(t *testing.T) {
-	store := themes.NewStore(t.TempDir())
-	handler := NewThemeHandler(store, slog.Default())
+func TestWidgetThemeHandler_Delete_Builtin(t *testing.T) {
+	store := widgetthemes.NewStore(t.TempDir())
+	handler := NewWidgetThemeHandler(store, slog.Default())
 
-	req := httptest.NewRequest(http.MethodDelete, "/api/v0/themes/default", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v0/widget-themes/default", nil)
 	req = mux.SetURLVars(req, map[string]string{"name": "default"})
 	rec := httptest.NewRecorder()
 	handler.Delete(rec, req)
@@ -271,15 +271,15 @@ func TestThemeHandler_Delete_Builtin(t *testing.T) {
 	}
 }
 
-func TestThemeHandler_GetFont_ServesDisplayAndIconFonts(t *testing.T) {
-	store := themes.NewStore("")
-	handler := NewThemeHandler(store, slog.Default())
+func TestWidgetThemeHandler_GetFont_ServesDisplayAndIconFonts(t *testing.T) {
+	store := widgetthemes.NewStore("")
+	handler := NewWidgetThemeHandler(store, slog.Default())
 
-	// The browser stack's @font-face rules (themes.Store.ThemeCSS) point at
+	// The browser stack's @font-face rules (widgetthemes.Store.ThemeCSS) point at
 	// this route for both the display font and the icon font, so both names
 	// must resolve or font-icon themes render tofu in a browser.
-	for _, fontName := range []string{"Inter", themes.IconFontFamily("default")} {
-		req := httptest.NewRequest(http.MethodGet, "/api/v0/themes/default/fonts/"+fontName, nil)
+	for _, fontName := range []string{"Inter", widgetthemes.IconFontFamily("default")} {
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/widget-themes/default/fonts/"+fontName, nil)
 		req = mux.SetURLVars(req, map[string]string{"name": "default", "font": fontName})
 		rec := httptest.NewRecorder()
 		handler.GetFont(rec, req)
@@ -297,10 +297,10 @@ func TestThemeHandler_GetFont_ServesDisplayAndIconFonts(t *testing.T) {
 	}
 }
 
-func TestThemeHandler_GetFont_UnknownFontIs404(t *testing.T) {
-	handler := NewThemeHandler(themes.NewStore(""), slog.Default())
+func TestWidgetThemeHandler_GetFont_UnknownFontIs404(t *testing.T) {
+	handler := NewWidgetThemeHandler(widgetthemes.NewStore(""), slog.Default())
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/themes/default/fonts/NoSuchFont", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/widget-themes/default/fonts/NoSuchFont", nil)
 	req = mux.SetURLVars(req, map[string]string{"name": "default", "font": "NoSuchFont"})
 	rec := httptest.NewRecorder()
 	handler.GetFont(rec, req)

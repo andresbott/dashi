@@ -1,4 +1,4 @@
-package themes
+package widgetthemes
 
 import (
 	"os"

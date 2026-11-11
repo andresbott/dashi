@@ -10,25 +10,25 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/andresbott/dashi/internal/themes"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 	"github.com/gorilla/mux"
 )
 
-type ThemeHandler struct {
-	store  *themes.Store
+type WidgetThemeHandler struct {
+	store  *widgetthemes.Store
 	logger *slog.Logger
 }
 
-func NewThemeHandler(store *themes.Store, logger *slog.Logger) *ThemeHandler {
-	return &ThemeHandler{store: store, logger: logger}
+func NewWidgetThemeHandler(store *widgetthemes.Store, logger *slog.Logger) *WidgetThemeHandler {
+	return &WidgetThemeHandler{store: store, logger: logger}
 }
 
-func (h *ThemeHandler) List(w http.ResponseWriter, r *http.Request) {
+func (h *WidgetThemeHandler) List(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(h.store.List())
 }
 
-func (h *ThemeHandler) GetIcon(w http.ResponseWriter, r *http.Request) {
+func (h *WidgetThemeHandler) GetIcon(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	themeName := vars["name"]
 	iconName := vars["icon"]
@@ -46,10 +46,10 @@ func (h *ThemeHandler) GetIcon(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch resolved.Type {
-	case themes.ThemeTypeFont:
+	case widgetthemes.ThemeTypeFont:
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"class": resolved.CSSClass})
-	case themes.ThemeTypeImage:
+	case widgetthemes.ThemeTypeImage:
 		contentType := mime.TypeByExtension(filepath.Ext(resolved.FilePath))
 		if contentType == "" {
 			contentType = "application/octet-stream"
@@ -59,14 +59,14 @@ func (h *ThemeHandler) GetIcon(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *ThemeHandler) GetFont(w http.ResponseWriter, r *http.Request) {
+func (h *WidgetThemeHandler) GetFont(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	themeName := vars["name"]
 	fontName := vars["font"]
 
 	// FontData resolves display fonts and, under the icon-font-{theme}
 	// family name, the theme's icon font — the browser stack needs both as
-	// @font-face sources (see themes.Store.ThemeCSS).
+	// @font-face sources (see widgetthemes.Store.ThemeCSS).
 	data, err := h.store.FontData(themeName, fontName)
 	if err != nil {
 		h.logger.Error("get font data", slog.String("error", err.Error()))
@@ -84,7 +84,7 @@ func (h *ThemeHandler) GetFont(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *ThemeHandler) GetBackground(w http.ResponseWriter, r *http.Request) {
+func (h *WidgetThemeHandler) GetBackground(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	themeName := vars["name"]
 	fileName := vars["file"]
@@ -118,8 +118,8 @@ func (h *ThemeHandler) GetBackground(w http.ResponseWriter, r *http.Request) {
 // Upload extracts a zipped theme into the on-disk themes directory.
 // The archive must contain a valid theme.yaml at its root with `name`
 // and `type` (icon|style) fields.
-func (h *ThemeHandler) Upload(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, themes.MaxUploadSize)
+func (h *WidgetThemeHandler) Upload(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, widgetthemes.MaxUploadSize)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		ErrorJSON(w, "failed to read body", http.StatusBadRequest)
@@ -136,7 +136,7 @@ func (h *ThemeHandler) Upload(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete removes an uploaded theme. Builtin themes cannot be deleted.
-func (h *ThemeHandler) Delete(w http.ResponseWriter, r *http.Request) {
+func (h *WidgetThemeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 	if err := h.store.Delete(name); err != nil {
 		h.themeWriteErr(w, "delete theme", err)
@@ -147,7 +147,7 @@ func (h *ThemeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 // Download re-packages an uploaded theme's directory into a zip for
 // download. Builtin themes return 403.
-func (h *ThemeHandler) Download(w http.ResponseWriter, r *http.Request) {
+func (h *WidgetThemeHandler) Download(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 	data, err := h.store.Zip(name)
 	if err != nil {
@@ -161,17 +161,17 @@ func (h *ThemeHandler) Download(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-func (h *ThemeHandler) themeWriteErr(w http.ResponseWriter, op string, err error) {
+func (h *WidgetThemeHandler) themeWriteErr(w http.ResponseWriter, op string, err error) {
 	switch {
-	case errors.Is(err, themes.ErrNotFound):
+	case errors.Is(err, widgetthemes.ErrNotFound):
 		ErrorJSON(w, "not found", http.StatusNotFound)
-	case errors.Is(err, themes.ErrConflict):
+	case errors.Is(err, widgetthemes.ErrConflict):
 		ErrorJSON(w, err.Error(), http.StatusConflict)
-	case errors.Is(err, themes.ErrBuiltin):
+	case errors.Is(err, widgetthemes.ErrBuiltin):
 		ErrorJSON(w, err.Error(), http.StatusForbidden)
-	case errors.Is(err, themes.ErrInvalidName),
-		errors.Is(err, themes.ErrInvalidArchive),
-		errors.Is(err, themes.ErrInvalidType):
+	case errors.Is(err, widgetthemes.ErrInvalidName),
+		errors.Is(err, widgetthemes.ErrInvalidArchive),
+		errors.Is(err, widgetthemes.ErrInvalidType):
 		ErrorJSON(w, err.Error(), http.StatusBadRequest)
 	default:
 		if h.logger != nil {

@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/andresbott/dashi/internal/dashboard/browser"
-	"github.com/andresbott/dashi/internal/themes"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 	"github.com/gorilla/mux"
 )
 
@@ -13,7 +13,7 @@ import (
 // /_dashi/. The underscore prefix matters: dashboard IDs are six-character
 // lowercase alphanumerics, so an all-alphanumeric prefix could collide
 // with a real dashboard path.
-func attachDashiAssets(r *mux.Router, assets *browser.Assets, themeStore *themes.Store) {
+func attachDashiAssets(r *mux.Router, assets *browser.Assets, themeStore *widgetthemes.Store) {
 	const cssType = "text/css; charset=utf-8"
 	const jsType = "text/javascript; charset=utf-8"
 

@@ -2,7 +2,7 @@ import { apiClient } from '@/lib/api/client'
 import type { ThemeInfo, FontIconResponse } from '@/types/theme'
 import { withBase } from '@/lib/base'
 
-const THEMES_PATH = '/themes'
+const THEMES_PATH = '/widget-themes'
 
 export const getThemes = async (): Promise<ThemeInfo[]> => {
     const { data } = await apiClient.get<ThemeInfo[]>(THEMES_PATH)

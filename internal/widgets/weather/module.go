@@ -7,24 +7,24 @@ import (
 	"net/http"
 
 	weatherpkg "github.com/andresbott/dashi/internal/providers/weather"
-	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 	"github.com/gorilla/mux"
 )
 
 // Module implements widgets.Module for the full weather widget.
 type Module struct {
 	client     *weatherpkg.Client
-	themeStore *themes.Store
+	themeStore *widgetthemes.Store
 	logger     *slog.Logger
 }
 
 // NewModule constructs the weather Module.
-func NewModule(client *weatherpkg.Client, themeStore *themes.Store, logger *slog.Logger) *Module {
+func NewModule(client *weatherpkg.Client, themeStore *widgetthemes.Store, logger *slog.Logger) *Module {
 	return &Module{client: client, themeStore: themeStore, logger: logger}
 }
 
-func (m *Module) Type() string                 { return "weather" }
+func (m *Module) Type() string                     { return "weather" }
 func (m *Module) Renderer() widgets.StaticRenderer { return NewStaticRenderer(m.client, m.themeStore) }
 
 // RegisterRoutes mounts /widgets/weather and /widgets/weather/geocode.
@@ -60,17 +60,19 @@ func (m *Module) Warmup(ctx context.Context, configs []json.RawMessage) {
 type CompactModule struct {
 	widgets.NoopModule // inherits no-op RegisterRoutes
 	client             *weatherpkg.Client
-	themeStore         *themes.Store
+	themeStore         *widgetthemes.Store
 	logger             *slog.Logger
 }
 
 // NewCompactModule constructs the weather-compact Module.
-func NewCompactModule(client *weatherpkg.Client, themeStore *themes.Store, logger *slog.Logger) *CompactModule {
+func NewCompactModule(client *weatherpkg.Client, themeStore *widgetthemes.Store, logger *slog.Logger) *CompactModule {
 	return &CompactModule{client: client, themeStore: themeStore, logger: logger}
 }
 
-func (m *CompactModule) Type() string                 { return "weather-compact" }
-func (m *CompactModule) Renderer() widgets.StaticRenderer { return NewStaticCompactRenderer(m.client, m.themeStore) }
+func (m *CompactModule) Type() string { return "weather-compact" }
+func (m *CompactModule) Renderer() widgets.StaticRenderer {
+	return NewStaticCompactRenderer(m.client, m.themeStore)
+}
 
 func (m *CompactModule) Warmup(ctx context.Context, configs []json.RawMessage) {
 	locations := extractLocations(configs)

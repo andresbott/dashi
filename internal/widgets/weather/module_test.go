@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	weatherpkg "github.com/andresbott/dashi/internal/providers/weather"
-	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 	"github.com/gorilla/mux"
 )
 
@@ -25,7 +25,7 @@ func TestModule_TypesDistinct(t *testing.T) {
 
 func TestModule_RendererNotNil(t *testing.T) {
 	client := weatherpkg.NewClient(nil)
-	store := themes.NewStore("")
+	store := widgetthemes.NewStore("")
 	if NewModule(client, store, nil).Renderer() == nil {
 		t.Fatal("weather renderer nil")
 	}
@@ -35,7 +35,7 @@ func TestModule_RendererNotNil(t *testing.T) {
 }
 
 func TestModule_RegisterRoutes_MountsBothEndpoints(t *testing.T) {
-	m := NewModule(weatherpkg.NewClient(nil), themes.NewStore(""), nil)
+	m := NewModule(weatherpkg.NewClient(nil), widgetthemes.NewStore(""), nil)
 	r := mux.NewRouter()
 	m.RegisterRoutes(r)
 
@@ -52,7 +52,7 @@ func TestModule_CompactRegisterRoutes_NoOp(t *testing.T) {
 	// weather-compact does not mount any HTTP routes — the weather module
 	// owns them. Confirm Compact does not register /widgets/weather again,
 	// which would cause a duplicate-route panic when both modules run.
-	mc := NewCompactModule(weatherpkg.NewClient(nil), themes.NewStore(""), nil)
+	mc := NewCompactModule(weatherpkg.NewClient(nil), widgetthemes.NewStore(""), nil)
 	r := mux.NewRouter()
 	mc.RegisterRoutes(r)
 
@@ -64,11 +64,11 @@ func TestModule_CompactRegisterRoutes_NoOp(t *testing.T) {
 }
 
 func TestModule_Warmup_ExtractsLocations(t *testing.T) {
-	m := NewModule(weatherpkg.NewClient(nil), themes.NewStore(""), nil)
+	m := NewModule(weatherpkg.NewClient(nil), widgetthemes.NewStore(""), nil)
 	cfgs := []json.RawMessage{
 		json.RawMessage(`{"latitude":1.5,"longitude":2.5}`),
-		json.RawMessage(`{"latitude":0,"longitude":0}`),     // skipped (both zero)
-		json.RawMessage(`not json`),                         // skipped
+		json.RawMessage(`{"latitude":0,"longitude":0}`), // skipped (both zero)
+		json.RawMessage(`not json`),                     // skipped
 		json.RawMessage(`{"latitude":3.5,"longitude":4.5}`),
 	}
 	// Warmup is fire-and-forget; we only assert it doesn't panic and

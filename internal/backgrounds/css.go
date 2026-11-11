@@ -14,7 +14,7 @@ type variant struct {
 // BrowserCSS returns the body of the <style> block the browser page shell
 // emits: --dashi-page-bg for light on :root, for dark under the
 // [data-color-mode="dark"] attribute the shell sets on <html>. This mirrors
-// themes.ThemeCSS deliberately — same mechanism, same override order.
+// widgetthemes.ThemeCSS deliberately — same mechanism, same override order.
 //
 // Returns nil when b defines no background, so the caller emits no element
 // at all and the theme background shows through.

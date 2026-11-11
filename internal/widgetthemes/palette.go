@@ -1,4 +1,4 @@
-package themes
+package widgetthemes
 
 import (
 	"fmt"
@@ -161,12 +161,12 @@ func (s *Store) fontFaces(b *strings.Builder, themeName string) {
 		if font.Name == "" || font.File == "" {
 			continue
 		}
-		fmt.Fprintf(b, "@font-face{font-family:'%s';src:url('/api/v0/themes/%s/fonts/%s');font-display:swap;}\n",
+		fmt.Fprintf(b, "@font-face{font-family:'%s';src:url('/api/v0/widget-themes/%s/fonts/%s');font-display:swap;}\n",
 			cssIdent(font.Name), escapedTheme, url.PathEscape(font.Name))
 	}
 	if ic := th.icons(); ic != nil && ic.Type == ThemeTypeFont && ic.FontFile != "" {
 		family := IconFontFamily(themeName)
-		fmt.Fprintf(b, "@font-face{font-family:'%s';src:url('/api/v0/themes/%s/fonts/%s');font-display:block;}\n",
+		fmt.Fprintf(b, "@font-face{font-family:'%s';src:url('/api/v0/widget-themes/%s/fonts/%s');font-display:block;}\n",
 			cssIdent(family), escapedTheme, url.PathEscape(family))
 	}
 }

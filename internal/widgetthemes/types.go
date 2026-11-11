@@ -1,4 +1,4 @@
-package themes
+package widgetthemes
 
 const (
 	ThemeTypeFont  = "font"

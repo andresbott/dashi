@@ -14,7 +14,7 @@ import (
 	"github.com/andresbott/dashi/internal/dashboard/browser"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
-	"github.com/andresbott/dashi/internal/themes"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
 // NewDashboardMiddleware returns middleware that intercepts single-segment
@@ -22,7 +22,7 @@ import (
 // requested with display headers render as PNG for e-ink clients;
 // everything else renders as browser HTML. Non-dashboard paths fall
 // through to the next handler.
-func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Renderer, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store, bgStore *backgrounds.Store) func(http.Handler) http.Handler {
+func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Renderer, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *widgetthemes.Store, bgStore *backgrounds.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet {
@@ -52,7 +52,7 @@ func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Ren
 }
 
 // serveBrowserDashboard renders a dashboard as HTML for a real browser.
-func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, renderer *browser.Renderer, themeStore *themes.Store, bgStore *backgrounds.Store) {
+func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, renderer *browser.Renderer, themeStore *widgetthemes.Store, bgStore *backgrounds.Store) {
 	pageIdx, ok := parsePageIndex(r, len(dash.Pages))
 	if !ok {
 		http.NotFound(w, r)
@@ -208,7 +208,7 @@ func pageRedirectTarget(r *http.Request, page int) string {
 }
 
 // serveImageDashboard handles rendering of image-type dashboards.
-func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store, bgStore *backgrounds.Store) {
+func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *widgetthemes.Store, bgStore *backgrounds.Store) {
 	dreq, err := parseDisplayHeaders(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -328,7 +328,7 @@ func parsePageIndex(r *http.Request, totalPages int) (int, bool) {
 }
 
 // buildRenderData constructs the render data structure for a dashboard page.
-func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]string, store *dashboard.Store, themeStore *themes.Store) dashstatic.RenderData {
+func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]string, store *dashboard.Store, themeStore *widgetthemes.Store) dashstatic.RenderData {
 	theme := dash.Theme
 	if theme == "" {
 		theme = "default"
@@ -390,5 +390,3 @@ func resolveImageBackground(dash dashboard.Dashboard, bgStore *backgrounds.Store
 	}
 	return "transparent", data
 }
-
-

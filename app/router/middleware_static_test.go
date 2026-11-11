@@ -14,11 +14,11 @@ import (
 	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/dashboard/browser"
-	"github.com/andresbott/dashi/internal/data/images"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
-	"github.com/andresbott/dashi/internal/themes"
+	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
 // newTestMiddleware creates a test middleware stack with a store and test widget.
@@ -50,7 +50,7 @@ func newTestMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.Han
 
 	bs, _ := images.NewStore(t.TempDir())
 	bgStore := backgrounds.NewStore(t.TempDir(), bs)
-	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themes.NewStore(""), bgStore)
+	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, widgetthemes.NewStore(""), bgStore)
 	return mid(spaHandler)
 }
 
@@ -327,7 +327,7 @@ func TestImageDashboard_RefreshInterval(t *testing.T) {
 		{
 			Name:            "P0",
 			RefreshInterval: 300,
-			Rows: []dashboard.Row{{ID: "r1", Height: "auto", Width: "100%", Widgets: []dashboard.Widget{{ID: "w1", Type: "test", Width: 12, Config: json.RawMessage(`{}`)}}}}},
+			Rows:            []dashboard.Row{{ID: "r1", Height: "auto", Width: "100%", Widgets: []dashboard.Widget{{ID: "w1", Type: "test", Width: 12, Config: json.RawMessage(`{}`)}}}}},
 	}
 
 	handler := newTestMiddleware(t, imageDashboard("test", pages...))
@@ -354,7 +354,7 @@ func TestImageDashboard_NoRefreshIntervalWhenZero(t *testing.T) {
 		{
 			Name:            "P0",
 			RefreshInterval: 0,
-			Rows: []dashboard.Row{{ID: "r1", Height: "auto", Width: "100%", Widgets: []dashboard.Widget{{ID: "w1", Type: "test", Width: 12, Config: json.RawMessage(`{}`)}}}}},
+			Rows:            []dashboard.Row{{ID: "r1", Height: "auto", Width: "100%", Widgets: []dashboard.Widget{{ID: "w1", Type: "test", Width: 12, Config: json.RawMessage(`{}`)}}}}},
 	}
 
 	handler := newTestMiddleware(t, imageDashboard("test", pages...))
@@ -810,7 +810,7 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("SPA"))
 	})
-	mid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themes.NewStore(""), bgStore)
+	mid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, widgetthemes.NewStore(""), bgStore)
 	handler := mid(spaHandler)
 
 	// Request the PNG

@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	"github.com/andresbott/dashi/internal/dashboard/browser"
-	"github.com/andresbott/dashi/internal/themes"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 	"github.com/gorilla/mux"
 )
 
 func dashiAssetRouter() *mux.Router {
 	r := mux.NewRouter()
-	attachDashiAssets(r, browser.NewAssets(nil), themes.NewStore(""))
+	attachDashiAssets(r, browser.NewAssets(nil), widgetthemes.NewStore(""))
 	return r
 }
 

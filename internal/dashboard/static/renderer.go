@@ -7,8 +7,8 @@ import (
 	"io"
 
 	"github.com/andresbott/dashi/internal/dashboard"
-	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
 //go:embed master.html
@@ -42,7 +42,7 @@ type RenderData struct {
 	Rows          []dashboard.Row
 	PageIndex     int
 	TotalPages    int
-	Palette       themes.Palette
+	Palette       widgetthemes.Palette
 }
 
 type pageData struct {
@@ -54,7 +54,7 @@ type pageData struct {
 	CustomCSS     template.CSS
 	BackgroundCSS template.CSS
 	Rows          []rowData
-	Palette       themes.Palette
+	Palette       widgetthemes.Palette
 }
 
 type rowData struct {
@@ -78,11 +78,11 @@ var debugColors = []string{"#ffcccc", "#ccffcc", "#ccccff", "#ffffcc", "#ffccff"
 // Render writes the complete HTML page for the given data to w.
 func (r *Renderer) Render(w io.Writer, data RenderData) error {
 	pData := pageData{
-		Name:          data.Name,
-		MaxWidth:      data.MaxWidth,
-		HAlign:        mapHAlign(data.HAlign),
-		VAlign:        mapVAlign(data.VAlign),
-		FontFamily:    data.FontFamily,
+		Name:       data.Name,
+		MaxWidth:   data.MaxWidth,
+		HAlign:     mapHAlign(data.HAlign),
+		VAlign:     mapVAlign(data.VAlign),
+		FontFamily: data.FontFamily,
 		// Owner-uploaded stylesheet; SanitizeCustomCSS neutralises any
 		// </style> breakout before it reaches the template.
 		CustomCSS:     template.CSS(dashboard.SanitizeCustomCSS(data.CustomCSS)),
