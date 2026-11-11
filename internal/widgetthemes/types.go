@@ -5,32 +5,25 @@ const (
 	ThemeTypeImage = "image"
 )
 
-// Theme kinds — the top-level classification of a theme as shown in the
-// admin UI. Required field in theme.yaml.
-const (
-	ThemeKindTheme = "theme" // full theme (fonts + icons + backgrounds)
-	ThemeKindIcon  = "icon"  // icon pack
-	ThemeKindStyle = "style" // style/font-only pack
-)
+// ManifestFile is the manifest every widget theme pack carries at its root.
+const ManifestFile = "widget_theme.yaml"
 
-// AllowedThemeKinds is the closed set of accepted values for the
-// top-level `type` field in theme.yaml. No inference — the field is
-// required and must be one of these.
-var AllowedThemeKinds = map[string]bool{
-	ThemeKindTheme: true,
-	ThemeKindIcon:  true,
-	ThemeKindStyle: true,
-}
+// legacyManifestFile is the pre-rework manifest name. Packs carrying only it
+// are rejected on upload with a message that points at ManifestFile.
+const legacyManifestFile = "theme.yaml"
+
+// DefaultName is the builtin widget theme that unknown names and missing
+// parts (fonts, icons) fall back to.
+const DefaultName = "default"
 
 // FontInfo describes a display font provided by a theme.
 type FontInfo struct {
 	Name string `json:"name"`
 }
 
-// ThemeInfo is the metadata returned by the list API.
-type ThemeInfo struct {
+// Info is the metadata returned by the list API.
+type Info struct {
 	Name        string     `json:"name"`
-	Type        string     `json:"type"`
 	Description string     `json:"description"`
 	Fonts       []FontInfo `json:"fonts"`
 	HasIcons    bool       `json:"hasIcons"`
@@ -45,12 +38,14 @@ type ResolvedIcon struct {
 	Codepoint string
 	FilePath  string
 	FontFile  string
+	// FontFamily is the CSS family of the icon font, IconFontFamily of the
+	// theme the icon actually resolved through. Set for font icons only.
+	FontFamily string
 }
 
-// themeManifest represents the parsed theme.yaml file.
+// themeManifest represents the parsed widget_theme.yaml file.
 type themeManifest struct {
 	Name        string         `yaml:"name"`
-	Type        string         `yaml:"type"` // ThemeKindIcon or ThemeKindStyle; required.
 	Description string         `yaml:"description"`
 	Fonts       []manifestFont `yaml:"fonts,omitempty"`
 	Icons       *manifestIcons `yaml:"icons,omitempty"`

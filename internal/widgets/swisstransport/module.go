@@ -6,19 +6,21 @@ import (
 
 	swisstransportpkg "github.com/andresbott/dashi/internal/providers/swisstransport"
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 	"github.com/gorilla/mux"
 )
 
 // Module implements widgets.Module for the transport widget.
 type Module struct {
 	widgets.NoopModule
-	client *swisstransportpkg.Client
-	logger *slog.Logger
+	client     *swisstransportpkg.Client
+	themeStore *widgetthemes.Store
+	logger     *slog.Logger
 }
 
 // NewModule constructs a transport Module.
-func NewModule(client *swisstransportpkg.Client, logger *slog.Logger) *Module {
-	return &Module{client: client, logger: logger}
+func NewModule(client *swisstransportpkg.Client, themeStore *widgetthemes.Store, logger *slog.Logger) *Module {
+	return &Module{client: client, themeStore: themeStore, logger: logger}
 }
 
 // Type returns the widget type string. Note: the widget type is "transport"
@@ -27,7 +29,7 @@ func (m *Module) Type() string { return "transport" }
 
 // Renderer returns the transport static renderer.
 func (m *Module) Renderer() widgets.StaticRenderer {
-	return NewStaticRenderer(m.client)
+	return NewStaticRenderer(m.client, m.themeStore)
 }
 
 // RegisterRoutes mounts the transport interactive endpoints.

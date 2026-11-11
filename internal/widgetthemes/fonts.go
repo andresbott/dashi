@@ -6,11 +6,11 @@ import (
 	"strings"
 )
 
-// FontFamily returns the theme's first display font name, or "" when the
-// theme declares none.
+// FontFamily returns the theme's first display font name. An unknown theme,
+// or one that declares no fonts, yields the default theme's font.
 func (s *Store) FontFamily(themeName string) string {
-	th, ok := s.lookupTheme(themeName)
-	if !ok || len(th.manifest.Fonts) == 0 {
+	_, th := s.effective(themeName, hasFonts)
+	if len(th.manifest.Fonts) == 0 {
 		return ""
 	}
 	return th.manifest.Fonts[0].Name
@@ -29,12 +29,23 @@ func IconFontFamily(themeName string) string {
 // a display font declared in the manifest, or the theme's icon font under
 // IconFontFamily(theme). Display fonts win a name collision, which keeps
 // existing URLs stable.
+//
+// A font the named theme does not provide (or an unknown theme) is looked up
+// in the default theme, mirroring the fallback FontFacesCSS applies.
 func (s *Store) FontData(themeName, fontName string) ([]byte, error) {
-	if data, err := s.GetDisplayFontData(themeName, fontName); err == nil {
+	name, th := s.effective(themeName, func(t *theme) bool {
+		for _, f := range t.manifest.Fonts {
+			if f.Name == fontName {
+				return true
+			}
+		}
+		return hasIconFont(t) && fontName == IconFontFamily(themeName)
+	})
+	if data, err := s.GetDisplayFontData(name, fontName); err == nil {
 		return data, nil
 	}
-	if fontName == IconFontFamily(themeName) {
-		return s.GetFontData(themeName)
+	if hasIconFont(th) && (fontName == IconFontFamily(name) || fontName == IconFontFamily(themeName)) {
+		return s.GetFontData(name)
 	}
 	return nil, fmt.Errorf("font %q not found in theme %q", fontName, themeName)
 }
@@ -52,23 +63,20 @@ func (s *Store) FontData(themeName, fontName string) ([]byte, error) {
 // the theme shipped under a fixed font/ttf Content-Type; browsers sniff the
 // actual format, so claiming truetype would break a theme shipping woff2.
 func (s *Store) fontFaces(b *strings.Builder, themeName string) {
-	th, ok := s.lookupTheme(themeName)
-	if !ok {
-		return
-	}
-	escapedTheme := url.PathEscape(themeName)
-	for _, font := range th.manifest.Fonts {
+	// Display fonts and the icon font fall back independently: a fonts-only
+	// pack still gets the default's icon font and vice versa.
+	fontsName, fonts := s.effective(themeName, hasFonts)
+	for _, font := range fonts.manifest.Fonts {
 		if font.Name == "" || font.File == "" {
 			continue
 		}
 		fmt.Fprintf(b, "@font-face{font-family:'%s';src:url('/api/v0/widget-themes/%s/fonts/%s');font-display:swap;}\n",
-			cssIdent(font.Name), escapedTheme, url.PathEscape(font.Name))
+			cssIdent(font.Name), url.PathEscape(fontsName), url.PathEscape(font.Name))
 	}
-	if ic := th.icons(); ic != nil && ic.Type == ThemeTypeFont && ic.FontFile != "" {
-		family := IconFontFamily(themeName)
-		fmt.Fprintf(b, "@font-face{font-family:'%s';src:url('/api/v0/widget-themes/%s/fonts/%s');font-display:block;}\n",
-			cssIdent(family), escapedTheme, url.PathEscape(family))
-	}
+	iconName, _ := s.effective(themeName, hasIconFont)
+	family := IconFontFamily(iconName)
+	fmt.Fprintf(b, "@font-face{font-family:'%s';src:url('/api/v0/widget-themes/%s/fonts/%s');font-display:block;}\n",
+		cssIdent(family), url.PathEscape(iconName), url.PathEscape(family))
 }
 
 // FontFacesCSS renders a widget theme's fonts for the browser stack: its
@@ -76,8 +84,8 @@ func (s *Store) fontFaces(b *strings.Builder, themeName string) {
 // display font. Colours are not a widget-theme concern; they come from the
 // theme entity's stylesheet (themes.BrowserCSS).
 //
-// An unknown theme yields empty CSS for now; resolving unknown names
-// through the default widget theme is a separate change.
+// An unknown theme, or one missing fonts or an icon font, is served the
+// default theme's.
 func (s *Store) FontFacesCSS(themeName string) []byte {
 	var b strings.Builder
 	s.fontFaces(&b, themeName)

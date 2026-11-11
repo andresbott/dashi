@@ -16,16 +16,13 @@ import (
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
 //go:embed page.html
 var pageHTML string
 
 var pageTmpl = template.Must(template.New("page").Parse(pageHTML))
-
-// defaultRef is the theme ID and widget theme name an empty reference
-// links to. Both asset routes resolve unknown names to their default too.
-const defaultRef = "default"
 
 // Renderer assembles a full browser HTML page from a dashboard page.
 type Renderer struct {
@@ -104,7 +101,7 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 	if colorMode != "dark" {
 		colorMode = "light"
 	}
-	widgetTheme := orDefault(data.WidgetTheme)
+	widgetTheme := orDefault(data.WidgetTheme, widgetthemes.DefaultName)
 
 	ctx := widgets.RenderContext{
 		DashboardID: data.DashboardID,
@@ -124,7 +121,7 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 		VAlign:    mapVAlign(data.VAlign),
 		// Each reference is escaped to a single path segment, so a stored
 		// value can never point the link outside its asset route.
-		ThemeID:     url.PathEscape(orDefault(data.ThemeID)),
+		ThemeID:     url.PathEscape(orDefault(data.ThemeID, themes.DefaultID)),
 		WidgetTheme: url.PathEscape(widgetTheme),
 		CustomCSS:   template.CSS(dashboard.SanitizeCustomCSS(data.CustomCSS)), //nolint:gosec // G203: owner-uploaded stylesheet, </style> breakout neutralised
 		Pages:       buildPageLinks(data.PageIndex, data.TotalPages, data.PageNames),
@@ -186,9 +183,11 @@ func buildPageLinks(current, total int, names []string) []pageLink {
 	return links
 }
 
-func orDefault(ref string) string {
+// orDefault returns def for an empty reference. Both asset routes resolve
+// unknown names to their default too.
+func orDefault(ref, def string) string {
 	if ref == "" {
-		return defaultRef
+		return def
 	}
 	return ref
 }

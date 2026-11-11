@@ -323,7 +323,7 @@ func parsePageIndex(r *http.Request, totalPages int) (int, bool) {
 func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]string, store *dashboard.Store, theme themes.Theme, widgetThemeStore *widgetthemes.Store) dashstatic.RenderData {
 	widgetTheme := dash.WidgetTheme
 	if widgetTheme == "" {
-		widgetTheme = "default"
+		widgetTheme = widgetthemes.DefaultName
 	}
 
 	queryParams := make(map[string]string)

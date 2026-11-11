@@ -39,12 +39,11 @@ func TestNewStore_LoadsUserTheme(t *testing.T) {
 	}
 
 	manifest := `name: "My Icons"
-type: icon
 description: "Custom weather icons"
 icons:
   type: image
 `
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "widget_theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(iconsDir, "clear-sky.svg"), []byte("<svg/>"), 0o600); err != nil {
@@ -79,12 +78,11 @@ func TestStore_UserThemeOverridesEmbedded(t *testing.T) {
 	}
 
 	manifest := `name: "default"
-type: icon
 description: "User override of default"
 icons:
   type: image
 `
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "widget_theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -121,12 +119,11 @@ func TestStore_ResolveIcon_ImageTheme(t *testing.T) {
 	}
 
 	manifest := `name: "custom"
-type: icon
 description: "Custom icons"
 icons:
   type: image
 `
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "widget_theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(iconsDir, "clear-sky.svg"), []byte("<svg>sun</svg>"), 0o600); err != nil {
@@ -178,14 +175,6 @@ func TestStore_ResolveIcon_DetailIcons(t *testing.T) {
 		if result.Codepoint == "" {
 			t.Errorf("detail icon %q: expected non-empty codepoint", name)
 		}
-	}
-}
-
-func TestStore_ResolveIcon_UnknownTheme(t *testing.T) {
-	store := NewStore("")
-	_, err := store.ResolveIcon("nonexistent", "clear-sky")
-	if err == nil {
-		t.Error("expected error for unknown theme")
 	}
 }
 
@@ -257,13 +246,12 @@ func TestStore_GetDisplayFontData_UserTheme(t *testing.T) {
 	}
 
 	manifest := `name: "custom"
-type: style
 description: "Custom theme with font"
 fonts:
   - name: "My Font"
     file: "myfont.ttf"
 `
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "widget_theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -294,7 +282,6 @@ func TestStore_NewFormatThemeWithFontsAndIcons(t *testing.T) {
 	}
 
 	manifest := `name: "newformat"
-type: icon
 description: "Theme with new manifest format"
 fonts:
   - name: "Display Font"
@@ -310,7 +297,7 @@ icons:
       class: "test"
       codepoint: "1234"
 `
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "widget_theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -370,17 +357,105 @@ func TestStore_ResolveIcon_ThemeNoIconConfig(t *testing.T) {
 	}
 
 	manifest := `name: "noicons"
-type: style
 description: "Theme without icons"
 `
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "widget_theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
 	store := NewStore(dir)
-	_, err := store.ResolveIcon("noicons", "test-icon")
-	if err == nil {
-		t.Error("expected error for theme with no icon config")
+	// A pack with no icons resolves through the default pack.
+	if _, err := store.ResolveIcon("noicons", "clear-sky"); err != nil {
+		t.Errorf("expected default fallback for theme with no icon config: %v", err)
+	}
+	// An icon the default does not have is still an error.
+	if _, err := store.ResolveIcon("noicons", "test-icon"); err == nil {
+		t.Error("expected error for icon unknown to the default pack")
+	}
+}
+
+func TestResolveIconFallsBackToDefault(t *testing.T) {
+	dir := t.TempDir()
+	themeDir := filepath.Join(dir, "mono")
+	if err := os.MkdirAll(themeDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `name: "mono"
+fonts:
+  - name: "Mono"
+    file: "mono.ttf"
+`
+	if err := os.WriteFile(filepath.Join(themeDir, "widget_theme.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store := NewStore(dir)
+	got, err := store.ResolveIcon("mono", "clear-sky")
+	if err != nil {
+		t.Fatalf("ResolveIcon: %v", err)
+	}
+	if got.FontFamily != "icon-font-default" {
+		t.Errorf("FontFamily = %q, want icon-font-default", got.FontFamily)
+	}
+}
+
+func TestResolveIconUnknownThemeFallsBack(t *testing.T) {
+	store := NewStore("")
+	got, err := store.ResolveIcon("nope", "clear-sky")
+	if err != nil {
+		t.Fatalf("ResolveIcon: %v", err)
+	}
+	if got.FontFamily != "icon-font-default" {
+		t.Errorf("FontFamily = %q, want icon-font-default", got.FontFamily)
+	}
+}
+
+func TestResolveIconOwnFontFamily(t *testing.T) {
+	dir := t.TempDir()
+	themeDir := filepath.Join(dir, "own")
+	if err := os.MkdirAll(themeDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `name: "own"
+icons:
+  type: font
+  classPrefix: "x-"
+  fontFile: "i.ttf"
+  icons:
+    clear-sky:
+      class: "sun"
+      codepoint: "1234"
+`
+	if err := os.WriteFile(filepath.Join(themeDir, "widget_theme.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := NewStore(dir).ResolveIcon("own", "clear-sky")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.FontFamily != "icon-font-own" {
+		t.Errorf("FontFamily = %q, want icon-font-own", got.FontFamily)
+	}
+}
+
+func TestFontFamilyFallsBack(t *testing.T) {
+	dir := t.TempDir()
+	themeDir := filepath.Join(dir, "iconsonly")
+	if err := os.MkdirAll(themeDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `name: "iconsonly"
+icons:
+  type: image
+`
+	if err := os.WriteFile(filepath.Join(themeDir, "widget_theme.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store := NewStore(dir)
+	if got := store.FontFamily("iconsonly"); got != "Inter" {
+		t.Errorf("FontFamily(iconsonly) = %q, want Inter", got)
+	}
+	if got := store.FontFamily("nope"); got != "Inter" {
+		t.Errorf("FontFamily(nope) = %q, want Inter", got)
 	}
 }
 
@@ -393,12 +468,11 @@ func TestStore_ResolveIcon_InvalidIconName(t *testing.T) {
 	}
 
 	manifest := `name: "custom"
-type: icon
 description: "Custom icons"
 icons:
   type: image
 `
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(themeDir, "widget_theme.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -413,124 +487,5 @@ icons:
 	_, err = store.ResolveIcon("custom", "subdir/icon")
 	if err == nil {
 		t.Error("expected error for icon name with slash")
-	}
-}
-
-func TestStore_ListBackgrounds(t *testing.T) {
-	dir := t.TempDir()
-	themeDir := filepath.Join(dir, "mytheme")
-	bgDir := filepath.Join(themeDir, "backgrounds")
-	if err := os.MkdirAll(bgDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest := `name: "mytheme"
-type: style
-description: "Theme with backgrounds"
-`
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create some background images
-	if err := os.WriteFile(filepath.Join(bgDir, "bg1.png"), []byte("fake png"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(bgDir, "bg2.jpg"), []byte("fake jpg"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(bgDir, "bg3.webp"), []byte("fake webp"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(bgDir, "readme.txt"), []byte("not an image"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	store := NewStore(dir)
-	backgrounds := store.ListBackgrounds("mytheme")
-
-	if len(backgrounds) != 3 {
-		t.Errorf("expected 3 backgrounds, got %d", len(backgrounds))
-	}
-
-	// Check that only image files are returned
-	found := make(map[string]bool)
-	for _, bg := range backgrounds {
-		found[bg] = true
-	}
-	if !found["bg1.png"] || !found["bg2.jpg"] || !found["bg3.webp"] {
-		t.Errorf("expected bg1.png, bg2.jpg, bg3.webp, got %v", backgrounds)
-	}
-	if found["readme.txt"] {
-		t.Error("readme.txt should not be in backgrounds list")
-	}
-}
-
-func TestStore_ListBackgrounds_NoTheme(t *testing.T) {
-	store := NewStore("")
-	backgrounds := store.ListBackgrounds("nonexistent")
-	if backgrounds != nil {
-		t.Errorf("expected nil for nonexistent theme, got %v", backgrounds)
-	}
-}
-
-func TestStore_GetBackgroundData(t *testing.T) {
-	dir := t.TempDir()
-	themeDir := filepath.Join(dir, "mytheme")
-	bgDir := filepath.Join(themeDir, "backgrounds")
-	if err := os.MkdirAll(bgDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest := `name: "mytheme"
-type: style
-description: "Theme with backgrounds"
-`
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	testData := []byte("fake image data")
-	if err := os.WriteFile(filepath.Join(bgDir, "test.png"), testData, 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	store := NewStore(dir)
-	data, err := store.GetBackgroundData("mytheme", "test.png")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if string(data) != string(testData) {
-		t.Errorf("expected %q, got %q", testData, data)
-	}
-}
-
-func TestStore_GetBackgroundData_InvalidPath(t *testing.T) {
-	dir := t.TempDir()
-	themeDir := filepath.Join(dir, "mytheme")
-	bgDir := filepath.Join(themeDir, "backgrounds")
-	if err := os.MkdirAll(bgDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest := `name: "mytheme"
-type: style
-description: "Theme with backgrounds"
-`
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	store := NewStore(dir)
-
-	// Test path traversal
-	_, err := store.GetBackgroundData("mytheme", "../etc/passwd")
-	if err == nil {
-		t.Error("expected error for path traversal attempt")
-	}
-
-	_, err = store.GetBackgroundData("mytheme", "subdir/file.png")
-	if err == nil {
-		t.Error("expected error for filename with slash")
 	}
 }

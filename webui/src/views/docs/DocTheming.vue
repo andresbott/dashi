@@ -14,7 +14,7 @@
         </ul>
 
         <h4>Theme manifest</h4>
-        <p>Each theme is defined by a <code>theme.yaml</code> file in its directory.</p>
+        <p>Each theme is defined by a <code>widget_theme.yaml</code> file in its directory.</p>
         <table>
             <thead>
                 <tr><th>Field</th><th>Description</th></tr>
@@ -32,7 +32,7 @@
 
         <h4>Creating a theme</h4>
         <p>Use the CLI to bootstrap a new theme with a manifest and placeholder files:</p>
-        <pre class="doc-code">dashi theme create &lt;name&gt; --type &lt;image|font&gt;</pre>
+        <pre class="doc-code">dashi widget-theme create &lt;name&gt; --type &lt;image|font&gt;</pre>
         <table>
             <thead>
                 <tr><th>Flag</th><th>Default</th><th>Description</th></tr>
@@ -42,10 +42,10 @@
                 <tr><td><code>--config, -c</code></td><td><code>./config.yaml</code></td><td>Path to the app config file (used to locate the data directory).</td></tr>
             </tbody>
         </table>
-        <p>The theme is created under <code>&lt;dataDir&gt;/themes/&lt;name&gt;/</code>. For image themes, replace the generated SVGs in <code>widgets/weather/icons/</code> with your own. For font themes, edit <code>theme.yaml</code> to set the CSS prefix, font file, and icon mappings.</p>
+        <p>The theme is created under <code>&lt;dataDir&gt;/data/widget_themes/&lt;name&gt;/</code>. For image themes, replace the generated SVGs in <code>widgets/weather/icons/</code> with your own. For font themes, edit <code>widget_theme.yaml</code> to set the CSS prefix, font file, and icon mappings.</p>
 
         <h4>User themes</h4>
-        <p>Custom themes placed in the themes directory are loaded automatically at startup. Each theme needs a <code>theme.yaml</code> manifest and any font/background files it references.</p>
+        <p>Custom themes placed in the themes directory are loaded automatically at startup. Each theme needs a <code>widget_theme.yaml</code> manifest and any font/background files it references.</p>
 
         <hr class="doc-divider" />
         <h3 id="theme-assets">Dashboard Assets</h3>

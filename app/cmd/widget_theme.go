@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/andresbott/dashi/internal/widgetthemes"
 	"github.com/spf13/cobra"
 )
 
@@ -48,16 +49,16 @@ var canonicalIcons = []string{
 	"air-quality",
 }
 
-func themeCmd() *cobra.Command {
+func widgetThemeCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "theme",
-		Short: "manage themes",
+		Use:   "widget-theme",
+		Short: "manage widget themes (fonts and icon packs)",
 	}
-	cmd.AddCommand(themeCreateCmd())
+	cmd.AddCommand(widgetThemeCreateCmd())
 	return cmd
 }
 
-func themeCreateCmd() *cobra.Command {
+func widgetThemeCreateCmd() *cobra.Command {
 	var (
 		configFile = "./config.yaml"
 		themeType  = "image"
@@ -65,38 +66,37 @@ func themeCreateCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "create [name]",
-		Short: "bootstrap a new theme",
-		Long:  "create a new theme directory with a theme.yaml manifest and placeholder files for all weather icons",
+		Short: "bootstrap a new widget theme",
+		Long:  "create a new widget theme directory with a widget_theme.yaml manifest and placeholder files for all weather icons",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			name := args[0]
-			if themeType != "image" && themeType != "font" {
-				return fmt.Errorf("--type must be \"image\" or \"font\", got %q", themeType)
-			}
-
 			cfg, err := getAppCfg(configFile)
 			if err != nil {
 				return fmt.Errorf("loading config: %w", err)
 			}
-
-			themeDir := filepath.Join(cfg.DataDir, "themes", name)
-			if _, err := os.Stat(themeDir); err == nil {
-				return fmt.Errorf("theme directory %s already exists", themeDir)
-			}
-
-			switch themeType {
-			case "image":
-				return bootstrapImageTheme(themeDir, name)
-			case "font":
-				return bootstrapFontTheme(themeDir, name)
-			}
-			return nil
+			return createWidgetTheme(cfg.DataDir, args[0], themeType)
 		},
 	}
 
 	cmd.Flags().StringVarP(&configFile, "config", "c", configFile, "config file path")
-	cmd.Flags().StringVarP(&themeType, "type", "t", themeType, "theme type: \"image\" or \"font\"")
+	cmd.Flags().StringVarP(&themeType, "type", "t", themeType, "icon pack type: \"image\" or \"font\"")
 	return cmd
+}
+
+// createWidgetTheme bootstraps {dataDir}/data/widget_themes/<name>, the
+// directory the server loads widget themes from.
+func createWidgetTheme(dataDir, name, themeType string) error {
+	if themeType != "image" && themeType != "font" {
+		return fmt.Errorf("--type must be \"image\" or \"font\", got %q", themeType)
+	}
+	themeDir := filepath.Join(dataDir, "data", "widget_themes", name)
+	if _, err := os.Stat(themeDir); err == nil {
+		return fmt.Errorf("widget theme directory %s already exists", themeDir)
+	}
+	if themeType == "font" {
+		return bootstrapFontTheme(themeDir, name)
+	}
+	return bootstrapImageTheme(themeDir, name)
 }
 
 func bootstrapImageTheme(themeDir, name string) error {
@@ -106,14 +106,13 @@ func bootstrapImageTheme(themeDir, name string) error {
 	}
 
 	manifest := fmt.Sprintf(`name: %q
-type: icon
 description: "Custom weather icons"
 icons:
   type: image
 `, name)
 
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		return fmt.Errorf("writing theme.yaml: %w", err)
+	if err := os.WriteFile(filepath.Join(themeDir, widgetthemes.ManifestFile), []byte(manifest), 0o600); err != nil {
+		return fmt.Errorf("writing %s: %w", widgetthemes.ManifestFile, err)
 	}
 
 	placeholder := `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
@@ -140,7 +139,6 @@ func bootstrapFontTheme(themeDir, name string) error {
 	}
 
 	manifest := fmt.Sprintf(`name: %q
-type: icon
 description: "Custom font icon theme"
 icons:
   type: font
@@ -260,11 +258,11 @@ icons:
       codepoint: ""
 `, name)
 
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		return fmt.Errorf("writing theme.yaml: %w", err)
+	if err := os.WriteFile(filepath.Join(themeDir, widgetthemes.ManifestFile), []byte(manifest), 0o600); err != nil {
+		return fmt.Errorf("writing %s: %w", widgetthemes.ManifestFile, err)
 	}
 
 	fmt.Printf("Font theme created at %s\n", themeDir)
-	fmt.Println("Edit theme.yaml to set the font file path, class prefix, and icon mappings.")
+	fmt.Println("Edit widget_theme.yaml to set the font file path, class prefix, and icon mappings.")
 	return nil
 }

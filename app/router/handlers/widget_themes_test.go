@@ -9,25 +9,26 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/andresbott/dashi/internal/widgetthemes"
 	"github.com/gorilla/mux"
 )
 
-// buildThemeZip builds an in-memory zip containing a theme.yaml plus any
+// buildThemeZip builds an in-memory zip containing a widget_theme.yaml plus any
 // additional files. Used by the CRUD handler tests.
 func buildThemeZip(t *testing.T, yaml string, extra map[string]string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	if yaml != "" {
-		w, err := zw.Create("theme.yaml")
+		w, err := zw.Create("widget_theme.yaml")
 		if err != nil {
-			t.Fatalf("create theme.yaml: %v", err)
+			t.Fatalf("create widget_theme.yaml: %v", err)
 		}
 		if _, err := w.Write([]byte(yaml)); err != nil {
-			t.Fatalf("write theme.yaml: %v", err)
+			t.Fatalf("write widget_theme.yaml: %v", err)
 		}
 	}
 	for name, body := range extra {
@@ -57,7 +58,7 @@ func TestWidgetThemeHandler_List(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 
-	var result []widgetthemes.ThemeInfo
+	var result []widgetthemes.Info
 	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
 		t.Fatalf("decode error: %v", err)
 	}
@@ -102,8 +103,7 @@ func TestWidgetThemeHandler_GetIcon_Image(t *testing.T) {
 	if err := os.MkdirAll(iconsDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(`name: custom
-type: icon
+	if err := os.WriteFile(filepath.Join(themeDir, "widget_theme.yaml"), []byte(`name: custom
 description: test
 icons:
   type: image
@@ -135,13 +135,29 @@ func TestWidgetThemeHandler_GetIcon_NotFound(t *testing.T) {
 	store := widgetthemes.NewStore("")
 	handler := NewWidgetThemeHandler(store, slog.Default())
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/widget-themes/nonexistent/icons/clear-sky", nil)
-	req = mux.SetURLVars(req, map[string]string{"name": "nonexistent", "icon": "clear-sky"})
+	// An unknown theme falls back to the default, so only an icon the
+	// default lacks is a 404.
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/widget-themes/nonexistent/icons/no-such-icon", nil)
+	req = mux.SetURLVars(req, map[string]string{"name": "nonexistent", "icon": "no-such-icon"})
 	rec := httptest.NewRecorder()
 	handler.GetIcon(rec, req)
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestWidgetThemeHandler_GetIcon_UnknownThemeFallsBack(t *testing.T) {
+	store := widgetthemes.NewStore("")
+	handler := NewWidgetThemeHandler(store, slog.Default())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/widget-themes/nonexistent/icons/clear-sky", nil)
+	req = mux.SetURLVars(req, map[string]string{"name": "nonexistent", "icon": "clear-sky"})
+	rec := httptest.NewRecorder()
+	handler.GetIcon(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 }
 
@@ -151,7 +167,6 @@ func TestWidgetThemeHandler_Upload_RoundTrip(t *testing.T) {
 	handler := NewWidgetThemeHandler(store, slog.Default())
 
 	zipBytes := buildThemeZip(t, `name: "sunny"
-type: style
 description: "bright"
 `, map[string]string{"readme.txt": "hi"})
 
@@ -162,23 +177,23 @@ description: "bright"
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("upload status = %d, want 201; body=%s", rec.Code, rec.Body.String())
 	}
-	var info widgetthemes.ThemeInfo
+	var info widgetthemes.Info
 	if err := json.NewDecoder(rec.Body).Decode(&info); err != nil {
 		t.Fatalf("decode upload response: %v", err)
 	}
-	if info.Name != "sunny" || info.Type != widgetthemes.ThemeKindStyle {
+	if info.Name != "sunny" {
 		t.Errorf("upload response mismatch: %+v", info)
 	}
 
-	// List should include it with type populated.
+	// List should include it with its description populated.
 	req = httptest.NewRequest(http.MethodGet, "/api/v0/widget-themes", nil)
 	rec = httptest.NewRecorder()
 	handler.List(rec, req)
-	var list []widgetthemes.ThemeInfo
+	var list []widgetthemes.Info
 	if err := json.NewDecoder(rec.Body).Decode(&list); err != nil {
 		t.Fatalf("decode list: %v", err)
 	}
-	var got *widgetthemes.ThemeInfo
+	var got *widgetthemes.Info
 	for i := range list {
 		if list[i].Name == "sunny" {
 			got = &list[i]
@@ -187,8 +202,8 @@ description: "bright"
 	if got == nil {
 		t.Fatalf("sunny missing from list: %+v", list)
 	}
-	if got.Type != widgetthemes.ThemeKindStyle {
-		t.Errorf("list type = %q, want %q", got.Type, widgetthemes.ThemeKindStyle)
+	if got.Description != "bright" {
+		t.Errorf("list description = %q, want %q", got.Description, "bright")
 	}
 
 	// Download and verify we get a valid zip back.
@@ -209,12 +224,12 @@ description: "bright"
 	}
 	hasManifest := false
 	for _, f := range zr.File {
-		if f.Name == "theme.yaml" {
+		if f.Name == "widget_theme.yaml" {
 			hasManifest = true
 		}
 	}
 	if !hasManifest {
-		t.Error("downloaded zip missing theme.yaml")
+		t.Error("downloaded zip missing widget_theme.yaml")
 	}
 
 	// Delete, then confirm 404 on download.
@@ -233,7 +248,6 @@ func TestWidgetThemeHandler_Upload_Conflict(t *testing.T) {
 
 	// Upload with name "default" — the embedded builtin — must collide.
 	zipBytes := buildThemeZip(t, `name: "default"
-type: style
 `, nil)
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/widget-themes/upload", bytes.NewReader(zipBytes))
 	rec := httptest.NewRecorder()
@@ -243,18 +257,32 @@ type: style
 	}
 }
 
-func TestWidgetThemeHandler_Upload_InvalidType(t *testing.T) {
+// TestWidgetThemeHandlerUploadRejectsLegacyManifest pins Review Focus 4 at
+// the HTTP layer: an old-format pack is a 400 naming widget_theme.yaml.
+func TestWidgetThemeHandlerUploadRejectsLegacyManifest(t *testing.T) {
 	store := widgetthemes.NewStore(t.TempDir())
 	handler := NewWidgetThemeHandler(store, slog.Default())
 
-	zipBytes := buildThemeZip(t, `name: "x"
-type: widget
-`, nil)
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/widget-themes/upload", bytes.NewReader(zipBytes))
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, err := zw.Create("theme.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("name: \"old\"\ntype: style\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/widget-themes/upload", bytes.NewReader(buf.Bytes()))
 	rec := httptest.NewRecorder()
 	handler.Upload(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "widget_theme.yaml") {
+		t.Errorf("body %q does not name widget_theme.yaml", rec.Body.String())
 	}
 }
 

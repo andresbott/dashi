@@ -36,7 +36,7 @@ PNG — DIY-by-design gap, do not "fix" it).
 | Swipe navigation for displays | Implemented | `X-Action: swipe_left/right` → redirect with new `?page=` |
 | Image dashboards viewed in browser | Implemented | Image-type dashboards with no display headers render through the browser stack (see [viewer.md](viewer.md)); `serveImageHTMLPreview` was removed |
 | Themes (fonts, icons, backgrounds) | Implemented | `internal/themes`; embedded default (Inter + Tabler); user themes `{dataDir}/themes/{name}/theme.yaml`; legacy manifest format still parsed |
-| Theme bootstrap CLI | Implemented | `dashi theme create [name] --type image|font` |
+| Theme bootstrap CLI | Implemented | `dashi widget-theme create [name] --type image|font` |
 
 ## Data sources (all in-memory cached, warmup at startup for weather/market)
 

@@ -59,10 +59,15 @@ func TestFontFacesCSSEmitsFontFaceForDisplayAndIconFonts(t *testing.T) {
 	}
 }
 
-func TestFontFacesCSSUnknownThemeEmitsNoFontFace(t *testing.T) {
-	s := NewStore("")
-	if css := string(s.FontFacesCSS("does-not-exist")); strings.Contains(css, "@font-face") {
-		t.Errorf("unknown theme must emit no @font-face, got:\n%s", css)
+// TestFontFacesCSSUnknownFallsBack pins the widget half of Review Focus 2:
+// an unknown widget theme renders with the default's fonts.
+func TestFontFacesCSSUnknownFallsBack(t *testing.T) {
+	css := string(NewStore("").FontFacesCSS("nope"))
+	if !strings.Contains(css, "--dashi-font:'Inter'") {
+		t.Errorf("missing default --dashi-font, got:\n%s", css)
+	}
+	if !strings.Contains(css, "/api/v0/widget-themes/default/fonts/Inter") {
+		t.Errorf("missing default font source, got:\n%s", css)
 	}
 }
 

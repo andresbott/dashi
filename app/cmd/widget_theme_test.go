@@ -3,7 +3,10 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestBootstrapImageTheme(t *testing.T) {
@@ -12,13 +15,13 @@ func TestBootstrapImageTheme(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Check theme.yaml exists
-	manifest, err := os.ReadFile(filepath.Join(dir, "theme.yaml"))
+	// Check widget_theme.yaml exists
+	manifest, err := os.ReadFile(filepath.Join(dir, "widget_theme.yaml"))
 	if err != nil {
-		t.Fatalf("reading theme.yaml: %v", err)
+		t.Fatalf("reading widget_theme.yaml: %v", err)
 	}
 	if got := string(manifest); got == "" {
-		t.Error("theme.yaml is empty")
+		t.Error("widget_theme.yaml is empty")
 	}
 
 	// Check all icon SVGs were created
@@ -37,14 +40,14 @@ func TestBootstrapFontTheme(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Check theme.yaml exists and contains font config
-	manifest, err := os.ReadFile(filepath.Join(dir, "theme.yaml"))
+	// Check widget_theme.yaml exists and contains font config
+	manifest, err := os.ReadFile(filepath.Join(dir, "widget_theme.yaml"))
 	if err != nil {
-		t.Fatalf("reading theme.yaml: %v", err)
+		t.Fatalf("reading widget_theme.yaml: %v", err)
 	}
 	content := string(manifest)
 	if content == "" {
-		t.Error("theme.yaml is empty")
+		t.Error("widget_theme.yaml is empty")
 	}
 
 	// Should not create icons directory for font themes
@@ -63,5 +66,33 @@ func TestBootstrapImageTheme_AlreadyExists(t *testing.T) {
 	// Verify the directory exists and has content
 	if _, err := os.Stat(dir); err != nil {
 		t.Fatalf("theme dir should exist: %v", err)
+	}
+}
+
+func TestCreateWidgetTheme(t *testing.T) {
+	dataDir := t.TempDir()
+	if err := createWidgetTheme(dataDir, "mono", "font"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	path := filepath.Join(dataDir, "data", "widget_themes", "mono", "widget_theme.yaml")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("manifest not at %s: %v", path, err)
+	}
+	var m map[string]any
+	if err := yaml.Unmarshal(raw, &m); err != nil {
+		t.Fatalf("manifest is not valid yaml: %v", err)
+	}
+	if _, has := m["type"]; has {
+		t.Error("manifest must have no top-level type key")
+	}
+	if m["name"] != "mono" {
+		t.Errorf("name = %v, want mono", m["name"])
+	}
+	if err := createWidgetTheme(dataDir, "mono", "font"); err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Errorf("second create: got %v, want already-exists error", err)
+	}
+	if err := createWidgetTheme(dataDir, "x", "bogus"); err == nil {
+		t.Error("expected error for bad --type")
 	}
 }

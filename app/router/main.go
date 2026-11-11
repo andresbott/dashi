@@ -107,7 +107,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	marketClient := market.NewClient(nil)
 	xkcdClient := xkcd.NewClient(filepath.Join(cfg.DataDir, "cache", "xkcd"))
 	transportClient := swisstransport.NewClient(nil)
-	widgetThemeStore := widgetthemes.NewStore(filepath.Join(cfg.DataDir, "themes"))
+	widgetThemeStore := widgetthemes.NewStore(filepath.Join(cfg.DataDir, "data", "widget_themes"))
 	notesStore, err := notes.NewStore(filepath.Join(cfg.DataDir, "data", "notes"))
 	if err != nil {
 		return nil, fmt.Errorf("create notes store: %w", err)
@@ -134,7 +134,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		pageindicatorwidget.NewModule(),
 		marketwidget.NewModule(marketClient, cfg.Logger),
 		xkcdwidget.NewModule(xkcdClient, cfg.Logger),
-		swisstransportwidget.NewModule(transportClient, cfg.Logger),
+		swisstransportwidget.NewModule(transportClient, widgetThemeStore, cfg.Logger),
 		sysinfowidget.NewModule(cfg.Logger),
 		stackwidget.NewModule(registry),
 		markdownwidget.NewModule(notesStore),

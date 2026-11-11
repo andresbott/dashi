@@ -1,5 +1,4 @@
 name: "default"
-type: "theme"
 description: "Default theme with Inter font and Tabler weather icons"
 fonts:
   - name: "Inter"

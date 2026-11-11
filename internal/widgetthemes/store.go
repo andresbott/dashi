@@ -30,10 +30,9 @@ var (
 	ErrBuiltin        = errors.New("themes: builtin theme cannot be modified")
 	ErrInvalidName    = errors.New("themes: invalid name")
 	ErrInvalidArchive = errors.New("themes: invalid archive")
-	ErrInvalidType    = errors.New("themes: invalid or missing type")
 )
 
-//go:embed defaults/theme.yaml
+//go:embed defaults/widget_theme.yaml
 var defaultThemeYAML []byte
 
 //go:embed defaults/tabler-icons.ttf
@@ -42,16 +41,9 @@ var defaultFontTTF []byte
 //go:embed defaults/Inter-Regular.ttf
 var interRegularTTF []byte
 
-//go:embed defaults/backgrounds/celeste.jpg
-var defaultBgJPG []byte
-
 var embeddedFonts = map[string][]byte{
 	"tabler-icons.ttf":  defaultFontTTF,
 	"Inter-Regular.ttf": interRegularTTF,
-}
-
-var embeddedBackgrounds = map[string][]byte{
-	"bg.jpg": defaultBgJPG,
 }
 
 type Store struct {
@@ -59,6 +51,7 @@ type Store struct {
 	themes   map[string]*theme
 	builtins map[string]bool // names of embedded themes that cannot be deleted
 	rootDir  string          // directory where user themes live on disk (empty = disk writes disabled)
+	fallback *theme          // the embedded default; what effective falls back to
 }
 
 func NewStore(themesDir string) *Store {
@@ -77,12 +70,10 @@ func NewStore(themesDir string) *Store {
 func (s *Store) loadEmbeddedDefault() {
 	var m themeManifest
 	if err := yaml.Unmarshal(defaultThemeYAML, &m); err != nil {
-		panic(fmt.Sprintf("embedded default theme.yaml is invalid: %v", err))
+		panic(fmt.Sprintf("embedded default %s is invalid: %v", ManifestFile, err))
 	}
-	if !AllowedThemeKinds[m.Type] {
-		panic(fmt.Sprintf("embedded default theme.yaml has invalid type %q", m.Type))
-	}
-	s.themes[m.Name] = &theme{manifest: m}
+	s.fallback = &theme{manifest: m}
+	s.themes[m.Name] = s.fallback
 	s.builtins[m.Name] = true
 }
 
@@ -96,7 +87,7 @@ func (s *Store) loadUserThemes(dir string) {
 			continue
 		}
 		themeDir := filepath.Join(dir, entry.Name())
-		manifestPath := filepath.Join(themeDir, "theme.yaml")
+		manifestPath := filepath.Join(themeDir, ManifestFile)
 		data, err := os.ReadFile(manifestPath)
 		if err != nil {
 			continue
@@ -105,16 +96,11 @@ func (s *Store) loadUserThemes(dir string) {
 		if err := yaml.Unmarshal(data, &m); err != nil {
 			continue
 		}
-		if !AllowedThemeKinds[m.Type] {
-			// Skip themes with missing/invalid top-level type rather than
-			// crashing — they won't show up in the admin UI or be resolvable.
-			continue
-		}
 		s.themes[entry.Name()] = &theme{manifest: m, dir: themeDir}
 	}
 }
 
-func (s *Store) themeInfoLocked(name string, th *theme) ThemeInfo {
+func (s *Store) themeInfoLocked(name string, th *theme) Info {
 	fonts := make([]FontInfo, len(th.manifest.Fonts))
 	for i, f := range th.manifest.Fonts {
 		fonts[i] = FontInfo{Name: f.Name}
@@ -123,9 +109,8 @@ func (s *Store) themeInfoLocked(name string, th *theme) ThemeInfo {
 	if ic := th.icons(); ic != nil {
 		iconType = ic.Type
 	}
-	return ThemeInfo{
+	return Info{
 		Name:        name,
-		Type:        th.manifest.Type,
 		Description: th.manifest.Description,
 		Fonts:       fonts,
 		HasIcons:    th.hasIcons(),
@@ -134,10 +119,10 @@ func (s *Store) themeInfoLocked(name string, th *theme) ThemeInfo {
 	}
 }
 
-func (s *Store) List() []ThemeInfo {
+func (s *Store) List() []Info {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	result := make([]ThemeInfo, 0, len(s.themes))
+	result := make([]Info, 0, len(s.themes))
 	for name, th := range s.themes {
 		result = append(result, s.themeInfoLocked(name, th))
 	}
@@ -147,12 +132,12 @@ func (s *Store) List() []ThemeInfo {
 	return result
 }
 
-func (s *Store) Get(name string) (ThemeInfo, bool) {
+func (s *Store) Get(name string) (Info, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	th, ok := s.themes[name]
 	if !ok {
-		return ThemeInfo{}, false
+		return Info{}, false
 	}
 	return s.themeInfoLocked(name, th), true
 }
@@ -168,26 +153,47 @@ func (s *Store) lookupTheme(name string) (*theme, bool) {
 	return th, ok
 }
 
-func (s *Store) ResolveIcon(themeName, canonicalName string) (ResolvedIcon, error) {
-	th, ok := s.lookupTheme(themeName)
-	if !ok {
-		return ResolvedIcon{}, fmt.Errorf("theme %q not found", themeName)
+// effective returns the name and theme to use for a request about `name`: the
+// theme itself when it exists and satisfies need, otherwise the builtin
+// default. This is the one place the "unknown name or missing part falls back
+// to default" rule lives. The default is always the embedded one, so a
+// disk override of "default" that lacks a part cannot leave the fallback
+// itself incomplete.
+func (s *Store) effective(name string, need func(*theme) bool) (string, *theme) {
+	if th, ok := s.lookupTheme(name); ok && need(th) {
+		return name, th
 	}
+	return DefaultName, s.fallback
+}
+
+func hasFonts(t *theme) bool { return len(t.manifest.Fonts) > 0 }
+
+func hasIcons(t *theme) bool { return t.hasIcons() }
+
+func hasIconFont(t *theme) bool {
+	ic := t.icons()
+	return ic != nil && ic.Type == ThemeTypeFont && ic.FontFile != ""
+}
+
+// ResolveIcon resolves a canonical icon name through the named widget theme.
+// An unknown name, or a pack without icons, resolves through the default.
+func (s *Store) ResolveIcon(themeName, canonicalName string) (ResolvedIcon, error) {
+	name, th := s.effective(themeName, hasIcons)
 	ic := th.icons()
 	if ic == nil {
-		return ResolvedIcon{}, fmt.Errorf("theme %q has no icon config", themeName)
+		return ResolvedIcon{}, fmt.Errorf("theme %q has no icon config", name)
 	}
 	switch ic.Type {
 	case ThemeTypeFont:
-		return s.resolveFontIcon(th, ic, canonicalName)
+		return s.resolveFontIcon(name, th, ic, canonicalName)
 	case ThemeTypeImage:
 		return s.resolveImageIcon(th, canonicalName)
 	default:
-		return ResolvedIcon{}, fmt.Errorf("theme %q has unknown icon type %q", themeName, ic.Type)
+		return ResolvedIcon{}, fmt.Errorf("theme %q has unknown icon type %q", name, ic.Type)
 	}
 }
 
-func (s *Store) resolveFontIcon(th *theme, ic *manifestIcons, canonicalName string) (ResolvedIcon, error) {
+func (s *Store) resolveFontIcon(effName string, th *theme, ic *manifestIcons, canonicalName string) (ResolvedIcon, error) {
 	icon, ok := ic.Icons[canonicalName]
 	if !ok {
 		return ResolvedIcon{}, fmt.Errorf("icon %q not found in font theme", canonicalName)
@@ -201,10 +207,11 @@ func (s *Store) resolveFontIcon(th *theme, ic *manifestIcons, canonicalName stri
 		}
 	}
 	return ResolvedIcon{
-		Type:      ThemeTypeFont,
-		CSSClass:  ic.ClassPrefix + icon.Class,
-		Codepoint: icon.Codepoint,
-		FontFile:  fontFile,
+		Type:       ThemeTypeFont,
+		CSSClass:   ic.ClassPrefix + icon.Class,
+		Codepoint:  icon.Codepoint,
+		FontFile:   fontFile,
+		FontFamily: IconFontFamily(effName),
 	}, nil
 }
 
@@ -267,63 +274,6 @@ func (s *Store) GetDisplayFontData(themeName, fontName string) ([]byte, error) {
 	return nil, fmt.Errorf("font %q not found in theme %q", fontName, themeName)
 }
 
-// ListBackgrounds returns the filenames of background images in a theme's backgrounds/ directory.
-func (s *Store) ListBackgrounds(themeName string) []string {
-	th, ok := s.lookupTheme(themeName)
-	if !ok {
-		return nil
-	}
-	if th.dir == "" {
-		// Embedded default theme: return embedded backgrounds.
-		result := make([]string, 0, len(embeddedBackgrounds))
-		for name := range embeddedBackgrounds {
-			result = append(result, name)
-		}
-		sort.Strings(result)
-		return result
-	}
-	bgDir := filepath.Join(th.dir, "backgrounds")
-	entries, err := os.ReadDir(bgDir)
-	if err != nil {
-		return nil
-	}
-	imageExts := map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".webp": true, ".svg": true}
-	var result []string
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		ext := strings.ToLower(filepath.Ext(e.Name()))
-		if imageExts[ext] {
-			result = append(result, e.Name())
-		}
-	}
-	return result
-}
-
-// GetBackgroundData returns the raw bytes of a background image file.
-func (s *Store) GetBackgroundData(themeName, fileName string) ([]byte, error) {
-	th, ok := s.lookupTheme(themeName)
-	if !ok {
-		return nil, fmt.Errorf("theme %q not found", themeName)
-	}
-	if strings.ContainsAny(fileName, "/\\") || strings.Contains(fileName, "..") {
-		return nil, fmt.Errorf("invalid filename %q", fileName)
-	}
-	if th.dir == "" {
-		// Embedded default theme: return embedded background data.
-		if data, ok := embeddedBackgrounds[fileName]; ok {
-			return data, nil
-		}
-		return nil, fmt.Errorf("background %q not found in embedded theme", fileName)
-	}
-	bgPath := filepath.Join(th.dir, "backgrounds", fileName)
-	if !strings.HasPrefix(bgPath, filepath.Join(th.dir, "backgrounds")+string(filepath.Separator)) {
-		return nil, fmt.Errorf("invalid filename %q", fileName)
-	}
-	return os.ReadFile(bgPath)
-}
-
 // ---------- admin CRUD ----------
 
 // validateThemeName enforces the directory-safe name rules for themes.
@@ -356,54 +306,59 @@ func validateThemeName(name string) error {
 
 // Upload validates zipBytes as a theme archive and extracts it into the
 // on-disk themes root as {rootDir}/{name}. The archive must contain a
-// theme.yaml at the zip root with a `name` and `type` field; the
+// widget_theme.yaml at the zip root with a `name` field; the
 // on-disk directory is named after the manifest's name (not the
 // uploaded filename).
 //
 // Returns ErrConflict if a theme with the same name already exists
 // (including the embedded default) — upload is reject-on-conflict.
-func (s *Store) Upload(zipBytes []byte) (ThemeInfo, error) {
+func (s *Store) Upload(zipBytes []byte) (Info, error) {
 	if s.rootDir == "" {
-		return ThemeInfo{}, errors.New("themes: store has no writable directory")
+		return Info{}, errors.New("themes: store has no writable directory")
 	}
 	if int64(len(zipBytes)) > MaxUploadSize {
-		return ThemeInfo{}, fmt.Errorf("%w: exceeds %d bytes", ErrInvalidArchive, MaxUploadSize)
+		return Info{}, fmt.Errorf("%w: exceeds %d bytes", ErrInvalidArchive, MaxUploadSize)
 	}
 
 	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
 	if err != nil {
-		return ThemeInfo{}, fmt.Errorf("%w: %v", ErrInvalidArchive, err)
+		return Info{}, fmt.Errorf("%w: %v", ErrInvalidArchive, err)
 	}
 
 	// 1. Sanity-check every entry up front (name, traversal) before we
 	//    touch the filesystem.
 	var manifestEntry *zip.File
+	legacy := false
 	for _, f := range zr.File {
 		if err := validateZipMemberName(f.Name); err != nil {
-			return ThemeInfo{}, err
+			return Info{}, err
 		}
-		if f.Name == "theme.yaml" {
+		switch f.Name {
+		case ManifestFile:
 			manifestEntry = f
+		case legacyManifestFile:
+			legacy = true
 		}
 	}
 	if manifestEntry == nil {
-		return ThemeInfo{}, fmt.Errorf("%w: missing theme.yaml at archive root", ErrInvalidArchive)
+		if legacy {
+			return Info{}, fmt.Errorf("%w: found legacy %s; rename it to %s and drop its type field",
+				ErrInvalidArchive, legacyManifestFile, ManifestFile)
+		}
+		return Info{}, fmt.Errorf("%w: missing %s at archive root", ErrInvalidArchive, ManifestFile)
 	}
 
-	// 2. Parse theme.yaml and validate required fields.
+	// 2. Parse the manifest and validate required fields.
 	manifestBytes, err := readZipFile(manifestEntry)
 	if err != nil {
-		return ThemeInfo{}, fmt.Errorf("%w: read theme.yaml: %v", ErrInvalidArchive, err)
+		return Info{}, fmt.Errorf("%w: read %s: %v", ErrInvalidArchive, ManifestFile, err)
 	}
 	var m themeManifest
 	if err := yaml.Unmarshal(manifestBytes, &m); err != nil {
-		return ThemeInfo{}, fmt.Errorf("%w: parse theme.yaml: %v", ErrInvalidArchive, err)
+		return Info{}, fmt.Errorf("%w: parse %s: %v", ErrInvalidArchive, ManifestFile, err)
 	}
 	if err := validateThemeName(m.Name); err != nil {
-		return ThemeInfo{}, err
-	}
-	if !AllowedThemeKinds[m.Type] {
-		return ThemeInfo{}, fmt.Errorf("%w: %q (must be one of theme, icon, style)", ErrInvalidType, m.Type)
+		return Info{}, err
 	}
 
 	// 3. Conflict check + reserve the slot. We use the map as the lock:
@@ -412,33 +367,33 @@ func (s *Store) Upload(zipBytes []byte) (ThemeInfo, error) {
 	s.mu.Lock()
 	if _, exists := s.themes[m.Name]; exists {
 		s.mu.Unlock()
-		return ThemeInfo{}, ErrConflict
+		return Info{}, ErrConflict
 	}
 	destDir := filepath.Join(s.rootDir, m.Name)
 	if _, err := os.Stat(destDir); err == nil {
 		s.mu.Unlock()
-		return ThemeInfo{}, ErrConflict
+		return Info{}, ErrConflict
 	}
 
 	// 4. Extract into a sibling temp dir, then atomic-rename into place.
 	if err := os.MkdirAll(s.rootDir, 0o750); err != nil {
 		s.mu.Unlock()
-		return ThemeInfo{}, fmt.Errorf("create themes dir: %w", err)
+		return Info{}, fmt.Errorf("create themes dir: %w", err)
 	}
 	tmpDir, err := os.MkdirTemp(s.rootDir, ".upload-*")
 	if err != nil {
 		s.mu.Unlock()
-		return ThemeInfo{}, fmt.Errorf("create tmp dir: %w", err)
+		return Info{}, fmt.Errorf("create tmp dir: %w", err)
 	}
 	if err := extractZipInto(zr, tmpDir); err != nil {
 		_ = os.RemoveAll(tmpDir)
 		s.mu.Unlock()
-		return ThemeInfo{}, err
+		return Info{}, err
 	}
 	if err := os.Rename(tmpDir, destDir); err != nil {
 		_ = os.RemoveAll(tmpDir)
 		s.mu.Unlock()
-		return ThemeInfo{}, fmt.Errorf("rename into place: %w", err)
+		return Info{}, fmt.Errorf("rename into place: %w", err)
 	}
 
 	// 5. Register in-memory.
@@ -531,17 +486,16 @@ func (s *Store) Zip(name string) ([]byte, error) {
 
 // zipEmbeddedDefault reconstructs the builtin default theme as a zip
 // archive from the bytes baked into the binary. The layout mirrors
-// what Upload would produce on disk: theme.yaml + font TTFs at the
-// root, and backgrounds under backgrounds/.
+// what Upload would produce on disk: widget_theme.yaml + font TTFs at the
+// root.
 func zipEmbeddedDefault() ([]byte, error) {
 	entries := []struct {
 		path string
 		data []byte
 	}{
-		{"theme.yaml", defaultThemeYAML},
+		{ManifestFile, defaultThemeYAML},
 		{"Inter-Regular.ttf", interRegularTTF},
 		{"tabler-icons.ttf", defaultFontTTF},
-		{"backgrounds/bg.jpg", defaultBgJPG},
 	}
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)

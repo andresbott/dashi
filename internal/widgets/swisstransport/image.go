@@ -12,6 +12,7 @@ import (
 
 	tr "github.com/andresbott/dashi/internal/providers/swisstransport"
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
 //go:embed image.html
@@ -51,7 +52,23 @@ func categoryIcon(category string) string {
 	}
 }
 
-func NewStaticRenderer(client *tr.Client) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+// iconFontFamilyFor returns the CSS family of the icon font the widget theme
+// actually resolves to, so a pack without its own icon font (or an unknown
+// pack) falls back to the default's family. The sentinel icon only selects
+// the pack; a font-type pack is what carries a family.
+func iconFontFamilyFor(store *widgetthemes.Store, widgetTheme string) string {
+	if widgetTheme == "" {
+		widgetTheme = widgetthemes.DefaultName
+	}
+	if store != nil {
+		if resolved, err := store.ResolveIcon(widgetTheme, "clear-sky"); err == nil && resolved.FontFamily != "" {
+			return resolved.FontFamily
+		}
+	}
+	return widgetthemes.IconFontFamily(widgetthemes.DefaultName)
+}
+
+func NewStaticRenderer(client *tr.Client, themeStore *widgetthemes.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
 	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
 		var cfg transportConfig
 		if len(config) > 0 {
@@ -100,10 +117,7 @@ func NewStaticRenderer(client *tr.Client) func(json.RawMessage, widgets.RenderCo
 			})
 		}
 
-		iconFontFamily := ""
-		if ctx.WidgetTheme != "" {
-			iconFontFamily = "icon-font-" + ctx.WidgetTheme
-		}
+		iconFontFamily := iconFontFamilyFor(themeStore, ctx.WidgetTheme)
 
 		data := transportTemplateData{
 			Configured:     true,

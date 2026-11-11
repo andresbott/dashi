@@ -9,6 +9,7 @@ import (
 
 	tr "github.com/andresbott/dashi/internal/providers/swisstransport"
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
 func newTestClient(t *testing.T, response map[string]any) *tr.Client {
@@ -25,7 +26,7 @@ func newTestClient(t *testing.T, response map[string]any) *tr.Client {
 
 func TestRenderStatic_Configured(t *testing.T) {
 	client := newTestClient(t, map[string]any{
-		"station":      map[string]any{"id": "8500073", "name": "Basel, Aeschenplatz"},
+		"station": map[string]any{"id": "8500073", "name": "Basel, Aeschenplatz"},
 		"stationboard": []any{
 			map[string]any{
 				"category": "T", "number": "11", "to": "St-Louis Grenze",
@@ -38,7 +39,7 @@ func TestRenderStatic_Configured(t *testing.T) {
 		},
 	})
 
-	renderer := NewStaticRenderer(client)
+	renderer := NewStaticRenderer(client, widgetthemes.NewStore(""))
 	config := json.RawMessage(`{"stationId": "8500073", "stationName": "Basel, Aeschenplatz", "limit": 5}`)
 
 	got, err := renderer(config, widgets.RenderContext{})
@@ -60,7 +61,7 @@ func TestRenderStatic_Unconfigured(t *testing.T) {
 		"station": map[string]any{}, "stationboard": []any{},
 	})
 
-	renderer := NewStaticRenderer(client)
+	renderer := NewStaticRenderer(client, widgetthemes.NewStore(""))
 	config := json.RawMessage(`{}`)
 
 	got, err := renderer(config, widgets.RenderContext{})
@@ -79,7 +80,7 @@ func TestRenderStatic_EmptyConfig(t *testing.T) {
 		"station": map[string]any{}, "stationboard": []any{},
 	})
 
-	renderer := NewStaticRenderer(client)
+	renderer := NewStaticRenderer(client, widgetthemes.NewStore(""))
 	config := json.RawMessage(``)
 
 	got, err := renderer(config, widgets.RenderContext{})
@@ -98,7 +99,7 @@ func TestRenderStatic_InvalidJSON(t *testing.T) {
 		"station": map[string]any{}, "stationboard": []any{},
 	})
 
-	renderer := NewStaticRenderer(client)
+	renderer := NewStaticRenderer(client, widgetthemes.NewStore(""))
 	config := json.RawMessage(`{invalid json}`)
 
 	_, err := renderer(config, widgets.RenderContext{})
@@ -107,5 +108,14 @@ func TestRenderStatic_InvalidJSON(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "transport config") {
 		t.Errorf("expected 'transport config' in error, got: %v", err)
+	}
+}
+
+func TestIconFontFamilyFallsBackToDefault(t *testing.T) {
+	store := widgetthemes.NewStore("")
+	for _, name := range []string{"", "default", "no-such-theme"} {
+		if got := iconFontFamilyFor(store, name); got != "icon-font-default" {
+			t.Errorf("iconFontFamilyFor(%q) = %q, want icon-font-default", name, got)
+		}
 	}
 }

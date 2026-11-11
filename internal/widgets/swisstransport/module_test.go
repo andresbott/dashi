@@ -10,20 +10,20 @@ import (
 )
 
 func TestModule_Type(t *testing.T) {
-	m := NewModule(nil, nil)
+	m := NewModule(nil, nil, nil)
 	if m.Type() != "transport" {
 		t.Errorf("Type() = %q, want %q", m.Type(), "transport")
 	}
 }
 
 func TestModule_RendererNotNil(t *testing.T) {
-	if NewModule(nil, nil).Renderer() == nil {
+	if NewModule(nil, nil, nil).Renderer() == nil {
 		t.Fatal("Renderer() is nil")
 	}
 }
 
 func TestModule_RegisterRoutes_MountsBothEndpoints(t *testing.T) {
-	m := NewModule(nil, nil)
+	m := NewModule(nil, nil, nil)
 	r := mux.NewRouter()
 	m.RegisterRoutes(r)
 
@@ -37,7 +37,7 @@ func TestModule_RegisterRoutes_MountsBothEndpoints(t *testing.T) {
 }
 
 func TestModule_Warmup_NoPanic(t *testing.T) {
-	m := NewModule(nil, nil)
+	m := NewModule(nil, nil, nil)
 	m.Warmup(context.Background(), nil)
 }
 

@@ -66,7 +66,6 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/widget-themes").Methods(http.MethodGet).HandlerFunc(th.List)
 	r.Path("/widget-themes/{name}/icons/{icon}").Methods(http.MethodGet).HandlerFunc(th.GetIcon)
 	r.Path("/widget-themes/{name}/fonts/{font}").Methods(http.MethodGet).HandlerFunc(th.GetFont)
-	r.Path("/widget-themes/{name}/backgrounds/{file}").Methods(http.MethodGet).HandlerFunc(th.GetBackground)
 
 	// Shared user-data (read)
 	dataH := handlers.NewDataHandler(deps.notesStore, deps.imagesStore, deps.sharedBgImages, deps.logger)

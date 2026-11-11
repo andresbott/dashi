@@ -6,10 +6,12 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 )
 
-// buildThemeZip builds an in-memory zip containing a theme.yaml plus any
+// buildThemeZip builds an in-memory zip containing a widget_theme.yaml plus any
 // additional files. Pass yaml = "" to skip the manifest (for
 // missing-manifest tests).
 func buildThemeZip(t *testing.T, yaml string, extra map[string]string) []byte {
@@ -17,12 +19,12 @@ func buildThemeZip(t *testing.T, yaml string, extra map[string]string) []byte {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	if yaml != "" {
-		w, err := zw.Create("theme.yaml")
+		w, err := zw.Create("widget_theme.yaml")
 		if err != nil {
-			t.Fatalf("create theme.yaml entry: %v", err)
+			t.Fatalf("create widget_theme.yaml entry: %v", err)
 		}
 		if _, err := w.Write([]byte(yaml)); err != nil {
-			t.Fatalf("write theme.yaml: %v", err)
+			t.Fatalf("write widget_theme.yaml: %v", err)
 		}
 	}
 	for name, body := range extra {
@@ -45,7 +47,6 @@ func TestUpload_RoundTrip(t *testing.T) {
 	store := NewStore(dir)
 
 	zipBytes := buildThemeZip(t, `name: "cool"
-type: style
 description: "a cool theme"
 `, map[string]string{
 		"readme.txt": "hi",
@@ -55,14 +56,14 @@ description: "a cool theme"
 	if err != nil {
 		t.Fatalf("upload: %v", err)
 	}
-	if info.Name != "cool" || info.Type != ThemeKindStyle || info.Builtin {
+	if info.Name != "cool" || info.Builtin {
 		t.Fatalf("unexpected info: %+v", info)
 	}
 
 	// Directory should exist with manifest + extra file.
 	themeDir := filepath.Join(dir, "cool")
-	if _, err := os.Stat(filepath.Join(themeDir, "theme.yaml")); err != nil {
-		t.Errorf("theme.yaml missing: %v", err)
+	if _, err := os.Stat(filepath.Join(themeDir, "widget_theme.yaml")); err != nil {
+		t.Errorf("widget_theme.yaml missing: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(themeDir, "readme.txt")); err != nil {
 		t.Errorf("readme.txt missing: %v", err)
@@ -89,24 +90,51 @@ func TestUpload_MissingManifest(t *testing.T) {
 	}
 }
 
-func TestUpload_InvalidType(t *testing.T) {
+// TestUploadRejectsLegacyManifest pins Review Focus 4: an old-format pack
+// (theme.yaml, no widget_theme.yaml) is an invalid archive whose message
+// tells the uploader which file is expected.
+func TestUploadRejectsLegacyManifest(t *testing.T) {
 	store := NewStore(t.TempDir())
-	zipBytes := buildThemeZip(t, `name: "x"
-type: widget
-`, nil)
-	_, err := store.Upload(zipBytes)
-	if !errors.Is(err, ErrInvalidType) {
-		t.Fatalf("got %v, want ErrInvalidType", err)
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, err := zw.Create("theme.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("name: \"old\"\ntype: style\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.Upload(buf.Bytes())
+	if !errors.Is(err, ErrInvalidArchive) {
+		t.Fatalf("got %v, want ErrInvalidArchive", err)
+	}
+	if !strings.Contains(err.Error(), "widget_theme.yaml") {
+		t.Errorf("message %q does not name widget_theme.yaml", err.Error())
 	}
 }
 
-func TestUpload_MissingType(t *testing.T) {
+func TestUploadAcceptsManifestWithoutType(t *testing.T) {
 	store := NewStore(t.TempDir())
-	zipBytes := buildThemeZip(t, `name: "x"
-`, nil)
-	_, err := store.Upload(zipBytes)
-	if !errors.Is(err, ErrInvalidType) {
-		t.Fatalf("got %v, want ErrInvalidType", err)
+	zipBytes := buildThemeZip(t, `name: "plain"
+description: "fonts only"
+fonts:
+  - name: "Inter"
+    file: "Inter-Regular.ttf"
+`, map[string]string{"Inter-Regular.ttf": "x"})
+	if _, err := store.Upload(zipBytes); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	found := false
+	for _, th := range store.List() {
+		if th.Name == "plain" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("uploaded theme not in List()")
 	}
 }
 
@@ -114,7 +142,6 @@ func TestUpload_Conflict(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 	zipBytes := buildThemeZip(t, `name: "dup"
-type: style
 `, nil)
 	if _, err := store.Upload(zipBytes); err != nil {
 		t.Fatalf("first upload: %v", err)
@@ -128,7 +155,6 @@ type: style
 func TestUpload_ConflictWithBuiltin(t *testing.T) {
 	store := NewStore(t.TempDir())
 	zipBytes := buildThemeZip(t, `name: "default"
-type: style
 `, nil)
 	_, err := store.Upload(zipBytes)
 	if !errors.Is(err, ErrConflict) {
@@ -139,7 +165,6 @@ type: style
 func TestUpload_PathTraversalInZip(t *testing.T) {
 	store := NewStore(t.TempDir())
 	zipBytes := buildThemeZip(t, `name: "evil"
-type: style
 `, map[string]string{
 		"../outside.txt": "escape",
 	})
@@ -152,7 +177,6 @@ type: style
 func TestUpload_InvalidName(t *testing.T) {
 	store := NewStore(t.TempDir())
 	zipBytes := buildThemeZip(t, `name: "bad/name"
-type: style
 `, nil)
 	_, err := store.Upload(zipBytes)
 	if !errors.Is(err, ErrInvalidName) {
@@ -173,7 +197,6 @@ func TestDelete_RemovesTheme(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 	zipBytes := buildThemeZip(t, `name: "gone"
-type: style
 `, nil)
 	if _, err := store.Upload(zipBytes); err != nil {
 		t.Fatalf("upload: %v", err)
@@ -207,7 +230,6 @@ func TestZip_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(dir)
 	orig := buildThemeZip(t, `name: "rt"
-type: style
 description: "round trip"
 `, map[string]string{
 		"sub/file.txt": "content",
@@ -228,15 +250,15 @@ description: "round trip"
 	for _, f := range zr.File {
 		names[f.Name] = true
 	}
-	if !names["theme.yaml"] {
-		t.Error("zip missing theme.yaml")
+	if !names["widget_theme.yaml"] {
+		t.Error("zip missing widget_theme.yaml")
 	}
 	if !names["sub/file.txt"] {
 		t.Errorf("zip missing sub/file.txt, got %v", names)
 	}
 }
 
-func TestZip_Builtin(t *testing.T) {
+func TestZipDefaultHasNoBackgrounds(t *testing.T) {
 	store := NewStore(t.TempDir())
 	data, err := store.Zip("default")
 	if err != nil {
@@ -246,13 +268,13 @@ func TestZip_Builtin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read zip: %v", err)
 	}
-	names := map[string]bool{}
+	var got []string
 	for _, f := range zr.File {
-		names[f.Name] = true
+		got = append(got, f.Name)
 	}
-	for _, want := range []string{"theme.yaml", "Inter-Regular.ttf", "tabler-icons.ttf", "backgrounds/bg.jpg"} {
-		if !names[want] {
-			t.Errorf("zip missing %q, got %v", want, names)
-		}
+	sort.Strings(got)
+	want := []string{"Inter-Regular.ttf", "tabler-icons.ttf", "widget_theme.yaml"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("zip entries = %v, want %v", got, want)
 	}
 }

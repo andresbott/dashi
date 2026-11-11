@@ -84,40 +84,11 @@ func (h *WidgetThemeHandler) GetFont(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *WidgetThemeHandler) GetBackground(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	themeName := vars["name"]
-	fileName := vars["file"]
-
-	if strings.ContainsAny(fileName, "/\\") || strings.Contains(fileName, "..") {
-		ErrorJSON(w, "invalid filename", http.StatusBadRequest)
-		return
-	}
-
-	data, err := h.store.GetBackgroundData(themeName, fileName)
-	if err != nil {
-		ErrorJSON(w, "not found", http.StatusNotFound)
-		return
-	}
-
-	contentType := mime.TypeByExtension(filepath.Ext(fileName))
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Cache-Control", "public, max-age=86400")
-	if _, err := w.Write(data); err != nil { //nolint:gosec // G705: background image bytes served with explicit Content-Type and nosniff; not HTML
-		// Error already committed to response, log only
-		return
-	}
-}
-
 // ---------- admin CRUD ----------
 
 // Upload extracts a zipped theme into the on-disk themes directory.
-// The archive must contain a valid theme.yaml at its root with `name`
-// and `type` (icon|style) fields.
+// The archive must contain a valid widget_theme.yaml at its root with a
+// `name` field.
 func (h *WidgetThemeHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, widgetthemes.MaxUploadSize)
 	body, err := io.ReadAll(r.Body)
@@ -170,8 +141,7 @@ func (h *WidgetThemeHandler) themeWriteErr(w http.ResponseWriter, op string, err
 	case errors.Is(err, widgetthemes.ErrBuiltin):
 		ErrorJSON(w, err.Error(), http.StatusForbidden)
 	case errors.Is(err, widgetthemes.ErrInvalidName),
-		errors.Is(err, widgetthemes.ErrInvalidArchive),
-		errors.Is(err, widgetthemes.ErrInvalidType):
+		errors.Is(err, widgetthemes.ErrInvalidArchive):
 		ErrorJSON(w, err.Error(), http.StatusBadRequest)
 	default:
 		if h.logger != nil {
