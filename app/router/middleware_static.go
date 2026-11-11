@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/dashboard/browser"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
@@ -22,7 +22,7 @@ import (
 // requested with display headers render as PNG for e-ink clients;
 // everything else renders as browser HTML. Non-dashboard paths fall
 // through to the next handler.
-func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Renderer, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *widgetthemes.Store, bgStore *backgrounds.Store) func(http.Handler) http.Handler {
+func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Renderer, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *widgetthemes.Store, bgStore *themes.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet {
@@ -52,7 +52,7 @@ func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Ren
 }
 
 // serveBrowserDashboard renders a dashboard as HTML for a real browser.
-func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, renderer *browser.Renderer, themeStore *widgetthemes.Store, bgStore *backgrounds.Store) {
+func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, renderer *browser.Renderer, themeStore *widgetthemes.Store, bgStore *themes.Store) {
 	pageIdx, ok := parsePageIndex(r, len(dash.Pages))
 	if !ok {
 		http.NotFound(w, r)
@@ -80,7 +80,7 @@ func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboar
 	var bgCSS template.CSS
 	if dash.BackgroundID != "" {
 		if bg, err := bgStore.Get(dash.BackgroundID); err == nil {
-			bgCSS = template.CSS(backgrounds.BrowserCSS(bg)) //nolint:gosec // G203: generated from validated enums, validated hex colours and percent-encoded URLs
+			bgCSS = template.CSS(themes.BrowserCSS(bg)) //nolint:gosec // G203: generated from validated enums, validated hex colours and percent-encoded URLs
 		}
 	}
 
@@ -208,7 +208,7 @@ func pageRedirectTarget(r *http.Request, page int) string {
 }
 
 // serveImageDashboard handles rendering of image-type dashboards.
-func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *widgetthemes.Store, bgStore *backgrounds.Store) {
+func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *widgetthemes.Store, bgStore *themes.Store) {
 	dreq, err := parseDisplayHeaders(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -372,7 +372,7 @@ func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]s
 // When an image ref is present and loads successfully, returns "transparent"
 // as the css. This prevents the template's {{else}}{{.Palette.BG}}{{end}}
 // fallback from painting an opaque theme colour over the pre-composited image.
-func resolveImageBackground(dash dashboard.Dashboard, bgStore *backgrounds.Store) (css string, imageData []byte) {
+func resolveImageBackground(dash dashboard.Dashboard, bgStore *themes.Store) (css string, imageData []byte) {
 	if dash.BackgroundID == "" {
 		return "", nil
 	}
@@ -380,7 +380,7 @@ func resolveImageBackground(dash dashboard.Dashboard, bgStore *backgrounds.Store
 	if err != nil {
 		return "", nil
 	}
-	css, ref := backgrounds.ImageCSS(bg, dash.ColorMode)
+	css, ref := themes.ImageCSS(bg, dash.ColorMode)
 	if ref == "" {
 		return css, nil
 	}

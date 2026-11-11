@@ -1,9 +1,9 @@
 import type { Background, ImageFit } from '@/types/background'
 import { withBase } from '@/lib/base'
 
-// This file mirrors internal/backgrounds/css.go byte for byte so the editor
+// This file mirrors internal/themes/css.go byte for byte so the editor
 // can preview a background without a round-trip. Go is the contract; the
-// shared fixture at internal/backgrounds/testdata/css_fixture.json is
+// shared fixture at internal/themes/testdata/css_fixture.json is
 // asserted by both sides, so drift fails CI rather than shipping.
 
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/

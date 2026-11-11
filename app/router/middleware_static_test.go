@@ -11,12 +11,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/dashboard/browser"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
 	"github.com/andresbott/dashi/internal/data/images"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/andresbott/dashi/internal/widgetthemes"
 )
@@ -49,7 +49,7 @@ func newTestMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.Han
 	})
 
 	bs, _ := images.NewStore(t.TempDir())
-	bgStore := backgrounds.NewStore(t.TempDir(), bs)
+	bgStore := themes.NewStore(t.TempDir(), bs)
 	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, widgetthemes.NewStore(""), bgStore)
 	return mid(spaHandler)
 }
@@ -644,11 +644,11 @@ func TestImageDashboard_RotationQueryParam(t *testing.T) {
 func TestResolveImageBackgroundWithGradientOnly(t *testing.T) {
 	// When the background has a gradient but no image, resolveImageBackground
 	// should return the gradient CSS and nil bytes.
-	bgStore := backgrounds.NewStore(t.TempDir(), nil)
-	bg := backgrounds.Background{
+	bgStore := themes.NewStore(t.TempDir(), nil)
+	bg := themes.Background{
 		ID:       "gradientonly",
 		Name:     "Gradient Only",
-		Gradient: &backgrounds.Gradient{Direction: "to right", Light: []string{"#000000", "#ffffff"}},
+		Gradient: &themes.Gradient{Direction: "to right", Light: []string{"#000000", "#ffffff"}},
 	}
 	if _, err := bgStore.Create(bg); err != nil {
 		t.Fatal(err)
@@ -673,7 +673,7 @@ func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bgStore := backgrounds.NewStore(t.TempDir(), imageStore)
+	bgStore := themes.NewStore(t.TempDir(), imageStore)
 
 	// Save a small test image
 	testPNG := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A} // PNG signature
@@ -681,10 +681,10 @@ func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bg := backgrounds.Background{
+	bg := themes.Background{
 		ID:   "withimage",
 		Name: "With Image",
-		Image: &backgrounds.Image{
+		Image: &themes.Image{
 			Light: "shared:test.png", Fit: "cover", Position: "center", Repeat: "no-repeat",
 		},
 	}
@@ -745,7 +745,7 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bgStore := backgrounds.NewStore(t.TempDir(), imageStore)
+	bgStore := themes.NewStore(t.TempDir(), imageStore)
 
 	// Save the red image to the shared image store
 	if err := imageStore.Save("red.png", redBuf.Bytes()); err != nil {
@@ -753,10 +753,10 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 	}
 
 	// Create a background entity referencing it
-	bg := backgrounds.Background{
+	bg := themes.Background{
 		ID:   "redbg",
 		Name: "Red Background",
-		Image: &backgrounds.Image{
+		Image: &themes.Image{
 			Light:    "shared:red.png",
 			Fit:      "cover",
 			Position: "center",

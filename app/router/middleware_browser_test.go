@@ -12,9 +12,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/data/images"
+	"github.com/andresbott/dashi/internal/themes"
 )
 
 var (
@@ -49,11 +49,11 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 		if err != nil {
 			panic("create shared bg images store: " + err.Error())
 		}
-		tempBgStore := backgrounds.NewStore(filepath.Join(dir, "data", "backgrounds"), sharedBgImages)
+		tempBgStore := themes.NewStore(filepath.Join(dir, "data", "backgrounds"), sharedBgImages)
 
-		themeImageBG, err := tempBgStore.Create(backgrounds.Background{
+		themeImageBG, err := tempBgStore.Create(themes.Background{
 			Name: "Shared Image",
-			Image: &backgrounds.Image{
+			Image: &themes.Image{
 				Light:    "shared:bg.jpg",
 				Fit:      "cover",
 				Position: "center",
@@ -64,9 +64,9 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 			panic("create theme-image-bg: " + err.Error())
 		}
 
-		gradientBG, err := tempBgStore.Create(backgrounds.Background{
+		gradientBG, err := tempBgStore.Create(themes.Background{
 			Name: "Gradient",
-			Gradient: &backgrounds.Gradient{
+			Gradient: &themes.Gradient{
 				Direction: "to bottom",
 				Light:     []string{"#fff", "#000"},
 			},
@@ -268,7 +268,7 @@ func TestBrowserGradientBackgroundReachesThePage(t *testing.T) {
 	body := rec.Body.String()
 	// Background now lives in a <style> block. BrowserCSS always emits both
 	// light and dark rules (gradient has no dark variant, so both are the same).
-	// Note: backgrounds.resolve joins stops with "," (no space after comma).
+	// Note: themes.resolve joins stops with "," (no space after comma).
 	if !strings.Contains(body, "--dashi-page-bg:linear-gradient(to bottom,#fff,#000);") {
 		t.Errorf("gradient background missing from the page:\n%s", truncate(body))
 	}

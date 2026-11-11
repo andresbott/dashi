@@ -3,7 +3,7 @@
 // assets/ folder of uploaded images. Dashboards reference a background by
 // ID. Every field other than a colour is a closed enum, so the CSS this
 // package generates never contains user-authored syntax.
-package backgrounds
+package themes
 
 import (
 	"errors"

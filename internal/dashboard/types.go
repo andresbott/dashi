@@ -28,7 +28,7 @@ type Dashboard struct {
 	Theme       string    `json:"theme,omitempty"`
 	ColorMode   string    `json:"colorMode,omitempty"`
 	AccentColor string    `json:"accentColor,omitempty"`
-	// BackgroundID references a background entity (internal/backgrounds).
+	// BackgroundID references a background entity (internal/themes).
 	// Deliberately a different JSON key from the removed inline
 	// "background" object: a stale object under this name would fail to
 	// unmarshal into a string and take the whole dashboard down with it.

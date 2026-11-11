@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/andresbott/dashi/internal/widgetthemes"
 	"github.com/gorilla/mux"
@@ -23,7 +23,7 @@ type apiDeps struct {
 	notesStore     *notes.Store
 	imagesStore    *images.Store
 	sharedBgImages *images.Store
-	bgStore        *backgrounds.Store
+	bgStore        *themes.Store
 	logger         *slog.Logger
 	modules        []widgets.Module
 	publicViewer   handlers.PublicViewer

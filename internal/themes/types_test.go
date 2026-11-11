@@ -1,4 +1,4 @@
-package backgrounds
+package themes
 
 import (
 	"errors"
@@ -108,9 +108,9 @@ func TestValidateGradientDarkStopsWhenPresent(t *testing.T) {
 
 func TestValidateImageEnums(t *testing.T) {
 	tests := []struct {
-		name           string
-		fit, pos, rep  string
-		valid          bool
+		name          string
+		fit, pos, rep string
+		valid         bool
 	}{
 		{"defaults", "cover", "center", "no-repeat", true},
 		{"contain top left", "contain", "top left", "repeat", true},

@@ -10,20 +10,20 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/data/images"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/gorilla/mux"
 )
 
-func newBgTestRouter(t *testing.T) (*mux.Router, *backgrounds.Store, *dashboard.Store) {
+func newBgTestRouter(t *testing.T) (*mux.Router, *themes.Store, *dashboard.Store) {
 	t.Helper()
 	dir := t.TempDir()
 	pool, err := images.NewStore(filepath.Join(dir, "pool"))
 	if err != nil {
 		t.Fatalf("pool: %v", err)
 	}
-	bgStore := backgrounds.NewStore(filepath.Join(dir, "backgrounds"), pool)
+	bgStore := themes.NewStore(filepath.Join(dir, "backgrounds"), pool)
 	dashStore := dashboard.NewStore(filepath.Join(dir, "dashboards"))
 
 	h := NewBackgroundHandler(bgStore, dashStore, slog.Default())
@@ -59,9 +59,9 @@ func doJSON(t *testing.T, r *mux.Router, method, path string, body any) *httptes
 func TestBackgroundCreateAndGet(t *testing.T) {
 	r, _, _ := newBgTestRouter(t)
 
-	rec := doJSON(t, r, http.MethodPost, "/backgrounds", backgrounds.Background{
+	rec := doJSON(t, r, http.MethodPost, "/backgrounds", themes.Background{
 		Name:  "Paper",
-		Color: &backgrounds.Color{Light: "#ffffff"},
+		Color: &themes.Color{Light: "#ffffff"},
 	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("create must return 200 (a middleware corrupts 201 bodies), got %d", rec.Code)
@@ -71,7 +71,7 @@ func TestBackgroundCreateAndGet(t *testing.T) {
 	if _, isError := envelope["error"]; isError {
 		t.Fatalf("response body must be the background, not an error envelope: %s", rec.Body)
 	}
-	var created backgrounds.Background
+	var created themes.Background
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestBackgroundGetUnknownIs404(t *testing.T) {
 
 func TestBackgroundListCountsUsage(t *testing.T) {
 	r, bgStore, dashStore := newBgTestRouter(t)
-	bg, err := bgStore.Create(backgrounds.Background{Name: "Shared"})
+	bg, err := bgStore.Create(themes.Background{Name: "Shared"})
 	if err != nil {
 		t.Fatalf("create bg: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestBackgroundListCountsUsage(t *testing.T) {
 		t.Fatalf("list: got %d", rec.Code)
 	}
 	var resp struct {
-		Items []backgrounds.Meta `json:"items"`
+		Items []themes.Meta `json:"items"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)
@@ -139,7 +139,7 @@ func TestBackgroundListCountsUsage(t *testing.T) {
 
 func TestBackgroundUpdateAndDelete(t *testing.T) {
 	r, bgStore, _ := newBgTestRouter(t)
-	bg, _ := bgStore.Create(backgrounds.Background{Name: "Before"})
+	bg, _ := bgStore.Create(themes.Background{Name: "Before"})
 
 	bg.Name = "After"
 	if rec := doJSON(t, r, http.MethodPut, "/backgrounds/"+bg.ID, bg); rec.Code != http.StatusOK {
@@ -157,7 +157,7 @@ func TestBackgroundUpdateAndDelete(t *testing.T) {
 
 func TestBackgroundDeleteIsAllowedWhileReferenced(t *testing.T) {
 	r, bgStore, dashStore := newBgTestRouter(t)
-	bg, _ := bgStore.Create(backgrounds.Background{Name: "Doomed"})
+	bg, _ := bgStore.Create(themes.Background{Name: "Doomed"})
 	if _, err := dashStore.Create(dashboard.Dashboard{Name: "User", BackgroundID: bg.ID}); err != nil {
 		t.Fatalf("create dashboard: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestBackgroundDeleteIsAllowedWhileReferenced(t *testing.T) {
 
 func TestBackgroundAssetUploadAndFetch(t *testing.T) {
 	r, bgStore, _ := newBgTestRouter(t)
-	bg, _ := bgStore.Create(backgrounds.Background{Name: "Assets"})
+	bg, _ := bgStore.Create(themes.Background{Name: "Assets"})
 
 	req := httptest.NewRequest(http.MethodPost, "/backgrounds/"+bg.ID+"/assets/pic.png", bytes.NewReader([]byte("bytes")))
 	rec := httptest.NewRecorder()
@@ -196,7 +196,7 @@ func TestBackgroundAssetUploadAndFetch(t *testing.T) {
 
 func TestBackgroundAssetRejectsTraversal(t *testing.T) {
 	r, bgStore, _ := newBgTestRouter(t)
-	bg, _ := bgStore.Create(backgrounds.Background{Name: "Assets"})
+	bg, _ := bgStore.Create(themes.Background{Name: "Assets"})
 
 	req := httptest.NewRequest(http.MethodPost, "/backgrounds/"+bg.ID+"/assets/..%2F..%2Fescape.png", bytes.NewReader([]byte("x")))
 	rec := httptest.NewRecorder()

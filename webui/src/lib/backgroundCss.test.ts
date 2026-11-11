@@ -10,11 +10,11 @@ interface FixtureCase {
     browserCss: string
 }
 
-// The Go generator is the contract. internal/backgrounds/css_test.go asserts
+// The Go generator is the contract. internal/themes/css_test.go asserts
 // the same file; if these two disagree, this side is wrong.
 const fixture: FixtureCase[] = JSON.parse(
     readFileSync(
-        resolve(__dirname, '../../../internal/backgrounds/testdata/css_fixture.json'),
+        resolve(__dirname, '../../../internal/themes/testdata/css_fixture.json'),
         'utf-8',
     ),
 )

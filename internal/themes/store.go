@@ -1,4 +1,4 @@
-package backgrounds
+package themes
 
 import (
 	"crypto/rand"

@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/gorilla/mux"
 )
 
@@ -18,12 +18,12 @@ const maxBackgroundAssetUpload = 10 << 20 // 10 MB, same cap as other uploads
 // the dashboard store only to count references for the listing — the shared
 // instance from newSharedDeps, never a second one.
 type BackgroundHandler struct {
-	store     *backgrounds.Store
+	store     *themes.Store
 	dashStore *dashboard.Store
 	logger    *slog.Logger
 }
 
-func NewBackgroundHandler(store *backgrounds.Store, dashStore *dashboard.Store, logger *slog.Logger) *BackgroundHandler {
+func NewBackgroundHandler(store *themes.Store, dashStore *dashboard.Store, logger *slog.Logger) *BackgroundHandler {
 	return &BackgroundHandler{store: store, dashStore: dashStore, logger: logger}
 }
 
@@ -70,7 +70,7 @@ func (h *BackgroundHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BackgroundHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var b backgrounds.Background
+	var b themes.Background
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
 		ErrorJSON(w, "invalid request body", http.StatusBadRequest)
 		return
@@ -88,7 +88,7 @@ func (h *BackgroundHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *BackgroundHandler) Update(w http.ResponseWriter, r *http.Request) {
-	var b backgrounds.Background
+	var b themes.Background
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
 		ErrorJSON(w, "invalid request body", http.StatusBadRequest)
 		return
@@ -161,9 +161,9 @@ func (h *BackgroundHandler) DeleteAsset(w http.ResponseWriter, r *http.Request) 
 // fail maps store errors onto status codes.
 func (h *BackgroundHandler) fail(w http.ResponseWriter, op string, err error) {
 	switch {
-	case errors.Is(err, backgrounds.ErrNotFound), errors.Is(err, backgrounds.ErrInvalidID):
+	case errors.Is(err, themes.ErrNotFound), errors.Is(err, themes.ErrInvalidID):
 		ErrorJSON(w, "not found", http.StatusNotFound)
-	case errors.Is(err, backgrounds.ErrInvalidConfig):
+	case errors.Is(err, themes.ErrInvalidConfig):
 		ErrorJSON(w, err.Error(), http.StatusBadRequest)
 	default:
 		if h.logger != nil {

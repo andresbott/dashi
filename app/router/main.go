@@ -11,7 +11,6 @@ import (
 
 	"github.com/andresbott/dashi/app/router/handlers"
 	"github.com/andresbott/dashi/app/spa"
-	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/dashboard/browser"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
@@ -22,6 +21,7 @@ import (
 	"github.com/andresbott/dashi/internal/providers/swisstransport"
 	"github.com/andresbott/dashi/internal/providers/weather"
 	"github.com/andresbott/dashi/internal/providers/xkcd"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	batterywidget "github.com/andresbott/dashi/internal/widgets/battery"
 	bookmarkwidget "github.com/andresbott/dashi/internal/widgets/bookmark"
@@ -90,7 +90,7 @@ type sharedDeps struct {
 	notesStore      *notes.Store
 	imagesStore     *images.Store
 	sharedBgImages  *images.Store
-	bgStore         *backgrounds.Store
+	bgStore         *themes.Store
 	staticRenderer  *dashstatic.Renderer
 	imageRenderer   *dashimage.Renderer
 	browserRenderer *browser.Renderer
@@ -120,7 +120,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create shared background images store: %w", err)
 	}
-	bgStore := backgrounds.NewStore(filepath.Join(cfg.DataDir, "data", "backgrounds"), sharedBgImages)
+	bgStore := themes.NewStore(filepath.Join(cfg.DataDir, "data", "backgrounds"), sharedBgImages)
 
 	// Static dashboard rendering
 	registry := widgets.NewRegistry()
