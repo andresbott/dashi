@@ -134,7 +134,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		pageindicatorwidget.NewModule(),
 		marketwidget.NewModule(marketClient, cfg.Logger),
 		xkcdwidget.NewModule(xkcdClient, cfg.Logger),
-		swisstransportwidget.NewModule(transportClient, widgetThemeStore, cfg.Logger),
+		swisstransportwidget.NewModule(transportClient, cfg.Logger),
 		sysinfowidget.NewModule(cfg.Logger),
 		stackwidget.NewModule(registry),
 		markdownwidget.NewModule(notesStore),

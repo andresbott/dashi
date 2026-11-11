@@ -40,7 +40,7 @@ func TestRenderStatic_Configured(t *testing.T) {
 		},
 	})
 
-	renderer := NewStaticRenderer(client, widgetthemes.NewStore(""))
+	renderer := NewStaticRenderer(client)
 	config := json.RawMessage(`{"stationId": "8500073", "stationName": "Basel, Aeschenplatz", "limit": 5}`)
 
 	got, err := renderer(config, widgets.RenderContext{})
@@ -62,7 +62,7 @@ func TestRenderStatic_Unconfigured(t *testing.T) {
 		"station": map[string]any{}, "stationboard": []any{},
 	})
 
-	renderer := NewStaticRenderer(client, widgetthemes.NewStore(""))
+	renderer := NewStaticRenderer(client)
 	config := json.RawMessage(`{}`)
 
 	got, err := renderer(config, widgets.RenderContext{})
@@ -81,7 +81,7 @@ func TestRenderStatic_EmptyConfig(t *testing.T) {
 		"station": map[string]any{}, "stationboard": []any{},
 	})
 
-	renderer := NewStaticRenderer(client, widgetthemes.NewStore(""))
+	renderer := NewStaticRenderer(client)
 	config := json.RawMessage(``)
 
 	got, err := renderer(config, widgets.RenderContext{})
@@ -100,7 +100,7 @@ func TestRenderStatic_InvalidJSON(t *testing.T) {
 		"station": map[string]any{}, "stationboard": []any{},
 	})
 
-	renderer := NewStaticRenderer(client, widgetthemes.NewStore(""))
+	renderer := NewStaticRenderer(client)
 	config := json.RawMessage(`{invalid json}`)
 
 	_, err := renderer(config, widgets.RenderContext{})
@@ -109,6 +109,37 @@ func TestRenderStatic_InvalidJSON(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "transport config") {
 		t.Errorf("expected 'transport config' in error, got: %v", err)
+	}
+}
+
+// TestTransportIconsUseTablerFamily pins M1: categoryIcon emits Tabler code
+// points, so the family must be the default pack's (Tabler) even when the
+// dashboard's widget theme ships its own icon font.
+func TestTransportIconsUseTablerFamily(t *testing.T) {
+	client := newTestClient(t, map[string]any{
+		"station": map[string]any{"id": "8500073", "name": "Basel"},
+		"stationboard": []any{
+			map[string]any{
+				"category": "B", "number": "30", "to": "Somewhere",
+				"stop": map[string]any{
+					"departure": "2026-04-05T22:00:00+0200", "departureTimestamp": 1775419200,
+					"delay": 0, "platform": "A",
+					"prognosis": map[string]any{"departure": nil},
+				},
+			},
+		},
+	})
+	renderer := NewStaticRenderer(client)
+	got, err := renderer(json.RawMessage(`{"stationId":"8500073","stationName":"Basel"}`), widgets.RenderContext{WidgetTheme: "own"})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := string(got)
+	if !strings.Contains(html, widgetthemes.IconFontFamily(widgetthemes.DefaultName)) {
+		t.Errorf("expected the Tabler (default) icon family, got: %s", html)
+	}
+	if strings.Contains(html, "icon-font-own") {
+		t.Errorf("Tabler code points paired with the pack's icon font: %s", html)
 	}
 }
 
@@ -131,7 +162,7 @@ func TestTransportUsesPaletteRoles(t *testing.T) {
 		TextMuted: "#123456", Primary: "#0000ff", OnPrimary: "#ffffff", Secondary: "#00ffff",
 		Success: "#00aa00", Warning: "#aaaa00", Danger: "#aa0000",
 	}
-	renderer := NewStaticRenderer(client, widgetthemes.NewStore(""))
+	renderer := NewStaticRenderer(client)
 	got, err := renderer(json.RawMessage(`{"stationId":"8500073","stationName":"Basel"}`), widgets.RenderContext{Palette: pal})
 	if err != nil {
 		t.Fatalf("render: %v", err)

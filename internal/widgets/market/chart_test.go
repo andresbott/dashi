@@ -2,11 +2,13 @@ package market
 
 import (
 	"bytes"
+	"image/color"
 	"image/png"
 	"testing"
 	"time"
 
 	mkt "github.com/andresbott/dashi/internal/providers/market"
+	"github.com/andresbott/dashi/internal/themes"
 )
 
 func TestGenerateChart(t *testing.T) {
@@ -186,7 +188,7 @@ func TestPickLineColor(t *testing.T) {
 		{Time: time.Now().Add(-1 * time.Hour), Close: 100.0},
 		{Time: time.Now(), Close: 110.0},
 	}
-	greenColor := pickLineColor(increasingPoints)
+	greenColor := pickLineColor(increasingPoints, nil, nil)
 	r, g, b, a := greenColor.RGBA()
 	// Green should have high G value
 	if g < r || g < b {
@@ -198,10 +200,57 @@ func TestPickLineColor(t *testing.T) {
 		{Time: time.Now().Add(-1 * time.Hour), Close: 110.0},
 		{Time: time.Now(), Close: 100.0},
 	}
-	redColor := pickLineColor(decreasingPoints)
+	redColor := pickLineColor(decreasingPoints, nil, nil)
 	r, g, b, a = redColor.RGBA()
 	// Red should have high R value
 	if r < g || r < b {
 		t.Errorf("expected red color for decreasing prices, got R=%d G=%d B=%d A=%d", r>>8, g>>8, b>>8, a>>8)
+	}
+}
+
+func TestPickLineColorUsesGivenUpDownColors(t *testing.T) {
+	up := color.NRGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff}
+	down := color.NRGBA{R: 0xab, G: 0xcd, B: 0xef, A: 0xff}
+	rising := []mkt.PricePoint{{Close: 100}, {Close: 110}}
+	falling := []mkt.PricePoint{{Close: 110}, {Close: 100}}
+	if got := pickLineColor(rising, up, down); got != up {
+		t.Errorf("rising: got %v, want %v", got, up)
+	}
+	if got := pickLineColor(falling, up, down); got != down {
+		t.Errorf("falling: got %v, want %v", got, down)
+	}
+}
+
+func TestPaletteLineColors(t *testing.T) {
+	pal := themes.Palette{Success: "#123456", Danger: "#abc"}
+	up, down := paletteLineColors(pal)
+	if up != (color.NRGBA{R: 0x12, G: 0x34, B: 0x56, A: 0xff}) {
+		t.Errorf("up = %v", up)
+	}
+	if down != (color.NRGBA{R: 0xaa, G: 0xbb, B: 0xcc, A: 0xff}) {
+		t.Errorf("down = %v", down)
+	}
+	// An unparseable role falls back to the built-in colours.
+	up, down = paletteLineColors(themes.Palette{Success: "nope", Danger: ""})
+	if up != defaultUpColor || down != defaultDownColor {
+		t.Errorf("fallback = %v, %v", up, down)
+	}
+}
+
+func TestGenerateChartUsesUpColor(t *testing.T) {
+	up := color.NRGBA{R: 0x00, G: 0x00, B: 0xff, A: 0xff}
+	points := []mkt.PricePoint{{Close: 100}, {Close: 100}}
+	data, err := generateChart(points, chartOptions{Width: 40, Height: 20, UpColor: up, DownColor: up})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	img, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		t.Fatalf("invalid PNG: %v", err)
+	}
+	// A flat series draws a horizontal line through the vertical middle.
+	r, g, b, _ := img.At(20, 10).RGBA()
+	if b>>8 < 200 || r>>8 > 50 || g>>8 > 50 {
+		t.Fatalf("expected the up colour on the line, got R=%d G=%d B=%d", r>>8, g>>8, b>>8)
 	}
 }

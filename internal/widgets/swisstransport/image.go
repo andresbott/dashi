@@ -43,6 +43,12 @@ type transportTemplateData struct {
 	Palette        themes.Palette
 }
 
+// tablerFamily is the icon-font family categoryIcon's code points belong
+// to: the default widget theme ships Tabler. A pack's own icon font would
+// map these code points to unrelated glyphs, so the widget always paints
+// with the default's font.
+var tablerFamily = widgetthemes.IconFontFamily(widgetthemes.DefaultName)
+
 func categoryIcon(category string) string {
 	switch category {
 	case "B":
@@ -54,7 +60,7 @@ func categoryIcon(category string) string {
 	}
 }
 
-func NewStaticRenderer(client *tr.Client, themeStore *widgetthemes.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+func NewStaticRenderer(client *tr.Client) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
 	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
 		var cfg transportConfig
 		if len(config) > 0 {
@@ -103,12 +109,10 @@ func NewStaticRenderer(client *tr.Client, themeStore *widgetthemes.Store) func(j
 			})
 		}
 
-		iconFontFamily := themeStore.IconFontFamilyFor(ctx.WidgetTheme)
-
 		data := transportTemplateData{
 			Configured:     true,
 			StationName:    cfg.StationName,
-			IconFontFamily: iconFontFamily,
+			IconFontFamily: tablerFamily,
 			Departures:     rows,
 			Palette:        ctx.EffectivePalette(),
 		}

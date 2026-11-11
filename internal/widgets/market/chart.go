@@ -7,12 +7,15 @@ import (
 
 	"github.com/fogleman/gg"
 	mkt "github.com/andresbott/dashi/internal/providers/market"
+	"github.com/andresbott/dashi/internal/themes"
 )
 
 type chartOptions struct {
 	Width     int
 	Height    int
-	LineColor color.Color
+	LineColor color.Color // overrides the up/down choice when set
+	UpColor   color.Color // line colour when the series rose; nil = default
+	DownColor color.Color // line colour when the series fell; nil = default
 }
 
 func generateChart(points []mkt.PricePoint, opts chartOptions) ([]byte, error) {
@@ -71,7 +74,7 @@ func generateChart(points []mkt.PricePoint, opts chartOptions) ([]byte, error) {
 
 	lineColor := opts.LineColor
 	if lineColor == nil {
-		lineColor = pickLineColor(points)
+		lineColor = pickLineColor(points, opts.UpColor, opts.DownColor)
 	}
 
 	drawGrid(dc, fw, fh)
@@ -85,11 +88,40 @@ func generateChart(points []mkt.PricePoint, opts chartOptions) ([]byte, error) {
 	return encodePNG(dc)
 }
 
-func pickLineColor(points []mkt.PricePoint) color.Color {
+// Fallback line colours, used when no palette colour is given or the
+// palette value cannot be parsed.
+var (
+	defaultUpColor   = color.NRGBA{R: 0x22, G: 0xC5, B: 0x5E, A: 0xFF}
+	defaultDownColor = color.NRGBA{R: 0xEF, G: 0x44, B: 0x44, A: 0xFF}
+)
+
+// pickLineColor returns up when the last close is at or above the first,
+// down otherwise. A nil up or down falls back to the built-in colour.
+func pickLineColor(points []mkt.PricePoint, up, down color.Color) color.Color {
 	if points[len(points)-1].Close >= points[0].Close {
-		return color.RGBA{R: 0x22, G: 0xC5, B: 0x5E, A: 0xFF}
+		if up == nil {
+			return defaultUpColor
+		}
+		return up
 	}
-	return color.RGBA{R: 0xEF, G: 0x44, B: 0x44, A: 0xFF}
+	if down == nil {
+		return defaultDownColor
+	}
+	return down
+}
+
+// paletteLineColors maps the palette's Success and Danger roles onto the
+// chart's up and down line colours.
+func paletteLineColors(pal themes.Palette) (up, down color.NRGBA) {
+	up, ok := themes.ParseColor(pal.Success)
+	if !ok {
+		up = defaultUpColor
+	}
+	down, ok = themes.ParseColor(pal.Danger)
+	if !ok {
+		down = defaultDownColor
+	}
+	return up, down
 }
 
 func drawGrid(dc *gg.Context, fw, fh float64) {

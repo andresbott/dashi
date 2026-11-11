@@ -107,7 +107,8 @@ func NewStaticRenderer(client *mkt.Client) func(json.RawMessage, widgets.RenderC
 		}
 
 		if showChart && len(data.Points) > 1 {
-			chartPNG, err := generateChart(data.Points, chartOptions{Width: 400, Height: 150})
+			up, down := paletteLineColors(pal)
+			chartPNG, err := generateChart(data.Points, chartOptions{Width: 400, Height: 150, UpColor: up, DownColor: down})
 			if err == nil {
 				td.ChartImage = base64.StdEncoding.EncodeToString(chartPNG)
 			}
