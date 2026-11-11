@@ -127,6 +127,22 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 		if err != nil {
 			panic("create multi-page dashboard: " + err.Error())
 		}
+		// References are not checked on save: the links carry the stored
+		// values verbatim, and the asset routes resolve them.
+		themed, err := store.Create(dashboard.Dashboard{
+			Name: "Themed", Pages: page,
+			ThemeID: "abc123", WidgetTheme: "mono",
+		})
+		if err != nil {
+			panic("create themed dashboard: " + err.Error())
+		}
+		dangling, err := store.Create(dashboard.Dashboard{
+			Name: "Dangling", Pages: page,
+			ThemeID: "gone99", WidgetTheme: "nope",
+		})
+		if err != nil {
+			panic("create dangling dashboard: " + err.Error())
+		}
 
 		cfg := Cfg{DataDir: dir, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 		deps, err := newSharedDeps(cfg)
@@ -147,6 +163,11 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 			"imageBG":    imageBG.ID,
 			"gradientBG": gradientBGDash.ID,
 			"multi":      multi.ID,
+			"themed":     themed.ID,
+			"dangling":   dangling.ID,
+			// Theme entity IDs, for fetching the linked stylesheets.
+			"imageTheme":    themeImageBG.ID,
+			"gradientTheme": gradientBG.ID,
 		}
 	})
 
@@ -230,8 +251,8 @@ func TestRootRedirectsToDefaultDashboard(t *testing.T) {
 func TestBrowserImageBackgroundIsAURLNotInlinedBytes(t *testing.T) {
 	// A 2 MB background used to be base64-inlined into the <html> style
 	// attribute of every single response, uncacheable — and, because the
-	// shell compiled it to background-color, invisible anyway. Now it's
-	// a <style> block with a URL pointing at the asset route.
+	// shell compiled it to background-color, invisible anyway. Now the page
+	// links the theme stylesheet, which carries a URL to the asset route.
 	h, ids := newTestViewerWithDashboards(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/"+ids["imageBG"], nil)
@@ -246,15 +267,20 @@ func TestBrowserImageBackgroundIsAURLNotInlinedBytes(t *testing.T) {
 	if strings.Contains(body, "base64,") || strings.Contains(body, "data:image") {
 		t.Errorf("browser page inlined the background image bytes:\n%s", truncate(body))
 	}
-	// Background now lives in a <style> block, not an inline attribute.
-	if strings.Contains(body, `style="--dashi-page-bg`) {
-		t.Errorf("background leaked into an inline style attribute:\n%s", truncate(body))
+	if strings.Contains(body, "--dashi-page-bg") {
+		t.Errorf("background leaked into the page instead of the theme stylesheet:\n%s", truncate(body))
 	}
-	// The URL appears in a <style> block. BrowserCSS emits both light and dark.
-	// browserValue builds the shorthand with position/size/repeat.
-	// The image is from the shared pool, so it references /api/v0/data/backgrounds/{name}.
-	if !strings.Contains(body, `url('/api/v0/data/backgrounds/bg.jpg') center/cover no-repeat`) {
-		t.Errorf("expected a background URL in the page:\n%s", truncate(body))
+	link := "/_dashi/theme/" + ids["imageTheme"] + ".css"
+	if !strings.Contains(body, `href="`+link+`"`) {
+		t.Fatalf("page does not link %s:\n%s", link, truncate(body))
+	}
+
+	cssRec := httptest.NewRecorder()
+	h.ServeHTTP(cssRec, httptest.NewRequest(http.MethodGet, link, nil))
+	// browserValue builds the shorthand with position/size/repeat. The image
+	// is from the shared pool, so it references /api/v0/data/backgrounds/{name}.
+	if css := cssRec.Body.String(); !strings.Contains(css, `url('/api/v0/data/backgrounds/bg.jpg') center/cover no-repeat`) {
+		t.Errorf("expected a background URL in the theme stylesheet:\n%s", css)
 	}
 	// We don't test the route here because the image file doesn't actually exist
 	// in the shared pool - we only created the background entity, not the image file itself.
@@ -268,15 +294,19 @@ func TestBrowserGradientBackgroundReachesThePage(t *testing.T) {
 	h.ServeHTTP(rec, req)
 
 	body := rec.Body.String()
-	// Background now lives in a <style> block. BrowserCSS always emits both
-	// light and dark rules (gradient has no dark variant, so both are the same).
-	// Note: themes.resolve joins stops with "," (no space after comma).
-	if !strings.Contains(body, "--dashi-page-bg:linear-gradient(to bottom,#fff,#000);") {
-		t.Errorf("gradient background missing from the page:\n%s", truncate(body))
+	link := "/_dashi/theme/" + ids["gradientTheme"] + ".css"
+	if !strings.Contains(body, `href="`+link+`"`) {
+		t.Fatalf("page does not link %s:\n%s", link, truncate(body))
 	}
-	// Background must not be in an inline attribute.
-	if strings.Contains(body, `style="--dashi-page-bg`) {
-		t.Errorf("background leaked into an inline style attribute:\n%s", truncate(body))
+	cssRec := httptest.NewRecorder()
+	h.ServeHTTP(cssRec, httptest.NewRequest(http.MethodGet, link, nil))
+	// Note: themes.resolve joins stops with "," (no space after comma).
+	if css := cssRec.Body.String(); !strings.Contains(css, "--dashi-page-bg:linear-gradient(to bottom,#fff,#000);") {
+		t.Errorf("gradient background missing from the theme stylesheet:\n%s", css)
+	}
+	// Background must not be inlined into the page.
+	if strings.Contains(body, "--dashi-page-bg:") {
+		t.Errorf("background leaked into the page:\n%s", truncate(body))
 	}
 	// A background-color utility would silently discard a gradient.
 	if strings.Contains(body, "bg-[var(--dashi-page-bg") {
@@ -315,6 +345,56 @@ func TestBrowserSinglePageDashboardHasNoPageNav(t *testing.T) {
 
 	if strings.Contains(rec.Body.String(), "dashi-pages") {
 		t.Error("single-page dashboard should render no page navigation")
+	}
+}
+
+func TestBrowserDashboardLinksBothStylesheets(t *testing.T) {
+	h, ids := newTestViewerWithDashboards(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/"+ids["themed"], nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`href="/_dashi/theme/abc123.css"`,
+		`href="/_dashi/widget-theme/mono.css"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page missing %q:\n%s", want, truncate(body))
+		}
+	}
+}
+
+// Review Focus 2: a dashboard referencing a deleted theme and a widget theme
+// that never existed still renders, and both stylesheets it links resolve.
+func TestBrowserDashboardDanglingRefsUseDefaults(t *testing.T) {
+	h, ids := newTestViewerWithDashboards(t)
+
+	get := func(path string) *httptest.ResponseRecorder {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		return rec
+	}
+
+	if rec := get("/" + ids["dangling"]); rec.Code != http.StatusOK {
+		t.Fatalf("dashboard status = %d, want 200", rec.Code)
+	}
+
+	themeCSS := get("/_dashi/theme/gone99.css")
+	if themeCSS.Code != http.StatusOK {
+		t.Fatalf("theme css status = %d, want 200", themeCSS.Code)
+	}
+	if body := themeCSS.Body.String(); !strings.Contains(body, "--dashi-bg:#ffffff;") {
+		t.Errorf("dangling theme must serve the default palette, got:\n%s", body)
+	}
+
+	if rec := get("/_dashi/widget-theme/nope.css"); rec.Code != http.StatusOK {
+		t.Errorf("widget theme css status = %d, want 200", rec.Code)
 	}
 }
 

@@ -67,7 +67,7 @@ func NewStaticRenderer() func(json.RawMessage, widgets.RenderContext) (template.
 			URL:        sanitizeURL(cfg.URL),
 			Title:      cfg.Title,
 			Subtitle:   cfg.Subtitle,
-			MutedColor: ctx.EffectivePalette().Muted,
+			MutedColor: ctx.EffectivePalette().TextMuted,
 		}
 
 		var buf bytes.Buffer

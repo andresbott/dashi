@@ -8,19 +8,17 @@ import (
 	"net/http"
 
 	"github.com/andresbott/dashi/internal/dashboard"
-	"github.com/andresbott/dashi/internal/widgetthemes"
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type DashboardHandler struct {
-	store      *dashboard.Store
-	themeStore *widgetthemes.Store
-	logger     *slog.Logger
+	store  *dashboard.Store
+	logger *slog.Logger
 }
 
-func NewDashboardHandler(store *dashboard.Store, themeStore *widgetthemes.Store, logger *slog.Logger) *DashboardHandler {
-	return &DashboardHandler{store: store, themeStore: themeStore, logger: logger}
+func NewDashboardHandler(store *dashboard.Store, logger *slog.Logger) *DashboardHandler {
+	return &DashboardHandler{store: store, logger: logger}
 }
 
 func (h *DashboardHandler) List(w http.ResponseWriter, r *http.Request) {

@@ -40,7 +40,7 @@ func NewStaticRenderer() func(json.RawMessage, widgets.RenderContext) (template.
 
 		data := pageIndicatorData{
 			Dots:       dots,
-			MutedColor: ctx.EffectivePalette().Muted,
+			MutedColor: ctx.EffectivePalette().TextMuted,
 		}
 
 		var buf bytes.Buffer

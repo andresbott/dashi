@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/andresbott/dashi/internal/dashboard/browser"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgetthemes"
 	"github.com/gorilla/mux"
 )
@@ -13,7 +14,7 @@ import (
 // /_dashi/. The underscore prefix matters: dashboard IDs are six-character
 // lowercase alphanumerics, so an all-alphanumeric prefix could collide
 // with a real dashboard path.
-func attachDashiAssets(r *mux.Router, assets *browser.Assets, themeStore *widgetthemes.Store) {
+func attachDashiAssets(r *mux.Router, assets *browser.Assets, themeStore *themes.Store, widgetThemeStore *widgetthemes.Store) {
 	const cssType = "text/css; charset=utf-8"
 	const jsType = "text/javascript; charset=utf-8"
 
@@ -49,13 +50,17 @@ func attachDashiAssets(r *mux.Router, assets *browser.Assets, themeStore *widget
 			return assets.DashiJS(), true
 		}))
 
-	// Theme name is a single path segment resolved through the theme
-	// store; unknown themes yield the default palette rather than a 404,
-	// so a deleted theme degrades to default colours instead of an
-	// unstyled page.
-	sub.Path("/theme/{name}.css").Methods(http.MethodGet).
+	// Theme ID and widget-theme name are single path segments resolved
+	// through their stores. Unknown references never 404: a deleted theme
+	// degrades to the default palette instead of an unstyled page.
+	sub.Path("/theme/{id}.css").Methods(http.MethodGet).
 		HandlerFunc(serve(cssType, func(req *http.Request) ([]byte, bool) {
-			return themeStore.ThemeCSS(mux.Vars(req)["name"]), true
+			return themes.BrowserCSS(themeStore.Resolve(mux.Vars(req)["id"])), true
+		}))
+
+	sub.Path("/widget-theme/{name}.css").Methods(http.MethodGet).
+		HandlerFunc(serve(cssType, func(req *http.Request) ([]byte, bool) {
+			return widgetThemeStore.FontFacesCSS(mux.Vars(req)["name"]), true
 		}))
 
 	sub.Path("/widgets/{type}.js").Methods(http.MethodGet).

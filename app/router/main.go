@@ -81,24 +81,24 @@ func (h *EditorHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // sharedDeps holds all shared clients, stores, renderers and middleware
 // that are built once and reused by both viewer and editor handlers.
 type sharedDeps struct {
-	dashStore       *dashboard.Store
-	weatherClient   *weather.Client
-	marketClient    *market.Client
-	xkcdClient      *xkcd.Client
-	transportClient *swisstransport.Client
-	themeStore      *widgetthemes.Store
-	notesStore      *notes.Store
-	imagesStore     *images.Store
-	sharedBgImages  *images.Store
-	bgStore         *themes.Store
-	staticRenderer  *dashstatic.Renderer
-	imageRenderer   *dashimage.Renderer
-	browserRenderer *browser.Renderer
-	browserAssets   *browser.Assets
-	staticMid       func(http.Handler) http.Handler
-	promHisto       middleware.Histogram
-	modules         []widgets.Module
-	publicViewer    handlers.PublicViewer
+	dashStore        *dashboard.Store
+	weatherClient    *weather.Client
+	marketClient     *market.Client
+	xkcdClient       *xkcd.Client
+	transportClient  *swisstransport.Client
+	themeStore       *themes.Store
+	widgetThemeStore *widgetthemes.Store
+	notesStore       *notes.Store
+	imagesStore      *images.Store
+	sharedBgImages   *images.Store
+	staticRenderer   *dashstatic.Renderer
+	imageRenderer    *dashimage.Renderer
+	browserRenderer  *browser.Renderer
+	browserAssets    *browser.Assets
+	staticMid        func(http.Handler) http.Handler
+	promHisto        middleware.Histogram
+	modules          []widgets.Module
+	publicViewer     handlers.PublicViewer
 }
 
 func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
@@ -107,7 +107,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	marketClient := market.NewClient(nil)
 	xkcdClient := xkcd.NewClient(filepath.Join(cfg.DataDir, "cache", "xkcd"))
 	transportClient := swisstransport.NewClient(nil)
-	themeStore := widgetthemes.NewStore(filepath.Join(cfg.DataDir, "themes"))
+	widgetThemeStore := widgetthemes.NewStore(filepath.Join(cfg.DataDir, "themes"))
 	notesStore, err := notes.NewStore(filepath.Join(cfg.DataDir, "data", "notes"))
 	if err != nil {
 		return nil, fmt.Errorf("create notes store: %w", err)
@@ -120,14 +120,14 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create shared background images store: %w", err)
 	}
-	bgStore := themes.NewStore(filepath.Join(cfg.DataDir, "data", "themes"), sharedBgImages)
+	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "data", "themes"), sharedBgImages)
 
 	// Static dashboard rendering
 	registry := widgets.NewRegistry()
 
 	modules := []widgets.Module{
-		weatherwidget.NewModule(weatherClient, themeStore, cfg.Logger),
-		weatherwidget.NewCompactModule(weatherClient, themeStore, cfg.Logger),
+		weatherwidget.NewModule(weatherClient, widgetThemeStore, cfg.Logger),
+		weatherwidget.NewCompactModule(weatherClient, widgetThemeStore, cfg.Logger),
 		bookmarkwidget.NewModule(),
 		clockwidget.NewModule(),
 		batterywidget.NewModule(),
@@ -161,19 +161,19 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	browserRenderer := browser.NewRenderer(registry, browserAssets.JSTypes())
 	imageRenderer := dashimage.NewRenderer()
 
-	for _, themeInfo := range themeStore.List() {
-		if themeInfo.HasIcons && themeInfo.IconType == widgetthemes.ThemeTypeFont {
-			fontData, err := themeStore.GetFontData(themeInfo.Name)
+	for _, info := range widgetThemeStore.List() {
+		if info.HasIcons && info.IconType == widgetthemes.ThemeTypeFont {
+			fontData, err := widgetThemeStore.GetFontData(info.Name)
 			if err != nil {
 				continue
 			}
-			imageRenderer.RegisterFont("icon-font-"+themeInfo.Name, fontData)
+			imageRenderer.RegisterFont(widgetthemes.IconFontFamily(info.Name), fontData)
 		}
 	}
 	// Register display fonts for image rendering
-	for _, themeInfo := range themeStore.List() {
-		for _, font := range themeInfo.Fonts {
-			fontData, err := themeStore.GetDisplayFontData(themeInfo.Name, font.Name)
+	for _, info := range widgetThemeStore.List() {
+		for _, font := range info.Fonts {
+			fontData, err := widgetThemeStore.GetDisplayFontData(info.Name, font.Name)
 			if err != nil {
 				continue
 			}
@@ -181,27 +181,27 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		}
 	}
 
-	staticMid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, bgStore)
+	staticMid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetThemeStore)
 	promHisto := middleware.NewPromHistogram("", nil, nil)
 
 	return &sharedDeps{
-		dashStore:       dashStore,
-		weatherClient:   weatherClient,
-		marketClient:    marketClient,
-		xkcdClient:      xkcdClient,
-		transportClient: transportClient,
-		themeStore:      themeStore,
-		notesStore:      notesStore,
-		imagesStore:     imagesStore,
-		sharedBgImages:  sharedBgImages,
-		bgStore:         bgStore,
-		staticRenderer:  staticRenderer,
-		imageRenderer:   imageRenderer,
-		browserRenderer: browserRenderer,
-		browserAssets:   browserAssets,
-		staticMid:       staticMid,
-		promHisto:       promHisto,
-		modules:         modules,
+		dashStore:        dashStore,
+		weatherClient:    weatherClient,
+		marketClient:     marketClient,
+		xkcdClient:       xkcdClient,
+		transportClient:  transportClient,
+		themeStore:       themeStore,
+		widgetThemeStore: widgetThemeStore,
+		notesStore:       notesStore,
+		imagesStore:      imagesStore,
+		sharedBgImages:   sharedBgImages,
+		staticRenderer:   staticRenderer,
+		imageRenderer:    imageRenderer,
+		browserRenderer:  browserRenderer,
+		browserAssets:    browserAssets,
+		staticMid:        staticMid,
+		promHisto:        promHisto,
+		modules:          modules,
 		publicViewer: handlers.PublicViewer{
 			Enabled: cfg.ViewerEnabled,
 			Port:    cfg.ViewerPort,
@@ -212,15 +212,15 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 
 func newAPIDeps(deps *sharedDeps, logger *slog.Logger) apiDeps {
 	return apiDeps{
-		dashStore:      deps.dashStore,
-		themeStore:     deps.themeStore,
-		notesStore:     deps.notesStore,
-		imagesStore:    deps.imagesStore,
-		sharedBgImages: deps.sharedBgImages,
-		bgStore:        deps.bgStore,
-		logger:         logger,
-		modules:        deps.modules,
-		publicViewer:   deps.publicViewer,
+		dashStore:        deps.dashStore,
+		themeStore:       deps.themeStore,
+		widgetThemeStore: deps.widgetThemeStore,
+		notesStore:       deps.notesStore,
+		imagesStore:      deps.imagesStore,
+		sharedBgImages:   deps.sharedBgImages,
+		logger:           logger,
+		modules:          deps.modules,
+		publicViewer:     deps.publicViewer,
 	}
 }
 
@@ -251,7 +251,7 @@ func NewViewerFromDeps(cfg Cfg, deps *sharedDeps) (*ViewerHandler, error) {
 
 	// Browser-stack assets (CSS/JS/theme). Registered before the SPA and
 	// dashboard-ID routes so the /_dashi prefix always wins.
-	attachDashiAssets(r, deps.browserAssets, deps.themeStore)
+	attachDashiAssets(r, deps.browserAssets, deps.themeStore, deps.widgetThemeStore)
 
 	// Build the SPA handler once
 	spaHandler, err := spa.App("/")
@@ -326,7 +326,7 @@ func NewEditorFromDeps(cfg Cfg, deps *sharedDeps) (*EditorHandler, error) {
 
 	// Browser-stack assets (CSS/JS/theme). Registered before the SPA and
 	// dashboard-ID routes so the /_dashi prefix always wins.
-	attachDashiAssets(r, deps.browserAssets, deps.themeStore)
+	attachDashiAssets(r, deps.browserAssets, deps.themeStore, deps.widgetThemeStore)
 
 	// SPA shell (with ingress base injected) + real files, behind the static
 	// dashboard middleware. No server-side "/"→"/admin" redirect: the client

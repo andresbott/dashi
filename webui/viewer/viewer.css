@@ -7,8 +7,8 @@
 @source "../../internal/widgets/*/browser.html";
 
 @theme {
-  /* Themes set --dashi-font at runtime (see themes.ThemeCSS); Inter is the
-     embedded fallback. */
+  /* Widget themes set --dashi-font at runtime (see
+     widgetthemes.Store.FontFacesCSS); Inter is the embedded fallback. */
   --font-sans: var(--dashi-font, "Inter"), ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -17,7 +17,7 @@
 @layer base {
   html {
     background: var(--dashi-bg);
-    color: var(--dashi-fg);
+    color: var(--dashi-text);
     font-family: var(--font-sans);
   }
 

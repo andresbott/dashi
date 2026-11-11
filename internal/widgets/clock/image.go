@@ -54,7 +54,7 @@ func NewStaticRenderer(nowFn func() time.Time) func(json.RawMessage, widgets.Ren
 			Time:       timeStr,
 			ShowDate:   cfg.ShowDate,
 			Font:       cfg.Font,
-			MutedColor: ctx.EffectivePalette().Muted,
+			MutedColor: ctx.EffectivePalette().TextMuted,
 		}
 		if cfg.ShowDate {
 			data.Date = now.Format("Monday, January 2, 2006")

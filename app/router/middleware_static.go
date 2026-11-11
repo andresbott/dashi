@@ -3,7 +3,6 @@ package router
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"image"
 	"net/http"
 	"strconv"
@@ -22,7 +21,7 @@ import (
 // requested with display headers render as PNG for e-ink clients;
 // everything else renders as browser HTML. Non-dashboard paths fall
 // through to the next handler.
-func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Renderer, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *widgetthemes.Store, bgStore *themes.Store) func(http.Handler) http.Handler {
+func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Renderer, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store, widgetThemeStore *widgetthemes.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet {
@@ -42,27 +41,28 @@ func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Ren
 				return
 			}
 
+			// A missing or dangling theme reference is not an error:
+			// Resolve falls back to the builtin default.
+			theme := themeStore.Resolve(dash.ThemeID)
 			if dash.Type == "image" && hasDisplayHeaders(r) {
-				serveImageDashboard(w, r, dash, store, staticRenderer, imageRenderer, themeStore, bgStore)
+				serveImageDashboard(w, r, dash, store, staticRenderer, imageRenderer, theme, themeStore, widgetThemeStore)
 				return
 			}
-			serveBrowserDashboard(w, r, dash, store, browserRenderer, themeStore, bgStore)
+			serveBrowserDashboard(w, r, dash, store, browserRenderer, theme)
 		})
 	}
 }
 
 // serveBrowserDashboard renders a dashboard as HTML for a real browser.
-func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, renderer *browser.Renderer, themeStore *widgetthemes.Store, bgStore *themes.Store) {
+// Theme colours, background and fonts reach the page through the two
+// linked stylesheets; the palette is only carried for widget renderers.
+func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, renderer *browser.Renderer, theme themes.Theme) {
 	pageIdx, ok := parsePageIndex(r, len(dash.Pages))
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 
-	theme := dash.Theme
-	if theme == "" {
-		theme = "default"
-	}
 	colorMode := dash.ColorMode
 	if colorMode != "dark" {
 		colorMode = "light"
@@ -75,32 +75,27 @@ func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboar
 		}
 	}
 
-	// Resolve the referenced theme. A missing or dangling reference is not
-	// an error: Resolve falls back to the builtin default.
-	bgCSS := template.CSS(themes.BrowserCSS(bgStore.Resolve(dash.ThemeID))) //nolint:gosec // G203: generated from closed enums, per-role-sanitised hex colours and percent-encoded URLs
-
 	pageNames := make([]string, len(dash.Pages))
 	for i, p := range dash.Pages {
 		pageNames[i] = p.Name
 	}
 
 	data := browser.RenderData{
-		Name:          dash.Name,
-		DashboardID:   dash.ID,
-		Theme:         theme,
-		ColorMode:     colorMode,
-		MaxWidth:      dash.Container.MaxWidth,
-		HAlign:        dash.Container.HorizontalAlign,
-		VAlign:        dash.Container.VerticalAlign,
-		AccentColor:   dash.AccentColor,
-		CustomCSS:     store.GetCustomCSS(dash.ID),
-		BackgroundCSS: bgCSS,
-		QueryParams:   queryParams,
-		Rows:          dash.Pages[pageIdx].Rows,
-		PageIndex:     pageIdx,
-		TotalPages:    len(dash.Pages),
-		PageNames:     pageNames,
-		Palette:       themeStore.Palette(theme, colorMode),
+		Name:        dash.Name,
+		DashboardID: dash.ID,
+		ThemeID:     dash.ThemeID,
+		WidgetTheme: dash.WidgetTheme,
+		ColorMode:   colorMode,
+		MaxWidth:    dash.Container.MaxWidth,
+		HAlign:      dash.Container.HorizontalAlign,
+		VAlign:      dash.Container.VerticalAlign,
+		CustomCSS:   store.GetCustomCSS(dash.ID),
+		QueryParams: queryParams,
+		Rows:        dash.Pages[pageIdx].Rows,
+		PageIndex:   pageIdx,
+		TotalPages:  len(dash.Pages),
+		PageNames:   pageNames,
+		Palette:     theme.Palette(colorMode),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -203,7 +198,7 @@ func pageRedirectTarget(r *http.Request, page int) string {
 }
 
 // serveImageDashboard handles rendering of image-type dashboards.
-func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *widgetthemes.Store, bgStore *themes.Store) {
+func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, theme themes.Theme, themeStore *themes.Store, widgetThemeStore *widgetthemes.Store) {
 	dreq, err := parseDisplayHeaders(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -230,8 +225,8 @@ func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.
 	}
 
 	// Render dashboard to image
-	renderData := buildRenderData(dash, pageIdx, r.URL.Query(), store, themeStore)
-	bgCSS, bgImageData := resolveImageBackground(dash, bgStore)
+	renderData := buildRenderData(dash, pageIdx, r.URL.Query(), store, theme, widgetThemeStore)
+	bgCSS, bgImageData := resolveImageBackground(theme, dash.ColorMode, themeStore)
 	renderData.BackgroundCSS = bgCSS
 
 	var buf bytes.Buffer
@@ -269,7 +264,7 @@ func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.
 
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	_, _ = w.Write(output) //nolint:gosec // G705: encoded image/binary bytes served with explicit Content-Type and nosniff; not HTML
+	_, _ = w.Write(output)
 }
 
 // encodeForFormat encodes an RGBA image in the requested display format.
@@ -322,16 +317,13 @@ func parsePageIndex(r *http.Request, totalPages int) (int, bool) {
 	return pageIdx, true
 }
 
-// buildRenderData constructs the render data structure for a dashboard page.
-func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]string, store *dashboard.Store, themeStore *widgetthemes.Store) dashstatic.RenderData {
-	theme := dash.Theme
-	if theme == "" {
-		theme = "default"
-	}
-
-	fontFamily := ""
-	if themeInfo, ok := themeStore.Get(theme); ok && len(themeInfo.Fonts) > 0 {
-		fontFamily = themeInfo.Fonts[0].Name
+// buildRenderData constructs the image-stack render data for a dashboard
+// page. The palette is flattened because litehtml cannot render alpha: a
+// translucent role must reach it as an opaque colour composited over bg.
+func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]string, store *dashboard.Store, theme themes.Theme, widgetThemeStore *widgetthemes.Store) dashstatic.RenderData {
+	widgetTheme := dash.WidgetTheme
+	if widgetTheme == "" {
+		widgetTheme = "default"
 	}
 
 	queryParams := make(map[string]string)
@@ -347,15 +339,15 @@ func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]s
 		MaxWidth:    dash.Container.MaxWidth,
 		HAlign:      dash.Container.HorizontalAlign,
 		VAlign:      dash.Container.VerticalAlign,
-		Theme:       theme,
+		WidgetTheme: widgetTheme,
 		ColorMode:   dash.ColorMode,
-		FontFamily:  fontFamily,
+		FontFamily:  widgetThemeStore.FontFamily(widgetTheme),
 		CustomCSS:   store.GetCustomCSS(dash.ID),
 		QueryParams: queryParams,
 		Rows:        dash.Pages[pageIdx].Rows,
 		PageIndex:   pageIdx,
 		TotalPages:  len(dash.Pages),
-		Palette:     themeStore.Palette(theme, dash.ColorMode),
+		Palette:     theme.Palette(dash.ColorMode).Flatten(),
 	}
 }
 
@@ -367,13 +359,12 @@ func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]s
 // When an image ref is present and loads successfully, returns "transparent"
 // as the css. This prevents the template's {{else}}{{.Palette.BG}}{{end}}
 // fallback from painting an opaque theme colour over the pre-composited image.
-func resolveImageBackground(dash dashboard.Dashboard, bgStore *themes.Store) (css string, imageData []byte) {
-	theme := bgStore.Resolve(dash.ThemeID)
-	css, ref := themes.ImageCSS(theme, dash.ColorMode)
+func resolveImageBackground(theme themes.Theme, colorMode string, themeStore *themes.Store) (css string, imageData []byte) {
+	css, ref := themes.ImageCSS(theme, colorMode)
 	if ref == "" {
 		return css, nil
 	}
-	data, err := bgStore.LoadImage(theme.ID, ref)
+	data, err := themeStore.LoadImage(theme.ID, ref)
 	if err != nil {
 		return css, nil
 	}

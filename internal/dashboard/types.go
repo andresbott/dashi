@@ -19,22 +19,21 @@ type Page struct {
 
 // Dashboard represents a user-defined dashboard with a layout of widgets in rows.
 type Dashboard struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Icon        string    `json:"icon"`
-	Type        string    `json:"type"`
-	Default     bool      `json:"default,omitempty"`
-	Container   Container `json:"container"`
-	Theme       string    `json:"theme,omitempty"`
-	ColorMode   string    `json:"colorMode,omitempty"`
-	AccentColor string    `json:"accentColor,omitempty"`
-	// ThemeID references a theme entity (internal/themes). Empty, unknown
-	// or dangling references render with the builtin default theme.
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Icon      string    `json:"icon"`
+	Type      string    `json:"type"`
+	Default   bool      `json:"default,omitempty"`
+	Container Container `json:"container"`
+	// ThemeID references a theme entity (internal/themes): colours and page
+	// background. Empty, unknown or dangling references render with the
+	// builtin default theme.
 	ThemeID string `json:"themeId,omitempty"`
-	// BackgroundID referenced the former background entity. No renderer
-	// reads it any more; it is removed with the other old theme fields.
-	BackgroundID string `json:"backgroundId,omitempty"`
-	Pages        []Page `json:"pages"`
+	// WidgetTheme names a widget theme (internal/widgetthemes): fonts and
+	// icons. Empty or unknown names render with the default widget theme.
+	WidgetTheme string `json:"widgetTheme,omitempty"`
+	ColorMode   string `json:"colorMode,omitempty"`
+	Pages       []Page `json:"pages"`
 }
 
 // DashboardMeta is the lightweight listing representation (no rows).

@@ -66,7 +66,7 @@ func (h *WidgetThemeHandler) GetFont(w http.ResponseWriter, r *http.Request) {
 
 	// FontData resolves display fonts and, under the icon-font-{theme}
 	// family name, the theme's icon font — the browser stack needs both as
-	// @font-face sources (see widgetthemes.Store.ThemeCSS).
+	// @font-face sources (see widgetthemes.Store.FontFacesCSS).
 	data, err := h.store.FontData(themeName, fontName)
 	if err != nil {
 		h.logger.Error("get font data", slog.String("error", err.Error()))

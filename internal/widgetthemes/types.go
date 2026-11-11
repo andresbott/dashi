@@ -49,13 +49,11 @@ type ResolvedIcon struct {
 
 // themeManifest represents the parsed theme.yaml file.
 type themeManifest struct {
-	Name        string            `yaml:"name"`
-	Type        string            `yaml:"type"` // ThemeKindIcon or ThemeKindStyle; required.
-	Description string            `yaml:"description"`
-	Fonts       []manifestFont    `yaml:"fonts,omitempty"`
-	Icons       *manifestIcons    `yaml:"icons,omitempty"`
-	Colors      map[string]string `yaml:"colors,omitempty"`
-	ColorsDark  map[string]string `yaml:"colorsDark,omitempty"`
+	Name        string         `yaml:"name"`
+	Type        string         `yaml:"type"` // ThemeKindIcon or ThemeKindStyle; required.
+	Description string         `yaml:"description"`
+	Fonts       []manifestFont `yaml:"fonts,omitempty"`
+	Icons       *manifestIcons `yaml:"icons,omitempty"`
 }
 
 type manifestFont struct {

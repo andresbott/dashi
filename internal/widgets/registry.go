@@ -5,18 +5,19 @@ import (
 	"encoding/json"
 	"html/template"
 
-	"github.com/andresbott/dashi/internal/widgetthemes"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/gorilla/mux"
 )
 
 // RenderContext provides dashboard-level settings to widget renderers.
 type RenderContext struct {
-	DashboardID string               // dashboard identifier for asset resolution
-	Theme       string               // dashboard theme name
-	ColorMode   string               // "light" or "dark"
-	Palette     widgetthemes.Palette // resolved theme colours; image-stack templates
-	// use these directly because litehtml cannot
-	// read CSS custom properties
+	DashboardID string // dashboard identifier for asset resolution
+	WidgetTheme string // widget theme name: fonts and icons
+	ColorMode   string // "light" or "dark"
+	// Palette holds the resolved theme colours. Image-stack templates use
+	// these directly because litehtml cannot read CSS custom properties;
+	// the image stack passes a flattened (alpha-free) palette.
+	Palette     themes.Palette
 	QueryParams map[string]string // URL query parameters from the HTTP request
 	PageIndex   int               // zero-based index of the current page
 	TotalPages  int               // total number of pages in the dashboard
@@ -31,11 +32,11 @@ type RenderContext struct {
 // that assembles a RenderContext directly. Deriving the fallback from
 // ColorMode rather than hardcoding the light palette is what keeps such a
 // caller from rendering dark-mode output with light greys.
-func (c RenderContext) EffectivePalette() widgetthemes.Palette {
-	if c.Palette.Muted != "" {
+func (c RenderContext) EffectivePalette() themes.Palette {
+	if c.Palette.TextMuted != "" {
 		return c.Palette
 	}
-	return widgetthemes.DefaultPalette(c.ColorMode)
+	return themes.DefaultPalette(c.ColorMode)
 }
 
 // StaticRenderer renders a widget's HTML fragment from its JSON config.

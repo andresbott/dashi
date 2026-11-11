@@ -101,8 +101,8 @@ func NewStaticRenderer(client *tr.Client) func(json.RawMessage, widgets.RenderCo
 		}
 
 		iconFontFamily := ""
-		if ctx.Theme != "" {
-			iconFontFamily = "icon-font-" + ctx.Theme
+		if ctx.WidgetTheme != "" {
+			iconFontFamily = "icon-font-" + ctx.WidgetTheme
 		}
 
 		data := transportTemplateData{

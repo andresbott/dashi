@@ -127,7 +127,7 @@ func NewStaticRenderer(client *weatherpkg.Client, themeStore *widgetthemes.Store
 			return "", fmt.Errorf("weather fetch: %w", err)
 		}
 
-		themeName := ctx.Theme
+		themeName := ctx.WidgetTheme
 		if themeName == "" {
 			themeName = "default"
 		}
@@ -219,8 +219,8 @@ func resolveIconHTML(store *widgetthemes.Store, themeName, canonicalName string)
 			cp, err := strconv.ParseUint(resolved.Codepoint, 16, 32)
 			if err == nil && cp <= unicode.MaxRune {
 				return template.HTML(fmt.Sprintf(
-					`<span style="font-family: icon-font-%s; font-size: 1.4em;">%s</span>`,
-					template.HTMLEscapeString(themeName),
+					`<span style="font-family: %s; font-size: 1.4em;">%s</span>`,
+					template.HTMLEscapeString(widgetthemes.IconFontFamily(themeName)),
 					string(rune(cp))))
 			}
 		}

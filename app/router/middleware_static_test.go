@@ -49,8 +49,8 @@ func newTestMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.Han
 	})
 
 	bs, _ := images.NewStore(t.TempDir())
-	bgStore := themes.NewStore(t.TempDir(), bs)
-	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, widgetthemes.NewStore(""), bgStore)
+	themeStore := themes.NewStore(t.TempDir(), bs)
+	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetthemes.NewStore(""))
 	return mid(spaHandler)
 }
 
@@ -644,19 +644,15 @@ func TestImageDashboard_RotationQueryParam(t *testing.T) {
 func TestResolveImageBackgroundWithGradientOnly(t *testing.T) {
 	// When the background has a gradient but no image, resolveImageBackground
 	// should return the gradient CSS and nil bytes.
-	bgStore := themes.NewStore(t.TempDir(), nil)
-	bg := themes.Theme{
+	themeStore := themes.NewStore(t.TempDir(), nil)
+	theme := themes.Theme{
 		ID:         "gradientonly",
 		Name:       "Gradient Only",
 		Colors:     themes.DefaultTheme().Colors,
 		Background: themes.Background{Gradient: &themes.Gradient{Direction: "to right", Light: []string{"#000000", "#ffffff"}}},
 	}
-	if _, err := bgStore.Create(bg); err != nil {
-		t.Fatal(err)
-	}
 
-	dash := dashboard.Dashboard{ThemeID: "gradientonly", ColorMode: "light"}
-	css, imageData := resolveImageBackground(dash, bgStore)
+	css, imageData := resolveImageBackground(theme, "light", themeStore)
 
 	if css != "linear-gradient(to right,#000000,#ffffff)" {
 		t.Errorf("expected gradient CSS, got %q", css)
@@ -674,7 +670,7 @@ func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bgStore := themes.NewStore(t.TempDir(), imageStore)
+	themeStore := themes.NewStore(t.TempDir(), imageStore)
 
 	// Save a small test image
 	testPNG := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A} // PNG signature
@@ -682,7 +678,7 @@ func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bg := themes.Theme{
+	theme := themes.Theme{
 		ID:     "withimage",
 		Name:   "With Image",
 		Colors: themes.DefaultTheme().Colors,
@@ -690,12 +686,8 @@ func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
 			Light: "shared:test.png", Fit: "cover", Position: "center", Repeat: "no-repeat",
 		}},
 	}
-	if _, err := bgStore.Create(bg); err != nil {
-		t.Fatal(err)
-	}
 
-	dash := dashboard.Dashboard{ThemeID: "withimage", ColorMode: "light"}
-	css, imageData := resolveImageBackground(dash, bgStore)
+	css, imageData := resolveImageBackground(theme, "light", themeStore)
 
 	if css != "transparent" {
 		t.Errorf("expected 'transparent' css to prevent theme-background paint-over, got %q", css)
@@ -704,6 +696,44 @@ func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
 		t.Error("expected non-nil image data")
 	} else if len(imageData) != len(testPNG) {
 		t.Errorf("expected %d bytes, got %d", len(testPNG), len(imageData))
+	}
+}
+
+// Review Focus 5: litehtml cannot render alpha, so a translucent surface must
+// reach the image stack as an opaque 6-digit colour composited over bg.
+func TestBuildRenderDataFlattensPalette(t *testing.T) {
+	light := themes.DefaultPalette("light")
+	light.BG = "#000000"
+	light.Surface = "#ffffff80"
+	theme := themes.Theme{
+		ID:     "translucent",
+		Name:   "Translucent",
+		Colors: themes.Colors{Light: light, Dark: themes.DefaultPalette("dark")},
+	}
+	dash := imageDashboard("flat")
+	dash.ColorMode = "light"
+
+	got := buildRenderData(dash, 0, nil, dashboard.NewStore(t.TempDir()), theme, widgetthemes.NewStore(""))
+
+	if got.Palette.Surface != "#808080" {
+		t.Errorf("Palette.Surface = %q, want #808080 (#ffffff80 over #000000)", got.Palette.Surface)
+	}
+	if got.Palette.BG != "#000000" {
+		t.Errorf("Palette.BG = %q, want #000000", got.Palette.BG)
+	}
+}
+
+func TestBuildRenderDataCarriesWidgetThemeAndFont(t *testing.T) {
+	dash := imageDashboard("wt")
+	dash.WidgetTheme = "default"
+
+	got := buildRenderData(dash, 0, nil, dashboard.NewStore(t.TempDir()), themes.DefaultTheme(), widgetthemes.NewStore(""))
+
+	if got.WidgetTheme != "default" {
+		t.Errorf("WidgetTheme = %q, want default", got.WidgetTheme)
+	}
+	if got.FontFamily != "Inter" {
+		t.Errorf("FontFamily = %q, want Inter", got.FontFamily)
 	}
 }
 
@@ -726,7 +756,7 @@ func TestImageDashboardWithDanglingBackgroundRefStillRenders(t *testing.T) {
 func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 	// Regression test for the bug where ImageCSS's empty string caused the
 	// template to fall back to opaque theme background, covering the
-	// pre-composited image. This test proves the full path: bgStore.LoadImage
+	// pre-composited image. This test proves the full path: themeStore.LoadImage
 	// is called, bytes reach RenderToImage, and the color survives onto pixels.
 
 	// Create a distinctive solid-red 10x10 PNG
@@ -741,13 +771,13 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Set up stores - use same imageStore for both saving and bgStore
+	// Set up stores - use same imageStore for both saving and themeStore
 	dashStore := dashboard.NewStore(t.TempDir())
 	imageStore, err := images.NewStore(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	bgStore := themes.NewStore(t.TempDir(), imageStore)
+	themeStore := themes.NewStore(t.TempDir(), imageStore)
 
 	// Save the red image to the shared image store
 	if err := imageStore.Save("red.png", redBuf.Bytes()); err != nil {
@@ -766,7 +796,7 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 			Repeat:   "no-repeat",
 		}},
 	}
-	if _, err := bgStore.Create(bg); err != nil {
+	if _, err := themeStore.Create(bg); err != nil {
 		t.Fatal(err)
 	}
 
@@ -813,7 +843,7 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("SPA"))
 	})
-	mid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, widgetthemes.NewStore(""), bgStore)
+	mid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetthemes.NewStore(""))
 	handler := mid(spaHandler)
 
 	// Request the PNG

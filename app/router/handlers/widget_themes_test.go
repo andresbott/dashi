@@ -275,7 +275,7 @@ func TestWidgetThemeHandler_GetFont_ServesDisplayAndIconFonts(t *testing.T) {
 	store := widgetthemes.NewStore("")
 	handler := NewWidgetThemeHandler(store, slog.Default())
 
-	// The browser stack's @font-face rules (widgetthemes.Store.ThemeCSS) point at
+	// The browser stack's @font-face rules (widgetthemes.Store.FontFacesCSS) point at
 	// this route for both the display font and the icon font, so both names
 	// must resolve or font-icon themes render tofu in a browser.
 	for _, fontName := range []string{"Inter", widgetthemes.IconFontFamily("default")} {

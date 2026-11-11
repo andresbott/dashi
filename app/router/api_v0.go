@@ -18,15 +18,15 @@ import (
 
 // apiDeps holds shared dependencies for API route handlers.
 type apiDeps struct {
-	dashStore      *dashboard.Store
-	themeStore     *widgetthemes.Store
-	notesStore     *notes.Store
-	imagesStore    *images.Store
-	sharedBgImages *images.Store
-	bgStore        *themes.Store
-	logger         *slog.Logger
-	modules        []widgets.Module
-	publicViewer   handlers.PublicViewer
+	dashStore        *dashboard.Store
+	themeStore       *themes.Store
+	widgetThemeStore *widgetthemes.Store
+	notesStore       *notes.Store
+	imagesStore      *images.Store
+	sharedBgImages   *images.Store
+	logger           *slog.Logger
+	modules          []widgets.Module
+	publicViewer     handlers.PublicViewer
 }
 
 // attachReadAPIs mounts all read-only (GET) API endpoints on the given router.
@@ -42,7 +42,7 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/info").Methods(http.MethodGet).HandlerFunc(ih.Get)
 
 	// Dashboard routes (read)
-	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.logger)
+	dh := handlers.NewDashboardHandler(deps.dashStore, deps.logger)
 	r.Path("/dashboards").Methods(http.MethodGet).HandlerFunc(dh.List)
 	r.Path("/dashboards/{id}").Methods(http.MethodGet).HandlerFunc(dh.Get)
 	r.Path("/dashboards/{id}/download").Methods(http.MethodGet).HandlerFunc(dh.Download)
@@ -50,7 +50,7 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/dashboards/{id}/assets/{path:.*}").Methods(http.MethodGet).HandlerFunc(dh.GetAsset)
 
 	// Theme entity (read)
-	tmh := handlers.NewThemeHandler(deps.bgStore, deps.dashStore, deps.logger)
+	tmh := handlers.NewThemeHandler(deps.themeStore, deps.dashStore, deps.logger)
 	r.Path("/themes").Methods(http.MethodGet).HandlerFunc(tmh.List)
 	r.Path("/themes/{id}").Methods(http.MethodGet).HandlerFunc(tmh.Get)
 	r.Path("/themes/{id}/assets").Methods(http.MethodGet).HandlerFunc(tmh.ListAssets)
@@ -61,8 +61,8 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 		m.RegisterRoutes(r)
 	}
 
-	// Theme routes
-	th := handlers.NewWidgetThemeHandler(deps.themeStore, deps.logger)
+	// Widget theme routes
+	th := handlers.NewWidgetThemeHandler(deps.widgetThemeStore, deps.logger)
 	r.Path("/widget-themes").Methods(http.MethodGet).HandlerFunc(th.List)
 	r.Path("/widget-themes/{name}/icons/{icon}").Methods(http.MethodGet).HandlerFunc(th.GetIcon)
 	r.Path("/widget-themes/{name}/fonts/{font}").Methods(http.MethodGet).HandlerFunc(th.GetFont)
@@ -75,7 +75,7 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 
 // attachWriteAPIs mounts all write (POST/PUT/DELETE) API endpoints on the given router.
 func attachWriteAPIs(r *mux.Router, deps apiDeps) {
-	dh := handlers.NewDashboardHandler(deps.dashStore, deps.themeStore, deps.logger)
+	dh := handlers.NewDashboardHandler(deps.dashStore, deps.logger)
 
 	r.Path("/dashboards").Methods(http.MethodPost).HandlerFunc(dh.Create)
 	r.Path("/dashboards/upload").Methods(http.MethodPost).HandlerFunc(dh.Upload)
@@ -88,8 +88,8 @@ func attachWriteAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/dashboards/{id}/auth").Methods(http.MethodPut).HandlerFunc(dh.SetAuth)
 	r.Path("/dashboards/{id}/auth").Methods(http.MethodDelete).HandlerFunc(dh.DeleteAuth)
 
-	// Theme admin CRUD (editor only)
-	th := handlers.NewWidgetThemeHandler(deps.themeStore, deps.logger)
+	// Widget theme admin CRUD (editor only)
+	th := handlers.NewWidgetThemeHandler(deps.widgetThemeStore, deps.logger)
 	r.Path("/widget-themes/upload").Methods(http.MethodPost).HandlerFunc(th.Upload)
 	r.Path("/widget-themes/{name}").Methods(http.MethodDelete).HandlerFunc(th.Delete)
 	r.Path("/widget-themes/{name}/download").Methods(http.MethodGet).HandlerFunc(th.Download)
@@ -99,7 +99,7 @@ func attachWriteAPIs(r *mux.Router, deps apiDeps) {
 	dataH.RegisterWrite(r)
 
 	// Theme entity CRUD (editor only)
-	tmh := handlers.NewThemeHandler(deps.bgStore, deps.dashStore, deps.logger)
+	tmh := handlers.NewThemeHandler(deps.themeStore, deps.dashStore, deps.logger)
 	r.Path("/themes").Methods(http.MethodPost).HandlerFunc(tmh.Create)
 	r.Path("/themes/{id}").Methods(http.MethodPut).HandlerFunc(tmh.Update)
 	r.Path("/themes/{id}").Methods(http.MethodDelete).HandlerFunc(tmh.Delete)

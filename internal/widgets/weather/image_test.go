@@ -316,7 +316,7 @@ func TestRenderStatic_ImageThemeUsesFilePath(t *testing.T) {
 	}`)
 
 	renderer := NewStaticRenderer(client, themeStore)
-	got, err := renderer(config, widgets.RenderContext{Theme: "imgtheme"})
+	got, err := renderer(config, widgets.RenderContext{WidgetTheme: "imgtheme"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -348,7 +348,7 @@ func TestRenderStatic_FontIconCodepoint(t *testing.T) {
 	}`)
 
 	renderer := NewStaticRenderer(client, themeStore)
-	got, err := renderer(config, widgets.RenderContext{Theme: "default"})
+	got, err := renderer(config, widgets.RenderContext{WidgetTheme: "default"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -465,7 +465,7 @@ func TestRenderStatic_ImageThemeWithExtraInfo(t *testing.T) {
 	}`)
 
 	renderer := NewStaticRenderer(client, themeStore)
-	got, err := renderer(config, widgets.RenderContext{Theme: "imgtheme"})
+	got, err := renderer(config, widgets.RenderContext{WidgetTheme: "imgtheme"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
