@@ -54,7 +54,7 @@ const isDocRoute = computed(() => activeKey.value.startsWith('doc-'))
 <template>
     <header class="app-topbar">
         <img :src="dashiIcon" alt="Dashi" class="app-topbar-icon" />
-        <span class="app-topbar-title" @click="router.push('/admin')">Dashi</span>
+        <button type="button" class="app-topbar-title" @click="router.push({ name: 'admin-dashboards' })">Dashi</button>
     </header>
     <div class="admin-view">
         <div class="admin-layout">

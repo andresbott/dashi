@@ -1,6 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import type { Widget } from '@/types/dashboard'
-import { placeRow, insertByColumn, firstFreeSpan, columnFromDrag, moveWidgetToColumn } from './rowLayout'
+import {
+    placeRow,
+    insertByColumn,
+    firstFreeSpan,
+    columnFromDrag,
+    moveWidgetToColumn,
+    totalSpan,
+    fitsInRow,
+    maxResizeWidth,
+    clampRowToLine,
+} from './rowLayout'
 
 // Minimal widget factory — only width/column matter to the layout.
 let seq = 0
@@ -134,6 +144,64 @@ describe('columnFromDrag', () => {
     it('clamps to the min and max start columns', () => {
         expect(columnFromDrag({ ...base, pointerX: -9000, grabStartX: 500 })).toBe(1)
         expect(columnFromDrag({ ...base, pointerX: 9000, grabStartX: 500 })).toBe(10)
+    })
+})
+
+describe('totalSpan / fitsInRow', () => {
+    it('sums packed widths, ignoring gaps', () => {
+        expect(totalSpan([w(3, 1), w(3, 9)])).toBe(6)
+    })
+
+    it('counts a width below one as a full span', () => {
+        expect(totalSpan([w(0)])).toBe(12)
+    })
+
+    it('accepts a widget that fits and rejects one that would overflow', () => {
+        expect(fitsInRow([w(6, 1), w(3, 7)], 3)).toBe(true)
+        expect(fitsInRow([w(6, 1), w(3, 7)], 4)).toBe(false)
+    })
+})
+
+describe('maxResizeWidth', () => {
+    it('caps the last widget at the grid edge', () => {
+        expect(maxResizeWidth([w(3, 1), w(3, 4)], 1)).toBe(9)
+    })
+
+    it('leaves room for the widgets after it', () => {
+        // A at 1..3, B(4) and C(2) follow: A may grow to 12 - 4 - 2 = 6.
+        expect(maxResizeWidth([w(3, 1), w(4, 5), w(2, 9)], 0)).toBe(6)
+    })
+
+    it('never drops below one column', () => {
+        expect(maxResizeWidth([w(4, 1), w(8, 5)], 0)).toBe(4)
+        expect(maxResizeWidth([w(2, 1), w(6, 3), w(6, 9)], 0)).toBe(1)
+    })
+})
+
+describe('clampRowToLine', () => {
+    it('returns the same array when the row already fits', () => {
+        const row = [w(4, 1), w(4, 9)]
+        expect(clampRowToLine(row)).toBe(row)
+    })
+
+    it('pulls pushed widgets back onto the line from the right', () => {
+        // A 1..6, B asked for 10 → 10..15 overflows; B is pulled back to 7.
+        const a = w(6, 1)
+        const b = w(6, 10)
+        const out = clampRowToLine([a, b])
+        expect(placeRow(out).map((p) => p.column)).toEqual([1, 7])
+        expect(out[0]).toBe(a) // untouched widgets keep their identity
+    })
+
+    it('keeps leading gaps while there is room and only shrinks the right-hand ones', () => {
+        // A 1..4, B parked at 7..8 (gap 5..6), C 11..14 overflows → C to 9, B stays.
+        const out = clampRowToLine([w(4, 1), w(2, 7), w(4, 11)])
+        expect(placeRow(out).map((p) => p.column)).toEqual([1, 7, 9])
+    })
+
+    it('leaves a row whose widths cannot fit untouched', () => {
+        const row = [w(6, 1), w(6, 7), w(4, 13)]
+        expect(clampRowToLine(row)).toBe(row)
     })
 })
 

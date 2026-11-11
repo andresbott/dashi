@@ -46,6 +46,18 @@ any column and adding widgets can never overlap.
 See [rendering.md](rendering.md) for the gap → `margin-left`/`col-offset`
 mechanism.
 
+The editor additionally treats a row as **one 12-column line** (decided
+2026-11-06): `clampRowToLine`, `maxResizeWidth` and `fitsInRow` in
+`rowLayout.ts` keep every edit (add, resize, in-row move, cross-row drop) from
+pushing a widget past column 12, and a drop that does not fit is refused with a
+blocked guide. Go's `PlaceRow` is unchanged: a stored row that already
+overflows still wraps in the viewer; the editor just never creates one. Widget
+drag and drop lives in `webui/src/components/dashboards/DashboardRow.vue`: a
+module-scoped drag session hit-tests the pointer against every registered row
+card (toolbar included, with a small snap margin between rows), publishes one
+target row + column, and the source row commits on release. SortableJS only
+detects the drag and paints the floating clone.
+
 ## Current matrix (verified 2026-07-22)
 
 | Type | Static (Go) | Interactive (Vue) | Config UI | Notes |

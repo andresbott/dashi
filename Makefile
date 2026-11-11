@@ -16,6 +16,9 @@ lint: ## run go linter
 	# depends on https://github.com/golangci/golangci-lint
 	@golangci-lint run
 
+ui-lint: ## run webui linter (eslint)
+	@cd webui && npm run lint
+
 COVERAGE_THRESHOLD ?= 70
 .PHONY: coverage
 coverage: ## check code coverage per package
@@ -37,7 +40,7 @@ license-check: ## check for invalid licenses
 	@go list -m -mod=readonly -json all | go-licence-detector -includeIndirect -rules allowedLicenses.json -overrides overrideLicenses.json
 
 .PHONY: verify
-verify: test ui-test license-check lint benchmark coverage ## run all tests
+verify: test ui-test license-check lint ui-lint benchmark coverage ## run all tests
 
 coverage-report: ## generate a coverage report
 	go test -covermode=count -coverpkg=./... -coverprofile coverage.cover.out  ./...

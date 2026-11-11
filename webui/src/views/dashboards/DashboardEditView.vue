@@ -1,29 +1,25 @@
 <script setup lang="ts">
-import { ref, computed, watch, provide } from 'vue'
+import { ref, computed, provide } from 'vue'
 import { DASHBOARD_THEME, DASHBOARD_ID, ACTIVE_PAGE, TOTAL_PAGES, EDITING_MODE } from '@/lib/injectionKeys'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
+import InputNumber from 'primevue/inputnumber'
 import DashboardRow from '@/components/dashboards/DashboardRow.vue'
 
-import { useGetDashboard, useUpdateDashboard } from '@/composables/useDashboards'
-import { useAutosave } from '@/composables/useAutosave'
-import { useToast } from 'primevue/usetoast'
-import type { Dashboard, Row } from '@/types/dashboard'
-import { insertByColumn } from '@/lib/rowLayout'
+import { useDashboardDraft } from '@/composables/useDashboardDraft'
+import type { Row } from '@/types/dashboard'
+import { insertByColumn, clampRowToLine, fitsInRow } from '@/lib/rowLayout'
 import { v4 as uuidv4 } from 'uuid'
 import Dialog from 'primevue/dialog'
 import dashiIcon from '@/assets/icon-64.png'
 
 const route = useRoute()
 const router = useRouter()
-const toast = useToast()
 const id = computed(() => route.params.id as string)
 
-const { data: serverDashboard, isLoading, isError } = useGetDashboard(() => id.value)
-const { updateDashboard } = useUpdateDashboard()
+const { draft: localDashboard, isLoading, isError, saveStatus, hasUnsaved, flush } = useDashboardDraft(() => id.value)
 
-const localDashboard = ref<Dashboard | null>(null)
 const activePageIndex = ref(0)
 
 const dashboardTheme = computed(() => localDashboard.value?.theme || 'default')
@@ -36,12 +32,7 @@ provide(EDITING_MODE, true)
 const renamePageDialogVisible = ref(false)
 const renamePageIndex = ref(0)
 const renamePageName = ref('')
-
-watch(serverDashboard, (val) => {
-    if (val && !localDashboard.value) {
-        localDashboard.value = JSON.parse(JSON.stringify(val))
-    }
-}, { immediate: true })
+const renamePageInterval = ref<number | null>(0)
 
 const pages = computed(() => localDashboard.value?.pages ?? [])
 const activePage = computed(() => pages.value[activePageIndex.value])
@@ -93,15 +84,21 @@ const movePageDown = (index: number) => {
     }
 }
 
+// The dialog edits staged copies; the page is only touched on Confirm, so
+// Cancel (or closing the dialog) leaves it exactly as it was.
 const openRenamePage = (index: number) => {
+    const page = localDashboard.value?.pages[index]
     renamePageIndex.value = index
-    renamePageName.value = localDashboard.value?.pages[index]?.name ?? ''
+    renamePageName.value = page?.name ?? ''
+    renamePageInterval.value = page?.refreshInterval ?? 0
     renamePageDialogVisible.value = true
 }
 
 const confirmRenamePage = () => {
-    if (!localDashboard.value) return
-    localDashboard.value.pages[renamePageIndex.value].name = renamePageName.value
+    const page = localDashboard.value?.pages[renamePageIndex.value]
+    if (!page) return
+    page.name = renamePageName.value
+    page.refreshInterval = Math.max(0, Math.floor(renamePageInterval.value || 0))
     renamePageDialogVisible.value = false
 }
 
@@ -122,7 +119,9 @@ const updateRow = (index: number, row: Row) => {
 
 // Cross-row widget move: DashboardRow emits this on drop when the pointer was
 // over a different row than the widget's own. Remove it from the source row and
-// insert it into the target row at the drop column (placeRow resolves overlap).
+// insert it into the target row at the drop column (placeRow resolves overlap,
+// clampRowToLine keeps the target row on one line). The row already refuses
+// the drop visually when the widget does not fit; this re-checks it.
 const moveWidgetAcross = (fromIndex: number, payload: { widgetId: string; toRowId: string; column: number }) => {
     if (!activePage.value) return
     const rows = activePage.value.rows
@@ -131,9 +130,13 @@ const moveWidgetAcross = (fromIndex: number, payload: { widgetId: string; toRowI
     const widget = fromRow.widgets.find(w => w.id === payload.widgetId)
     const toIndex = rows.findIndex(r => r.id === payload.toRowId)
     if (!widget || toIndex < 0 || toIndex === fromIndex) return
-    rows[fromIndex] = { ...fromRow, widgets: fromRow.widgets.filter(w => w.id !== payload.widgetId) }
     const toRow = rows[toIndex]
-    rows[toIndex] = { ...toRow, widgets: insertByColumn(toRow.widgets, { ...widget, column: payload.column }) }
+    if (!fitsInRow(toRow.widgets, widget.width)) return
+    rows[fromIndex] = { ...fromRow, widgets: fromRow.widgets.filter(w => w.id !== payload.widgetId) }
+    rows[toIndex] = {
+        ...toRow,
+        widgets: clampRowToLine(insertByColumn(toRow.widgets, { ...widget, column: payload.column })),
+    }
 }
 
 const deleteRow = (index: number) => {
@@ -154,15 +157,12 @@ const moveRowDown = (index: number) => {
     ;[rows[index], rows[index + 1]] = [rows[index + 1], rows[index]]
 }
 
-const { status: saveStatus, flush } = useAutosave<Dashboard>({
-    source: () => localDashboard.value,
-    save: (d) => updateDashboard({ id: id.value, payload: d }),
-})
-
-watch(saveStatus, (s) => {
-    if (s === 'error') {
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to save dashboard', life: 5000 })
-    }
+const saveIndicator = computed(() => {
+    if (saveStatus.value === 'error') return { icon: 'ti ti-alert-circle', label: 'Save failed' }
+    if (saveStatus.value === 'saving') return { icon: 'ti ti-loader-2', label: 'Saving…' }
+    if (hasUnsaved.value) return { icon: 'ti ti-pencil', label: 'Unsaved changes' }
+    if (saveStatus.value === 'saved') return { icon: 'ti ti-check', label: 'Saved' }
+    return null
 })
 
 const goToAdmin = async () => {
@@ -180,7 +180,7 @@ const goToSettings = async () => {
 <template>
     <header class="app-topbar">
         <img :src="dashiIcon" alt="Dashi" class="app-topbar-icon" />
-        <span class="app-topbar-title" @click="router.push('/admin')">Dashi</span>
+        <button type="button" class="app-topbar-title" @click="goToAdmin">Dashi</button>
     </header>
     <div class="dashboard-edit-view">
         <div v-if="isLoading" class="p-4">Loading...</div>
@@ -195,6 +195,15 @@ const goToSettings = async () => {
                 @click="goToAdmin"
             />
             <span class="text-xl font-bold text-color flex-grow-1">{{ localDashboard.name }}</span>
+            <span
+                v-if="saveIndicator"
+                class="save-status"
+                :class="{ 'save-status-error': saveStatus === 'error' }"
+                aria-live="polite"
+            >
+                <i :class="saveIndicator.icon" />
+                {{ saveIndicator.label }}
+            </span>
             <Button
                 icon="ti ti-settings"
                 label="Settings"
@@ -293,13 +302,11 @@ const goToSettings = async () => {
                 </div>
                 <div class="flex flex-column gap-1">
                     <label class="font-semibold text-sm">Refresh Interval (seconds)</label>
-                    <InputText
-                        :modelValue="String(localDashboard!.pages[renamePageIndex]?.refreshInterval ?? 0)"
-                        @update:modelValue="(v: string | undefined) => {
-                            if (!localDashboard || v === undefined) return
-                            localDashboard.pages[renamePageIndex].refreshInterval = parseInt(v) || 0
-                        }"
-                        placeholder="0 (no header)"
+                    <InputNumber
+                        v-model="renamePageInterval"
+                        :min="0"
+                        :useGrouping="false"
+                        placeholder="0 = no auto refresh"
                     />
                 </div>
             </div>
@@ -355,5 +362,18 @@ const goToSettings = async () => {
 
 .add-page-btn {
     margin-left: auto;
+}
+
+.save-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--p-text-muted-color);
+    white-space: nowrap;
+}
+
+.save-status-error {
+    color: var(--p-red-500);
 }
 </style>

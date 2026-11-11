@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import ColorPicker from 'primevue/colorpicker'
 
-import { useGetDashboard, useUpdateDashboard, useDashboardAuth } from '@/composables/useDashboards'
+import { useDashboardAuth } from '@/composables/useDashboards'
+import { useDashboardDraft } from '@/composables/useDashboardDraft'
 import { useListBackgrounds } from '@/composables/useBackgrounds'
-import { useAutosave } from '@/composables/useAutosave'
 import { useThemes } from '@/composables/useThemes'
 import { pageBgValue } from '@/lib/backgroundCss'
 import { useToast } from 'primevue/usetoast'
-import type { Dashboard } from '@/types/dashboard'
+import type { ColorMode } from '@/types/dashboard'
 import dashiIcon from '@/assets/icon-64.png'
 
 const route = useRoute()
@@ -20,13 +20,36 @@ const router = useRouter()
 const toast = useToast()
 const id = computed(() => route.params.id as string)
 
-const { data: serverDashboard, isLoading, isError } = useGetDashboard(() => id.value)
-const { updateDashboard } = useUpdateDashboard()
+const { draft: localDashboard, isLoading, isError, saveStatus, hasUnsaved, flush } = useDashboardDraft(() => id.value)
 const { backgrounds: backgroundList } = useListBackgrounds()
 const { auth: dashAuth, isLoadingAuth, setAuth, isSettingAuth, deleteAuth, isDeletingAuth } = useDashboardAuth(() => id.value)
 
 const authUsername = ref('')
 const authPassword = ref('')
+
+const protectionFailed = () => {
+    toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to update protection', life: 5000 })
+}
+
+const submitAuth = async () => {
+    try {
+        await setAuth({ username: authUsername.value, password: authPassword.value })
+        authUsername.value = ''
+        authPassword.value = ''
+    } catch {
+        protectionFailed()
+    }
+}
+
+const removeAuth = async () => {
+    try {
+        await deleteAuth()
+        authUsername.value = ''
+        authPassword.value = ''
+    } catch {
+        protectionFailed()
+    }
+}
 
 const { data: themesData } = useThemes()
 const themeOptions = computed(() => {
@@ -34,7 +57,7 @@ const themeOptions = computed(() => {
     return themesData.value.map(t => ({ label: t.name, value: t.name }))
 })
 
-const localDashboard = ref<Dashboard | null>(null)
+const accentColor = computed(() => localDashboard.value?.accentColor || '#3B82F6')
 
 // A dashboard no longer describes its own background; it points at a background
 // entity, which is edited in the Backgrounds admin section.
@@ -58,26 +81,25 @@ const swatchValue = computed(() =>
     selectedBackground.value ? pageBgValue(selectedBackground.value.previewCss) : 'transparent',
 )
 
-watch(serverDashboard, (val) => {
-    if (val && !localDashboard.value) {
-        localDashboard.value = JSON.parse(JSON.stringify(val))
-    }
-}, { immediate: true })
-
-const { status: saveStatus, flush } = useAutosave<Dashboard>({
-    source: () => localDashboard.value,
-    save: (d) => updateDashboard({ id: id.value, payload: d }),
+const saveIndicator = computed(() => {
+    if (saveStatus.value === 'error') return { icon: 'ti ti-alert-circle', label: 'Save failed' }
+    if (saveStatus.value === 'saving') return { icon: 'ti ti-loader-2', label: 'Saving…' }
+    if (hasUnsaved.value) return { icon: 'ti ti-pencil', label: 'Unsaved changes' }
+    if (saveStatus.value === 'saved') return { icon: 'ti ti-check', label: 'Saved' }
+    return null
 })
 
-watch(saveStatus, (s) => {
-    if (s === 'error') {
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to save settings', life: 5000 })
-    }
-})
+const goToAdmin = async () => {
+    await flush()
+    router.push({ name: 'admin-dashboards' })
+}
 
+// vue-router records the previous in-app location in history.state.back; it
+// is null when this page was opened directly, in which case "back" means the
+// editor rather than leaving the app.
 const goBack = async () => {
     await flush()
-    if (window.history.length > 1) {
+    if (router.options.history.state.back) {
         router.back()
     } else {
         router.push({ name: 'dashboard-edit', params: { id: id.value } })
@@ -99,7 +121,7 @@ const activeSection = ref('general')
 <template>
     <header class="app-topbar">
         <img :src="dashiIcon" alt="Dashi" class="app-topbar-icon" />
-        <span class="app-topbar-title" @click="router.push('/admin')">Dashi</span>
+        <button type="button" class="app-topbar-title" @click="goToAdmin">Dashi</button>
     </header>
     <div class="settings-view">
         <div v-if="isLoading" class="p-4">Loading...</div>
@@ -114,6 +136,15 @@ const activeSection = ref('general')
                     @click="goBack"
                 />
                 <span class="text-xl font-bold text-color flex-grow-1">{{ localDashboard.name }} — Settings</span>
+                <span
+                    v-if="saveIndicator"
+                    class="save-status"
+                    :class="{ 'save-status-error': saveStatus === 'error' }"
+                    aria-live="polite"
+                >
+                    <i :class="saveIndicator.icon" />
+                    {{ saveIndicator.label }}
+                </span>
             </div>
 
             <div class="settings-layout">
@@ -196,7 +227,7 @@ const activeSection = ref('general')
                         <label class="font-semibold text-sm">Color Mode</label>
                         <Select
                             :modelValue="localDashboard.colorMode || 'auto'"
-                            @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.colorMode = v as any }"
+                            @update:modelValue="(v: ColorMode | undefined) => { if (localDashboard && v !== undefined) localDashboard.colorMode = v }"
                             :options="[
                                 { label: 'Auto', value: 'auto' },
                                 { label: 'Light', value: 'light' },
@@ -211,11 +242,11 @@ const activeSection = ref('general')
                         <label class="font-semibold text-sm">Accent Color</label>
                         <div class="flex align-items-center gap-2">
                             <ColorPicker
-                                :modelValue="localDashboard!.accentColor?.replace('#', '') || '3B82F6'"
+                                :modelValue="accentColor.replace('#', '')"
                                 @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.accentColor = '#' + v }"
                             />
                             <InputText
-                                :modelValue="localDashboard!.accentColor || '#3B82F6'"
+                                :modelValue="accentColor"
                                 @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.accentColor = v }"
                                 class="flex-1"
                                 placeholder="#3B82F6"
@@ -277,7 +308,7 @@ const activeSection = ref('general')
                                     size="small"
                                     :loading="isSettingAuth"
                                     :disabled="!authUsername || !authPassword"
-                                    @click="setAuth({ username: authUsername, password: authPassword }).then(() => { authUsername = ''; authPassword = '' })"
+                                    @click="submitAuth"
                                 />
                                 <Button
                                     label="Remove Protection"
@@ -286,7 +317,7 @@ const activeSection = ref('general')
                                     size="small"
                                     outlined
                                     :loading="isDeletingAuth"
-                                    @click="deleteAuth()"
+                                    @click="removeAuth"
                                 />
                             </div>
                         </div>
@@ -302,7 +333,7 @@ const activeSection = ref('general')
                                 size="small"
                                 :loading="isSettingAuth"
                                 :disabled="!authUsername || !authPassword"
-                                @click="setAuth({ username: authUsername, password: authPassword }).then(() => { authUsername = ''; authPassword = '' })"
+                                @click="submitAuth"
                             />
                         </div>
                     </template>
@@ -398,5 +429,18 @@ const activeSection = ref('general')
     height: 24px;
     border-radius: 4px;
     border: 1px solid var(--p-surface-border);
+}
+
+.save-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--p-text-muted-color);
+    white-space: nowrap;
+}
+
+.save-status-error {
+    color: var(--p-red-500);
 }
 </style>

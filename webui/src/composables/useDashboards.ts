@@ -76,7 +76,8 @@ export function useGetDashboard(id: () => string) {
     const idRef = computed(id)
     return useQuery({
         queryKey: ['dashboard', idRef],
-        queryFn: () => getDashboard(idRef.value)
+        queryFn: () => getDashboard(idRef.value),
+        enabled: computed(() => !!idRef.value),
     })
 }
 
@@ -86,9 +87,11 @@ export function useUpdateDashboard() {
     const mutation = useMutation({
         mutationFn: ({ id, payload }: { id: string; payload: Dashboard }) =>
             updateDashboard(id, payload),
+        // Returned so mutateAsync resolves only after the list refetch: a caller
+        // that flushes before navigating to the list sees fresh data there.
         onSuccess: (data, variables) => {
-            invalidateAndRefetch(queryClient, DASHBOARDS_QUERY_KEY)
             queryClient.setQueryData(['dashboard', variables.id], data)
+            return queryClient.invalidateQueries({ queryKey: DASHBOARDS_QUERY_KEY, refetchType: 'active' })
         }
     })
 

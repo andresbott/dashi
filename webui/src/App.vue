@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import Toast from 'primevue/toast'
 </script>
 
@@ -34,7 +34,14 @@ import Toast from 'primevue/toast'
     cursor: pointer;
 }
 
+/* Rendered as a <button> for keyboard access; reset the UA button styles so it
+   reads as the plain topbar title. */
 .app-topbar-title {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font: inherit;
     font-size: 1.25rem;
     font-weight: 700;
     cursor: pointer;

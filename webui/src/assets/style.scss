@@ -11,6 +11,16 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* While a widget is being dragged or resized in the editor (see
+   lib/dragGuard.ts): no text selection anywhere, and one cursor for the whole
+   gesture instead of whatever element the pointer happens to cross. */
+body.dashi-dragging,
+body.dashi-dragging * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    cursor: var(--dashi-drag-cursor, grabbing) !important;
+}
+
 /* ---- Documentation content ---- */
 
 .doc-content {

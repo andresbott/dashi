@@ -4,6 +4,8 @@ import { DASHBOARD_THEME, DASHBOARD_ID, ACTIVE_PAGE, TOTAL_PAGES } from '@/lib/i
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import { getWidgetEntry } from '@/lib/widgetRegistry'
+import { placeRow } from '@/lib/rowLayout'
+import type { Row } from '@/types/dashboard'
 import { useGetDashboard, useListDashboards } from '@/composables/useDashboards'
 import { useThemes } from '@/composables/useThemes'
 import { getFontUrl } from '@/lib/api/themes'
@@ -119,6 +121,13 @@ const currentRows = computed(() => {
     return dashboard.value.pages[activePage.value].rows
 })
 
+// Same grid placement as the editor (DashboardRow.getWidgetClass): width plus
+// the empty columns before the widget, so column positions are honoured.
+function widgetClass(row: Row, index: number): string {
+    const p = placeRow(row.widgets)[index]
+    return `col-${p.width} col-offset-${p.gap}`
+}
+
 function pageName(index: number) {
     if (!dashboard.value) return `Page ${index + 1}`
     const page = dashboard.value.pages[index]
@@ -230,7 +239,7 @@ function debugColor(index: number): string | undefined {
                         <div
                             v-for="(widget, widgetIdx) in row.widgets"
                             :key="widget.id"
-                            :class="'col-' + widget.width"
+                            :class="widgetClass(row, widgetIdx)"
                             :style="{ background: debugColor(widgetIdx), overflow: 'hidden' }"
                         >
                             <component

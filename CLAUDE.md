@@ -24,6 +24,7 @@ in `docs/superpowers/`, analysis docs in `docs/project/`.
 - `make test` — Go unit tests
 - `make ui-test` — Vue.js tests (vue-tsc + vitest)
 - `make lint` — golangci-lint
+- `make ui-lint` — ESLint for the webui (`webui/eslint.config.js`)
 - `make coverage` — 70% per-package threshold on ./internal/...
 - `make verify` — all tests + lint + coverage + benchmark + license
 - `make run` — Start Go server (debug mode, no embedded UI)

@@ -40,7 +40,7 @@ const confirmDelete = async () => {
         await deleteDashboard(dashboardToDelete.value.id)
         deleteDialogVisible.value = false
         dashboardToDelete.value = null
-    } catch (err) {
+    } catch {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete dashboard', life: 5000 })
     }
 }
@@ -54,7 +54,7 @@ const handleCreate = async ({ name, type, container }) => {
         const created = await createDashboard({ name, icon: '', type, container, pages: [{ name: '', rows: [] }] })
         createDialogVisible.value = false
         router.push({ name: 'dashboard-edit', params: { id: created.id } })
-    } catch (err) {
+    } catch {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to create dashboard', life: 5000 })
     } finally {
         isCreating.value = false
@@ -88,7 +88,7 @@ const handleSetDefault = async (dashboard) => {
     pendingDefaultId.value = dashboard.id
     try {
         await setDefaultDashboard(dashboard.id)
-    } catch (err) {
+    } catch {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to set default dashboard', life: 5000 })
     } finally {
         pendingDefaultId.value = null
@@ -108,7 +108,7 @@ const dashboardType = (d) => DASHBOARD_TYPES[d.type] ?? DASHBOARD_TYPES.interact
 const handleDownload = async (id) => {
     try {
         await downloadDashboard(id)
-    } catch (err) {
+    } catch {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to download dashboard', life: 5000 })
     }
 }

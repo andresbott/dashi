@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashi — expanding grid (colspan / rowspan, heights from content)</title>
+<style>
+  :root {
+    --fg: #1f2937; --muted: #6b7280; --bg: #f3f4f6; --surface: #fff;
+    --border: #e5e7eb; --accent: #2563eb; --chrome: #f9fafb; --band: #dbe2ea;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg); background: var(--bg); }
+
+  header { display: flex; align-items: center; gap: .75rem; padding: .75rem 1.25rem; background: var(--surface); border-bottom: 1px solid var(--border); }
+  header .logo { width: 1.5rem; height: 1.5rem; border-radius: 6px; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: .8rem; }
+  header h1 { font-size: 1rem; font-weight: 700; }
+  header .sub { color: var(--muted); font-size: .8rem; }
+
+  .layout { display: grid; grid-template-columns: minmax(0,1fr) 22rem; gap: 1.25rem; padding: 1.25rem; align-items: start; }
+  @media (max-width: 1100px) { .layout { grid-template-columns: minmax(0,1fr); } }
+
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .75rem; }
+  button { font: inherit; cursor: pointer; padding: .35rem .7rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--fg); }
+  button:hover { background: var(--chrome); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { filter: brightness(1.07); }
+  .spacer { flex: 1; }
+  .hint { color: var(--muted); font-size: .8rem; }
+  label.hint { display: inline-flex; align-items: center; gap: .3rem; }
+
+  /* ------------------------------------------------------------- board */
+  #board { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .75rem .9rem .75rem 1.6rem; }
+  body.viewer #board { background: var(--bg); border-style: dashed; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: .75rem;                 /* the gaps double as "insert a row here" targets */
+  }
+
+  /* One per grid row. Stretches to its row band, so it both draws the band and
+     gives the drag code a real rectangle to hit-test against. */
+  .band { grid-column: 1 / -1; pointer-events: none; border: 1px dashed var(--band); border-radius: 6px; position: relative; }
+  body.viewer .band, body.nobands .band { border-color: transparent; }
+  .band-label { position: absolute; left: -1.15rem; top: .1rem; font-size: .6rem; color: var(--muted); }
+  body.viewer .band-label, body.nobands .band-label { display: none; }
+
+  .append { margin-top: .75rem; height: 1.15rem; border: 1px dashed var(--band); border-radius: 6px; display: grid; place-items: center; font-size: .65rem; color: var(--muted); }
+  .append.hot { border-color: var(--accent); color: var(--accent); }
+  body.viewer .append { display: none; }
+
+  /* ------------------------------------------------------------- card */
+  .card { position: relative; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  body:not(.viewer) .card { background: var(--chrome); }
+  .card.source { opacity: .35; }
+  .card-head { display: flex; align-items: center; gap: .35rem; padding: .28rem .35rem; border-bottom: 1px solid var(--border); background: var(--surface); font-size: .78rem; color: var(--muted); }
+  body.viewer .card-head { display: none; }
+  .grip { cursor: grab; padding: 0 .2rem; user-select: none; touch-action: none; }
+  .grip:active { cursor: grabbing; }
+  .card-title { font-weight: 600; color: var(--fg); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-tag { font-size: .68rem; font-variant-numeric: tabular-nums; }
+  .card-del { border: 0; background: none; color: var(--muted); padding: 0 .25rem; }
+  .card-del:hover { color: #dc2626; background: none; }
+  .card-body { padding: .6rem .7rem; flex: 1; }
+
+  .h-w, .h-h, .h-c { position: absolute; touch-action: none; z-index: 4; }
+  .h-w { right: 0; top: 0; bottom: .7rem; width: 9px; cursor: col-resize; }
+  .h-h { left: 0; right: .7rem; bottom: 0; height: 9px; cursor: row-resize; }
+  .h-c { right: 0; bottom: 0; width: .75rem; height: .75rem; cursor: nwse-resize; }
+  .h-w::after { content: ""; position: absolute; right: 3px; top: 50%; transform: translateY(-50%); width: 3px; height: 24px; border-radius: 2px; background: var(--border); }
+  .h-h::after { content: ""; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); height: 3px; width: 24px; border-radius: 2px; background: var(--border); }
+  .h-c::after { content: ""; position: absolute; right: 2px; bottom: 2px; width: 7px; height: 7px; border-right: 2px solid var(--border); border-bottom: 2px solid var(--border); }
+  .h-w:hover::after, .h-h:hover::after { background: var(--accent); }
+  .h-c:hover::after { border-color: var(--accent); }
+  body.viewer .h-w, body.viewer .h-h, body.viewer .h-c { display: none; }
+
+  /* ------------------------------------------------------------- overlays */
+  #target, #bar, #cols { position: absolute; pointer-events: none; display: none; z-index: 8; }
+  #target { background: color-mix(in srgb, var(--accent) 13%, transparent); border: 1px solid var(--accent); border-radius: 6px; }
+  #bar { height: 3px; background: var(--accent); border-radius: 3px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  #cols { background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(8.3333% - 1px), var(--band) calc(8.3333% - 1px), var(--band) 8.3333%); }
+  #ghost { position: fixed; z-index: 50; pointer-events: none; display: none; opacity: .88; box-shadow: 0 8px 24px rgba(0,0,0,.18); border-radius: 8px; }
+
+  /* ------------------------------------------------------------- content */
+  .w-clock { font-size: 1.9rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .w-sub { color: var(--muted); font-size: .78rem; }
+  .w-row { display: flex; justify-content: space-between; padding: .1rem 0; font-size: .82rem; }
+  .w-bar { height: .4rem; background: var(--border); border-radius: 3px; overflow: hidden; margin: .22rem 0 .45rem; }
+  .w-bar > i { display: block; height: 100%; background: var(--accent); }
+  .w-link { display: block; padding: .08rem 0; color: var(--accent); font-size: .82rem; }
+  .w-note { font-size: .82rem; }
+  .w-temp { font-size: 1.5rem; font-weight: 700; }
+
+  /* ------------------------------------------------------------- panels */
+  aside { display: flex; flex-direction: column; gap: .75rem; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .75rem .85rem; }
+  .panel h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: .5rem; }
+  pre { font: 11.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; background: #0f172a; color: #e2e8f0; padding: .7rem; border-radius: 8px; overflow: auto; max-height: 19rem; }
+  .panel p { font-size: .82rem; color: var(--muted); }
+  .panel p + p { margin-top: .5rem; }
+  .panel b { color: var(--fg); }
+  .warn { border-left: 3px solid #f59e0b; padding-left: .5rem; }
+  .flash { animation: flash 1s ease; }
+  @keyframes flash { from { background: #fef9c3; } to { background: transparent; } }
+  details summary { cursor: pointer; font-size: .82rem; color: var(--muted); margin-top: .45rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">D</div>
+  <div>
+    <h1>Dashi editor — expanding grid</h1>
+    <div class="sub">Widgets span columns <b>and rows</b>. Row heights still come from content, like a table.</div>
+  </div>
+</header>
+
+<div class="layout">
+  <section>
+    <div class="toolbar">
+      <button class="primary" id="btn-add">+ Add widget</button>
+      <button id="btn-shuffle">Shuffle stored order</button>
+      <button id="btn-reset">Reset</button>
+      <span class="spacer"></span>
+      <label class="hint"><input type="checkbox" id="chk-bands" checked> show row bands</label>
+      <label class="hint"><input type="checkbox" id="chk-viewer"> preview as viewer</label>
+    </div>
+
+    <div id="board">
+      <div id="cols"></div>
+      <div id="target"></div>
+      <div id="bar"></div>
+      <div class="grid" id="grid"></div>
+      <div class="append" id="append">drop here to add a row at the end</div>
+    </div>
+
+    <p class="hint" style="margin-top:.6rem">
+      <b>⠿</b> moves a widget — drop it inside a row band to land there, or into the <b>gap between
+      two bands</b> to insert a new row. <b>Right edge</b> = columns, <b>bottom edge</b> = rows,
+      <b>corner</b> = both. Try making Weather 2 rows tall, then 3.
+    </p>
+  </section>
+
+  <aside>
+    <div class="panel">
+      <h2>What gets saved</h2>
+      <pre id="json"></pre>
+      <p id="order-note">Four numbers per widget and nothing else. Order is meaningless —
+      <b>Shuffle stored order</b> and the layout doesn't move.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Heights come from content</h2>
+      <p>No pixel unit anywhere. A row is as tall as what's in it, and a widget spanning 2 rows
+      makes those two rows share its height — so <b>h</b> means "as tall as the two widgets
+      beside me", not "180px". Nothing can be clipped.</p>
+      <p>Cells fill their band, exactly like a <b>&lt;td&gt;</b> does. That's why a short widget
+      next to a tall spanning one shows whitespace — the honest table behaviour.</p>
+    </div>
+
+    <div class="panel">
+      <h2>How each renderer emits it</h2>
+      <details open>
+        <summary>e-ink / litehtml — table with colspan + rowspan</summary>
+        <pre id="emit-table"></pre>
+      </details>
+      <details>
+        <summary>browser — CSS grid, no filler cells</summary>
+        <pre id="emit-grid"></pre>
+      </details>
+      <p>The empty <b>&lt;td&gt;</b>s are the filler cells: a table needs every grid position
+      accounted for. They're generated, never stored — the JSON above has no trace of them.
+      Cells covered by a rowspan from above emit nothing at all.</p>
+    </div>
+
+    <div class="panel">
+      <h2 style="color:#b45309">Still unverified</h2>
+      <p class="warn">This demo uses CSS grid, which distributes a spanning cell's height across
+      its rows correctly. <b>Whether litehtml's table code does the same is the open
+      question</b> — its docs claim table <i>width</i> calculation and say nothing about row
+      height with rowspan. That needs a render against the real image pipeline before you
+      commit to this model.</p>
+      <p class="warn">Second thing to check: the image widget uses <b>height: 100%</b>, which is
+      unreliable inside a content-sized table cell.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Behaviour worth noticing</h2>
+      <p>Dropping into the gap <b>inside</b> a spanning widget grows that widget by a row instead
+      of splitting it — though if the dropped widget also lands in its columns, the spanner still
+      gets pushed down out of the way.</p>
+      <p>Overlaps resolve by pushing down, never sideways. Rows that end up empty collapse.</p>
+    </div>
+  </aside>
+</div>
+
+<div id="ghost"></div>
+
+<script>
+const COLS = 12;
+
+const START = [
+  { id: 'w1', type: 'clock',    title: 'Clock',   x: 1,  y: 0, w: 3, h: 1 },
+  { id: 'w2', type: 'bookmark', title: 'Links',   x: 1,  y: 1, w: 3, h: 1 },
+  { id: 'w3', type: 'weather',  title: 'Weather', x: 4,  y: 0, w: 6, h: 2 },
+  { id: 'w4', type: 'market',   title: 'Market',  x: 10, y: 0, w: 3, h: 1 },
+  { id: 'w5', type: 'sysinfo',  title: 'System',  x: 10, y: 1, w: 3, h: 1 },
+  { id: 'w6', type: 'note',     title: 'Notes',   x: 1,  y: 2, w: 7, h: 1 },
+  { id: 'w7', type: 'bookmark', title: 'Links',   x: 9,  y: 2, w: 4, h: 1 },
+];
+
+function clone(v) { return JSON.parse(JSON.stringify(v)); }
+
+let widgets = clone(START);
+let seq = 100;
+
+/* -------------------------------------------------------------- the model */
+
+const hit = (a, b) =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+const rowCount = () => widgets.reduce((n, w) => Math.max(n, w.y + w.h), 0);
+
+// Resolve overlaps by pushing down (never sideways), then close empty rows.
+// anchorId is the widget just dropped or resized: it keeps its position and
+// everything else gives way.
+function settle(anchorId) {
+  widgets.forEach(w => {
+    w.w = Math.max(1, Math.min(COLS, w.w));
+    w.h = Math.max(1, w.h);
+    w.x = Math.max(1, Math.min(w.x, COLS - w.w + 1));
+    w.y = Math.max(0, w.y);
+  });
+
+  const order = widgets.slice().sort((a, b) =>
+    (a.id === anchorId ? -1 : b.id === anchorId ? 1 : 0) || a.y - b.y || a.x - b.x);
+
+  const placed = [];
+  for (const w of order) {
+    let guard = 0;
+    while (placed.some(p => hit(p, w)) && guard++ < 500) w.y++;
+    placed.push(w);
+  }
+  closeEmptyRows();
+}
+
+// A row is occupied if any widget covers it. Unoccupied rows are removed and
+// everything below shifts up. A widget's own rows are occupied by definition,
+// so spans never get split by this.
+function closeEmptyRows() {
+  const rows = rowCount();
+  const used = new Array(rows).fill(false);
+  for (const w of widgets) for (let y = w.y; y < w.y + w.h; y++) used[y] = true;
+  const map = new Map();
+  let next = 0;
+  for (let y = 0; y < rows; y++) if (used[y]) map.set(y, next++);
+  widgets.forEach(w => { w.y = map.get(w.y); });
+}
+
+// Insert a fresh row at `at`. Anything below shifts down; anything spanning
+// across that boundary grows by one row instead of being torn in half.
+function insertRow(at, exceptId) {
+  for (const w of widgets) {
+    if (w.id === exceptId) continue;
+    if (w.y >= at) w.y++;
+    else if (w.y + w.h > at) w.h++;
+  }
+}
+
+// Occupancy map: grid[y][x] = { w, start } — start marks the widget's top-left
+// cell, the only place a <td> is emitted.
+function occupancy() {
+  const rows = rowCount();
+  const g = Array.from({ length: rows }, () => new Array(COLS + 2).fill(null));
+  for (const w of widgets)
+    for (let y = w.y; y < w.y + w.h; y++)
+      for (let x = w.x; x < w.x + w.w; x++)
+        if (g[y]) g[y][x] = { w, start: y === w.y && x === w.x };
+  return g;
+}
+
+function firstFree(want) {
+  const g = occupancy();
+  for (let y = 0; y < g.length; y++) {
+    let x = 1;
+    while (x <= COLS) {
+      if (g[y][x]) { x++; continue; }
+      const start = x; let len = 0;
+      while (x <= COLS && !g[y][x]) { len++; x++; }
+      if (len >= 3) return { x: start, y, w: Math.min(want, len), h: 1 };
+    }
+  }
+  return { x: 1, y: g.length, w: want, h: 1 };
+}
+
+/* ------------------------------------------------------------- content */
+
+const CONTENT = {
+  clock: `<div class="w-clock">21:47</div><div class="w-sub">Sun 24 Aug</div>`,
+  weather: `<div style="display:flex;align-items:center;gap:.6rem">
+      <span style="font-size:1.7rem">⛅</span>
+      <div><div class="w-temp">18°</div><div class="w-sub">Basel — partly cloudy</div></div></div>
+    <div class="w-row"><span>Mon</span><span>21° / 12°</span></div>
+    <div class="w-row"><span>Tue</span><span>24° / 14°</span></div>
+    <div class="w-row"><span>Wed</span><span>19° / 13°</span></div>
+    <div class="w-row"><span>Thu</span><span>17° / 11°</span></div>
+    <div class="w-row"><span>Fri</span><span>20° / 12°</span></div>`,
+  market: `<div class="w-row"><span>SMI</span><span style="color:#16a34a">+0.4%</span></div>
+    <div class="w-row"><span>BTC</span><span style="color:#dc2626">−1.2%</span></div>`,
+  note: `<div class="w-note"><b>Shopping</b><br>Coffee beans, olive oil, a new SD card for the
+    ESP32 panel, and something for the plants on the balcony that keep dying.</div>`,
+  sysinfo: `<div class="w-sub">CPU 34%</div><div class="w-bar"><i style="width:34%"></i></div>
+    <div class="w-sub">Memory 61%</div><div class="w-bar"><i style="width:61%"></i></div>`,
+  bookmark: `<a class="w-link">↗ Home Assistant</a><a class="w-link">↗ Router</a>
+    <a class="w-link">↗ NAS</a>`,
+};
+const TYPES = Object.keys(CONTENT);
+
+/* ------------------------------------------------------------- rendering */
+
+const board  = document.getElementById('board');
+const gridEl = document.getElementById('grid');
+const appendEl = document.getElementById('append');
+const cols   = document.getElementById('cols');
+const targetBox = document.getElementById('target');
+const bar    = document.getElementById('bar');
+const ghost  = document.getElementById('ghost');
+
+function div(cls) { const d = document.createElement('div'); d.className = cls; return d; }
+
+function render() {
+  gridEl.innerHTML = '';
+  const rows = Math.max(1, rowCount());
+  gridEl.style.gridTemplateRows = `repeat(${rows}, auto)`;
+
+  for (let r = 0; r < rows; r++) {                 // bands first: cards paint on top
+    const b = div('band');
+    b.dataset.row = r;
+    b.style.gridRow = `${r + 1} / span 1`;
+    b.innerHTML = `<span class="band-label">R${r + 1}</span>`;
+    gridEl.appendChild(b);
+  }
+  widgets.forEach(w => gridEl.appendChild(cardEl(w)));
+
+  document.getElementById('json').textContent = JSON.stringify(
+    widgets.map(w => ({ type: w.type, x: w.x, y: w.y, w: w.w, h: w.h })), null, 1);
+  document.getElementById('emit-table').textContent = emitTable();
+  document.getElementById('emit-grid').textContent = emitGrid();
+}
+
+function cardEl(w) {
+  const el = div('card');
+  el.dataset.id = w.id;
+  el.style.gridColumn = `${w.x} / span ${w.w}`;
+  el.style.gridRow = `${w.y + 1} / span ${w.h}`;
+  el.innerHTML = `
+    <div class="card-head">
+      <span class="grip" title="Drag to move">⠿</span>
+      <span class="card-title">${w.title}</span>
+      <span class="card-tag">${w.w}×${w.h}</span>
+      <button class="card-del" title="Delete">✕</button>
+    </div>
+    <div class="card-body">${CONTENT[w.type] || ''}</div>
+    <div class="h-w" title="Drag: columns"></div>
+    <div class="h-h" title="Drag: rows"></div>
+    <div class="h-c" title="Drag: both"></div>`;
+  el.querySelector('.card-del').onclick = () => {
+    widgets = widgets.filter(x => x.id !== w.id);
+    settle(null); render();
+  };
+  el.querySelector('.grip').addEventListener('pointerdown', e => startMove(e, w, el));
+  el.querySelector('.h-w').addEventListener('pointerdown', e => startResize(e, w, el, true, false));
+  el.querySelector('.h-h').addEventListener('pointerdown', e => startResize(e, w, el, false, true));
+  el.querySelector('.h-c').addEventListener('pointerdown', e => startResize(e, w, el, true, true));
+  return el;
+}
+
+const span = (name, n) => n === 1 ? '' : ` ${name}="${n}"`;
+
+// The e-ink render: walk the occupancy map row-major. Every position must be
+// accounted for — a widget's top-left cell, nothing (covered by a rowspan), or
+// a filler cell for genuinely empty columns.
+function emitTable() {
+  const g = occupancy();
+  let out = `<table style="width:100%; table-layout:fixed; border-spacing:8px">\n`
+          + `  <colgroup>` + `<col style="width:8.3333%">`.repeat(COLS) + `</colgroup>\n`;
+  for (let y = 0; y < g.length; y++) {
+    out += `  <tr>\n`;
+    let x = 1;
+    while (x <= COLS) {
+      const cell = g[y][x];
+      if (cell && cell.start) {
+        out += `    <td${span('colspan', cell.w.w)}${span('rowspan', cell.w.h)}>…${cell.w.type}…</td>\n`;
+        x += cell.w.w;
+      } else if (cell) {
+        x++;                                    // covered from above: emit nothing
+      } else {
+        let n = 0;
+        while (x <= COLS && !g[y][x]) { n++; x++; }
+        out += `    <td${span('colspan', n)}></td>\n`;
+      }
+    }
+    out += `  </tr>\n`;
+  }
+  return out + `</table>`;
+}
+
+function emitGrid() {
+  const sorted = widgets.slice().sort((a, b) => a.y - b.y || a.x - b.x);
+  return `<div class="dashi-grid">   <!-- 12 cols, grid-auto-rows: auto -->\n`
+    + sorted.map(w =>
+        `  <div class="dashi-cell" style="grid-column:${w.x} / span ${w.w}; `
+      + `grid-row:${w.y + 1} / span ${w.h}">…${w.type}…</div>`).join('\n')
+    + `\n</div>`;
+}
+
+/* --------------------------------------------------------------- geometry */
+
+// Real rectangles for every row band, measured once when a gesture starts.
+// Row heights vary with content, so there is no unit to multiply by.
+const bandRects = () =>
+  [...gridEl.querySelectorAll('.band')].map(b => b.getBoundingClientRect());
+
+/* ---------------------------------------------------------------- moving */
+
+let drag = null;
+
+function startMove(e, w, el) {
+  e.preventDefault();
+  const rect = el.getBoundingClientRect();
+  drag = {
+    w, el, target: null,
+    grabDX: e.clientX - rect.left,
+    bands: bandRects(),
+    gridRect: gridEl.getBoundingClientRect(),
+    appendRect: appendEl.getBoundingClientRect(),
+  };
+  el.classList.add('source');
+
+  ghost.innerHTML = '';
+  const gc = el.cloneNode(true);
+  gc.classList.remove('source');
+  gc.style.gridColumn = gc.style.gridRow = '';
+  gc.style.width = rect.width + 'px';
+  ghost.appendChild(gc);
+  ghost.style.display = 'block';
+  ghost.style.width = rect.width + 'px';
+  ghost.style.left = (e.clientX - drag.grabDX) + 'px';
+  ghost.style.top = (e.clientY - 14) + 'px';
+
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp, { once: true });
+}
+
+function onMove(e) {
+  if (!drag) return;
+  ghost.style.left = (e.clientX - drag.grabDX) + 'px';
+  ghost.style.top = (e.clientY - 14) + 'px';
+
+  const { bands, gridRect, appendRect } = drag;
+  const colW = gridRect.width / COLS;
+  const boardRect = board.getBoundingClientRect();
+  const x = Math.max(1, Math.min(COLS - drag.w.w + 1,
+    Math.round((e.clientX - drag.grabDX - gridRect.left) / colW) + 1));
+
+  let t = null;
+  if (e.clientY >= appendRect.top) {
+    t = { mode: 'insert', row: bands.length, x };
+  } else {
+    for (let r = 0; r < bands.length; r++) {
+      if (e.clientY < bands[r].top) { t = { mode: 'insert', row: r, x }; break; }
+      if (e.clientY <= bands[r].bottom) { t = { mode: 'move', row: r, x }; break; }
+    }
+    if (!t) t = { mode: 'insert', row: bands.length, x };
+  }
+  drag.target = t;
+
+  hideOverlays();
+  appendEl.classList.toggle('hot', t.mode === 'insert' && t.row === bands.length);
+
+  cols.style.display = 'block';
+  cols.style.left = (gridRect.left - boardRect.left) + 'px';
+  cols.style.top = (gridRect.top - boardRect.top) + 'px';
+  cols.style.width = gridRect.width + 'px';
+  cols.style.height = gridRect.height + 'px';
+
+  if (t.mode === 'move') {
+    const from = bands[t.row];
+    const to = bands[Math.min(bands.length - 1, t.row + drag.w.h - 1)];
+    targetBox.style.display = 'block';
+    targetBox.style.left = (gridRect.left - boardRect.left + (t.x - 1) * colW) + 'px';
+    targetBox.style.top = (from.top - boardRect.top) + 'px';
+    targetBox.style.width = (drag.w.w * colW) + 'px';
+    targetBox.style.height = (to.bottom - from.top) + 'px';
+  } else {
+    const yPx = t.row === 0 ? gridRect.top - 6
+      : t.row >= bands.length ? appendRect.top - 6
+      : (bands[t.row - 1].bottom + bands[t.row].top) / 2;
+    bar.style.display = 'block';
+    bar.style.left = (gridRect.left - boardRect.left + (t.x - 1) * colW) + 'px';
+    bar.style.width = (drag.w.w * colW) + 'px';
+    bar.style.top = (yPx - boardRect.top) + 'px';
+  }
+}
+
+function hideOverlays() {
+  [targetBox, bar, cols].forEach(o => { o.style.display = 'none'; });
+  appendEl.classList.remove('hot');
+}
+
+function onUp() {
+  window.removeEventListener('pointermove', onMove);
+  hideOverlays();
+  ghost.style.display = 'none';
+  drag.el.classList.remove('source');
+
+  const t = drag.target, w = drag.w;
+  if (t) {
+    w.x = t.x;
+    if (t.mode === 'insert') {
+      insertRow(t.row, w.id);
+      w.y = t.row;
+    } else {
+      w.y = t.row;
+    }
+    settle(w.id);
+  }
+  drag = null;
+  render();
+}
+
+/* -------------------------------------------------------------- resizing */
+
+function startResize(e, w, el, doW, doH) {
+  e.preventDefault();
+  e.stopPropagation();
+  const bands = bandRects();
+  const gridRect = gridEl.getBoundingClientRect();
+  const colW = gridRect.width / COLS;
+  const left = el.getBoundingClientRect().left;
+  let nw = w.w, nh = w.h;
+
+  const move = ev => {
+    if (doW) nw = Math.max(1, Math.min(COLS - w.x + 1, Math.round((ev.clientX - left) / colW)));
+    if (doH) {
+      let last = w.y;
+      for (let r = w.y; r < bands.length; r++) if (ev.clientY > bands[r].top) last = r;
+      if (ev.clientY > bands[bands.length - 1].bottom) last = bands.length;   // grow a new row
+      nh = Math.max(1, last - w.y + 1);
+    }
+    el.style.gridColumn = `${w.x} / span ${nw}`;
+    el.style.gridRow = `${w.y + 1} / span ${nh}`;
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    w.w = nw; w.h = nh;
+    settle(w.id);
+    render();
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up, { once: true });
+}
+
+/* --------------------------------------------------------------- toolbar */
+
+document.getElementById('btn-add').onclick = () => {
+  const type = TYPES[Math.floor(Math.random() * TYPES.length)];
+  const pos = firstFree(4);
+  widgets.push({
+    id: 'w' + (++seq), type, title: type[0].toUpperCase() + type.slice(1),
+    x: pos.x, y: pos.y, w: pos.w, h: pos.h,
+  });
+  settle(null); render();
+};
+
+document.getElementById('btn-shuffle').onclick = () => {
+  for (let i = widgets.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [widgets[i], widgets[j]] = [widgets[j], widgets[i]];
+  }
+  render();
+  const note = document.getElementById('order-note');
+  note.classList.remove('flash'); void note.offsetWidth; note.classList.add('flash');
+};
+
+document.getElementById('btn-reset').onclick = () => { widgets = clone(START); render(); };
+document.getElementById('chk-viewer').onchange = e =>
+  document.body.classList.toggle('viewer', e.target.checked);
+document.getElementById('chk-bands').onchange = e =>
+  document.body.classList.toggle('nobands', !e.target.checked);
+
+render();
+</script>
+</body>
+</html>
