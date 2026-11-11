@@ -11,6 +11,7 @@ import (
 	_ "embed"
 
 	tr "github.com/andresbott/dashi/internal/providers/swisstransport"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/andresbott/dashi/internal/widgetthemes"
 )
@@ -39,6 +40,7 @@ type transportTemplateData struct {
 	StationName    string
 	IconFontFamily string
 	Departures     []departureRow
+	Palette        themes.Palette
 }
 
 func categoryIcon(category string) string {
@@ -52,22 +54,6 @@ func categoryIcon(category string) string {
 	}
 }
 
-// iconFontFamilyFor returns the CSS family of the icon font the widget theme
-// actually resolves to, so a pack without its own icon font (or an unknown
-// pack) falls back to the default's family. The sentinel icon only selects
-// the pack; a font-type pack is what carries a family.
-func iconFontFamilyFor(store *widgetthemes.Store, widgetTheme string) string {
-	if widgetTheme == "" {
-		widgetTheme = widgetthemes.DefaultName
-	}
-	if store != nil {
-		if resolved, err := store.ResolveIcon(widgetTheme, "clear-sky"); err == nil && resolved.FontFamily != "" {
-			return resolved.FontFamily
-		}
-	}
-	return widgetthemes.IconFontFamily(widgetthemes.DefaultName)
-}
-
 func NewStaticRenderer(client *tr.Client, themeStore *widgetthemes.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
 	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
 		var cfg transportConfig
@@ -79,7 +65,7 @@ func NewStaticRenderer(client *tr.Client, themeStore *widgetthemes.Store) func(j
 
 		if cfg.StationID == "" {
 			var buf strings.Builder
-			if err := tmpl.Execute(&buf, transportTemplateData{Configured: false}); err != nil {
+			if err := tmpl.Execute(&buf, transportTemplateData{Configured: false, Palette: ctx.EffectivePalette()}); err != nil {
 				return "", fmt.Errorf("transport template: %w", err)
 			}
 			return template.HTML(buf.String()), nil
@@ -117,13 +103,14 @@ func NewStaticRenderer(client *tr.Client, themeStore *widgetthemes.Store) func(j
 			})
 		}
 
-		iconFontFamily := iconFontFamilyFor(themeStore, ctx.WidgetTheme)
+		iconFontFamily := themeStore.IconFontFamilyFor(ctx.WidgetTheme)
 
 		data := transportTemplateData{
 			Configured:     true,
 			StationName:    cfg.StationName,
 			IconFontFamily: iconFontFamily,
 			Departures:     rows,
+			Palette:        ctx.EffectivePalette(),
 		}
 
 		var buf strings.Builder

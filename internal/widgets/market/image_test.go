@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	mkt "github.com/andresbott/dashi/internal/providers/market"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
@@ -97,6 +98,59 @@ func TestNewStaticRenderer_WithSymbol(t *testing.T) {
 	}
 	if !strings.Contains(htmlStr, "175.50") {
 		t.Errorf("expected price 175.50 in output")
+	}
+}
+
+func marketQuoteServer(t *testing.T, price, prevClose string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := `{"chart":{"result":[{"meta":{"symbol":"AAPL","shortName":"Apple","currency":"USD",` +
+			`"regularMarketPrice":` + price + `,"chartPreviousClose":` + prevClose + `},` +
+			`"timestamp":[1704067200],"indicators":{"quote":[{"close":[1.0]}]}}]}}`
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(resp))
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestMarketUsesPaletteRoles(t *testing.T) {
+	pal := themes.Palette{
+		BG: "#ffffff", Surface: "#fafafa", Border: "#cccccc", Text: "#111111",
+		TextMuted: "#123456", Primary: "#0000ff", OnPrimary: "#ffffff", Secondary: "#00ffff",
+		Success: "#00aa00", Warning: "#aaaa00", Danger: "#aa0000",
+	}
+	cases := []struct {
+		name, price, prev, want, notWant string
+	}{
+		{"up", "110.00", "100.00", "#00aa00", "#aa0000"},
+		{"down", "90.00", "100.00", "#aa0000", "#00aa00"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			srv := marketQuoteServer(t, c.price, c.prev)
+			client := mkt.NewClient(srv.Client())
+			client.BaseURL = srv.URL
+			got, err := NewStaticRenderer(client)(json.RawMessage(`{"symbol":"AAPL"}`), widgets.RenderContext{Palette: pal})
+			if err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			html := string(got)
+			if !strings.Contains(html, c.want) {
+				t.Errorf("expected %s in output: %s", c.want, html)
+			}
+			if strings.Contains(html, c.notWant) {
+				t.Errorf("unexpected %s in output", c.notWant)
+			}
+			for _, bad := range []string{"#22c55e", "#ef4444", "#999", "#666", "ZgotmplZ"} {
+				if strings.Contains(html, bad) {
+					t.Errorf("output contains %s", bad)
+				}
+			}
+			if !strings.Contains(html, "#123456") {
+				t.Errorf("expected TextMuted #123456 in output")
+			}
+		})
 	}
 }
 

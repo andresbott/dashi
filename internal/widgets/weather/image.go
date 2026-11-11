@@ -16,6 +16,7 @@ import (
 	_ "embed"
 
 	weatherpkg "github.com/andresbott/dashi/internal/providers/weather"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/andresbott/dashi/internal/widgets/weather/chart"
 	"github.com/andresbott/dashi/internal/widgetthemes"
@@ -99,6 +100,7 @@ type weatherData struct {
 	GraphTimeLabels    []string
 	GraphShowTemp      bool
 	GraphShowRain      bool
+	Palette            themes.Palette
 }
 
 type forecastDay struct {
@@ -161,6 +163,7 @@ func NewStaticRenderer(client *weatherpkg.Client, themeStore *widgetthemes.Store
 			ShowHourly:         cfg.ShowHourly && !cfg.Compact,
 			ShowForecast:       cfg.ShowForecast && !cfg.Compact,
 			IconHTML:           currentIconHTML,
+			Palette:            ctx.EffectivePalette(),
 		}
 
 		data.ExtraInfo = buildExtraInfo(cfg, wd, themeStore, themeName)

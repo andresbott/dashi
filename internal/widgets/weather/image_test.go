@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	weatherpkg "github.com/andresbott/dashi/internal/providers/weather"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/andresbott/dashi/internal/widgetthemes"
 )
@@ -61,6 +62,35 @@ func newTestWeatherServer() (*httptest.Server, *httptest.Server) {
 	}))
 
 	return forecast, aq
+}
+
+func TestWeatherUsesPaletteRoles(t *testing.T) {
+	forecastSrv, aqSrv := newTestWeatherServer()
+	defer forecastSrv.Close()
+	defer aqSrv.Close()
+
+	client := weatherpkg.NewClient(&http.Client{}, weatherpkg.WithBaseURL(forecastSrv.URL), weatherpkg.WithAirQualityBaseURL(aqSrv.URL))
+	config := json.RawMessage(`{"city":"Basel","latitude":47.5,"longitude":7.5,"showDetails":true,"showHourly":true,"showForecast":true,"showWind":true}`)
+	pal := themes.Palette{
+		BG: "#ffffff", Surface: "#fafafa", Border: "#654321", Text: "#111111",
+		TextMuted: "#123456", Primary: "#0000ff", OnPrimary: "#ffffff", Secondary: "#00ffff",
+		Success: "#00aa00", Warning: "#aaaa00", Danger: "#aa0000",
+	}
+	got, err := NewStaticRenderer(client, widgetthemes.NewStore(""))(config, widgets.RenderContext{Palette: pal})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := string(got)
+	for _, want := range []string{"#123456", "#654321"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("expected %s in output", want)
+		}
+	}
+	for _, bad := range []string{"#666", "#e0e0e0", "ZgotmplZ"} {
+		if strings.Contains(html, bad) {
+			t.Errorf("output contains %s", bad)
+		}
+	}
 }
 
 func TestRenderStatic_Basic(t *testing.T) {

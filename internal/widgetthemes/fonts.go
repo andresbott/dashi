@@ -25,6 +25,15 @@ func IconFontFamily(themeName string) string {
 	return "icon-font-" + themeName
 }
 
+// IconFontFamilyFor returns the icon-font family a widget theme actually
+// serves: its own when it ships an icon font, otherwise the default theme's.
+// Unlike probing ResolveIcon with a sample icon, it does not depend on which
+// icons the pack maps.
+func (s *Store) IconFontFamilyFor(name string) string {
+	effName, _ := s.effective(name, hasIconFont)
+	return IconFontFamily(effName)
+}
+
 // FontData resolves a font by the name the browser stack requests it under:
 // a display font declared in the manifest, or the theme's icon font under
 // IconFontFamily(theme). Display fonts win a name collision, which keeps
@@ -39,6 +48,10 @@ func (s *Store) FontData(themeName, fontName string) ([]byte, error) {
 				return true
 			}
 		}
+		// The icon font is requested under the caller's theme name, so match
+		// that name here; the effective name is only known after this runs.
+		// The lookup below also accepts the effective name, for a request
+		// that already fell back to the default.
 		return hasIconFont(t) && fontName == IconFontFamily(themeName)
 	})
 	if data, err := s.GetDisplayFontData(name, fontName); err == nil {

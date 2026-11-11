@@ -10,6 +10,7 @@ import (
 	_ "embed"
 
 	mkt "github.com/andresbott/dashi/internal/providers/market"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
@@ -38,6 +39,7 @@ type marketTemplateData struct {
 	ShowChart              bool
 	ChartImage             string
 	RangeLabel             string
+	Palette                themes.Palette
 }
 
 var rangeLabels = map[string]string{
@@ -56,7 +58,7 @@ func NewStaticRenderer(client *mkt.Client) func(json.RawMessage, widgets.RenderC
 
 		if cfg.Symbol == "" {
 			var buf strings.Builder
-			if err := tmpl.Execute(&buf, marketTemplateData{Configured: false}); err != nil {
+			if err := tmpl.Execute(&buf, marketTemplateData{Configured: false, Palette: ctx.EffectivePalette()}); err != nil {
 				return "", fmt.Errorf("market template: %w", err)
 			}
 			return template.HTML(buf.String()), nil
@@ -81,10 +83,11 @@ func NewStaticRenderer(client *mkt.Client) func(json.RawMessage, widgets.RenderC
 			return "", fmt.Errorf("market fetch: %w", err)
 		}
 
-		changeColor := "#22c55e"
+		pal := ctx.EffectivePalette()
+		changeColor := pal.Success
 		changePrefix := "+"
 		if data.Quote.Change < 0 {
-			changeColor = "#ef4444"
+			changeColor = pal.Danger
 			changePrefix = ""
 		}
 
@@ -100,6 +103,7 @@ func NewStaticRenderer(client *mkt.Client) func(json.RawMessage, widgets.RenderC
 			ShowChange:             showChange,
 			ShowChart:              showChart,
 			RangeLabel:             rangeLabels[rangeID],
+			Palette:                pal,
 		}
 
 		if showChart && len(data.Points) > 1 {

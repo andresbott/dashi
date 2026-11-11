@@ -9,6 +9,7 @@ import (
 
 	_ "embed"
 
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
@@ -47,10 +48,10 @@ type bookmarkConfig struct {
 }
 
 type bookmarkData struct {
-	URL        string
-	Title      string
-	Subtitle   string
-	MutedColor string
+	URL      string
+	Title    string
+	Subtitle string
+	Palette  themes.Palette
 }
 
 // NewStaticRenderer returns a StaticRenderer for bookmark widgets.
@@ -64,10 +65,10 @@ func NewStaticRenderer() func(json.RawMessage, widgets.RenderContext) (template.
 		}
 
 		data := bookmarkData{
-			URL:        sanitizeURL(cfg.URL),
-			Title:      cfg.Title,
-			Subtitle:   cfg.Subtitle,
-			MutedColor: ctx.EffectivePalette().TextMuted,
+			URL:      sanitizeURL(cfg.URL),
+			Title:    cfg.Title,
+			Subtitle: cfg.Subtitle,
+			Palette:  ctx.EffectivePalette(),
 		}
 
 		var buf bytes.Buffer

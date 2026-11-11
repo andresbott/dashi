@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	tr "github.com/andresbott/dashi/internal/providers/swisstransport"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/andresbott/dashi/internal/widgetthemes"
 )
@@ -111,11 +112,39 @@ func TestRenderStatic_InvalidJSON(t *testing.T) {
 	}
 }
 
-func TestIconFontFamilyFallsBackToDefault(t *testing.T) {
-	store := widgetthemes.NewStore("")
-	for _, name := range []string{"", "default", "no-such-theme"} {
-		if got := iconFontFamilyFor(store, name); got != "icon-font-default" {
-			t.Errorf("iconFontFamilyFor(%q) = %q, want icon-font-default", name, got)
+func TestTransportUsesPaletteRoles(t *testing.T) {
+	client := newTestClient(t, map[string]any{
+		"station": map[string]any{"id": "8500073", "name": "Basel"},
+		"stationboard": []any{
+			map[string]any{
+				"category": "T", "number": "11", "to": "St-Louis Grenze",
+				"stop": map[string]any{
+					"departure": "2026-04-05T22:00:00+0200", "departureTimestamp": 1775419200,
+					"delay": 0, "platform": "A",
+					"prognosis": map[string]any{"departure": nil},
+				},
+			},
+		},
+	})
+	pal := themes.Palette{
+		BG: "#ffffff", Surface: "#fafafa", Border: "#654321", Text: "#111111",
+		TextMuted: "#123456", Primary: "#0000ff", OnPrimary: "#ffffff", Secondary: "#00ffff",
+		Success: "#00aa00", Warning: "#aaaa00", Danger: "#aa0000",
+	}
+	renderer := NewStaticRenderer(client, widgetthemes.NewStore(""))
+	got, err := renderer(json.RawMessage(`{"stationId":"8500073","stationName":"Basel"}`), widgets.RenderContext{Palette: pal})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	html := string(got)
+	for _, want := range []string{"#123456", "#654321"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("expected %s in output", want)
+		}
+	}
+	for _, bad := range []string{"#999", "#888", "#eee", "ZgotmplZ"} {
+		if strings.Contains(html, bad) {
+			t.Errorf("output contains %s", bad)
 		}
 	}
 }

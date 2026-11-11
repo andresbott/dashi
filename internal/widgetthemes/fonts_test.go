@@ -98,6 +98,40 @@ func TestFontDataResolvesDisplayAndIconFonts(t *testing.T) {
 	}
 }
 
+func TestStoreIconFontFamilyFor(t *testing.T) {
+	dir := t.TempDir()
+	s := NewStore(dir)
+	if _, err := s.Upload(buildThemeZip(t, `name: "fontpack"
+icons:
+  type: font
+  fontFile: "icons.ttf"
+  icons:
+    sunny:
+      codepoint: "e001"
+`, map[string]string{"icons.ttf": "x"})); err != nil {
+		t.Fatalf("upload fontpack: %v", err)
+	}
+	if _, err := s.Upload(buildThemeZip(t, `name: "onlyfonts"
+fonts:
+  - name: "Inter"
+    file: "Inter-Regular.ttf"
+`, map[string]string{"Inter-Regular.ttf": "x"})); err != nil {
+		t.Fatalf("upload onlyfonts: %v", err)
+	}
+
+	tests := map[string]string{
+		"no-such-pack": "icon-font-default",
+		"":             "icon-font-default",
+		"fontpack":     "icon-font-fontpack",
+		"onlyfonts":    "icon-font-default",
+	}
+	for name, want := range tests {
+		if got := s.IconFontFamilyFor(name); got != want {
+			t.Errorf("IconFontFamilyFor(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
 func TestIconFontFamilyMatchesWidgetMarkup(t *testing.T) {
 	// internal/widgets/weather/image.go emits exactly this family name, and
 	// app/router/main.go registers it with the litehtml renderer. The

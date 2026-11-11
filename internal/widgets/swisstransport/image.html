@@ -22,7 +22,7 @@
 </div>
 <style>
     .widget-transport { padding: 8px; }
-    .transport-empty { color: #999; text-align: center; padding: 16px; }
+    .transport-empty { color: {{.Palette.TextMuted}}; text-align: center; padding: 16px; }
     .transport-station { font-weight: 700; font-size: 0.9em; text-align: center; margin-bottom: 8px; }
     .transport-board { display: flex; flex-direction: column; }
     .transport-row {
@@ -30,13 +30,13 @@
         align-items: center;
         gap: 6px;
         padding: 3px 0;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px solid {{.Palette.Border}};
         font-size: 0.85em;
     }
     .transport-row:last-child { border-bottom: none; }
-    .transport-icon { flex-shrink: 0; width: 1.2em; text-align: center; color: #888; margin-right: 4px; }
+    .transport-icon { flex-shrink: 0; width: 1.2em; text-align: center; color: {{.Palette.TextMuted}}; margin-right: 4px; }
     .transport-line { font-weight: 700; width: 2.5em; flex-shrink: 0; text-align: left; margin-right: 6px; }
     .transport-dest { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: 4px; }
     .transport-mins { font-weight: 700; text-align: right; min-width: 2.5em; flex-shrink: 0; }
-    .transport-platform { font-size: 0.8em; color: #999; min-width: 1.5em; text-align: center; flex-shrink: 0; }
+    .transport-platform { font-size: 0.8em; color: {{.Palette.TextMuted}}; min-width: 1.5em; text-align: center; flex-shrink: 0; }
 </style>
