@@ -217,6 +217,25 @@ func TestImageCSSBaseOnlyEmitsConcreteValue(t *testing.T) {
 	}
 }
 
+func TestImageCSSFlattensTranslucentStopsOverModeBG(t *testing.T) {
+	// litehtml cannot render #rrggbbaa, so translucent stops are composited
+	// over that mode's palette bg; opaque stops pass through unchanged.
+	th := testTheme("A")
+	th.Colors.Light.BG = "#ffffff"
+	th.Colors.Dark.BG = "#000000"
+	th.Background.Gradient = &Gradient{
+		Direction: "to right",
+		Light:     []string{"#ff000080", "#00ff00"},
+		Dark:      []string{"#ff000080", "#0000ffff"},
+	}
+	if css, _ := ImageCSS(th, "light"); css != "linear-gradient(to right,#ff7f7f,#00ff00)" {
+		t.Errorf("light: got %q", css)
+	}
+	if css, _ := ImageCSS(th, "dark"); css != "linear-gradient(to right,#800000,#0000ff)" {
+		t.Errorf("dark: got %q", css)
+	}
+}
+
 func TestImageCSSPlainBackgroundIsEmpty(t *testing.T) {
 	css, ref := ImageCSS(DefaultTheme(), "dark")
 	if css != "" || ref != "" {

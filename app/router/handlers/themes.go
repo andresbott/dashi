@@ -41,8 +41,10 @@ func (h *ThemeHandler) List(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
-// usageCounts maps theme ID -> number of dashboards referencing it
-// explicitly. Dashboards without a theme are not counted against the builtin.
+// usageCounts maps theme ID -> number of dashboards rendering with it.
+// Dashboards without a theme render the builtin, so they count toward
+// themes.DefaultID. A dangling ID only ever lands on a key no listed theme
+// reads, so it counts toward nothing.
 func (h *ThemeHandler) usageCounts() (map[string]int, error) {
 	metas, err := h.dashStore.List()
 	if err != nil {
@@ -54,9 +56,11 @@ func (h *ThemeHandler) usageCounts() (map[string]int, error) {
 		if err != nil {
 			continue // a broken dashboard must not break the theme list
 		}
-		if d.ThemeID != "" {
-			counts[d.ThemeID]++
+		id := d.ThemeID
+		if id == "" {
+			id = themes.DefaultID
 		}
+		counts[id]++
 	}
 	return counts, nil
 }

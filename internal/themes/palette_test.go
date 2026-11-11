@@ -2,9 +2,34 @@ package themes
 
 import (
 	"errors"
+	"image/color"
 	"strings"
 	"testing"
 )
+
+func TestParseColor(t *testing.T) {
+	tests := []struct {
+		in   string
+		want color.NRGBA
+		ok   bool
+	}{
+		{"#16a34a", color.NRGBA{R: 0x16, G: 0xa3, B: 0x4a, A: 0xff}, true},
+		{"#ABC", color.NRGBA{R: 0xaa, G: 0xbb, B: 0xcc, A: 0xff}, true},
+		{"#ff000080", color.NRGBA{R: 0xff, G: 0x00, B: 0x00, A: 0x80}, true},
+		{"", color.NRGBA{}, false},
+		{"16a34a", color.NRGBA{}, false},
+		{"#12345", color.NRGBA{}, false},
+		{"#gggggg", color.NRGBA{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			got, ok := ParseColor(tt.in)
+			if ok != tt.ok || got != tt.want {
+				t.Fatalf("ParseColor(%q) = %v, %v; want %v, %v", tt.in, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
 
 func TestDefaultPaletteValues(t *testing.T) {
 	light := Palette{

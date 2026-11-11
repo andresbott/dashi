@@ -172,8 +172,16 @@ func TestListUsedBy(t *testing.T) {
 			t.Fatalf("create dashboard: %v", err)
 		}
 	}
-	if _, err := dashStore.Create(dashboard.Dashboard{Name: "Three"}); err != nil {
-		t.Fatalf("create dashboard: %v", err)
+	// No theme and an explicit "default" both render the builtin; a dangling
+	// ID counts toward nothing.
+	for _, d := range []dashboard.Dashboard{
+		{Name: "Three"},
+		{Name: "Four", ThemeID: themes.DefaultID},
+		{Name: "Five", ThemeID: "zzzzzz"},
+	} {
+		if _, err := dashStore.Create(d); err != nil {
+			t.Fatalf("create dashboard: %v", err)
+		}
 	}
 
 	rec := doJSON(t, r, http.MethodGet, "/themes", nil)
@@ -196,6 +204,9 @@ func TestListUsedBy(t *testing.T) {
 			if m.UsedBy != 2 {
 				t.Fatalf("expected usedBy 2, got %d", m.UsedBy)
 			}
+		}
+		if m.ID == themes.DefaultID && m.UsedBy != 2 {
+			t.Errorf("expected the builtin usedBy 2 (empty + explicit), got %d", m.UsedBy)
 		}
 	}
 	if !found {

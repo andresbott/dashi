@@ -29,7 +29,7 @@ func writeRule(sb *strings.Builder, selector string, t Theme, colorMode string) 
 	sb.WriteString(selector)
 	sb.WriteByte('{')
 	writePaletteVars(sb, t.Palette(colorMode))
-	if bg := browserValue(t, resolve(t.Background, colorMode)); bg != "" {
+	if bg := browserValue(t, resolve(t.Background, colorMode, nil)); bg != "" {
 		sb.WriteString("--dashi-page-bg:")
 		sb.WriteString(bg)
 		sb.WriteByte(';')
@@ -46,8 +46,12 @@ func writeRule(sb *strings.Builder, selector string, t Theme, colorMode string) 
 // *before* litehtml renders, so an opaque body background would paint over
 // it. Nothing is lost — that stack is cover-only, so the image always
 // covers the canvas and a base could never show.
+//
+// litehtml cannot parse #rrggbbaa, so translucent gradient stops are
+// flattened over this mode's palette bg first.
 func ImageCSS(t Theme, colorMode string) (css string, imageRef string) {
-	v := resolve(t.Background, colorMode)
+	bg, _ := parseOpaqueHex(t.Palette(colorMode).BG) // Palette guarantees an opaque BG
+	v := resolve(t.Background, colorMode, func(stop string) string { return flattenOver(stop, bg) })
 	if v.image != "" {
 		return "", v.image
 	}
@@ -86,8 +90,9 @@ func urlSegment(s string) string {
 
 // resolve picks the values for one colour mode. Any mode other than "dark"
 // resolves light, matching how the renderers collapse colorMode. Dark falls
-// back to light per field.
-func resolve(b Background, colorMode string) variant {
+// back to light per field. mapStop, when non-nil, rewrites each gradient
+// stop before it is joined.
+func resolve(b Background, colorMode string, mapStop func(string) string) variant {
 	dark := colorMode == "dark"
 	var v variant
 
@@ -101,6 +106,13 @@ func resolve(b Background, colorMode string) variant {
 		stops := b.Gradient.Light
 		if dark && len(b.Gradient.Dark) > 0 {
 			stops = b.Gradient.Dark
+		}
+		if len(stops) > 0 && mapStop != nil {
+			mapped := make([]string, len(stops))
+			for i, s := range stops {
+				mapped[i] = mapStop(s)
+			}
+			stops = mapped
 		}
 		if len(stops) > 0 {
 			v.baseValue = "linear-gradient(" + b.Gradient.Direction + "," + strings.Join(stops, ",") + ")"

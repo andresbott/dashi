@@ -1,7 +1,9 @@
 package themes
 
 import (
+	"encoding/hex"
 	"fmt"
+	"image/color"
 	"math"
 	"regexp"
 	"strconv"
@@ -121,25 +123,51 @@ func (p Palette) Flatten() Palette {
 	}
 	for _, r := range paletteRoles {
 		dst := r.field(&p)
-		v := *dst
-		if len(v) != 9 || !hexColorRe.MatchString(v) {
-			continue
-		}
-		var ch [4]int
-		for i := range ch {
-			n, err := strconv.ParseUint(v[1+2*i:3+2*i], 16, 8)
-			if err != nil {
-				break
-			}
-			ch[i] = int(n)
-		}
-		a := float64(ch[3]) / 255
-		blend := func(fg, base int) int {
-			return int(math.Round(float64(fg)*a + float64(base)*(1-a)))
-		}
-		*dst = fmt.Sprintf("#%02x%02x%02x", blend(ch[0], bg[0]), blend(ch[1], bg[1]), blend(ch[2], bg[2]))
+		*dst = flattenOver(*dst, bg)
 	}
 	return p
+}
+
+// flattenOver composites a #rrggbbaa value over the opaque bg channels and
+// returns it as a lowercase #rrggbb. Any other value is returned unchanged.
+func flattenOver(v string, bg [3]int) string {
+	if len(v) != 9 || !hexColorRe.MatchString(v) {
+		return v
+	}
+	var ch [4]int
+	for i := range ch {
+		n, err := strconv.ParseUint(v[1+2*i:3+2*i], 16, 8)
+		if err != nil {
+			return v
+		}
+		ch[i] = int(n)
+	}
+	a := float64(ch[3]) / 255
+	blend := func(fg, base int) int {
+		return int(math.Round(float64(fg)*a + float64(base)*(1-a)))
+	}
+	return fmt.Sprintf("#%02x%02x%02x", blend(ch[0], bg[0]), blend(ch[1], bg[1]), blend(ch[2], bg[2]))
+}
+
+// ParseColor parses a palette value (#rgb, #rrggbb or #rrggbbaa) into a
+// colour, for consumers that paint with image/color rather than CSS.
+func ParseColor(s string) (color.NRGBA, bool) {
+	if !hexColorRe.MatchString(s) {
+		return color.NRGBA{}, false
+	}
+	h := s[1:]
+	if len(h) == 3 {
+		h = string([]byte{h[0], h[0], h[1], h[1], h[2], h[2]})
+	}
+	b, err := hex.DecodeString(h)
+	if err != nil {
+		return color.NRGBA{}, false
+	}
+	c := color.NRGBA{R: b[0], G: b[1], B: b[2], A: 0xff}
+	if len(b) == 4 {
+		c.A = b[3]
+	}
+	return c, true
 }
 
 // parseOpaqueHex parses #rgb or #rrggbb into its channels.
