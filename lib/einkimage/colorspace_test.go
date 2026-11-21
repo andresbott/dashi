@@ -135,3 +135,13 @@ func TestDeltaE(t *testing.T) {
 		t.Errorf("DeltaE=%v, want %v", d, want)
 	}
 }
+
+// The 8-bit lookup table must equal the formula exactly, so precomputing it
+// changes no conversion.
+func TestSRGBToLinearTable(t *testing.T) {
+	for i := 0; i < 256; i++ {
+		if got, want := srgbToLinear8[i], srgbToLinear(float64(i)/255); got != want {
+			t.Fatalf("srgbToLinear8[%d] = %v, want %v", i, got, want)
+		}
+	}
+}

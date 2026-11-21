@@ -65,6 +65,7 @@ func applyErrorDiffusion(
 	matching ColorMatchingMode, serpentine bool,
 ) {
 	kernel := getDiffusionKernel(matrixName)
+	matcher := newPaletteMatcher(palette, matching)
 
 	for y := 0; y < height; y++ {
 		reverse := serpentine && y%2 == 1
@@ -75,7 +76,7 @@ func applyErrorDiffusion(
 		for x := xStart; x != xEnd; x += xStep {
 			idx := (y*width + x) * 4
 			oldPixel := [3]uint8{buf[idx], buf[idx+1], buf[idx+2]}
-			newPixel := findClosestPaletteColor(oldPixel, palette, matching)
+			newPixel := matcher.closest(oldPixel)
 			buf[idx] = newPixel[0]
 			buf[idx+1] = newPixel[1]
 			buf[idx+2] = newPixel[2]
