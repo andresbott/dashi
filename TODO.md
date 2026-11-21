@@ -26,8 +26,8 @@ and `todo list --json` cover the common actions — run `todo --help`.
 
 * migrate code as HA addon — DONE (ha-addon/, editor via ingress + viewer host port)
 * use enhanced dither — DONE (per-dashboard dither mode: plain / auto / preset)
-* rework widgets as isolated component
-* remove preview fetaure
+* rework widgets as isolated component — DONE (internal/widgets/{name} + webui/src/widgets/{name}, see docs/agents/widgets.md)
+* remove preview fetaure — DONE (preview dashboards removed, see docs/agents/features.md)
 * recreate themes — DONE (internal/themes + internal/widgetthemes)
 * make custom preview dialog for eink dispalayus — DONE ("E-ink preview" in the dashboard editor, image dashboards)
 * custom themes — DONE (themes editor, widget theme upload)
@@ -45,7 +45,8 @@ and `todo list --json` cover the common actions — run `todo --help`.
 
 # Vuejs
 
-- [ ] autosave
+- [x] autosave
+  dashboard editor, dashboard settings and theme editor autosave (useAutosave / useDashboardDraft)
 - [x] Grid placement without placeholders
 
 # Backedn
