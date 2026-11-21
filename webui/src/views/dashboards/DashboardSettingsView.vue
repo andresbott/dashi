@@ -10,6 +10,7 @@ import { useDashboardDraft } from '@/composables/useDashboardDraft'
 import { useListThemes } from '@/composables/useThemes'
 import { useWidgetThemes } from '@/composables/useWidgetThemes'
 import { pageBgValue } from '@/lib/themeCss'
+import { DITHER_OPTIONS, DITHER_PLAIN, type DitherOption } from '@/lib/dither'
 import { useToast } from 'primevue/usetoast'
 import type { ColorMode } from '@/types/dashboard'
 import dashiIcon from '@/assets/icon-64.png'
@@ -103,6 +104,19 @@ const widgetTheme = computed({
         if (localDashboard.value) localDashboard.value.widgetTheme = v
     },
 })
+
+// Plain dithering is the absent field, so picking it removes the key rather
+// than storing a value the server would have to know about.
+const dither = computed<DitherOption['value']>({
+    get: () => localDashboard.value?.dither || DITHER_PLAIN,
+    set: (v) => {
+        if (!localDashboard.value) return
+        if (v === DITHER_PLAIN) delete localDashboard.value.dither
+        else localDashboard.value.dither = v
+    },
+})
+
+const ditherHint = computed(() => DITHER_OPTIONS.find(o => o.value === dither.value)?.hint ?? '')
 
 const saveIndicator = computed(() => {
     if (saveStatus.value === 'error') return { icon: 'ti ti-alert-circle', label: 'Save failed' }
@@ -204,6 +218,23 @@ const activeSection = ref('general')
                             optionValue="value"
                             class="w-full"
                         />
+                    </div>
+                    <div v-if="localDashboard.type === 'image'" class="flex flex-column gap-1">
+                        <label class="font-semibold text-sm">Dither</label>
+                        <Select
+                            :modelValue="dither"
+                            @update:modelValue="(v: DitherOption['value'] | undefined) => { if (v !== undefined) dither = v }"
+                            :options="DITHER_OPTIONS"
+                            optionLabel="label"
+                            optionValue="value"
+                            class="w-full"
+                            data-testid="dither-select"
+                        />
+                        <small class="settings-hint" data-testid="dither-hint">{{ ditherHint }}</small>
+                        <small class="settings-hint">
+                            Applies to the e-ink formats (png-bw, png-spectra6, bw, spectra6).
+                            Compare the options with E-ink preview in the editor.
+                        </small>
                     </div>
                 </div>
 

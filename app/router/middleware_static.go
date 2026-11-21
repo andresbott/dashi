@@ -256,7 +256,7 @@ func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.
 	}
 
 	// Encode and serve
-	output, contentType, err := encodeForFormat(img, dreq.Format, dreq.Width, dreq.Height)
+	output, contentType, err := encodeForFormat(img, dreq.Format, dash.Dither)
 	if err != nil {
 		http.Error(w, "failed to encode image", http.StatusInternalServerError)
 		return
@@ -268,27 +268,29 @@ func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.
 }
 
 // encodeForFormat encodes an RGBA image in the requested display format.
-func encodeForFormat(img *image.RGBA, format string, width, height int) ([]byte, string, error) {
+// dither is the dashboard's dither mode; it applies to every dithered
+// format and is ignored for plain png.
+func encodeForFormat(img *image.RGBA, format, dither string) ([]byte, string, error) {
 	switch format {
 	case "png":
 		data, err := dashimage.EncodePNG(img)
 		return data, "image/png", err
 
 	case "png-bw":
-		rgba := dashimage.DitherBWRGBA(img)
+		rgba := dashimage.DitherBWRGBA(img, dither)
 		data, err := dashimage.EncodePNG(rgba)
 		return data, "image/png", err
 
 	case "png-spectra6":
-		rgba := dashimage.DitherSpectra6RGBA(img)
+		rgba := dashimage.DitherSpectra6RGBA(img, dither)
 		data, err := dashimage.EncodePNG(rgba)
 		return data, "image/png", err
 
 	case "bw":
-		return dashimage.DitherBWPacked(img), "application/octet-stream", nil
+		return dashimage.DitherBWPacked(img, dither), "application/octet-stream", nil
 
 	case "spectra6":
-		return dashimage.DitherSpectra6Packed(img), "application/octet-stream", nil
+		return dashimage.DitherSpectra6Packed(img, dither), "application/octet-stream", nil
 
 	default:
 		return nil, "", fmt.Errorf("unsupported format: %s", format)

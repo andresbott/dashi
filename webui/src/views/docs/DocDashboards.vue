@@ -54,6 +54,11 @@
                     <td>Color scheme. <code>auto</code> follows system preference.</td>
                 </tr>
                 <tr>
+                    <td><code>dither</code></td>
+                    <td>omitted | <code>auto</code> | <code>balanced</code> | <code>dynamic</code> | <code>vivid</code> | <code>soft</code> | <code>grayscale</code></td>
+                    <td>Image type only. How the e-ink formats (<code>png-bw</code>, <code>png-spectra6</code>, <code>bw</code>, <code>spectra6</code>) are dithered. Omitted = plain Floyd-Steinberg with no tone adjustment. <code>auto</code> classifies each render and picks the processing for it. The other values are fixed presets: <code>grayscale</code> suits black-and-white panels, <code>vivid</code> colour panels. Any other value is rejected on save.</td>
+                </tr>
+                <tr>
                     <td><code>pages[].refreshInterval</code></td>
                     <td>integer (default: 0)</td>
                     <td>Image type only. Per-page refresh interval in seconds. Returned as <code>X-Refresh-Interval</code> response header so display devices know when to re-fetch. 0 = no header sent.</td>
@@ -136,8 +141,8 @@
                 <tr>
                     <td><code>X-Display-Format</code></td>
                     <td><code>format</code></td>
-                    <td><code>png</code>, <code>png-bw</code>, <code>png-7color</code>, <code>bw</code>, <code>7color</code></td>
-                    <td>Output format. <code>png</code> = full color PNG. <code>png-bw</code> = dithered B&amp;W PNG. <code>png-7color</code> = 7-color palette PNG. <code>bw</code> = raw 1bpp packed binary. <code>7color</code> = raw 4bpp packed binary.</td>
+                    <td><code>png</code>, <code>png-bw</code>, <code>png-spectra6</code>, <code>bw</code>, <code>spectra6</code></td>
+                    <td>Output format. <code>png</code> = full color PNG. <code>png-bw</code> = dithered B&amp;W PNG. <code>png-spectra6</code> = Spectra 6 palette PNG. <code>bw</code> = raw 1bpp packed binary. <code>spectra6</code> = raw 4bpp packed binary.</td>
                 </tr>
                 <tr>
                     <td><code>X-Display-Width</code></td>
@@ -194,12 +199,12 @@
                 <tr>
                     <td><code>png-bw</code></td>
                     <td><code>image/png</code></td>
-                    <td>Floyd-Steinberg dithered black &amp; white, encoded as grayscale PNG.</td>
+                    <td>Dithered black &amp; white (see the dashboard's <code>dither</code> setting), encoded as PNG in the panel's muted greys.</td>
                 </tr>
                 <tr>
-                    <td><code>png-7color</code></td>
+                    <td><code>png-spectra6</code></td>
                     <td><code>image/png</code></td>
-                    <td>Dithered to a 7-color e-ink palette (black, white, green, blue, red, yellow, orange), encoded as PNG.</td>
+                    <td>Dithered to the Spectra 6 e-ink palette (black, white, green, blue, red, yellow), encoded as PNG in the calibrated panel colours.</td>
                 </tr>
                 <tr>
                     <td><code>bw</code></td>
@@ -207,13 +212,13 @@
                     <td>Raw 1-bit-per-pixel packed binary (MSB first). Size: <code>ceil(width/8) × height</code> bytes.</td>
                 </tr>
                 <tr>
-                    <td><code>7color</code></td>
+                    <td><code>spectra6</code></td>
                     <td><code>application/octet-stream</code></td>
-                    <td>Raw 4-bit-per-pixel packed binary (two pixels per byte). Size: <code>(width × height) / 2</code> bytes.</td>
+                    <td>Raw 4-bit-per-pixel packed binary (two pixels per byte, high nibble = left pixel; 0 black, 1 white, 2 green, 3 blue, 4 red, 5 yellow). Size: <code>(width × height) / 2</code> bytes.</td>
                 </tr>
             </tbody>
         </table>
-        <p class="doc-hint">The <code>bw</code> and <code>7color</code> raw formats are optimized for direct transfer to e-ink display controllers without additional decoding.</p>
+        <p class="doc-hint">The <code>bw</code> and <code>spectra6</code> raw formats are optimized for direct transfer to e-ink display controllers without additional decoding.</p>
 
         <h4>Browser Preview</h4>
         <p>When an image dashboard is accessed without any display parameters (no headers, no <code>format</code>/<code>width</code>/<code>height</code> query params), the server returns an HTML preview of the rendered page instead of an image. This allows viewing the dashboard in a regular browser for debugging and development.</p>

@@ -36,6 +36,10 @@ export interface Page {
 
 export type ColorMode = 'auto' | 'light' | 'dark'
 
+// How an image dashboard is dithered for the e-ink formats. Absent means
+// plain Floyd-Steinberg; see lib/dither.ts for the options shown in settings.
+export type DitherMode = 'auto' | 'balanced' | 'dynamic' | 'vivid' | 'soft' | 'grayscale'
+
 export interface Dashboard {
     id: string
     name: string
@@ -50,6 +54,8 @@ export interface Dashboard {
     // by name. Empty or unknown renders "default".
     widgetTheme?: string
     colorMode?: ColorMode
+    // Image dashboards only; ignored for interactive ones.
+    dither?: DitherMode
     pages: Page[]
 }
 

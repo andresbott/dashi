@@ -59,6 +59,15 @@ func (s *Store) SetWidgetValidator(v WidgetValidator) {
 	s.validator = v
 }
 
+// validate checks everything a write must not persist: the dither mode,
+// then every widget config.
+func (s *Store) validate(d Dashboard) error {
+	if err := validateDither(d.Dither); err != nil {
+		return err
+	}
+	return s.validateWidgets(d)
+}
+
 // validateWidgets runs the widget validator over every widget of d and
 // returns the first rejection wrapped in ErrInvalidWidgetConfig.
 func (s *Store) validateWidgets(d Dashboard) error {
@@ -222,7 +231,7 @@ func (s *Store) uniqueFolder(base string) string {
 }
 
 func (s *Store) Create(d Dashboard) (Dashboard, error) {
-	if err := s.validateWidgets(d); err != nil {
+	if err := s.validate(d); err != nil {
 		return Dashboard{}, err
 	}
 	if err := s.ensureDir(); err != nil {
@@ -355,7 +364,7 @@ func (s *Store) Update(d Dashboard) (Dashboard, error) {
 		return Dashboard{}, ErrInvalidID
 	}
 	// Before anything touches disk: a rejected update must not rename the folder.
-	if err := s.validateWidgets(d); err != nil {
+	if err := s.validate(d); err != nil {
 		return Dashboard{}, err
 	}
 
@@ -592,7 +601,7 @@ func (s *Store) ImportZip(data []byte) (Dashboard, error) {
 	if d.Name == "" {
 		return Dashboard{}, fmt.Errorf("dashboard name is required")
 	}
-	if err := s.validateWidgets(d); err != nil {
+	if err := s.validate(d); err != nil {
 		return Dashboard{}, err
 	}
 

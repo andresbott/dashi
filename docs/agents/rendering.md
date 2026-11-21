@@ -49,8 +49,41 @@ like), then map to native device colors just before output** —
 dithering against native colors, produces wrong-looking panels.
 `internal/dashboard/image/dither.go` wires this into the request path with a
 custom `spectra6WirePalette` whose `DeviceColor` values double as wire codes.
-"Enhanced dither" (using the library's presets/auto-suggestions in the request
-path) is catalogued debt in root `TODO.md`.
+
+### Dither modes per dashboard (2026-11-21)
+
+`Dashboard.Dither` (`dither` in dashboard.json) picks the processing for every
+dithered format (`png-bw`, `png-spectra6`, `bw`, `spectra6`); `png` ignores it.
+`encodeForFormat` passes it to the four `Dither*` functions, which build their
+options in `ditherOptions`:
+
+| Value | Behaviour |
+|---|---|
+| absent / `""` | plain Floyd-Steinberg, palette only — byte-identical to the output before modes existed (pinned by `TestDitherPlainIsUnchanged`) |
+| `auto` | `einkimage.SuggestProcessingOptions` on the rendered RGBA, every request; its options are used but the **target palette is kept** |
+| `balanced`, `dynamic`, `vivid`, `soft`, `grayscale` | `DitherOptions.ProcessingPreset` (`einkimage.GetProcessingPresetNames`) |
+
+Every mode still outputs palette `Color`s only, so `ReplaceColors` and the
+spectra6 wire-index map keep working (`TestDitherModesOutputPaletteColors`).
+The store rejects any other value on create/update/import with
+`dashboard.ErrInvalidDither` (400) — `internal/dashboard/dither.go` owns the
+list (`DitherModes`) and the editor mirrors it in `webui/src/lib/dither.ts`. A
+value that slips past (hand-edited file) renders as plain rather than failing.
+
+What `auto` picks for dashboards: a BW panel always gets `grayscale` (the
+recommender forces it for two-colour palettes). A typical page (flat
+backgrounds, text) classifies as a flat illustration, so Spectra 6 gets
+`vivid` with error diffusion; photo-heavy pages (image/xkcd widgets) can land
+on `dynamic` or `soft`.
+
+Cost on 800×480 (`BenchmarkDither800x480`, a rendered text/UI page, noisy
+shared machine): plain ≈ 25–30 ms; the classification `auto` adds is ≈ 2 ms
+(`BenchmarkSuggestProcessingOptions800x480`); the presets cost what their
+processing costs — `vivid`/`dynamic` ≈ 50–70 ms, `grayscale` ≈ 240–290 ms
+(L*a*b* matching plus range compression, dominated by `math.Pow`), so `auto`
+on BW ≈ 240 ms. `lib/einkimage` precomputes the palette's L*a*b* once per
+image and tables the 8-bit sRGB→linear step (exact, both tested), which
+halved `grayscale` on Spectra 6 (≈ 670 → 290 ms).
 
 ## Fonts
 

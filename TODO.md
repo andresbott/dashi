@@ -25,7 +25,7 @@ and `todo list --json` cover the common actions — run `todo --help`.
 -->
 
 * migrate code as HA addon — DONE (ha-addon/, editor via ingress + viewer host port)
-* use enhanced dither
+* use enhanced dither — DONE (per-dashboard dither mode: plain / auto / preset)
 * rework widgets as isolated component
 * remove preview fetaure
 * recreate themes — DONE (internal/themes + internal/widgetthemes)

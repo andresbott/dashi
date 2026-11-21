@@ -33,7 +33,13 @@ type Dashboard struct {
 	// icons. Empty or unknown names render with the default widget theme.
 	WidgetTheme string `json:"widgetTheme,omitempty"`
 	ColorMode   string `json:"colorMode,omitempty"`
-	Pages       []Page `json:"pages"`
+	// Dither picks how an image dashboard is dithered for the e-ink formats
+	// (png-bw, png-spectra6, bw, spectra6): empty is plain Floyd-Steinberg,
+	// "auto" lets einkimage pick per render, any other value names an
+	// einkimage processing preset. See DitherModes; the store rejects
+	// anything else. Interactive dashboards ignore it.
+	Dither string `json:"dither,omitempty"`
+	Pages  []Page `json:"pages"`
 }
 
 // DashboardMeta is the lightweight listing representation (no rows).

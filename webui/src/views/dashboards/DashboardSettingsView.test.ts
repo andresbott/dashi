@@ -98,6 +98,56 @@ describe('DashboardSettingsView', () => {
         expect(draft.value!.widgetTheme).toBe('vanished')
     })
 
+    describe('dither select', () => {
+        const mountGeneral = async () => {
+            const wrapper = mount(DashboardSettingsView, {
+                global: { plugins: [PrimeVue], directives: { tooltip: {} } },
+            })
+            await flushPromises()
+            return wrapper
+        }
+        const ditherSelect = (wrapper: Awaited<ReturnType<typeof mountGeneral>>) =>
+            wrapper.findAllComponents(Select).find(s => s.attributes('data-testid') === 'dither-select')
+
+        it('is hidden for interactive dashboards', async () => {
+            const wrapper = await mountGeneral()
+            expect(ditherSelect(wrapper)).toBeUndefined()
+        })
+
+        it('shows Plain when the field is absent and stores a picked mode', async () => {
+            draft.value!.type = 'image'
+            const wrapper = await mountGeneral()
+            const select = ditherSelect(wrapper)!
+            expect(select.props('modelValue')).toBe('plain')
+            expect(wrapper.find('[data-testid="dither-hint"]').text()).toContain('Floyd-Steinberg')
+
+            select.vm.$emit('update:modelValue', 'grayscale')
+            await flushPromises()
+            expect(draft.value!.dither).toBe('grayscale')
+            expect(select.props('modelValue')).toBe('grayscale')
+            expect(wrapper.find('[data-testid="dither-hint"]').text()).toContain('black-and-white')
+        })
+
+        it('removes the field when Plain is picked again', async () => {
+            draft.value!.type = 'image'
+            draft.value!.dither = 'auto'
+            const wrapper = await mountGeneral()
+            const select = ditherSelect(wrapper)!
+            expect(select.props('modelValue')).toBe('auto')
+
+            select.vm.$emit('update:modelValue', 'plain')
+            await flushPromises()
+            expect('dither' in draft.value!).toBe(false)
+        })
+
+        it('offers plain, auto and every server preset', async () => {
+            draft.value!.type = 'image'
+            const wrapper = await mountGeneral()
+            const values = (ditherSelect(wrapper)!.props('options') as { value: string }[]).map(o => o.value)
+            expect(values).toEqual(['plain', 'auto', 'balanced', 'dynamic', 'vivid', 'soft', 'grayscale'])
+        })
+    })
+
     it('shows a known theme and widget theme as stored', async () => {
         draft.value!.themeId = 'abc123'
         draft.value!.widgetTheme = 'retro'

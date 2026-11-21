@@ -8,7 +8,7 @@ import (
 
 func TestDitherBWPacked_OutputSize(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 10, 5))
-	result := DitherBWPacked(img)
+	result := DitherBWPacked(img, DitherPlain)
 
 	// ceil(10/8) * 5 = 2 * 5 = 10 bytes
 	expected := 10
@@ -26,7 +26,7 @@ func TestDitherBWPacked_AllWhite(t *testing.T) {
 		}
 	}
 
-	result := DitherBWPacked(img)
+	result := DitherBWPacked(img, DitherPlain)
 
 	// All pixels should be white (bit = 1)
 	expected := []byte{0xFF, 0xFF}
@@ -49,7 +49,7 @@ func TestDitherBWPacked_AllBlack(t *testing.T) {
 		}
 	}
 
-	result := DitherBWPacked(img)
+	result := DitherBWPacked(img, DitherPlain)
 
 	// All pixels should be black (bit = 0)
 	expected := []byte{0x00, 0x00}
@@ -70,7 +70,7 @@ func TestDitherBWPacked_WidthNotMultipleOf8(t *testing.T) {
 		img.Set(x, 0, white)
 	}
 
-	result := DitherBWPacked(img)
+	result := DitherBWPacked(img, DitherPlain)
 
 	// ceil(11/8) = 2 bytes
 	// First byte: 8 white pixels = 0xFF
@@ -96,7 +96,7 @@ func TestDitherBWRGBA_PixelsAreDeviceColors(t *testing.T) {
 		}
 	}
 
-	result := DitherBWRGBA(img)
+	result := DitherBWRGBA(img, DitherPlain)
 
 	// Every pixel should be either {0x21,0x21,0x21} or {0xe6,0xe6,0xe6}
 	for y := 0; y < 4; y++ {
@@ -137,7 +137,7 @@ func TestPackBW_KnownPattern(t *testing.T) {
 
 func TestDitherSpectra6Packed_OutputSize(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 10, 5))
-	result := DitherSpectra6Packed(img)
+	result := DitherSpectra6Packed(img, DitherPlain)
 
 	// (10 * 5) / 2 = 25 bytes
 	expected := 25
@@ -155,7 +155,7 @@ func TestDitherSpectra6Packed_AllBlack(t *testing.T) {
 		}
 	}
 
-	result := DitherSpectra6Packed(img)
+	result := DitherSpectra6Packed(img, DitherPlain)
 
 	// All nibbles should be 0 (black)
 	expected := []byte{0x00, 0x00, 0x00, 0x00}
@@ -178,7 +178,7 @@ func TestDitherSpectra6Packed_AllWhite(t *testing.T) {
 		}
 	}
 
-	result := DitherSpectra6Packed(img)
+	result := DitherSpectra6Packed(img, DitherPlain)
 
 	// All nibbles should be 1 (white)
 	expected := []byte{0x11, 0x11, 0x11, 0x11}
@@ -201,7 +201,7 @@ func TestDitherSpectra6Packed_AllRed(t *testing.T) {
 		}
 	}
 
-	result := DitherSpectra6Packed(img)
+	result := DitherSpectra6Packed(img, DitherPlain)
 
 	// All nibbles should be 4 (red - wire index)
 	expected := []byte{0x44, 0x44, 0x44, 0x44}
@@ -236,7 +236,7 @@ func TestDitherSpectra6Packed_IndicesInRange(t *testing.T) {
 		}
 	}
 
-	result := DitherSpectra6Packed(img)
+	result := DitherSpectra6Packed(img, DitherPlain)
 
 	// Every nibble should be in range [0, 5]
 	for i, b := range result {
@@ -272,7 +272,7 @@ func TestDitherSpectra6RGBA_PixelsAreCalibratedColors(t *testing.T) {
 		}
 	}
 
-	result := DitherSpectra6RGBA(img)
+	result := DitherSpectra6RGBA(img, DitherPlain)
 
 	// Every pixel should be one of the 6 calibrated colors
 	validColors := map[[3]uint8]bool{
