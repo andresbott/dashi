@@ -30,7 +30,11 @@ export default defineConfig({
   server: {
     proxy: {
       '/auth': proxyToAdmin,
-      '/api': proxyToAdmin
+      '/api': proxyToAdmin,
+      // The editor's e-ink preview fetches /{dashboardId}?format=...: the PNG
+      // the admin server renders for a display. Only display requests are
+      // proxied; plain /{id} stays with the dev server's SPA.
+      '^/[a-z0-9]+\\?(.*&)?format=': proxyToAdmin
     }
   }
 })

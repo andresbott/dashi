@@ -132,6 +132,20 @@ Image-stack widgets paint with these roles rather than hardcoded greys. Fallback
   route is a leftover: the Go servers intercept those paths with
   `staticMid` before the SPA ever sees them, so it only ever triggers on the
   Vite dev server.
+- **E-ink preview (2026-11-21)**: the editor's "E-ink preview" dialog
+  (`EinkPreviewDialog.vue`, image dashboards only) shows the PNG the server
+  renders, not an SPA rendering. It `fetch`es `withBase('/{id}?format=…&width=…
+  &height=…&rotation=…&page=…')` from the **editor** server, whose router
+  mounts the same `staticMid` as the viewer — so no extra route exists, query
+  params stand in for the display headers, and the viewer's per-dashboard
+  basic auth (viewer-only) never applies. `fetch` + object URL rather than
+  `<img src>` so 400 reasons can be shown and nothing is cached
+  (`cache: 'no-store'`); pending autosave is flushed first. Formats offered:
+  `png-bw`, `png-spectra6`, `png` (the packed formats are raw bytes). An
+  interactive dashboard answers a display request with browser HTML, hence
+  no button there. The Vite dev server proxies only display requests
+  (`^/[a-z0-9]+\?(.*&)?format=`) to the editor port. Note the server puts no
+  upper bound on width/height; the dialog clamps custom sizes to 4096.
 - Frontend dev: `cd webui && npm run dev` proxies `/api` and `/auth` to
   `http://localhost:8088` (the **editor** port) — run `make run` alongside.
   Because the proxy sets `changeOrigin`, `/api/v0/info` reports the viewer at

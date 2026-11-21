@@ -6,6 +6,7 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import DashboardRow from '@/components/dashboards/DashboardRow.vue'
+import EinkPreviewDialog from '@/components/dashboards/EinkPreviewDialog.vue'
 
 import { useDashboardDraft } from '@/composables/useDashboardDraft'
 import type { Row } from '@/types/dashboard'
@@ -34,6 +35,12 @@ const renamePageDialogVisible = ref(false)
 const renamePageIndex = ref(0)
 const renamePageName = ref('')
 const renamePageInterval = ref<number | null>(0)
+
+// Only image dashboards render to PNG: the server answers an interactive
+// dashboard's display request with browser HTML, so there is nothing to show.
+const einkPreviewVisible = ref(false)
+const isImageDashboard = computed(() => localDashboard.value?.type === 'image')
+const pageNames = computed(() => (localDashboard.value?.pages ?? []).map(p => p.name))
 
 const pages = computed(() => localDashboard.value?.pages ?? [])
 const activePage = computed(() => pages.value[activePageIndex.value])
@@ -206,12 +213,29 @@ const goToSettings = async () => {
                 {{ saveIndicator.label }}
             </span>
             <Button
+                v-if="isImageDashboard"
+                icon="ti ti-device-tablet"
+                label="E-ink preview"
+                severity="secondary"
+                data-testid="eink-preview-button"
+                @click="einkPreviewVisible = true"
+            />
+            <Button
                 icon="ti ti-settings"
                 label="Settings"
                 severity="secondary"
                 @click="goToSettings"
             />
         </div>
+
+        <EinkPreviewDialog
+            v-if="isImageDashboard"
+            v-model:visible="einkPreviewVisible"
+            :dashboardId="id"
+            :pageNames="pageNames"
+            :initialPage="activePageIndex"
+            :flush="flush"
+        />
 
         <div class="page-tabs">
             <div

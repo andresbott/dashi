@@ -29,7 +29,7 @@ and `todo list --json` cover the common actions — run `todo --help`.
 * rework widgets as isolated component
 * remove preview fetaure
 * recreate themes — DONE (internal/themes + internal/widgetthemes)
-* make custom preview dialog for eink dispalayus
+* make custom preview dialog for eink dispalayus — DONE ("E-ink preview" in the dashboard editor, image dashboards)
 * custom themes — DONE (themes editor, widget theme upload)
 * json not passed directly to backend
 * make sure mobile view works

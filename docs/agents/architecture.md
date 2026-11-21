@@ -160,11 +160,12 @@ not for current paths.
 
 ## Known debt
 
-- Root `TODO.md`: HA-addon migration, enhanced dithering, e-ink
-  preview dialog, migrate to user-data dir. Check here before redesigning any
-  of these — the direction is chosen. Note: "widgets as isolated components"
-  and "remove the preview feature" have shipped; they remain in the file as
-  historical record.
+- Root `TODO.md`: HA-addon migration, migrate to user-data dir. Check here
+  before redesigning any of these — the direction is chosen. Note: "widgets
+  as isolated components", "remove the preview feature", "enhanced dither"
+  and the "e-ink preview dialog" have shipped (2026-11-21 for the last two,
+  see [rendering.md](rendering.md)); they remain in the file as historical
+  record.
 - Error bodies on both servers are double-wrapped: the go-bumbu middleware
   (`JsonErrors: true`) takes the handler's `{"error":"..."}` body as the
   message string of its own `{"error": ...}`. The SPA's `apiErrorMessage`

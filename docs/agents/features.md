@@ -34,6 +34,7 @@ PNG — DIY-by-design gap, do not "fix" it).
 | Display protocol (headers/query: format, width, height, rotation, action) | Implemented | `parseDisplayHeaders` in `middleware_static.go`; formats: `png`, `png-bw`, `png-spectra6`, packed `bw`, `spectra6` |
 | E-ink dithering | Implemented (2026-05-01, PR #18) | `lib/einkimage` (library) + `internal/dashboard/image/dither.go` (integration) |
 | Per-dashboard dither mode ("enhanced dither") | Implemented (2026-11-21) | `Dashboard.Dither` (`dither` in dashboard.json): absent = plain Floyd-Steinberg (unchanged output), `auto` = `einkimage.SuggestProcessingOptions` per render, or a preset name; validated on save (`internal/dashboard/dither.go`, 400 on unknown); "Dither" select in `DashboardSettingsView.vue` (image dashboards only). See [rendering.md](rendering.md#dither-modes-per-dashboard-2026-11-21) |
+| E-ink preview dialog (editor) | Implemented (2026-11-21) | "E-ink preview" button in `DashboardEditView.vue` (image dashboards only) opens `components/dashboards/EinkPreviewDialog.vue`: device preset or custom W×H, format (`png-bw`/`png-spectra6`/`png`), rotation, page; fetches the server PNG from the **editor's own** `GET /{id}?format=…` (no new route, no viewer auth); nothing saved. Presets in `webui/src/lib/einkPreview.ts`. See [rendering.md](rendering.md#viewer-and-editor-notes) |
 | Swipe navigation for displays | Implemented | `X-Action: swipe_left/right` → redirect with new `?page=` |
 | Image dashboards viewed in browser | Implemented | Image-type dashboards with no display headers render through the browser stack (see [viewer.md](viewer.md)); `serveImageHTMLPreview` was removed |
 | Themes (background + light/dark palette) | Implemented | `internal/themes`; `{dataDir}/data/themes/{name}/theme.json` + `assets/`; builtin read-only `default` and `ember` (registry in `internal/themes/builtin.go`; `GET /themes/{id}` flags them `builtin`); copy (`POST /themes/{id}/copy`); dashboards select via `themeId`; editor `AdminThemeEdit.vue` with the background section in `webui/src/components/admin/ThemeBackgroundEditor.vue` (see [viewer.md](viewer.md#editing-a-background)) |
@@ -70,6 +71,6 @@ fall back to `default`. Details: [viewer.md](viewer.md#theming-two-entities-css-
   dangerous sink. See [architecture.md](architecture.md#security-model--know-the-boundaries).
 - **Market widget config UI exists** (`MarketWidgetConfig.vue`) — older
   autodoc saying "Not implemented" is stale.
-- Root `TODO.md` backlog: HA addon, enhanced dither, isolated widget
-  components, remove previews, e-ink preview dialog,
-  user-data dir migration.
+- Root `TODO.md` backlog: HA addon, isolated widget components, remove
+  previews, user-data dir migration. Enhanced dither and the e-ink preview
+  dialog have shipped (see Rendering); the file still lists them.
