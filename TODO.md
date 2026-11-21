@@ -47,7 +47,8 @@ and `todo list --json` cover the common actions — run `todo --help`.
   Theming: themes, background images, widget themes; Content: notes, images
 - [x] uploaded themes only become usable by widgets/renderers after a backend restart (icons/fonts registered once at startup in app/router/main.go)
   upload/delete re-sync PNG fonts via widgetthemes Store.OnChange
-- [ ] LITEhtmk cannot real css vars, => explore if we watnto use a css library to transform modern css into plain css e.g. something simialr to scss
+- [x] LITEhtmk cannot real css vars, => explore if we watnto use a css library to transform modern css into plain css e.g. something simialr to scss
+  explored in docs/project/litehtml-css-vars.md: the vendored litehtml already supports var(); no CSS transform library needed
 
 # Release
 
