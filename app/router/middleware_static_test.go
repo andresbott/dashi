@@ -641,6 +641,65 @@ func TestImageDashboard_RotationQueryParam(t *testing.T) {
 	}
 }
 
+func TestParseDisplayHeadersSizeBounds(t *testing.T) {
+	tests := []struct {
+		name    string
+		query   string
+		headers map[string]string
+		wantErr string // "" = accepted
+	}{
+		{name: "width at max via query", query: "?format=png&width=4096&height=480"},
+		{name: "height at max via query", query: "?format=png&width=800&height=4096"},
+		{name: "both at max via headers", headers: map[string]string{"X-Display-Width": "4096", "X-Display-Height": "4096"}},
+		{name: "width 1 is the minimum", query: "?format=png&width=1&height=1"},
+		{name: "width over max via query", query: "?format=png&width=4097&height=480", wantErr: "invalid X-Display-Width: 4097 (must be 1 to 4096)"},
+		{name: "height over max via query", query: "?format=png&width=800&height=4097", wantErr: "invalid X-Display-Height: 4097 (must be 1 to 4096)"},
+		{name: "width over max via header", headers: map[string]string{"X-Display-Width": "4097", "X-Display-Height": "480"}, wantErr: "invalid X-Display-Width: 4097 (must be 1 to 4096)"},
+		{name: "height over max via header", headers: map[string]string{"X-Display-Width": "800", "X-Display-Height": "4097"}, wantErr: "invalid X-Display-Height: 4097 (must be 1 to 4096)"},
+		{name: "header over max wins over valid query", query: "?format=png&width=800&height=480", headers: map[string]string{"X-Display-Width": "100000"}, wantErr: "invalid X-Display-Width: 100000 (must be 1 to 4096)"},
+		{name: "zero width", query: "?format=png&width=0&height=480", wantErr: "invalid X-Display-Width: 0 (must be 1 to 4096)"},
+		{name: "negative height", query: "?format=png&width=800&height=-5", wantErr: "invalid X-Display-Height: -5 (must be 1 to 4096)"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/test"+tc.query, nil)
+			if tc.query == "" {
+				req.Header.Set("X-Display-Format", "png")
+			}
+			for k, v := range tc.headers {
+				req.Header.Set(k, v)
+			}
+			_, err := parseDisplayHeaders(req)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || err.Error() != tc.wantErr {
+				t.Fatalf("error = %v, want %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+// An oversized display request must be refused before anything is rendered,
+// with the limit in the 400 body so a client can tell what to fix.
+func TestImageDashboard_OversizedDisplayAnswers400WithLimit(t *testing.T) {
+	handler := newTestMiddleware(t, imageDashboard("test"))
+
+	req := httptest.NewRequest("GET", "/test?format=png&width=800&height=100000", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("must be 1 to 4096")) {
+		t.Errorf("body %q does not name the limit", rec.Body)
+	}
+}
+
 func TestResolveImageBackgroundWithGradientOnly(t *testing.T) {
 	// When the background has a gradient but no image, resolveImageBackground
 	// should return the gradient CSS and nil bytes.

@@ -37,8 +37,9 @@ export const DEVICE_PRESETS: DevicePreset[] = [
     { key: 's6-13in3', label: '13.3" Spectra 6 1600×1200', width: 1600, height: 1200, format: 'png-spectra6' },
 ]
 
-// Custom sizes are clamped to this: the server renders whatever it is asked
-// for, and a typo should not ask it for a gigapixel image.
+// Custom sizes are clamped to the server's limit, so a typo yields the largest
+// allowed render instead of a 400. Keep in sync with maxDisplaySide in
+// app/router/middleware_static.go.
 export const MAX_PREVIEW_SIDE = 4096
 
 export interface PreviewParams {

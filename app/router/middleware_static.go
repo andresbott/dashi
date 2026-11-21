@@ -125,6 +125,13 @@ var validFormats = map[string]bool{
 
 var validRotations = map[int]bool{0: true, 90: true, 180: true, 270: true}
 
+// maxDisplaySide caps the requested width and height in pixels. A render
+// allocates width×height RGBA up front, so an unbounded value lets one request
+// exhaust memory; the largest real panels (13.3" Spectra 6, 1600×1200) sit far
+// below it. The editor's preview dialog uses the same limit
+// (MAX_PREVIEW_SIDE in webui/src/lib/einkPreview.ts).
+const maxDisplaySide = 4096
+
 // hasDisplayHeaders returns true if any display protocol header or query parameter is present.
 func hasDisplayHeaders(r *http.Request) bool {
 	return r.Header.Get("X-Display-Format") != "" ||
@@ -159,8 +166,8 @@ func parseDisplayHeaders(r *http.Request) (displayRequest, error) {
 		return displayRequest{}, fmt.Errorf("missing X-Display-Width header or width query parameter")
 	}
 	width, err := strconv.Atoi(widthStr)
-	if err != nil || width <= 0 {
-		return displayRequest{}, fmt.Errorf("invalid X-Display-Width: %s", widthStr)
+	if err != nil || width <= 0 || width > maxDisplaySide {
+		return displayRequest{}, fmt.Errorf("invalid X-Display-Width: %s (must be 1 to %d)", widthStr, maxDisplaySide)
 	}
 
 	heightStr := getDisplayParam(r, "X-Display-Height", "height")
@@ -168,8 +175,8 @@ func parseDisplayHeaders(r *http.Request) (displayRequest, error) {
 		return displayRequest{}, fmt.Errorf("missing X-Display-Height header or height query parameter")
 	}
 	height, err := strconv.Atoi(heightStr)
-	if err != nil || height <= 0 {
-		return displayRequest{}, fmt.Errorf("invalid X-Display-Height: %s", heightStr)
+	if err != nil || height <= 0 || height > maxDisplaySide {
+		return displayRequest{}, fmt.Errorf("invalid X-Display-Height: %s (must be 1 to %d)", heightStr, maxDisplaySide)
 	}
 
 	rotation := 0
