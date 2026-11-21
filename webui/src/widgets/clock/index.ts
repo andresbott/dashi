@@ -8,6 +8,7 @@ const clock: WidgetModule = {
     label: 'Clock',
     icon: 'ti-clock',
     description: 'Digital clock with date',
+    category: 'time',
 }
 
 export default clock

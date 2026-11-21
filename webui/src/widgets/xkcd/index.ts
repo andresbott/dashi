@@ -8,6 +8,7 @@ const xkcd: WidgetModule = {
     label: 'XKCD',
     icon: 'ti-pencil',
     description: 'XKCD comic strip',
+    category: 'information',
 }
 
 export default xkcd

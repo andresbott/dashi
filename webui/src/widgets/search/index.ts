@@ -8,6 +8,7 @@ const search: WidgetModule = {
     label: 'Search',
     icon: 'ti-search',
     description: 'Search engine input',
+    category: 'navigation',
 }
 
 export default search

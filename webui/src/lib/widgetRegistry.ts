@@ -1,4 +1,5 @@
 import type { WidgetModule } from '@/widgets/types'
+import { WIDGET_CATEGORIES, type WidgetCategory } from '@/widgets/categories'
 
 // Each widget folder registers itself through its index.ts. Those files only
 // declare metadata and async components, so eager loading here keeps every
@@ -22,6 +23,14 @@ export function getWidgetTypes(): string[] {
 
 export function getWidgetTypeOptions(): { value: string; label: string; icon: string; description: string }[] {
     return modules.map(m => ({ value: m.type, label: m.label, icon: m.icon, description: m.description }))
+}
+
+// Widgets grouped by category, in category display order; each group is
+// ordered by label. Empty categories are left out.
+export function getWidgetsByCategory(): { id: WidgetCategory; label: string; widgets: WidgetModule[] }[] {
+    return WIDGET_CATEGORIES
+        .map(c => ({ id: c.id, label: c.label, widgets: modules.filter(m => m.category === c.id) }))
+        .filter(g => g.widgets.length > 0)
 }
 
 export type WidgetRegistryEntry = WidgetModule

@@ -45,6 +45,7 @@ const groups = [
 // the sidebar does not go blank while you are editing.
 const navParents: Record<string, string> = {
     'admin-theme-edit': 'admin-themes',
+    'doc-widget': 'doc-widgets',
 }
 
 const activeKey = computed(() => {

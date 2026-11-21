@@ -8,6 +8,7 @@ const markdown: WidgetModule = {
     label: 'Markdown',
     icon: 'ti-markdown',
     description: 'Render markdown content from a file',
+    category: 'information',
 }
 
 export default markdown

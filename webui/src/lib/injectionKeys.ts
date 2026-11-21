@@ -8,3 +8,6 @@ export const DASHBOARD_ID: InjectionKey<Ref<string>> = Symbol('dashboardId')
 export const ACTIVE_PAGE: InjectionKey<Ref<number>> = Symbol('activePage')
 export const TOTAL_PAGES: InjectionKey<Ref<number>> = Symbol('totalPages')
 export const EDITING_MODE: InjectionKey<boolean> = Symbol('editing-mode')
+// Maps an uploaded image name to its URL. Only the widget docs provide it, to
+// show sample images; the image widget falls back to the data API.
+export const DATA_IMAGE_URL: InjectionKey<(name: string) => string> = Symbol('dataImageUrl')

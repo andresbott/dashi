@@ -51,6 +51,15 @@ describe('AdminLayout sidebar', () => {
         await active.trigger('click')
         expect(push).toHaveBeenCalledWith({ name: 'admin-background-images' })
     })
+
+    it('keeps Widgets highlighted on a single widget doc page', () => {
+        reactiveRoute.name = 'doc-widget'
+        reactiveRoute.fullPath = '/admin/docs/widgets/clock'
+        const { wrapper } = sidebar()
+        const active = wrapper.find('.admin-nav-item.active')
+        expect(active.text()).toBe('Widgets')
+        expect(wrapper.find('.admin-panel').classes()).toContain('doc-content')
+    })
 })
 
 // Below the md breakpoint CSS turns the sidebar into a drawer; these tests

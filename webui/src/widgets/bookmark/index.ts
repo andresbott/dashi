@@ -8,6 +8,7 @@ const bookmark: WidgetModule = {
     label: 'Bookmark',
     icon: 'ti-bookmark',
     description: 'Link to an external website',
+    category: 'navigation',
 }
 
 export default bookmark

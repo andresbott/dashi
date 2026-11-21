@@ -8,6 +8,7 @@ const transport: WidgetModule = {
     label: 'Departures',
     icon: 'ti-bus',
     description: 'Public transport departures',
+    category: 'information',
 }
 
 export default transport

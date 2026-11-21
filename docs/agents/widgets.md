@@ -26,13 +26,54 @@ package hosts two.
   an error** — a misspelled type string fails silently by design.
 - **Frontend** (`webui/src/lib/widgetRegistry.ts`): discovers every
   `webui/src/widgets/{folder}/index.ts` with `import.meta.glob`, giving type →
-  `{component, configComponent | null, label, icon, description,
-  noWidgetProp?}`, ordered by label. There is no list to edit. Each folder holds
+  `{component, configComponent | null, label, icon, description, category,
+  noWidgetProp?, settingsSize?}` (the `WidgetModule` type in
+  `webui/src/widgets/types.ts`), ordered by label. There is no list to edit.
+  `category` is one of the ids in `webui/src/widgets/categories.ts` (Time &
+  date, Weather, Information, Navigation & layout); `getWidgetsByCategory()`
+  groups by it, and the widget docs index uses that grouping. A widget with a
+  `wide` form is shown with its settings under the preview on its docs page.
+  `settingsSize: 'wide'` opens the Widget Settings dialog
+  (`components/dashboards/WidgetSettingsDialog.vue`) at 60rem instead of the
+  default 28rem, for a form laid out in columns; only `weather` uses it. Its
+  form drops to one column below the `md` breakpoint, and the global
+  `.p-dialog` max-width keeps the dialog on screen. The dialog's actions sit
+  in the PrimeVue footer, so they stay visible while a long form scrolls. Each folder holds
   one module, which is why `weather-compact` has its own folder and imports from
   `weather`. Components are `defineAsyncComponent` — each widget is its own
   chunk, so an `index.ts` must not import a component directly. This registry is
   for the admin/editor SPA only; the viewer is server-rendered (see
   [viewer.md](viewer.md)).
+
+## Widget documentation pages
+
+`/admin/docs/widgets` (`webui/src/views/docs/DocWidgets.vue`) lists the
+widgets as cards grouped by `category`; each card links to
+`/admin/docs/widgets/:type` (`DocWidget.vue`): summary, then an **Overview**
+tab (the widget's real `Widget.vue` next to its real `WidgetConfig.vue`, wired
+so form changes re-render the preview) and a **Details** tab (parameter
+table).
+
+- **Docs metadata:** `webui/src/widgets/{folder}/docs.ts` exports a
+  `WidgetDocs` (`webui/src/lib/widgetDocs.ts`): `summary`, `params` (name,
+  type, default, description, optional group), optional `sections`/`notes`,
+  and `preview` (sample `config`, optional `height`, `provide`d injections,
+  `hideForm` + `presets` for forms that write user data, as markdown's does).
+  `configType` names the contract key when a widget shares another's config
+  (`weather-compact` → `weather`). `webui/src/lib/widgetDocs.test.ts` fails if
+  a widget has no docs, a contract field is undocumented, or a documented
+  field does not exist.
+- **Mocked data:** data-backed widgets also have `docFixture.ts` with canned
+  payloads keyed by TanStack query-key prefix (`['weather', …]`), passed as
+  `docs.mocks`. The doc pages provide their own QueryClient
+  (`webui/src/lib/docQueryClient.ts`) to the preview and form subtree: it
+  answers mocked prefixes from the fixtures (no refetch) and runs the real
+  queryFn for anything else (widget themes, icon lookups on the local API).
+  Mocks from all widgets are merged, so stack children get data too.
+  Fixtures can drift from the real API shape; they are typed against the
+  widget's `types.ts`, which catches renamed fields but not new ones.
+- **Image** reads its URL resolver from the `DATA_IMAGE_URL` injection (docs
+  provide inline sample SVGs); the default is the data API.
 
 ## Config validation
 
@@ -261,11 +302,17 @@ are required.
    registry finds the folder by itself; `index.ts` must declare the **same type
    string** as the Go module. Add that string to `types` in
    `internal/widgets/testdata/widget_contract.json`, and any config fields to
-   `configs` (see [Config contract](#config-contract)).
-6. **Warmup (if data-backed):** implement `Module.Warmup`, which `newSharedDeps`
+   `configs` (see [Config contract](#config-contract)). Give `index.ts` a
+   `category`.
+6. **Documentation:** add `docs.ts` (summary, every config field in `params`,
+   a sample `preview.config`) and, if the widget fetches data, `docFixture.ts`
+   with canned payloads for its query keys, wired as `docs.mocks` — see
+   [Widget documentation pages](#widget-documentation-pages).
+   `widgetDocs.test.ts` enforces the field list.
+7. **Warmup (if data-backed):** implement `Module.Warmup`, which `newSharedDeps`
    calls with every saved config of that type, so first render is warm. Widgets
    with nothing to warm embed `widgets.NoopModule`.
-7. **Validation (if config reaches a URL, markup or script sink):** implement
+8. **Validation (if config reaches a URL, markup or script sink):** implement
    `widgets.ConfigValidator` and neutralise the same values in the renderer —
    see [Config validation](#config-validation).
 

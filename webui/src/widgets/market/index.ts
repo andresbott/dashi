@@ -8,6 +8,7 @@ const market: WidgetModule = {
     label: 'Market',
     icon: 'ti-chart-line',
     description: 'Stock / crypto market ticker',
+    category: 'information',
 }
 
 export default market
