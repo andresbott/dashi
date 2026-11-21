@@ -32,7 +32,7 @@ and `todo list --json` cover the common actions — run `todo --help`.
 * make custom preview dialog for eink dispalayus — DONE ("E-ink preview" in the dashboard editor, image dashboards)
 * custom themes — DONE (themes editor, widget theme upload)
 * json not passed directly to backend
-* make sure mobile view works
+* make sure mobile view works — DONE (viewer stacks rows below 640px; admin drawer below 768px; dialogs fit; editor grid scrolls sideways)
 * classify main sections in the admin SPA (e.g. notes/images = user content, backgrounds/themes = theming) — DONE (Theming: themes, background images, widget themes; Content: notes, images)
 * uploaded themes only become usable by widgets/renderers after a backend restart (icons/fonts registered once at startup in app/router/main.go) — DONE (upload/delete re-sync PNG fonts via widgetthemes Store.OnChange)
 

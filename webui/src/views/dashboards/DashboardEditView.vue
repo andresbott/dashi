@@ -194,15 +194,16 @@ const goToSettings = async () => {
         <div v-if="isLoading" class="p-4">Loading...</div>
         <div v-else-if="isError" class="p-4">Failed to load dashboard.</div>
         <template v-else-if="localDashboard">
-        <div class="flex align-items-center gap-2 mb-3">
+        <div class="edit-toolbar mb-3">
             <Button
                 icon="ti ti-arrow-left"
                 severity="secondary"
                 text
                 rounded
+                aria-label="Back to dashboards"
                 @click="goToAdmin"
             />
-            <span class="text-xl font-bold text-color flex-grow-1">{{ localDashboard.name }}</span>
+            <span class="edit-toolbar-title text-xl font-bold text-color">{{ localDashboard.name }}</span>
             <span
                 v-if="saveIndicator"
                 class="save-status"
@@ -320,7 +321,7 @@ const goToSettings = async () => {
             :draggable="false"
             header="Rename Page"
         >
-            <div class="flex flex-column gap-3" style="min-width: 350px">
+            <div class="flex flex-column gap-3 dialog-form">
                 <div class="flex flex-column gap-1">
                     <label class="font-semibold text-sm">Page Name</label>
                     <InputText v-model="renamePageName" placeholder="Page name" />
@@ -345,29 +346,57 @@ const goToSettings = async () => {
     </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/assets/breakpoints' as bp;
+
 .dashboard-edit-view {
     max-width: 1600px;
     margin: 0 auto;
     padding: 1.5rem 1rem;
+
+    @include bp.below-md {
+        padding: 1rem 0.5rem;
+    }
 }
 
+/* Wraps instead of overflowing: on a phone the buttons drop below the title. */
+.edit-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.edit-toolbar-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+
+/* Tabs stay on one line and scroll sideways when there are more than fit. */
 .page-tabs {
     display: flex;
     align-items: center;
     border-bottom: 1px solid var(--p-surface-border);
     margin-bottom: 1.5rem;
     gap: 0.5rem;
+    overflow-x: auto;
 }
 
 .page-tab {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 0.5rem;
     padding: 0.75rem 1rem;
     cursor: pointer;
     border-bottom: 2px solid transparent;
     transition: all 0.2s;
+    white-space: nowrap;
+
+    @include bp.below-md {
+        padding: 0.5rem 0.75rem;
+    }
 }
 
 .page-tab:hover {
@@ -386,6 +415,7 @@ const goToSettings = async () => {
 }
 
 .add-page-btn {
+    flex-shrink: 0;
     margin-left: auto;
 }
 

@@ -11,14 +11,18 @@
     {{if .CustomCSS}}<style>{{.CustomCSS}}</style>{{end}}
 </head>
 <body class="min-h-screen">
-    <main class="mx-auto flex min-h-screen w-full flex-col px-4 py-4"
+    {{- /* Row height and cell width/offset travel as CSS variables, not as
+           inline height/width/margin: viewer.css applies them from the `sm`
+           breakpoint up and stacks every cell full width below it (phones).
+           An inline declaration could not be undone by a media query. */}}
+    <main class="mx-auto flex min-h-screen w-full flex-col px-2 py-2 sm:px-4 sm:py-4"
           style="max-width: {{if .MaxWidth}}{{.MaxWidth}}{{else}}100%{{end}}; align-items: {{.HAlign}}; justify-content: {{.VAlign}};">
         {{- range .Rows}}
-        <div class="dashi-row w-full"{{if .Height}} style="height: {{.Height}}"{{end}}>
-            {{if .Title}}<h2 class="mb-2 text-lg font-semibold text-[var(--dashi-text)]">{{.Title}}</h2>{{end}}
-            <div class="flex flex-wrap items-stretch"{{if .Width}} style="width: {{.Width}}"{{end}}>
+        <div class="dashi-row w-full"{{if .Height}} style="--dashi-row-height: {{.Height}}"{{end}}>
+            {{if .Title}}<h2 class="mb-2 text-lg font-semibold break-words text-[var(--dashi-text)]">{{.Title}}</h2>{{end}}
+            <div class="flex max-w-full flex-wrap items-stretch"{{if .Width}} style="width: {{.Width}}"{{end}}>
                 {{range .Widgets}}
-                <div class="dashi-cell p-2" style="width: {{printf "%.4f" .WidthPercent}}%; margin-left: {{printf "%.4f" .MarginLeftPercent}}%">
+                <div class="dashi-cell p-2" style="--dashi-cell-width: {{printf "%.4f" .WidthPercent}}%; --dashi-cell-offset: {{printf "%.4f" .MarginLeftPercent}}%">
                     {{.HTML}}
                 </div>
                 {{end}}
@@ -27,12 +31,12 @@
         {{- end}}
     </main>
     {{- if .Pages}}
-    <nav class="dashi-pages mx-auto flex w-full flex-wrap items-center justify-center gap-2 px-4 pb-4" aria-label="Dashboard pages">
+    <nav class="dashi-pages mx-auto flex w-full flex-wrap items-center justify-center gap-2 px-2 pb-4 sm:px-4" aria-label="Dashboard pages">
         {{- range .Pages}}
         {{- if .Current}}
-        <a href="?page={{.Index}}" aria-current="page" class="rounded border border-[var(--dashi-primary)] bg-[var(--dashi-primary)] px-3 py-1 text-sm font-semibold text-[var(--dashi-on-primary)]">{{.Name}}</a>
+        <a href="?page={{.Index}}" aria-current="page" class="max-w-full rounded border break-words border-[var(--dashi-primary)] bg-[var(--dashi-primary)] px-3 py-1 text-sm font-semibold text-[var(--dashi-on-primary)]">{{.Name}}</a>
         {{- else}}
-        <a href="?page={{.Index}}" class="rounded border border-[var(--dashi-border)] bg-[var(--dashi-surface)] px-3 py-1 text-sm text-[var(--dashi-text)]">{{.Name}}</a>
+        <a href="?page={{.Index}}" class="max-w-full rounded border break-words border-[var(--dashi-border)] bg-[var(--dashi-surface)] px-3 py-1 text-sm text-[var(--dashi-text)]">{{.Name}}</a>
         {{- end}}
         {{- end}}
     </nav>

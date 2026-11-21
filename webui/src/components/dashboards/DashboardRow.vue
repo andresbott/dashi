@@ -467,6 +467,7 @@ const nudgeColumn = (index: number, delta: number) => {
                 @click="requestDelete"
             />
         </div>
+        <div class="grid-scroll">
         <div class="grid-wrap" :class="{ 'grid-wrap--empty': !row.widgets.length }">
             <div
                 v-if="guideColumn !== null"
@@ -548,6 +549,7 @@ const nudgeColumn = (index: number, delta: number) => {
                 Add a widget, or drop one here
             </button>
         </div>
+        </div>
     </div>
 
     <Dialog
@@ -589,11 +591,16 @@ const nudgeColumn = (index: number, delta: number) => {
     />
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/assets/breakpoints' as bp;
+
 .row-title {
     font-size: 1rem;
     font-weight: 600;
     color: var(--p-text-color);
+    /* Wraps between words on a phone; no min-width: 0, so a word is never
+       split just to make room for the row buttons. */
+    overflow-wrap: break-word;
 }
 
 .dashboard-row-editor {
@@ -603,6 +610,25 @@ const nudgeColumn = (index: number, delta: number) => {
     padding: 0.75rem;
     margin-bottom: 0.75rem;
     transition: border-color 0.15s, box-shadow 0.15s;
+
+    @include bp.below-md {
+        padding: 0.5rem;
+    }
+}
+
+/* Phones: the editor keeps the real 12-column grid (widths and offsets are
+   what is being edited, so it does not reflow like the viewer does) but at a
+   minimum width where a one-column card still fits its grip and edit button;
+   the row scrolls sideways instead. The padding/negative margin pair leaves
+   room for the PrimeFlex .grid gutter, which an overflow container would clip.
+   Drag and resize read viewport rects and listen to scroll in the capture
+   phase, so they keep working inside the scrolled row. */
+.grid-scroll {
+    @include bp.below-md {
+        overflow-x: auto;
+        margin: -0.5rem;
+        padding: 0.5rem;
+    }
 }
 
 /* The row the dragged widget would land in. */
@@ -685,6 +711,10 @@ const nudgeColumn = (index: number, delta: number) => {
 
 .grid-wrap {
     position: relative;
+
+    @include bp.below-md {
+        min-width: 36rem;
+    }
 }
 
 /* 12-column guide overlay shown on the row the dragged widget targets.

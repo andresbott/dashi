@@ -164,15 +164,16 @@ const activeSection = ref('general')
         <div v-if="isLoading" class="p-4">Loading...</div>
         <div v-else-if="isError" class="p-4">Failed to load dashboard.</div>
         <template v-else-if="localDashboard">
-            <div class="flex align-items-center gap-2 mb-4">
+            <div class="flex flex-wrap align-items-center gap-2 mb-4">
                 <Button
                     icon="ti ti-arrow-left"
                     severity="secondary"
                     text
                     rounded
+                    aria-label="Back"
                     @click="goBack"
                 />
-                <span class="text-xl font-bold text-color flex-grow-1">{{ localDashboard.name }} — Settings</span>
+                <span class="settings-title text-xl font-bold text-color">{{ localDashboard.name }} — Settings</span>
                 <span
                     v-if="saveIndicator"
                     class="save-status"
@@ -341,7 +342,7 @@ const activeSection = ref('general')
                         <div class="flex flex-column gap-2">
                             <InputText v-model="authUsername" placeholder="Username" />
                             <InputText v-model="authPassword" type="password" placeholder="New password" />
-                            <div class="flex gap-2">
+                            <div class="flex flex-wrap gap-2">
                                 <Button
                                     label="Update"
                                     icon="ti ti-check"
@@ -389,16 +390,34 @@ const activeSection = ref('general')
     </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/assets/breakpoints' as bp;
+
 .settings-view {
     max-width: 1200px;
     margin: 0 auto;
     padding: 1.5rem 1rem;
+
+    @include bp.below-md {
+        padding: 1rem 0.75rem;
+    }
+}
+
+.settings-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: break-word;
 }
 
 .settings-layout {
     display: flex;
     gap: 2rem;
+
+    /* Phones: the section list becomes a tab strip above the panel. */
+    @include bp.below-md {
+        flex-direction: column;
+        gap: 1rem;
+    }
 }
 
 .settings-nav {
@@ -409,6 +428,16 @@ const activeSection = ref('general')
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+
+    @include bp.below-md {
+        position: static;
+        align-self: stretch;
+        min-width: 0;
+        flex-direction: row;
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--p-surface-200);
+    }
 }
 
 .settings-nav-item {

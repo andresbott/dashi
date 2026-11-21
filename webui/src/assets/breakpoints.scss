@@ -1,0 +1,36 @@
+// Responsive breakpoints for the editor SPA. One set for the whole app, equal
+// to PrimeFlex's (sm 576px, md 768px, lg 992px), so its responsive utility
+// classes (`md:flex`, `sm:col-6`, ...) and these mixins switch at the same
+// widths. Use the mixins from a component with:
+//
+//     <style scoped lang="scss">
+//     @use '@/assets/breakpoints' as bp;
+//     .thing { @include bp.below-md { ... } }
+//
+// The server-rendered dashboard viewer is a separate stack with its own
+// breakpoint (Tailwind's sm, 640px; see webui/viewer/viewer.css).
+
+$sm: 576px;
+$md: 768px;
+$lg: 992px;
+
+// Phones: narrower than PrimeFlex's sm.
+@mixin below-sm {
+    @media (max-width: #{$sm - 0.02px}) {
+        @content;
+    }
+}
+
+// Phones and portrait tablets: the admin sidebar becomes a drawer here.
+@mixin below-md {
+    @media (max-width: #{$md - 0.02px}) {
+        @content;
+    }
+}
+
+// Below desktop: two-column editors (theme editor) stack here.
+@mixin below-lg {
+    @media (max-width: #{$lg - 0.02px}) {
+        @content;
+    }
+}

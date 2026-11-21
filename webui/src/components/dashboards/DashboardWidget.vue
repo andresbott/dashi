@@ -80,6 +80,10 @@ const settingsVisible = ref(false)
 
 .widget-body {
     padding: 0.5rem 0.75rem 1.5rem;
+    /* A preview wider than a narrow card (a big clock in 3 of 12 columns) is
+       clipped instead of spilling over its neighbours. clip, not hidden: no
+       scroll container, so the vertical axis is left alone. */
+    overflow-x: clip;
 }
 
 .widget-width-label {

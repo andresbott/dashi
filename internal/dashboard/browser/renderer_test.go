@@ -67,7 +67,7 @@ func TestRenderPlacesWidgetHTMLInSizedCell(t *testing.T) {
 		t.Errorf("widget HTML missing:\n%s", out)
 	}
 	// 4 of 12 columns.
-	if !strings.Contains(out, `width: 33.3333%`) {
+	if !strings.Contains(out, `--dashi-cell-width: 33.3333%`) {
 		t.Errorf("cell width missing:\n%s", out)
 	}
 	if !strings.Contains(out, `Top`) {
@@ -84,11 +84,54 @@ func TestRenderPositionsWidgetWithLeadingMargin(t *testing.T) {
 	out := render(t, NewRenderer(testRegistry(), nil), data)
 
 	// Column 4 leaves 3 empty columns (3/12 = 25%) before a span-6 (50%) widget.
-	if !strings.Contains(out, "margin-left: 25.0000%") {
+	if !strings.Contains(out, "--dashi-cell-offset: 25.0000%") {
 		t.Errorf("expected 25%% leading margin for a column-4 widget:\n%s", out)
 	}
-	if !strings.Contains(out, "width: 50.0000%") {
+	if !strings.Contains(out, "--dashi-cell-width: 50.0000%") {
 		t.Errorf("expected the span-6 width to be preserved:\n%s", out)
+	}
+}
+
+func TestRenderIsMobileReady(t *testing.T) {
+	data := baseData()
+	data.Rows = []dashboard.Row{{
+		Height:  "180px",
+		Width:   "900px",
+		Widgets: []dashboard.Widget{{ID: "w1", Type: "demo", Width: 6, Column: 4}},
+	}}
+	out := render(t, NewRenderer(testRegistry(), nil), data)
+
+	if !strings.Contains(out, `<meta name="viewport" content="width=device-width, initial-scale=1">`) {
+		t.Errorf("viewport meta missing, phones would render a zoomed-out desktop page:\n%s", out)
+	}
+	// Inline width/margin/height could not be undone by a media query, so
+	// the grid geometry must travel as CSS variables only.
+	for _, banned := range []string{`style="width: 50`, `margin-left:`, `style="height:`} {
+		if strings.Contains(out, banned) {
+			t.Errorf("grid geometry rendered inline as %q; it must be a CSS variable:\n%s", banned, out)
+		}
+	}
+	if !strings.Contains(out, `--dashi-row-height: 180px`) {
+		t.Errorf("row height must be handed over as --dashi-row-height:\n%s", out)
+	}
+	// A fixed row width may never push the page wider than a phone screen.
+	if !strings.Contains(out, `class="flex max-w-full flex-wrap items-stretch" style="width: 900px"`) {
+		t.Errorf("fixed row width must be capped by max-w-full:\n%s", out)
+	}
+}
+
+func TestViewerCSSStacksCellsOnPhones(t *testing.T) {
+	// The compiled stylesheet must apply the CSS variables from the sm
+	// breakpoint up and stack every cell full width below it.
+	css := string(viewerCSS)
+	for _, want := range []string{
+		".dashi-cell{min-width:0;width:var(--dashi-cell-width,100%);margin-left:var(--dashi-cell-offset,0)}",
+		".dashi-row{height:var(--dashi-row-height,auto)}",
+		"@media not all and (min-width:40rem){.dashi-row{height:auto;min-height:var(--dashi-row-height,auto)}.dashi-cell{width:100%;margin-left:0}}",
+	} {
+		if !strings.Contains(css, want) {
+			t.Errorf("viewer.css missing %q; run make viewer-css", want)
+		}
 	}
 }
 

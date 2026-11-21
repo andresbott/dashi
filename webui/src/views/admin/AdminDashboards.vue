@@ -174,7 +174,7 @@ const handleDownload = async (id) => {
                     </Column>
                     <Column header="Actions" style="width: 220px">
                         <template #body="{ data }">
-                            <div class="flex gap-1 justify-content-end">
+                            <div class="flex flex-wrap md:flex-nowrap gap-1 justify-content-end">
                                 <Button
                                     v-tooltip.top="data.default ? 'Default dashboard' : 'Make default dashboard'"
                                     :aria-label="data.default ? 'Default dashboard' : 'Make default dashboard'"
@@ -252,32 +252,7 @@ const handleDownload = async (id) => {
 </template>
 
 <style scoped>
-.admin-section {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.admin-section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-}
-
-.admin-section-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--p-text-color);
-    margin: 0;
-}
-
-.info-message {
-    padding: 1rem;
-    text-align: center;
-    color: var(--p-text-muted-color);
-}
-
+/* .admin-section* and .info-message are shared: see assets/style.scss. */
 .action-link {
     text-decoration: none;
 }

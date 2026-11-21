@@ -55,7 +55,9 @@ image renderer when viewed in a browser (see Registry section below).
   at the **end of `<body>`** — litehtml resolves equal-specificity rules by
   insertion order, and widget CSS now ships inside each widget's body, so
   anything earlier would lose to the widget's own rules.
-- Rows and cells using Tailwind flex/grid with `data-color-mode` on `<html>`
+- Rows and cells using Tailwind flex/grid with `data-color-mode` on `<html>`.
+  Row height and cell width/offset are handed over as CSS variables, not
+  inline declarations (see [Responsive layout](#responsive-layout-mobile))
 - `<script type="module" src="/_dashi/widgets/{type}.js">` once per widget type
   present on the page that ships JS
 
@@ -301,6 +303,67 @@ Client-side validity is `isValidBackground` (same file), mirroring
 holds while it fails. The component takes a `disabled` prop for read-only use,
 though builtin themes currently never reach the form (the view shows a
 "cannot be edited" card for them).
+
+## Responsive layout (mobile)
+
+Target: a ~375px phone. There are two breakpoint sets, one per stack, and
+neither should grow ad-hoc numbers.
+
+**Viewer (this stack): one breakpoint, Tailwind's `sm` = 40rem = 640px.**
+
+- `page.html` never writes grid geometry inline. Each row gets
+  `--dashi-row-height`, each cell `--dashi-cell-width` /
+  `--dashi-cell-offset` (percent of the 12-column grid). `webui/viewer/viewer.css`
+  (layer `components`) applies them as `height`, `width` and `margin-left`;
+  below 640px it drops them: every cell is `width: 100%` with no offset, so a
+  row's widgets stack in order, and a fixed row height becomes a `min-height`
+  so stacked cells are not clipped. An inline `width:`/`margin-left:` could
+  not be undone by a media query (`TestRenderIsMobileReady`,
+  `TestViewerCSSStacksCellsOnPhones` pin both halves).
+- A row's fixed `width` (e.g. `900px`) is capped by `max-w-full`; `main` and
+  the page nav use smaller padding below `sm`; nav links wrap (`flex-wrap`,
+  `break-words`) rather than scroll. The viewport meta tag was already present.
+- Widget *content* is not made responsive here: ported widgets are fluid
+  already, unported ones render litehtml-oriented markup and may still look
+  plain. A cell is `min-width: 0` so it cannot force page-wide overflow.
+- Image-type dashboards viewed in a browser go through this same renderer (there
+  is no fixed-size display mock in the browser), so they reflow too. The PNG
+  stack (`internal/dashboard/static` + litehtml) has its own templates and is
+  untouched.
+- `custom.css` is unlayered and comes last, so it still overrides all of it.
+
+**Editor SPA: PrimeFlex's set, sm 576px / md 768px / lg 992px**, defined once in
+`webui/src/assets/breakpoints.scss` as mixins (`bp.below-sm`, `bp.below-md`,
+`bp.below-lg`; use with `<style scoped lang="scss">` + `@use
+'@/assets/breakpoints' as bp;`). Equal to PrimeFlex's so `md:` utility classes
+switch at the same widths.
+
+- **Below md (768px)**: the admin sidebar (`AdminLayout.vue`) is an off-canvas
+  drawer opened from a menu button in the topbar; it closes on any route change
+  (`watch(route.fullPath)`), on the backdrop and on Escape. Nav entries are
+  `<button>`s. The dashboard settings section list becomes a tab strip.
+  Admin list tables hide secondary columns with the global `.hide-below-md`
+  class (on a Column's `headerClass` + `bodyClass`); anything still too wide
+  scrolls inside PrimeVue's table container, never the page. Docs tables
+  scroll on their own.
+- **Below lg (992px)**: the theme editor stacks its preview under the form.
+- **Below sm (576px)**: the background editor's preview tiles and fit/position/
+  repeat selects stack.
+- **Shared admin page frame** (`.admin-section`, `.admin-section-header`,
+  `.admin-section-title`, `.info-message`) lives in `webui/src/assets/style.scss`
+  (it was copy-pasted into six components); the header wraps so a title plus
+  buttons never overflows.
+- **Dialogs**: a global `.p-dialog { max-width: calc(100vw - 1rem) }` caps every
+  dialog whatever width it asks for; a form that wants a desktop minimum uses
+  `.dialog-form` (`min(350px, ...)`) instead of a fixed `min-width`, and a
+  dialog-level `min-width` must be written as `min(Npx, calc(100vw - 1rem))`
+  (min-width beats max-width).
+- **Dashboard editor**: the toolbar wraps, page tabs scroll sideways. The drag
+  grid deliberately does **not** reflow: widths and offsets are what is being
+  edited. Below md each row keeps its 12 columns at a 36rem minimum and scrolls
+  sideways inside the row; drag and resize read viewport rects and listen to
+  scroll in the capture phase, so they keep working there. Widget previews
+  are clipped to their card (`overflow-x: clip`).
 
 ## Page navigation
 

@@ -200,7 +200,7 @@ const goBack = async () => {
                                             :id="`color-${role}`"
                                             v-model="local.colors[mode][role]"
                                             :invalid="!isValidRoleColor(role, local.colors[mode][role])"
-                                            class="flex-grow-1"
+                                            class="flex-grow-1 min-w-0"
                                         />
                                     </div>
                                 </div>
@@ -262,37 +262,19 @@ const goBack = async () => {
     </div>
 </template>
 
-<style scoped>
-.admin-section {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
+<style scoped lang="scss">
+@use '@/assets/breakpoints' as bp;
 
-.admin-section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-}
-
-.admin-section-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--p-text-color);
-    margin: 0;
-}
-
-.info-message {
-    padding: 1rem;
-    text-align: center;
-    color: var(--p-text-muted-color);
-}
-
+/* .admin-section* and .info-message are shared: see assets/style.scss. */
 .edit-grid {
     display: flex;
     gap: 2rem;
     align-items: flex-start;
+
+    @include bp.below-lg {
+        flex-direction: column;
+        align-items: stretch;
+    }
 }
 
 .edit-fields {
@@ -310,6 +292,11 @@ const goBack = async () => {
     width: 320px;
     position: sticky;
     top: 1rem;
+
+    @include bp.below-lg {
+        width: 100%;
+        position: static;
+    }
 }
 
 .preview-box {
@@ -388,16 +375,5 @@ const goBack = async () => {
 :deep(.p-colorpicker-preview) {
     border: 1px solid var(--p-content-border-color);
     border-radius: 4px;
-}
-
-@media (max-width: 900px) {
-    .edit-grid {
-        flex-direction: column;
-    }
-
-    .edit-preview {
-        width: 100%;
-        position: static;
-    }
 }
 </style>

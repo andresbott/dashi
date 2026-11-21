@@ -171,7 +171,7 @@ const save = async () => {
         modal
         :draggable="false"
         header="New Note"
-        style="min-width: 400px"
+        style="min-width: min(400px, calc(100vw - 1rem))"
     >
         <div class="flex flex-column gap-2">
             <label class="text-sm font-semibold">Filename</label>
@@ -194,7 +194,7 @@ const save = async () => {
         modal
         :draggable="false"
         :header="editFilename ?? 'Note'"
-        style="min-width: 600px"
+        style="min-width: min(600px, calc(100vw - 1rem))"
     >
         <div v-if="editLoading" class="text-sm" style="color: var(--p-text-muted-color)">Loading...</div>
         <div v-else-if="editLoadError" class="text-sm text-red-500">Failed to load file.</div>
@@ -228,32 +228,7 @@ const save = async () => {
 </template>
 
 <style scoped>
-.admin-section {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.admin-section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-}
-
-.admin-section-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--p-text-color);
-    margin: 0;
-}
-
-.info-message {
-    padding: 1rem;
-    text-align: center;
-    color: var(--p-text-muted-color);
-}
-
+/* .admin-section* and .info-message are shared: see assets/style.scss. */
 .md-editor {
     font-family: monospace;
     font-size: 0.85rem;

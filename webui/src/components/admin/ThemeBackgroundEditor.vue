@@ -403,7 +403,7 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
                         :invalid="!isValidStopColor(stop)"
                         :disabled="disabled"
                         :data-testid="`stop-${list.mode}-${i}`"
-                        class="flex-grow-1"
+                        class="flex-grow-1 min-w-0"
                         @update:modelValue="(v: string | undefined) => setStop(list.mode, i, v ?? '')"
                     />
                     <Button
@@ -465,9 +465,9 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
         </template>
 
         <!-- Image layer, painted over the base -->
-        <div class="flex align-items-center justify-content-between gap-2 mt-2">
+        <div class="flex flex-wrap align-items-center justify-content-between gap-2 mt-2">
             <label class="font-semibold text-sm">Image</label>
-            <div class="flex align-items-center gap-2">
+            <div class="flex flex-wrap align-items-center gap-2">
                 <router-link :to="{ name: 'admin-background-images' }" class="pool-link text-sm">
                     Manage shared images
                 </router-link>
@@ -571,7 +571,9 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
     </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/assets/breakpoints' as bp;
+
 .bg-editor {
     display: flex;
     flex-direction: column;
@@ -731,7 +733,7 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
     border-radius: 4px;
 }
 
-@media (max-width: 600px) {
+@include bp.below-sm {
     .bg-preview,
     .edit-row {
         grid-template-columns: 1fr;

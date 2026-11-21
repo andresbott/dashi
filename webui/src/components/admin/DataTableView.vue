@@ -144,10 +144,10 @@ const formatTime = (t: string): string => {
                         </template>
                     </Column>
                     <Column field="name" header="Name" />
-                    <Column header="Size" style="width: 100px">
+                    <Column header="Size" style="width: 100px" headerClass="hide-below-md" bodyClass="hide-below-md">
                         <template #body="{ data }">{{ formatSize(data.size) }}</template>
                     </Column>
-                    <Column header="Modified" style="width: 200px">
+                    <Column header="Modified" style="width: 200px" headerClass="hide-below-md" bodyClass="hide-below-md">
                         <template #body="{ data }">{{ formatTime(data.modTime) }}</template>
                     </Column>
                     <Column header="Actions" style="width: 120px">
@@ -196,34 +196,9 @@ const formatTime = (t: string): string => {
 </template>
 
 <style scoped>
-.admin-section {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.admin-section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-}
-
-.admin-section-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--p-text-color);
-    margin: 0;
-}
-
+/* .admin-section* and .info-message are shared: see assets/style.scss. */
 .section-description {
     margin: -0.5rem 0 0;
-    color: var(--p-text-muted-color);
-}
-
-.info-message {
-    padding: 1rem;
-    text-align: center;
     color: var(--p-text-muted-color);
 }
 

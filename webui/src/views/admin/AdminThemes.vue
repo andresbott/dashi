@@ -131,7 +131,7 @@ const confirmDelete = async () => {
                             />
                         </template>
                     </Column>
-                    <Column header="Colours" style="width: 120px">
+                    <Column header="Colours" style="width: 120px" headerClass="hide-below-md" bodyClass="hide-below-md">
                         <template #body="{ data: row }">
                             <div class="flex gap-1">
                                 <span class="color-chip" :style="{ background: row.colors.light.primary }" title="Primary" />
@@ -140,7 +140,7 @@ const confirmDelete = async () => {
                             </div>
                         </template>
                     </Column>
-                    <Column header="Used by" style="width: 160px">
+                    <Column header="Used by" style="width: 160px" headerClass="hide-below-md" bodyClass="hide-below-md">
                         <template #body="{ data: row }">
                             <span :class="{ 'text-muted': row.usedBy === 0 }">
                                 {{ row.usedBy }} dashboard{{ row.usedBy === 1 ? '' : 's' }}
@@ -196,32 +196,7 @@ const confirmDelete = async () => {
 </template>
 
 <style scoped>
-.admin-section {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.admin-section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-}
-
-.admin-section-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--p-text-color);
-    margin: 0;
-}
-
-.info-message {
-    padding: 1rem;
-    text-align: center;
-    color: var(--p-text-muted-color);
-}
-
+/* .admin-section* and .info-message are shared: see assets/style.scss. */
 .swatch {
     width: 64px;
     height: 40px;
