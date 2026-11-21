@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useFontIconClass } from '@/composables/useThemes'
-import { getIconUrl } from '@/lib/api/themes'
-import type { ThemeInfo } from '@/types/theme'
+import { useFontIconClass } from '@/composables/useWidgetThemes'
+import { getIconUrl } from '@/lib/api/widgetThemes'
+import type { WidgetThemeInfo } from '@/types/widgetTheme'
 
 const props = defineProps<{
     iconName: string
     themeName?: string
-    themes?: ThemeInfo[]
+    themes?: WidgetThemeInfo[]
 }>()
 
 const resolvedThemeName = computed(() => props.themeName || 'default')

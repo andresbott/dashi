@@ -5,174 +5,191 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"mime"
 	"net/http"
-	"path/filepath"
-	"strings"
 
+	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/gorilla/mux"
 )
 
+const maxThemeAssetUpload = 10 << 20 // 10 MB, same cap as other uploads
+
+// ThemeHandler serves the theme entity and its assets. It holds the
+// dashboard store only to count references for the listing — the shared
+// instance from newSharedDeps, never a second one.
 type ThemeHandler struct {
-	store  *themes.Store
-	logger *slog.Logger
+	store     *themes.Store
+	dashStore *dashboard.Store
+	logger    *slog.Logger
 }
 
-func NewThemeHandler(store *themes.Store, logger *slog.Logger) *ThemeHandler {
-	return &ThemeHandler{store: store, logger: logger}
+func NewThemeHandler(store *themes.Store, dashStore *dashboard.Store, logger *slog.Logger) *ThemeHandler {
+	return &ThemeHandler{store: store, dashStore: dashStore, logger: logger}
 }
 
 func (h *ThemeHandler) List(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(h.store.List())
+	usage, err := h.usageCounts()
+	if err != nil {
+		h.fail(w, "count theme usage", err)
+		return
+	}
+	items, err := h.store.List(usage)
+	if err != nil {
+		h.fail(w, "list themes", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
-func (h *ThemeHandler) GetIcon(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	themeName := vars["name"]
-	iconName := vars["icon"]
-
-	if strings.ContainsAny(iconName, "/\\") || strings.Contains(iconName, "..") {
-		ErrorJSON(w, "invalid icon name", http.StatusBadRequest)
-		return
-	}
-
-	resolved, err := h.store.ResolveIcon(themeName, iconName)
+// usageCounts maps theme ID -> number of dashboards rendering with it.
+// Dashboards without a theme render the builtin, so they count toward
+// themes.DefaultID. A dangling ID only ever lands on a key no listed theme
+// reads, so it counts toward nothing.
+func (h *ThemeHandler) usageCounts() (map[string]int, error) {
+	metas, err := h.dashStore.List()
 	if err != nil {
-		h.logger.Error("resolve icon", slog.String("error", err.Error()))
-		ErrorJSON(w, err.Error(), http.StatusNotFound)
-		return
+		return nil, err
 	}
-
-	switch resolved.Type {
-	case themes.ThemeTypeFont:
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"class": resolved.CSSClass})
-	case themes.ThemeTypeImage:
-		contentType := mime.TypeByExtension(filepath.Ext(resolved.FilePath))
-		if contentType == "" {
-			contentType = "application/octet-stream"
+	counts := make(map[string]int, len(metas))
+	for _, m := range metas {
+		d, err := h.dashStore.Get(m.ID)
+		if err != nil {
+			continue // a broken dashboard must not break the theme list
 		}
-		w.Header().Set("Content-Type", contentType)
-		http.ServeFile(w, r, resolved.FilePath)
+		id := d.ThemeID
+		if id == "" {
+			id = themes.DefaultID
+		}
+		counts[id]++
 	}
+	return counts, nil
 }
 
-func (h *ThemeHandler) GetFont(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	themeName := vars["name"]
-	fontName := vars["font"]
-
-	// FontData resolves display fonts and, under the icon-font-{theme}
-	// family name, the theme's icon font — the browser stack needs both as
-	// @font-face sources (see themes.Store.ThemeCSS).
-	data, err := h.store.FontData(themeName, fontName)
-	if err != nil {
-		h.logger.Error("get font data", slog.String("error", err.Error()))
-		ErrorJSON(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", "font/ttf")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Cache-Control", "public, max-age=86400")
-	// Font bytes served with an explicit Content-Type and nosniff; not HTML.
-	if _, err := w.Write(data); err != nil {
-		// Error already committed to response, log only
-		return
-	}
+// themeResponse is a theme plus the read-only flag the editor needs. The flag
+// lives on the response, not on themes.Theme, so it is never persisted.
+type themeResponse struct {
+	themes.Theme
+	Builtin bool `json:"builtin,omitempty"`
 }
 
-func (h *ThemeHandler) GetBackground(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	themeName := vars["name"]
-	fileName := vars["file"]
-
-	if strings.ContainsAny(fileName, "/\\") || strings.Contains(fileName, "..") {
-		ErrorJSON(w, "invalid filename", http.StatusBadRequest)
-		return
-	}
-
-	data, err := h.store.GetBackgroundData(themeName, fileName)
+func (h *ThemeHandler) Get(w http.ResponseWriter, r *http.Request) {
+	t, err := h.store.Get(mux.Vars(r)["id"])
 	if err != nil {
-		ErrorJSON(w, "not found", http.StatusNotFound)
+		h.fail(w, "get theme", err)
 		return
 	}
-
-	contentType := mime.TypeByExtension(filepath.Ext(fileName))
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Cache-Control", "public, max-age=86400")
-	if _, err := w.Write(data); err != nil { //nolint:gosec // G705: background image bytes served with explicit Content-Type and nosniff; not HTML
-		// Error already committed to response, log only
-		return
-	}
+	writeJSON(w, http.StatusOK, themeResponse{Theme: t, Builtin: themes.IsBuiltin(t.ID)})
 }
 
-// ---------- admin CRUD ----------
-
-// Upload extracts a zipped theme into the on-disk themes directory.
-// The archive must contain a valid theme.yaml at its root with `name`
-// and `type` (icon|style) fields.
-func (h *ThemeHandler) Upload(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, themes.MaxUploadSize)
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		ErrorJSON(w, "failed to read body", http.StatusBadRequest)
+func (h *ThemeHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var t themes.Theme
+	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+		ErrorJSON(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	info, err := h.store.Upload(body)
+	t.ID = "" // the store assigns it
+	created, err := h.store.Create(t)
 	if err != nil {
-		h.themeWriteErr(w, "upload theme", err)
+		h.fail(w, "create theme", err)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(info)
+	// 200, not 201: a middleware rewrites 201 bodies into
+	// {"error":<body>,"code":201}, which would corrupt the created object.
+	// DashboardHandler.Create returns 200 with the object for the same reason.
+	writeJSON(w, http.StatusOK, created)
 }
 
-// Delete removes an uploaded theme. Builtin themes cannot be deleted.
+func (h *ThemeHandler) Update(w http.ResponseWriter, r *http.Request) {
+	var t themes.Theme
+	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+		ErrorJSON(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	t.ID = mux.Vars(r)["id"]
+	updated, err := h.store.Update(t)
+	if err != nil {
+		h.fail(w, "update theme", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
+// Delete removes a theme even when dashboards reference it. A dangling
+// reference resolves to the builtin default; refusing the delete would
+// strand the entity instead.
 func (h *ThemeHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	name := mux.Vars(r)["name"]
-	if err := h.store.Delete(name); err != nil {
-		h.themeWriteErr(w, "delete theme", err)
+	if err := h.store.Delete(mux.Vars(r)["id"]); err != nil {
+		h.fail(w, "delete theme", err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Download re-packages an uploaded theme's directory into a zip for
-// download. Builtin themes return 403.
-func (h *ThemeHandler) Download(w http.ResponseWriter, r *http.Request) {
-	name := mux.Vars(r)["name"]
-	data, err := h.store.Zip(name)
+// Copy duplicates a theme, assets included. It takes no body. Like Create
+// it answers 200, not 201, for the reason given there.
+func (h *ThemeHandler) Copy(w http.ResponseWriter, r *http.Request) {
+	created, err := h.store.Copy(mux.Vars(r)["id"])
 	if err != nil {
-		h.themeWriteErr(w, "zip theme", err)
+		h.fail(w, "copy theme", err)
 		return
 	}
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`.zip"`)
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	// Zip bytes served with an explicit Content-Type and nosniff; not HTML.
-	_, _ = w.Write(data)
+	writeJSON(w, http.StatusOK, created)
 }
 
-func (h *ThemeHandler) themeWriteErr(w http.ResponseWriter, op string, err error) {
+func (h *ThemeHandler) ListAssets(w http.ResponseWriter, r *http.Request) {
+	list, err := h.store.ListAssets(mux.Vars(r)["id"])
+	if err != nil {
+		h.fail(w, "list theme assets", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": list})
+}
+
+func (h *ThemeHandler) GetAsset(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	data, mimeType, err := h.store.GetAsset(vars["id"], vars["path"])
+	if err != nil {
+		h.fail(w, "get theme asset", err)
+		return
+	}
+	w.Header().Set("Content-Type", mimeType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	_, _ = w.Write(data) //nolint:gosec // G705: binary image data with explicit Content-Type and nosniff; not HTML
+}
+
+func (h *ThemeHandler) SaveAsset(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	r.Body = http.MaxBytesReader(w, r.Body, maxThemeAssetUpload)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		ErrorJSON(w, "failed to read body", http.StatusBadRequest)
+		return
+	}
+	if err := h.store.SaveAsset(vars["id"], vars["path"], body); err != nil {
+		h.fail(w, "save theme asset", err)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
+
+func (h *ThemeHandler) DeleteAsset(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	if err := h.store.DeleteAsset(vars["id"], vars["path"]); err != nil {
+		h.fail(w, "delete theme asset", err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// fail maps store errors onto status codes.
+func (h *ThemeHandler) fail(w http.ResponseWriter, op string, err error) {
 	switch {
 	case errors.Is(err, themes.ErrNotFound):
 		ErrorJSON(w, "not found", http.StatusNotFound)
-	case errors.Is(err, themes.ErrConflict):
-		ErrorJSON(w, err.Error(), http.StatusConflict)
+	case errors.Is(err, themes.ErrInvalidID), errors.Is(err, themes.ErrInvalidConfig):
+		ErrorJSON(w, err.Error(), http.StatusBadRequest)
 	case errors.Is(err, themes.ErrBuiltin):
 		ErrorJSON(w, err.Error(), http.StatusForbidden)
-	case errors.Is(err, themes.ErrInvalidName),
-		errors.Is(err, themes.ErrInvalidArchive),
-		errors.Is(err, themes.ErrInvalidType):
-		ErrorJSON(w, err.Error(), http.StatusBadRequest)
 	default:
 		if h.logger != nil {
 			h.logger.Error(op, slog.String("error", err.Error()))

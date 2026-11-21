@@ -42,8 +42,10 @@ image renderer when viewed in a browser (see Registry section below).
 - `<link rel="stylesheet" href="/_dashi/assets/widgets.css">` — every widget's
   CSS concatenated in type order for deterministic caching; built at startup by
   `browser.Assets`
-- `<link rel="stylesheet" href="/_dashi/theme/{theme}.css">` — generated theme
-  CSS variables (see Theming section)
+- `<link rel="stylesheet" href="/_dashi/theme/{themeId}.css">` — palette
+  variables and page background of the dashboard's theme (see Theming section)
+- `<link rel="stylesheet" href="/_dashi/widget-theme/{widgetTheme}.css">` —
+  `@font-face` rules and `--dashi-font` of the dashboard's widget theme
 - `<style>` containing the dashboard's `custom.css` last, so it wins. The value
   passes through `dashboard.SanitizeCustomCSS`, which neutralises any
   `</style` sequence: html/template applies **no** escaping inside a `<style>`
@@ -53,7 +55,9 @@ image renderer when viewed in a browser (see Registry section below).
   at the **end of `<body>`** — litehtml resolves equal-specificity rules by
   insertion order, and widget CSS now ships inside each widget's body, so
   anything earlier would lose to the widget's own rules.
-- Rows and cells using Tailwind flex/grid with `data-color-mode` on `<html>`
+- Rows and cells using Tailwind flex/grid with `data-color-mode` on `<html>`.
+  Row height and cell width/offset are handed over as CSS variables, not
+  inline declarations (see [Responsive layout](#responsive-layout-mobile))
 - `<script type="module" src="/_dashi/widgets/{type}.js">` once per widget type
   present on the page that ships JS
 
@@ -71,7 +75,8 @@ defined in `app/router/assets_dashi.go` and mounted by `attachDashiAssets`:
 | `/_dashi/assets/viewer.css` | Tailwind output (embedded) |
 | `/_dashi/assets/widgets.css` | Concatenated widget stylesheets (built at startup) |
 | `/_dashi/assets/dashi.js` | Shared runtime (`poll`, `every`) |
-| `/_dashi/theme/{name}.css` | Generated theme CSS variables |
+| `/_dashi/theme/{id}.css` | `themes.BrowserCSS(themeStore.Resolve(id))`: palette variables + `--dashi-page-bg` |
+| `/_dashi/widget-theme/{name}.css` | `widgetThemeStore.FontFacesCSS(name)`: `@font-face` rules + `--dashi-font` |
 | `/_dashi/widgets/{type}.js` | Per-widget ES module |
 
 **The underscore prefix is mandatory.** Dashboard IDs are six-character
@@ -123,9 +128,13 @@ internal/widgets/clock/
   image_test.go  browser_test.go  module_test.go  clock.test.js
 ```
 
+Editor forms stay in `webui/src/widgets/{name}/`; see
+[widgets.md](widgets.md#widget-boundary-decided-2026-11-06).
+
 Ported widgets: **clock** (no CSS), **sysinfo** (ships `sysinfo.css`). The
 remaining twelve widgets have not been ported and render through their image
-renderers in the browser (expected transition state, not a defect).
+renderers in the browser (expected transition state, not a defect). Which of
+them still need a port is an [open question](widgets.md#open-questions).
 
 Client packages live separately under `internal/providers/`:
 `internal/providers/weather/`, `.../market/`, `.../swisstransport/`,
@@ -176,44 +185,70 @@ names in Go. Tailwind extraction is static, so `class="text-{{.Size}}"` in a
 template produces **no CSS** — the class silently does not exist. Put dynamic
 values through inline `style` attributes or CSS variables instead. Example:
 `style="color: var(--dashi-{{.Color}})"` works if the variable is defined;
-`class="text-[color:var(--dashi-fg)]"` is a Tailwind arbitrary-value utility.
+`class="text-[color:var(--dashi-text)]"` is a Tailwind arbitrary-value utility.
 
-## Theming: CSS variables and concrete values
+## Theming: two entities, CSS variables and concrete values
 
-`theme.yaml` gains two optional maps (`colors`, `colorsDark`) over a **closed**
-palette key set. Unset keys fall back to built-in defaults
-(`paletteLight`/`paletteDark` in `internal/themes/palette.go:30-40`), which equal the values
-`internal/dashboard/static/master.html` hardcoded before themes owned colours.
-The nine palette keys: `fg`, `muted`, `bg`, `surface`, `border`, `accent`,
-`accentFg`, `warn`, `danger`.
+A dashboard references two independent entities: `themeId` (a **theme**:
+background + light/dark palette, `internal/themes`, stored in
+`{dataDir}/data/themes/`) and `widgetTheme` (a **widget theme**: fonts + icons,
+`internal/widgetthemes`, stored in `{dataDir}/data/widget_themes/`). Unknown,
+empty or dangling references fall back to `default` for both; they never error.
 
-The browser stack gets CSS custom properties (`--dashi-fg`, `--dashi-muted`,
-...) via `themes.Store.ThemeCSS`, served at `/_dashi/theme/{name}.css`.
-Templates write `text-[var(--dashi-fg)]` or `style="color: var(--dashi-fg)"`.
+A theme carries eleven **palette roles** for each colour mode, with CSS
+variables written by `writePaletteVars` (`internal/themes/palette.go`):
+
+| Role | CSS variable |
+|---|---|
+| `bg` | `--dashi-bg` (must be opaque: it is the base everything composites onto) |
+| `surface` | `--dashi-surface` |
+| `border` | `--dashi-border` |
+| `text` | `--dashi-text` |
+| `textMuted` | `--dashi-text-muted` |
+| `primary` | `--dashi-primary` |
+| `onPrimary` | `--dashi-on-primary` |
+| `secondary` | `--dashi-secondary` |
+| `success` | `--dashi-success` |
+| `warning` | `--dashi-warning` |
+| `danger` | `--dashi-danger` |
+
+Two more variables exist: `--dashi-page-bg` (from the theme background, only
+emitted for a gradient or image) and `--dashi-font` (from the widget theme).
+Values are hex (`#rgb`, `#rrggbb`, `#rrggbbaa`). A hand-edited malformed or
+missing role falls back, per role, to `themes.DefaultPalette(mode)`
+(`Palette.withDefaults`); generated CSS never contains user-authored syntax.
+
+The browser stack gets the variables from `themes.BrowserCSS`, served at
+`/_dashi/theme/{id}.css` for `:root` and `:root[data-color-mode="dark"]`.
+Templates write `text-[color:var(--dashi-text)]` or
+`style="color: var(--dashi-text)"`.
 
 ### Fonts in the browser
 
 CSS variables alone are not enough for fonts: a browser cannot use a family it
-has never downloaded. `ThemeCSS` therefore also emits an `@font-face` per font
-the theme serves, ahead of the variable blocks:
+has never downloaded. `widgetthemes.Store.FontFacesCSS(name)`, served at
+`/_dashi/widget-theme/{name}.css`, emits an `@font-face` per font of the
+*effective* widget theme plus `:root{--dashi-font:'<family>';}`:
 
-- one per display font in `theme.yaml`'s `fonts:` list, family = the font's
-  `name` (this is what `--dashi-font` selects)
+- one per display font in `widget_theme.yaml`'s `fonts:` list, family = the
+  font's `name` (the first one is what `--dashi-font` selects)
 - one for the icon font when `icons.type: font`, family =
-  `themes.IconFontFamily(theme)` = `icon-font-{theme}` — exactly the family
-  widget markup emits (`internal/widgets/weather/static.go`,
-  `internal/widgets/swisstransport/static.go`) and the same name
-  `app/router/main.go` registers with the litehtml renderer. Without it,
-  font-icon themes render tofu in a browser, including on a default install
-  via the unported-widget fallback.
+  `widgetthemes.IconFontFamily(name)` = `icon-font-{name}` - exactly the family
+  widget markup emits and the same name `app/router/main.go` registers with
+  the litehtml renderer. Without it, font-icon themes render tofu in a browser.
+- `icon-font-default` as well, when the pack ships its own icon font:
+  `swisstransport` hard-codes Tabler code points and always paints with the
+  default's family, whatever the pack.
 
-Both point at `GET /api/v0/themes/{name}/fonts/{font}`, whose handler resolves
-display fonts *and* the `icon-font-{theme}` name through
-`themes.Store.FontData`. No `format()` hint is emitted: that route serves
-whatever bytes the theme shipped under a fixed `font/ttf` Content-Type, so
-browsers must sniff the real format (a theme shipping woff2 would break on a
-`format('truetype')` claim). Display fonts win a name collision with the icon
-family, which keeps existing URLs stable.
+Manifest font paths (`fonts[].file`, `icons.fontFile`) must be local paths
+inside the pack: upload rejects anything else (and a file missing from the
+archive) with `ErrInvalidArchive`, packs placed on disk by hand have such
+entries dropped at load, and the font getters re-check the joined path.
+
+Both point at `GET /api/v0/widget-themes/{name}/fonts/{font}`. No `format()`
+hint is emitted: the route serves whatever bytes the theme shipped, so browsers
+must sniff the real format. A widget theme with no fonts or no icons falls back
+to the default's.
 
 ### Page background
 
@@ -221,22 +256,114 @@ The page background is declared as the CSS **`background` shorthand** on
 `body` in `webui/viewer/viewer.css`'s base layer, reading
 `var(--dashi-page-bg, var(--dashi-bg))`. This must never become a Tailwind
 `bg-[...]` utility: those compile to `background-color`, and `--dashi-page-bg`
-carries whole background values — `linear-gradient(...)`, `url(...)
-center/cover no-repeat` — which are invalid as a colour and are dropped
+carries whole background values - `linear-gradient(...)`, `url(...)
+center/cover no-repeat` - which are invalid as a colour and are dropped
 silently. When changing this, check *what* the generated CSS says, not merely
 that CSS was generated (`TestBodyBackgroundUsesTheShorthandNotAColorUtility`
-pins it).
+pins it). A theme without a gradient or image has no `--dashi-page-bg`, so the
+page is simply `--dashi-bg`.
 
 Image backgrounds reach the browser as a **URL**, not inlined bytes:
-`buildBrowserBackground` (`app/router/middleware_static.go`) maps
-`dashboard:`/`theme:`/`shared:` references onto the existing read routes
-(`/api/v0/dashboards/{id}/assets/{path}`,
-`/api/v0/themes/{name}/backgrounds/{file}`,
-`/api/v0/data/backgrounds/{name}`). The dashboard-asset route sits behind the
-per-dashboard auth middleware, so protected dashboards stay protected. The
-litehtml stack keeps using `buildBackground`, which inlines a data URI and
-returns the raw bytes for the canvas — litehtml fetches nothing over the
-network, so that path must not be "modernised".
+`themes.RefURL` maps `asset:<path>` (a file in the theme's own `assets/`) to
+`/api/v0/themes/{id}/assets/{path}` and `shared:<name>` to
+`/api/v0/data/backgrounds/{name}`. The litehtml stack uses `themes.ImageCSS`,
+which returns the CSS plus the image ref so the bytes can be loaded
+(`Store.LoadImage`) and drawn on the canvas - litehtml fetches nothing over
+the network, so that path must not be "modernised".
+
+### Editing a background
+
+A background is part of its theme, not an entity of its own: there is no
+background store, list or ID, and none should be reintroduced. The theme
+editor (`webui/src/views/admin/AdminThemeEdit.vue`) delegates the whole
+`background` object to `webui/src/components/admin/ThemeBackgroundEditor.vue`
+via `v-model:background`; the component edits it in place, so the view's
+`useAutosave` (deep watch) persists it with the rest of the theme. What the
+component offers is bounded by the model in `internal/themes/types.go`:
+
+- **Base**: palette `bg` or a linear gradient. Direction is edited as an angle
+  (keyword directions display as their angle and are only rewritten when the
+  slider moves). Stops are colours only, spread evenly - there are no stop
+  positions and no radial gradients in the model. Stops can be added (copy of
+  the last), removed (never below two), reordered, typed as hex or picked
+  (the picker keeps a stop's alpha); optional separate dark stops.
+- **Image**: a thumbnail grid of this theme's own assets (`asset:`) and the
+  shared pool (`shared:`), filtered to the extensions `ValidateRef` accepts.
+  **Upload goes into the theme's own assets** (copied with the theme) and
+  selects the file; the pool is managed on its own page (Theming → Background
+  images). A deleted image still referenced is flagged in the picker. Optional
+  separate dark image; fit/position/repeat are shared by both modes.
+- **Preview**: light and dark tiles built with `previewStyle` from
+  `webui/src/lib/themeCss.ts` (the TS mirror of `BrowserCSS`), compositing
+  `--dashi-page-bg` over `--dashi-bg` the way `<body>` over `<html>` does in
+  the viewer.
+
+Client-side validity is `isValidBackground` (same file), mirroring
+`validateGradient`/`validateImage` for what the controls can break; autosave
+holds while it fails. The component takes a `disabled` prop for read-only use,
+though builtin themes currently never reach the form (the view shows a
+"cannot be edited" card for them).
+
+## Responsive layout (mobile)
+
+Target: a ~375px phone. There are two breakpoint sets, one per stack, and
+neither should grow ad-hoc numbers.
+
+**Viewer (this stack): one breakpoint, Tailwind's `sm` = 40rem = 640px.**
+
+- `page.html` never writes grid geometry inline. Each row gets
+  `--dashi-row-height`, each cell `--dashi-cell-width` /
+  `--dashi-cell-offset` (percent of the 12-column grid). `webui/viewer/viewer.css`
+  (layer `components`) applies them as `height`, `width` and `margin-left`;
+  below 640px it drops them: every cell is `width: 100%` with no offset, so a
+  row's widgets stack in order, and a fixed row height becomes a `min-height`
+  so stacked cells are not clipped. An inline `width:`/`margin-left:` could
+  not be undone by a media query (`TestRenderIsMobileReady`,
+  `TestViewerCSSStacksCellsOnPhones` pin both halves).
+- A row's fixed `width` (e.g. `900px`) is capped by `max-w-full`; `main` and
+  the page nav use smaller padding below `sm`; nav links wrap (`flex-wrap`,
+  `break-words`) rather than scroll. The viewport meta tag was already present.
+- Widget *content* is not made responsive here: ported widgets are fluid
+  already, unported ones render litehtml-oriented markup and may still look
+  plain. A cell is `min-width: 0` so it cannot force page-wide overflow.
+- Image-type dashboards viewed in a browser go through this same renderer (there
+  is no fixed-size display mock in the browser), so they reflow too. The PNG
+  stack (`internal/dashboard/static` + litehtml) has its own templates and is
+  untouched.
+- `custom.css` is unlayered and comes last, so it still overrides all of it.
+
+**Editor SPA: PrimeFlex's set, sm 576px / md 768px / lg 992px**, defined once in
+`webui/src/assets/breakpoints.scss` as mixins (`bp.below-sm`, `bp.below-md`,
+`bp.below-lg`; use with `<style scoped lang="scss">` + `@use
+'@/assets/breakpoints' as bp;`). Equal to PrimeFlex's so `md:` utility classes
+switch at the same widths.
+
+- **Below md (768px)**: the admin sidebar (`AdminLayout.vue`) is an off-canvas
+  drawer opened from a menu button in the topbar; it closes on any route change
+  (`watch(route.fullPath)`), on the backdrop and on Escape. Nav entries are
+  `<button>`s. The dashboard settings section list becomes a tab strip.
+  Admin list tables hide secondary columns with the global `.hide-below-md`
+  class (on a Column's `headerClass` + `bodyClass`); anything still too wide
+  scrolls inside PrimeVue's table container, never the page. Docs tables
+  scroll on their own.
+- **Below lg (992px)**: the theme editor stacks its preview under the form.
+- **Below sm (576px)**: the background editor's preview tiles and fit/position/
+  repeat selects stack.
+- **Shared admin page frame** (`.admin-section`, `.admin-section-header`,
+  `.admin-section-title`, `.info-message`) lives in `webui/src/assets/style.scss`
+  (it was copy-pasted into six components); the header wraps so a title plus
+  buttons never overflows.
+- **Dialogs**: a global `.p-dialog { max-width: calc(100vw - 1rem) }` caps every
+  dialog whatever width it asks for; a form that wants a desktop minimum uses
+  `.dialog-form` (`min(350px, ...)`) instead of a fixed `min-width`, and a
+  dialog-level `min-width` must be written as `min(Npx, calc(100vw - 1rem))`
+  (min-width beats max-width).
+- **Dashboard editor**: the toolbar wraps, page tabs scroll sideways. The drag
+  grid deliberately does **not** reflow: widths and offsets are what is being
+  edited. Below md each row keeps its 12 columns at a 36rem minimum and scrolls
+  sideways inside the row; drag and resize read viewport rects and listen to
+  scroll in the capture phase, so they keep working there. Widget previews
+  are clipped to their card (`overflow-x: clip`).
 
 ## Page navigation
 
@@ -251,9 +378,12 @@ redirects to `?page=N` in `serveImageDashboard` and is untouched by this.
 
 The image stack gets concrete hex values through `RenderContext.Palette`
 because **litehtml cannot read CSS custom properties** — it has no support for
-`var()` (see `docs/project/litehtml-rendering-reference.md:270`). This is why
-the same `theme.yaml` source must serve both stacks: one generates variables,
-one injects values.
+`var()` (see `docs/project/litehtml-rendering-reference.md:270`). The palette
+is built by `theme.Palette(colorMode).Flatten()`: `Flatten` composites every
+`#rrggbbaa` value (e.g. a translucent `surface`) over `bg` into an opaque
+lowercase `#rrggbb`, because litehtml must never receive an 8-digit colour
+(`TestBuildRenderDataFlattensPalette`). One theme therefore serves both stacks:
+one generates variables, one injects flattened values.
 
 ## Root route behaviour
 
@@ -304,12 +434,12 @@ value tables on the Go and JS sides. Go is the contract. See
 
 1. **Font-based icon themes now work; image-type icon themes still do not.**
    Weather's
-   `resolveIconHTML` (`internal/widgets/weather/static.go:231-233`) emits `<img
+   `resolveIconHTML` (`internal/widgets/weather/image.go:231-233`) emits `<img
    src="{absolute filesystem path}">`, which only worked because the deleted
    `inlineLocalImages` helper base64-inlined it for the HTML preview. In the
    browser stack, those file paths do not resolve. **The fix belongs to a
    future plan:** browser templates must reference the existing
-   `GET /api/v0/themes/{name}/icons/{icon}` route (`app/router/api_v0.go:55`)
+   `GET /api/v0/widget-themes/{name}/icons/{icon}` route (`app/router/api_v0.go`)
    instead of a file path. Do not reinstate `inlineLocalImages` to paper over
    it. (Font-based icon themes, including the embedded default, *were* also
    broken — nothing served the icon font — and are now fixed by the

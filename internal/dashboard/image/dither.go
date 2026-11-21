@@ -6,12 +6,45 @@ import (
 	"github.com/andresbott/dashi/lib/einkimage"
 )
 
+// Dither modes, the values of a dashboard's "dither" field. Any other
+// non-empty value is taken as an einkimage processing preset name
+// (einkimage.GetProcessingPresetNames); an unknown name dithers like
+// DitherPlain, so a hand-edited dashboard never fails to render.
+const (
+	// DitherPlain is plain Floyd-Steinberg against the target palette with
+	// no tone mapping or range compression: the output before dither modes
+	// existed. It is the zero value, so dashboards without the field keep
+	// rendering byte-for-byte as before.
+	DitherPlain = ""
+	// DitherAuto classifies each rendered image and dithers with the
+	// options einkimage.SuggestProcessingOptions recommends for it.
+	DitherAuto = "auto"
+)
+
+// ditherOptions builds the einkimage options for one render. The palette is
+// always the caller's: the suggestion only picks the processing, never the
+// colours, so the output pixels stay the palette's calibrated Colors that
+// ReplaceColors and the wire-index tables expect.
+func ditherOptions(img *image.RGBA, palette einkimage.Palette, mode string) einkimage.DitherOptions {
+	switch mode {
+	case DitherPlain:
+		return einkimage.DitherOptions{Palette: palette}
+	case DitherAuto:
+		opts := einkimage.SuggestProcessingOptions(img, palette, einkimage.SuggestInput{}).DitherOptions
+		opts.Palette = palette
+		return opts
+	}
+	if _, ok := einkimage.GetProcessingPreset(mode); ok {
+		return einkimage.DitherOptions{Palette: palette, ProcessingPreset: mode}
+	}
+	return einkimage.DitherOptions{Palette: palette}
+}
+
 // DitherBWRGBA returns an RGBA image dithered to black/white with muted panel-simulation colors.
 // Output pixels are either {0x21,0x21,0x21} (black) or {0xe6,0xe6,0xe6} (white).
-func DitherBWRGBA(img *image.RGBA) *image.RGBA {
-	dithered, err := einkimage.DitherImage(img, einkimage.DitherOptions{
-		Palette: einkimage.DefaultPalette,
-	})
+// mode is a dither mode (DitherPlain, DitherAuto or a preset name).
+func DitherBWRGBA(img *image.RGBA, mode string) *image.RGBA {
+	dithered, err := einkimage.DitherImage(img, ditherOptions(img, einkimage.DefaultPalette, mode))
 	if err != nil {
 		b := img.Bounds()
 		return image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
@@ -20,15 +53,13 @@ func DitherBWRGBA(img *image.RGBA) *image.RGBA {
 	return out
 }
 
-// DitherBWPacked applies Floyd-Steinberg dithering to produce 1-bit BW packed data.
+// DitherBWPacked dithers to black/white and packs the result into 1-bit BW data.
 // Output format: 1bpp, MSB first, row-major, ceil(width/8)*height bytes.
-// Pixel values: 1 = white, 0 = black.
-func DitherBWPacked(img *image.RGBA) []byte {
+// Pixel values: 1 = white, 0 = black. mode is a dither mode (see DitherBWRGBA).
+func DitherBWPacked(img *image.RGBA, mode string) []byte {
 	b := img.Bounds()
 	w, h := b.Dx(), b.Dy()
-	dithered, err := einkimage.DitherImage(img, einkimage.DitherOptions{
-		Palette: einkimage.DefaultPalette,
-	})
+	dithered, err := einkimage.DitherImage(img, ditherOptions(img, einkimage.DefaultPalette, mode))
 	if err != nil {
 		return make([]byte, (w+7)/8*h)
 	}
@@ -96,11 +127,10 @@ var spectra6ColorToIndex = func() map[[3]uint8]uint8 {
 }()
 
 // DitherSpectra6RGBA returns an RGBA image dithered to the Spectra 6 palette with calibrated colors.
-// Output pixels are the muted aitjcize calibrated colors.
-func DitherSpectra6RGBA(img *image.RGBA) *image.RGBA {
-	dithered, err := einkimage.DitherImage(img, einkimage.DitherOptions{
-		Palette: spectra6WirePalette,
-	})
+// Output pixels are the muted aitjcize calibrated colors. mode is a dither
+// mode (see DitherBWRGBA).
+func DitherSpectra6RGBA(img *image.RGBA, mode string) *image.RGBA {
+	dithered, err := einkimage.DitherImage(img, ditherOptions(img, spectra6WirePalette, mode))
 	if err != nil {
 		b := img.Bounds()
 		return image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
@@ -108,15 +138,14 @@ func DitherSpectra6RGBA(img *image.RGBA) *image.RGBA {
 	return dithered
 }
 
-// DitherSpectra6Packed applies Floyd-Steinberg dithering and packs palette indices into 4bpp format.
+// DitherSpectra6Packed dithers to the Spectra 6 palette and packs palette indices into 4bpp format.
 // Output format: 4bpp nibble-packed, high nibble=left pixel. (w*h)/2 bytes.
 // Wire indices: 0=Black, 1=White, 2=Green, 3=Blue, 4=Red, 5=Yellow.
-func DitherSpectra6Packed(img *image.RGBA) []byte {
+// mode is a dither mode (see DitherBWRGBA).
+func DitherSpectra6Packed(img *image.RGBA, mode string) []byte {
 	b := img.Bounds()
 	w, h := b.Dx(), b.Dy()
-	dithered, err := einkimage.DitherImage(img, einkimage.DitherOptions{
-		Palette: spectra6WirePalette,
-	})
+	dithered, err := einkimage.DitherImage(img, ditherOptions(img, spectra6WirePalette, mode))
 	if err != nil {
 		return make([]byte, (w*h)/2)
 	}

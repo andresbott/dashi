@@ -9,8 +9,10 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
+	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/font/gofont/goregular"
 )
 
@@ -171,6 +173,113 @@ body { margin: 0; padding: 0; background: white; }
 	if !hasDark {
 		t.Error("expected dark pixels where custom font text should be rendered")
 	}
+}
+
+// customFontHTML paints "WWWW" in the given family. The family name contains
+// no "mono", so without a registered font it falls back to Inter.
+func customFontHTML(family string) string {
+	return `<!DOCTYPE html>
+<html><head><style>
+body { margin: 0; padding: 0; background: white; }
+</style></head>
+<body><span style="font-family: ` + family + `; font-size: 40px; color: black;">WWWW iiii</span></body></html>`
+}
+
+func renderPNG(t *testing.T, r *Renderer, html string) []byte {
+	t.Helper()
+	data, err := r.Render(html, 300, 80)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	return data
+}
+
+func TestRendererSetFontsReplacesTheSet(t *testing.T) {
+	r := NewRenderer()
+	html := customFontHTML("Uploaded-Face")
+	fallback := renderPNG(t, r, html)
+
+	r.SetFonts(map[string][]byte{"Uploaded-Face": gomono.TTF})
+	withFont := renderPNG(t, r, html)
+	if bytes.Equal(fallback, withFont) {
+		t.Fatal("SetFonts: text still rendered with the fallback face")
+	}
+
+	// A family is matched case-insensitively, like CSS.
+	if got := renderPNG(t, r, customFontHTML("uploaded-face")); !bytes.Equal(got, withFont) {
+		t.Error("family lookup should be case-insensitive")
+	}
+
+	// Families absent from the new set are unregistered.
+	r.SetFonts(map[string][]byte{"other": goregular.TTF})
+	if got := renderPNG(t, r, html); !bytes.Equal(got, fallback) {
+		t.Error("SetFonts did not drop a family missing from the new set")
+	}
+}
+
+func TestRendererSkipsUnparsableFonts(t *testing.T) {
+	r := NewRenderer()
+	html := customFontHTML("broken")
+	fallback := renderPNG(t, r, html)
+
+	r.RegisterFont("broken", []byte("not a font"))
+	r.SetFonts(map[string][]byte{"broken": []byte("still not a font"), "": goregular.TTF})
+	if got := renderPNG(t, r, html); !bytes.Equal(got, fallback) {
+		t.Error("an unparsable font should leave the fallback face in place")
+	}
+	if n := len(r.fontSet()); n != 0 {
+		t.Errorf("font set has %d entries, want 0", n)
+	}
+}
+
+func TestRendererRegisterFontKeepsOthers(t *testing.T) {
+	r := NewRenderer()
+	r.RegisterFont("a", goregular.TTF)
+	r.RegisterFont("B", gomono.TTF)
+	set := r.fontSet()
+	if len(set) != 2 || set["a"] == nil || set["b"] == nil {
+		t.Errorf("font set = %v, want families a and b", set)
+	}
+}
+
+// TestRendererFontChangesDuringRendersAreRaceFree replaces fonts while
+// renders run; `go test -race` flags any unsynchronised access.
+func TestRendererFontChangesDuringRendersAreRaceFree(t *testing.T) {
+	r := NewRenderer()
+	html := customFontHTML("Uploaded-Face")
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 5; j++ {
+				if _, err := r.Render(html, 200, 60); err != nil {
+					t.Errorf("render: %v", err)
+					return
+				}
+			}
+		}()
+	}
+	done := make(chan struct{})
+	writer := make(chan struct{})
+	go func() {
+		defer close(writer)
+		for i := 0; ; i++ {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			if i%2 == 0 {
+				r.SetFonts(map[string][]byte{"Uploaded-Face": gomono.TTF})
+			} else {
+				r.RegisterFont("other", goregular.TTF)
+			}
+		}
+	}()
+	wg.Wait()
+	close(done)
+	<-writer
 }
 
 func TestRenderer_Render_DefaultWidth(t *testing.T) {

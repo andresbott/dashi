@@ -3,18 +3,17 @@ package router
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"image"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/dashboard/browser"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
 	"github.com/andresbott/dashi/internal/themes"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
 // NewDashboardMiddleware returns middleware that intercepts single-segment
@@ -22,7 +21,7 @@ import (
 // requested with display headers render as PNG for e-ink clients;
 // everything else renders as browser HTML. Non-dashboard paths fall
 // through to the next handler.
-func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Renderer, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store, bgStore *backgrounds.Store) func(http.Handler) http.Handler {
+func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Renderer, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store, widgetThemeStore *widgetthemes.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet {
@@ -42,27 +41,28 @@ func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Ren
 				return
 			}
 
+			// A missing or dangling theme reference is not an error:
+			// Resolve falls back to the builtin default.
+			theme := themeStore.Resolve(dash.ThemeID)
 			if dash.Type == "image" && hasDisplayHeaders(r) {
-				serveImageDashboard(w, r, dash, store, staticRenderer, imageRenderer, themeStore, bgStore)
+				serveImageDashboard(w, r, dash, store, staticRenderer, imageRenderer, theme, themeStore, widgetThemeStore)
 				return
 			}
-			serveBrowserDashboard(w, r, dash, store, browserRenderer, themeStore, bgStore)
+			serveBrowserDashboard(w, r, dash, store, browserRenderer, theme)
 		})
 	}
 }
 
 // serveBrowserDashboard renders a dashboard as HTML for a real browser.
-func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, renderer *browser.Renderer, themeStore *themes.Store, bgStore *backgrounds.Store) {
+// Theme colours, background and fonts reach the page through the two
+// linked stylesheets; the palette is only carried for widget renderers.
+func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, renderer *browser.Renderer, theme themes.Theme) {
 	pageIdx, ok := parsePageIndex(r, len(dash.Pages))
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 
-	theme := dash.Theme
-	if theme == "" {
-		theme = "default"
-	}
 	colorMode := dash.ColorMode
 	if colorMode != "dark" {
 		colorMode = "light"
@@ -75,37 +75,27 @@ func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboar
 		}
 	}
 
-	// Resolve the referenced background. A missing or dangling reference is
-	// not an error: the page simply falls back to the theme background.
-	var bgCSS template.CSS
-	if dash.BackgroundID != "" {
-		if bg, err := bgStore.Get(dash.BackgroundID); err == nil {
-			bgCSS = template.CSS(backgrounds.BrowserCSS(bg)) //nolint:gosec // G203: generated from validated enums, validated hex colours and percent-encoded URLs
-		}
-	}
-
 	pageNames := make([]string, len(dash.Pages))
 	for i, p := range dash.Pages {
 		pageNames[i] = p.Name
 	}
 
 	data := browser.RenderData{
-		Name:          dash.Name,
-		DashboardID:   dash.ID,
-		Theme:         theme,
-		ColorMode:     colorMode,
-		MaxWidth:      dash.Container.MaxWidth,
-		HAlign:        dash.Container.HorizontalAlign,
-		VAlign:        dash.Container.VerticalAlign,
-		AccentColor:   dash.AccentColor,
-		CustomCSS:     store.GetCustomCSS(dash.ID),
-		BackgroundCSS: bgCSS,
-		QueryParams:   queryParams,
-		Rows:          dash.Pages[pageIdx].Rows,
-		PageIndex:     pageIdx,
-		TotalPages:    len(dash.Pages),
-		PageNames:     pageNames,
-		Palette:       themeStore.Palette(theme, colorMode),
+		Name:        dash.Name,
+		DashboardID: dash.ID,
+		ThemeID:     dash.ThemeID,
+		WidgetTheme: dash.WidgetTheme,
+		ColorMode:   colorMode,
+		MaxWidth:    dash.Container.MaxWidth,
+		HAlign:      dash.Container.HorizontalAlign,
+		VAlign:      dash.Container.VerticalAlign,
+		CustomCSS:   store.GetCustomCSS(dash.ID),
+		QueryParams: queryParams,
+		Rows:        dash.Pages[pageIdx].Rows,
+		PageIndex:   pageIdx,
+		TotalPages:  len(dash.Pages),
+		PageNames:   pageNames,
+		Palette:     theme.Palette(colorMode),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -134,6 +124,13 @@ var validFormats = map[string]bool{
 }
 
 var validRotations = map[int]bool{0: true, 90: true, 180: true, 270: true}
+
+// maxDisplaySide caps the requested width and height in pixels. A render
+// allocates width×height RGBA up front, so an unbounded value lets one request
+// exhaust memory; the largest real panels (13.3" Spectra 6, 1600×1200) sit far
+// below it. The editor's preview dialog uses the same limit
+// (MAX_PREVIEW_SIDE in webui/src/lib/einkPreview.ts).
+const maxDisplaySide = 4096
 
 // hasDisplayHeaders returns true if any display protocol header or query parameter is present.
 func hasDisplayHeaders(r *http.Request) bool {
@@ -169,8 +166,8 @@ func parseDisplayHeaders(r *http.Request) (displayRequest, error) {
 		return displayRequest{}, fmt.Errorf("missing X-Display-Width header or width query parameter")
 	}
 	width, err := strconv.Atoi(widthStr)
-	if err != nil || width <= 0 {
-		return displayRequest{}, fmt.Errorf("invalid X-Display-Width: %s", widthStr)
+	if err != nil || width <= 0 || width > maxDisplaySide {
+		return displayRequest{}, fmt.Errorf("invalid X-Display-Width: %s (must be 1 to %d)", widthStr, maxDisplaySide)
 	}
 
 	heightStr := getDisplayParam(r, "X-Display-Height", "height")
@@ -178,8 +175,8 @@ func parseDisplayHeaders(r *http.Request) (displayRequest, error) {
 		return displayRequest{}, fmt.Errorf("missing X-Display-Height header or height query parameter")
 	}
 	height, err := strconv.Atoi(heightStr)
-	if err != nil || height <= 0 {
-		return displayRequest{}, fmt.Errorf("invalid X-Display-Height: %s", heightStr)
+	if err != nil || height <= 0 || height > maxDisplaySide {
+		return displayRequest{}, fmt.Errorf("invalid X-Display-Height: %s (must be 1 to %d)", heightStr, maxDisplaySide)
 	}
 
 	rotation := 0
@@ -208,7 +205,7 @@ func pageRedirectTarget(r *http.Request, page int) string {
 }
 
 // serveImageDashboard handles rendering of image-type dashboards.
-func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store, bgStore *backgrounds.Store) {
+func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, theme themes.Theme, themeStore *themes.Store, widgetThemeStore *widgetthemes.Store) {
 	dreq, err := parseDisplayHeaders(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -235,8 +232,8 @@ func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.
 	}
 
 	// Render dashboard to image
-	renderData := buildRenderData(dash, pageIdx, r.URL.Query(), store, themeStore)
-	bgCSS, bgImageData := resolveImageBackground(dash, bgStore)
+	renderData := buildRenderData(dash, pageIdx, r.URL.Query(), store, theme, widgetThemeStore)
+	bgCSS, bgImageData := resolveImageBackground(theme, dash.ColorMode, themeStore)
 	renderData.BackgroundCSS = bgCSS
 
 	var buf bytes.Buffer
@@ -266,7 +263,7 @@ func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.
 	}
 
 	// Encode and serve
-	output, contentType, err := encodeForFormat(img, dreq.Format, dreq.Width, dreq.Height)
+	output, contentType, err := encodeForFormat(img, dreq.Format, dash.Dither)
 	if err != nil {
 		http.Error(w, "failed to encode image", http.StatusInternalServerError)
 		return
@@ -274,31 +271,33 @@ func serveImageDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.
 
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	_, _ = w.Write(output) //nolint:gosec // G705: encoded image/binary bytes served with explicit Content-Type and nosniff; not HTML
+	_, _ = w.Write(output)
 }
 
 // encodeForFormat encodes an RGBA image in the requested display format.
-func encodeForFormat(img *image.RGBA, format string, width, height int) ([]byte, string, error) {
+// dither is the dashboard's dither mode; it applies to every dithered
+// format and is ignored for plain png.
+func encodeForFormat(img *image.RGBA, format, dither string) ([]byte, string, error) {
 	switch format {
 	case "png":
 		data, err := dashimage.EncodePNG(img)
 		return data, "image/png", err
 
 	case "png-bw":
-		rgba := dashimage.DitherBWRGBA(img)
+		rgba := dashimage.DitherBWRGBA(img, dither)
 		data, err := dashimage.EncodePNG(rgba)
 		return data, "image/png", err
 
 	case "png-spectra6":
-		rgba := dashimage.DitherSpectra6RGBA(img)
+		rgba := dashimage.DitherSpectra6RGBA(img, dither)
 		data, err := dashimage.EncodePNG(rgba)
 		return data, "image/png", err
 
 	case "bw":
-		return dashimage.DitherBWPacked(img), "application/octet-stream", nil
+		return dashimage.DitherBWPacked(img, dither), "application/octet-stream", nil
 
 	case "spectra6":
-		return dashimage.DitherSpectra6Packed(img), "application/octet-stream", nil
+		return dashimage.DitherSpectra6Packed(img, dither), "application/octet-stream", nil
 
 	default:
 		return nil, "", fmt.Errorf("unsupported format: %s", format)
@@ -327,16 +326,13 @@ func parsePageIndex(r *http.Request, totalPages int) (int, bool) {
 	return pageIdx, true
 }
 
-// buildRenderData constructs the render data structure for a dashboard page.
-func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]string, store *dashboard.Store, themeStore *themes.Store) dashstatic.RenderData {
-	theme := dash.Theme
-	if theme == "" {
-		theme = "default"
-	}
-
-	fontFamily := ""
-	if themeInfo, ok := themeStore.Get(theme); ok && len(themeInfo.Fonts) > 0 {
-		fontFamily = themeInfo.Fonts[0].Name
+// buildRenderData constructs the image-stack render data for a dashboard
+// page. The palette is flattened because litehtml cannot render alpha: a
+// translucent role must reach it as an opaque colour composited over bg.
+func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]string, store *dashboard.Store, theme themes.Theme, widgetThemeStore *widgetthemes.Store) dashstatic.RenderData {
+	widgetTheme := dash.WidgetTheme
+	if widgetTheme == "" {
+		widgetTheme = widgetthemes.DefaultName
 	}
 
 	queryParams := make(map[string]string)
@@ -352,15 +348,15 @@ func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]s
 		MaxWidth:    dash.Container.MaxWidth,
 		HAlign:      dash.Container.HorizontalAlign,
 		VAlign:      dash.Container.VerticalAlign,
-		Theme:       theme,
+		WidgetTheme: widgetTheme,
 		ColorMode:   dash.ColorMode,
-		FontFamily:  fontFamily,
+		FontFamily:  widgetThemeStore.FontFamily(widgetTheme),
 		CustomCSS:   store.GetCustomCSS(dash.ID),
 		QueryParams: queryParams,
 		Rows:        dash.Pages[pageIdx].Rows,
 		PageIndex:   pageIdx,
 		TotalPages:  len(dash.Pages),
-		Palette:     themeStore.Palette(theme, dash.ColorMode),
+		Palette:     theme.Palette(dash.ColorMode).Flatten(),
 	}
 }
 
@@ -372,23 +368,14 @@ func buildRenderData(dash dashboard.Dashboard, pageIdx int, query map[string][]s
 // When an image ref is present and loads successfully, returns "transparent"
 // as the css. This prevents the template's {{else}}{{.Palette.BG}}{{end}}
 // fallback from painting an opaque theme colour over the pre-composited image.
-func resolveImageBackground(dash dashboard.Dashboard, bgStore *backgrounds.Store) (css string, imageData []byte) {
-	if dash.BackgroundID == "" {
-		return "", nil
-	}
-	bg, err := bgStore.Get(dash.BackgroundID)
-	if err != nil {
-		return "", nil
-	}
-	css, ref := backgrounds.ImageCSS(bg, dash.ColorMode)
+func resolveImageBackground(theme themes.Theme, colorMode string, themeStore *themes.Store) (css string, imageData []byte) {
+	css, ref := themes.ImageCSS(theme, colorMode)
 	if ref == "" {
 		return css, nil
 	}
-	data, err := bgStore.LoadImage(bg.ID, ref)
+	data, err := themeStore.LoadImage(theme.ID, ref)
 	if err != nil {
 		return css, nil
 	}
 	return "transparent", data
 }
-
-

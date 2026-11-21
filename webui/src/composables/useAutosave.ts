@@ -36,7 +36,7 @@ export function useAutosave<T>(options: UseAutosaveOptions<T>): UseAutosaveResul
 
     let timer: ReturnType<typeof setTimeout> | null = null
     let dirty = false // unsaved changes are waiting to be persisted
-    let running = false // a save loop is currently active
+    let inflight: Promise<void> | null = null // the save loop currently active, if any
 
     const clearTimer = () => {
         if (timer !== null) {
@@ -47,25 +47,36 @@ export function useAutosave<T>(options: UseAutosaveOptions<T>): UseAutosaveResul
 
     // Drains all pending changes. Re-reads the source on each iteration so a
     // change that lands mid-save is persisted by a follow-up pass rather than lost.
-    const performSave = async () => {
-        if (running) return
-        running = true
-        try {
-            while (dirty) {
-                dirty = false
-                const value = source()
-                if (value == null) break
-                status.value = 'saving'
-                error.value = null
+    // A failed save marks the value dirty again so the next change or flush()
+    // retries it, and stops the loop so a persistent failure does not spin.
+    const drain = async () => {
+        while (dirty) {
+            dirty = false
+            const value = source()
+            if (value == null) break
+            status.value = 'saving'
+            error.value = null
+            try {
                 await save(value)
-                status.value = 'saved'
+            } catch (e) {
+                dirty = true
+                error.value = e
+                status.value = 'error'
+                break
             }
-        } catch (e) {
-            error.value = e
-            status.value = 'error'
-        } finally {
-            running = false
+            status.value = 'saved'
         }
+    }
+
+    // Starts a save loop unless one is already running, and returns the promise
+    // of whichever loop is active so callers can wait for it to finish.
+    const performSave = (): Promise<void> => {
+        if (inflight === null) {
+            inflight = drain().finally(() => {
+                inflight = null
+            })
+        }
+        return inflight
     }
 
     // Synchronous so a programmatic change schedules the save immediately and
@@ -86,8 +97,11 @@ export function useAutosave<T>(options: UseAutosaveOptions<T>): UseAutosaveResul
         { deep: true, flush: 'sync' },
     )
 
+    // Waits for any in-flight save loop, then persists whatever is still dirty
+    // (changes made during that loop, or a value whose save just failed).
     const flush = async () => {
         clearTimer()
+        if (inflight !== null) await inflight
         if (dirty) await performSave()
     }
 

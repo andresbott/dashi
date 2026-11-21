@@ -1,33 +1,30 @@
 <script setup lang="ts">
-import { ref, computed, watch, provide } from 'vue'
-import { DASHBOARD_THEME, DASHBOARD_ID, ACTIVE_PAGE, TOTAL_PAGES, EDITING_MODE } from '@/lib/injectionKeys'
+import { ref, computed, provide } from 'vue'
+import { DASHBOARD_WIDGET_THEME, DASHBOARD_ID, ACTIVE_PAGE, TOTAL_PAGES, EDITING_MODE } from '@/lib/injectionKeys'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
+import InputNumber from 'primevue/inputnumber'
 import DashboardRow from '@/components/dashboards/DashboardRow.vue'
 
-import { useGetDashboard, useUpdateDashboard } from '@/composables/useDashboards'
-import { useAutosave } from '@/composables/useAutosave'
-import { useToast } from 'primevue/usetoast'
-import type { Dashboard, Row } from '@/types/dashboard'
-import { insertByColumn } from '@/lib/rowLayout'
+import { useDashboardDraft } from '@/composables/useDashboardDraft'
+import type { Row } from '@/types/dashboard'
+import { insertByColumn, clampRowToLine, fitsInRow } from '@/lib/rowLayout'
 import { v4 as uuidv4 } from 'uuid'
 import Dialog from 'primevue/dialog'
 import dashiIcon from '@/assets/icon-64.png'
 
 const route = useRoute()
 const router = useRouter()
-const toast = useToast()
 const id = computed(() => route.params.id as string)
 
-const { data: serverDashboard, isLoading, isError } = useGetDashboard(() => id.value)
-const { updateDashboard } = useUpdateDashboard()
+const { draft: localDashboard, isLoading, isError, saveStatus, hasUnsaved, flush } = useDashboardDraft(() => id.value)
 
-const localDashboard = ref<Dashboard | null>(null)
 const activePageIndex = ref(0)
 
-const dashboardTheme = computed(() => localDashboard.value?.theme || 'default')
-provide(DASHBOARD_THEME, dashboardTheme)
+// Consumed only by widget config forms; the preview itself is theme-agnostic.
+const dashboardWidgetTheme = computed(() => localDashboard.value?.widgetTheme || 'default')
+provide(DASHBOARD_WIDGET_THEME, dashboardWidgetTheme)
 provide(DASHBOARD_ID, id)
 const editTotalPages = computed(() => localDashboard.value ? localDashboard.value.pages.length : 1)
 provide(ACTIVE_PAGE, activePageIndex)
@@ -36,12 +33,11 @@ provide(EDITING_MODE, true)
 const renamePageDialogVisible = ref(false)
 const renamePageIndex = ref(0)
 const renamePageName = ref('')
+const renamePageInterval = ref<number | null>(0)
 
-watch(serverDashboard, (val) => {
-    if (val && !localDashboard.value) {
-        localDashboard.value = JSON.parse(JSON.stringify(val))
-    }
-}, { immediate: true })
+// Only image dashboards render to PNG: the server answers an interactive
+// dashboard's display request with browser HTML, so there is nothing to show.
+const isImageDashboard = computed(() => localDashboard.value?.type === 'image')
 
 const pages = computed(() => localDashboard.value?.pages ?? [])
 const activePage = computed(() => pages.value[activePageIndex.value])
@@ -93,15 +89,21 @@ const movePageDown = (index: number) => {
     }
 }
 
+// The dialog edits staged copies; the page is only touched on Confirm, so
+// Cancel (or closing the dialog) leaves it exactly as it was.
 const openRenamePage = (index: number) => {
+    const page = localDashboard.value?.pages[index]
     renamePageIndex.value = index
-    renamePageName.value = localDashboard.value?.pages[index]?.name ?? ''
+    renamePageName.value = page?.name ?? ''
+    renamePageInterval.value = page?.refreshInterval ?? 0
     renamePageDialogVisible.value = true
 }
 
 const confirmRenamePage = () => {
-    if (!localDashboard.value) return
-    localDashboard.value.pages[renamePageIndex.value].name = renamePageName.value
+    const page = localDashboard.value?.pages[renamePageIndex.value]
+    if (!page) return
+    page.name = renamePageName.value
+    page.refreshInterval = Math.max(0, Math.floor(renamePageInterval.value || 0))
     renamePageDialogVisible.value = false
 }
 
@@ -122,7 +124,9 @@ const updateRow = (index: number, row: Row) => {
 
 // Cross-row widget move: DashboardRow emits this on drop when the pointer was
 // over a different row than the widget's own. Remove it from the source row and
-// insert it into the target row at the drop column (placeRow resolves overlap).
+// insert it into the target row at the drop column (placeRow resolves overlap,
+// clampRowToLine keeps the target row on one line). The row already refuses
+// the drop visually when the widget does not fit; this re-checks it.
 const moveWidgetAcross = (fromIndex: number, payload: { widgetId: string; toRowId: string; column: number }) => {
     if (!activePage.value) return
     const rows = activePage.value.rows
@@ -131,9 +135,13 @@ const moveWidgetAcross = (fromIndex: number, payload: { widgetId: string; toRowI
     const widget = fromRow.widgets.find(w => w.id === payload.widgetId)
     const toIndex = rows.findIndex(r => r.id === payload.toRowId)
     if (!widget || toIndex < 0 || toIndex === fromIndex) return
-    rows[fromIndex] = { ...fromRow, widgets: fromRow.widgets.filter(w => w.id !== payload.widgetId) }
     const toRow = rows[toIndex]
-    rows[toIndex] = { ...toRow, widgets: insertByColumn(toRow.widgets, { ...widget, column: payload.column }) }
+    if (!fitsInRow(toRow.widgets, widget.width)) return
+    rows[fromIndex] = { ...fromRow, widgets: fromRow.widgets.filter(w => w.id !== payload.widgetId) }
+    rows[toIndex] = {
+        ...toRow,
+        widgets: clampRowToLine(insertByColumn(toRow.widgets, { ...widget, column: payload.column })),
+    }
 }
 
 const deleteRow = (index: number) => {
@@ -154,15 +162,12 @@ const moveRowDown = (index: number) => {
     ;[rows[index], rows[index + 1]] = [rows[index + 1], rows[index]]
 }
 
-const { status: saveStatus, flush } = useAutosave<Dashboard>({
-    source: () => localDashboard.value,
-    save: (d) => updateDashboard({ id: id.value, payload: d }),
-})
-
-watch(saveStatus, (s) => {
-    if (s === 'error') {
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to save dashboard', life: 5000 })
-    }
+const saveIndicator = computed(() => {
+    if (saveStatus.value === 'error') return { icon: 'ti ti-alert-circle', label: 'Save failed' }
+    if (saveStatus.value === 'saving') return { icon: 'ti ti-loader-2', label: 'Saving…' }
+    if (hasUnsaved.value) return { icon: 'ti ti-pencil', label: 'Unsaved changes' }
+    if (saveStatus.value === 'saved') return { icon: 'ti ti-check', label: 'Saved' }
+    return null
 })
 
 const goToAdmin = async () => {
@@ -175,26 +180,55 @@ const goToSettings = async () => {
     router.push({ name: 'dashboard-settings', params: { id: id.value } })
 }
 
+// Pending edits are saved first, so the server renders what is on screen;
+// the preview opens on the page being edited.
+const goToEinkPreview = async () => {
+    await flush()
+    router.push({
+        name: 'dashboard-eink-preview',
+        params: { id: id.value },
+        query: { page: String(activePageIndex.value), from: 'edit' },
+    })
+}
+
 </script>
 
 <template>
     <header class="app-topbar">
         <img :src="dashiIcon" alt="Dashi" class="app-topbar-icon" />
-        <span class="app-topbar-title" @click="router.push('/admin')">Dashi</span>
+        <button type="button" class="app-topbar-title" @click="goToAdmin">Dashi</button>
     </header>
     <div class="dashboard-edit-view">
         <div v-if="isLoading" class="p-4">Loading...</div>
         <div v-else-if="isError" class="p-4">Failed to load dashboard.</div>
         <template v-else-if="localDashboard">
-        <div class="flex align-items-center gap-2 mb-3">
+        <div class="edit-toolbar mb-3">
             <Button
                 icon="ti ti-arrow-left"
                 severity="secondary"
                 text
                 rounded
+                aria-label="Back to dashboards"
                 @click="goToAdmin"
             />
-            <span class="text-xl font-bold text-color flex-grow-1">{{ localDashboard.name }}</span>
+            <span class="edit-toolbar-title text-xl font-bold text-color">{{ localDashboard.name }}</span>
+            <span
+                v-if="saveIndicator"
+                class="save-status"
+                :class="{ 'save-status-error': saveStatus === 'error' }"
+                aria-live="polite"
+            >
+                <i :class="saveIndicator.icon" />
+                {{ saveIndicator.label }}
+            </span>
+            <Button
+                v-if="isImageDashboard"
+                icon="ti ti-device-tablet"
+                label="E-ink preview"
+                severity="secondary"
+                data-testid="eink-preview-button"
+                @click="goToEinkPreview"
+            />
             <Button
                 icon="ti ti-settings"
                 label="Settings"
@@ -286,20 +320,18 @@ const goToSettings = async () => {
             :draggable="false"
             header="Rename Page"
         >
-            <div class="flex flex-column gap-3" style="min-width: 350px">
+            <div class="flex flex-column gap-3 dialog-form">
                 <div class="flex flex-column gap-1">
                     <label class="font-semibold text-sm">Page Name</label>
                     <InputText v-model="renamePageName" placeholder="Page name" />
                 </div>
                 <div class="flex flex-column gap-1">
                     <label class="font-semibold text-sm">Refresh Interval (seconds)</label>
-                    <InputText
-                        :modelValue="String(localDashboard!.pages[renamePageIndex]?.refreshInterval ?? 0)"
-                        @update:modelValue="(v: string | undefined) => {
-                            if (!localDashboard || v === undefined) return
-                            localDashboard.pages[renamePageIndex].refreshInterval = parseInt(v) || 0
-                        }"
-                        placeholder="0 (no header)"
+                    <InputNumber
+                        v-model="renamePageInterval"
+                        :min="0"
+                        :useGrouping="false"
+                        placeholder="0 = no auto refresh"
                     />
                 </div>
             </div>
@@ -313,29 +345,57 @@ const goToSettings = async () => {
     </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/assets/breakpoints' as bp;
+
 .dashboard-edit-view {
     max-width: 1600px;
     margin: 0 auto;
     padding: 1.5rem 1rem;
+
+    @include bp.below-md {
+        padding: 1rem 0.5rem;
+    }
 }
 
+/* Wraps instead of overflowing: on a phone the buttons drop below the title. */
+.edit-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.edit-toolbar-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+
+/* Tabs stay on one line and scroll sideways when there are more than fit. */
 .page-tabs {
     display: flex;
     align-items: center;
     border-bottom: 1px solid var(--p-surface-border);
     margin-bottom: 1.5rem;
     gap: 0.5rem;
+    overflow-x: auto;
 }
 
 .page-tab {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 0.5rem;
     padding: 0.75rem 1rem;
     cursor: pointer;
     border-bottom: 2px solid transparent;
     transition: all 0.2s;
+    white-space: nowrap;
+
+    @include bp.below-md {
+        padding: 0.5rem 0.75rem;
+    }
 }
 
 .page-tab:hover {
@@ -354,6 +414,20 @@ const goToSettings = async () => {
 }
 
 .add-page-btn {
+    flex-shrink: 0;
     margin-left: auto;
+}
+
+.save-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--p-text-muted-color);
+    white-space: nowrap;
+}
+
+.save-status-error {
+    color: var(--p-red-500);
 }
 </style>

@@ -1,148 +1,152 @@
 package themes
 
 import (
-	"bytes"
+	"errors"
+	"image/color"
 	"strings"
 	"testing"
 )
 
-func TestDefaultPalette(t *testing.T) {
-	light := DefaultPalette("light")
-	if light.FG != "#333333" {
-		t.Errorf("light FG = %q, want #333333", light.FG)
+func TestParseColor(t *testing.T) {
+	tests := []struct {
+		in   string
+		want color.NRGBA
+		ok   bool
+	}{
+		{"#16a34a", color.NRGBA{R: 0x16, G: 0xa3, B: 0x4a, A: 0xff}, true},
+		{"#ABC", color.NRGBA{R: 0xaa, G: 0xbb, B: 0xcc, A: 0xff}, true},
+		{"#ff000080", color.NRGBA{R: 0xff, G: 0x00, B: 0x00, A: 0x80}, true},
+		{"", color.NRGBA{}, false},
+		{"16a34a", color.NRGBA{}, false},
+		{"#12345", color.NRGBA{}, false},
+		{"#gggggg", color.NRGBA{}, false},
 	}
-	if light.BG != "#ffffff" {
-		t.Errorf("light BG = %q, want #ffffff", light.BG)
-	}
-
-	dark := DefaultPalette("dark")
-	if dark.FG != "#e0e0e0" {
-		t.Errorf("dark FG = %q, want #e0e0e0", dark.FG)
-	}
-	if dark.BG != "#1a1a2e" {
-		t.Errorf("dark BG = %q, want #1a1a2e", dark.BG)
-	}
-
-	// Anything that is not "dark" is light.
-	if DefaultPalette("").FG != light.FG {
-		t.Error(`DefaultPalette("") should equal the light palette`)
-	}
-}
-
-func TestPaletteMergeIgnoresBadValues(t *testing.T) {
-	base := DefaultPalette("light")
-	got := merge(base, map[string]string{
-		"fg":      "#111111", // valid, applied
-		"accent":  "red",     // not 6-digit hex, ignored
-		"unknown": "#222222", // unknown key, ignored
-	})
-	if got.FG != "#111111" {
-		t.Errorf("FG = %q, want #111111", got.FG)
-	}
-	if got.Accent != base.Accent {
-		t.Errorf("Accent = %q, want unchanged %q", got.Accent, base.Accent)
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			got, ok := ParseColor(tt.in)
+			if ok != tt.ok || got != tt.want {
+				t.Fatalf("ParseColor(%q) = %v, %v; want %v, %v", tt.in, got, ok, tt.want, tt.ok)
+			}
+		})
 	}
 }
 
-func TestStorePaletteUnknownThemeFallsBackToDefaults(t *testing.T) {
-	s := NewStore("")
-	if got := s.Palette("does-not-exist", "dark"); got != DefaultPalette("dark") {
-		t.Errorf("unknown theme palette = %+v, want defaults", got)
+func TestDefaultPaletteValues(t *testing.T) {
+	light := Palette{
+		BG: "#ffffff", Surface: "#f5f5f7", Border: "#e0e0e5",
+		Text: "#333333", TextMuted: "#666666",
+		Primary: "#0a84ff", OnPrimary: "#ffffff",
+		Secondary: "#8b5cf6", Success: "#16a34a", Warning: "#d97706", Danger: "#dc2626",
+	}
+	dark := Palette{
+		BG: "#1a1a2e", Surface: "#23233d", Border: "#33334d",
+		Text: "#e0e0e0", TextMuted: "#999999",
+		Primary: "#4a90d9", OnPrimary: "#ffffff",
+		Secondary: "#a78bfa", Success: "#22c55e", Warning: "#f59e0b", Danger: "#ef4444",
+	}
+	if got := DefaultPalette("light"); got != light {
+		t.Errorf("light = %+v", got)
+	}
+	if got := DefaultPalette("dark"); got != dark {
+		t.Errorf("dark = %+v", got)
+	}
+	if got := DefaultPalette(""); got != light {
+		t.Errorf("empty = %+v, want light", got)
 	}
 }
 
-func TestThemeCSSEmitsBothModes(t *testing.T) {
-	s := NewStore("")
-	css := string(s.ThemeCSS("default"))
-
-	if !strings.Contains(css, ":root{") {
-		t.Error("missing :root block")
+func TestPaletteValidate(t *testing.T) {
+	with := func(f func(p *Palette)) Palette {
+		p := DefaultPalette("light")
+		f(&p)
+		return p
 	}
-	if !strings.Contains(css, `:root[data-color-mode="dark"]{`) {
-		t.Error("missing dark-mode block")
+	tests := []struct {
+		name    string
+		p       Palette
+		wantErr string // empty means no error
+	}{
+		{"default", DefaultPalette("light"), ""},
+		{"translucent surface", with(func(p *Palette) { p.Surface = "#ffffff80" }), ""},
+		{"translucent bg", with(func(p *Palette) { p.BG = "#ffffff80" }), "bg"},
+		{"empty text", with(func(p *Palette) { p.Text = "" }), "text"},
+		{"named danger", with(func(p *Palette) { p.Danger = "red" }), "danger"},
+		{"short primary", with(func(p *Palette) { p.Primary = "#12345" }), "primary"},
 	}
-	if !strings.Contains(css, "--dashi-fg:#333333;") {
-		t.Errorf("missing light --dashi-fg, got:\n%s", css)
-	}
-	if !strings.Contains(css, "--dashi-fg:#e0e0e0;") {
-		t.Errorf("missing dark --dashi-fg, got:\n%s", css)
-	}
-}
-
-func TestCSSIdentStripsBreakoutCharacters(t *testing.T) {
-	// theme.yaml is user-uploaded: a font name must not be able to
-	// terminate the generated declaration.
-	if got := cssIdent("Inter'; } body { display:none"); strings.ContainsAny(got, `'"\;{}<>`) {
-		t.Errorf("cssIdent left breakout characters in %q", got)
-	}
-}
-
-func TestThemeCSSEmitsFontFaceForDisplayAndIconFonts(t *testing.T) {
-	// Without @font-face the browser stack can load no theme font at all:
-	// --dashi-font names a family the browser never saw, and font-icon
-	// themes render tofu because widgets emit font-family: icon-font-{theme}.
-	s := NewStore("")
-	css := string(s.ThemeCSS("default"))
-
-	if !strings.Contains(css, "@font-face{font-family:'Inter';src:url('/api/v0/themes/default/fonts/Inter')") {
-		t.Errorf("missing display-font @font-face, got:\n%s", css)
-	}
-	if !strings.Contains(css, "@font-face{font-family:'icon-font-default';src:url('/api/v0/themes/default/fonts/icon-font-default')") {
-		t.Errorf("missing icon-font @font-face, got:\n%s", css)
-	}
-	// The rules must precede the variable blocks that reference the family.
-	if face, root := strings.Index(css, "@font-face"), strings.Index(css, ":root{"); face > root {
-		t.Errorf("@font-face rules must come before :root, got:\n%s", css)
-	}
-	if !strings.Contains(css, "--dashi-font:'Inter';") {
-		t.Errorf("missing --dashi-font, got:\n%s", css)
-	}
-	// A format() hint would be a lie: the route serves whatever bytes the
-	// theme shipped, under a fixed font/ttf Content-Type.
-	if strings.Contains(css, "format(") {
-		t.Errorf("no format() hint should be emitted, got:\n%s", css)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.p.Validate()
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !errors.Is(err, ErrInvalidConfig) {
+				t.Errorf("error %v does not wrap ErrInvalidConfig", err)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error %q does not contain %q", err, tc.wantErr)
+			}
+		})
 	}
 }
 
-func TestThemeCSSUnknownThemeEmitsNoFontFace(t *testing.T) {
-	s := NewStore("")
-	if css := string(s.ThemeCSS("does-not-exist")); strings.Contains(css, "@font-face") {
-		t.Errorf("unknown theme must emit no @font-face, got:\n%s", css)
+func TestPaletteWithDefaults(t *testing.T) {
+	custom := Palette{
+		BG: "#101010", Surface: "#202020", Border: "#303030",
+		Text: "red;}", TextMuted: "#404040",
+		Primary: "#505050", OnPrimary: "#606060",
+		Secondary: "", Success: "#707070", Warning: "#808080", Danger: "#909090",
+	}
+	def := DefaultPalette("dark")
+	got := custom.withDefaults("dark")
+	if got.Text != def.Text {
+		t.Errorf("Text = %q, want %q", got.Text, def.Text)
+	}
+	if got.Secondary != def.Secondary {
+		t.Errorf("Secondary = %q, want %q", got.Secondary, def.Secondary)
+	}
+	want := custom
+	want.Text, want.Secondary = def.Text, def.Secondary
+	if got != want {
+		t.Errorf("other roles changed: %+v", got)
 	}
 }
 
-func TestFontDataResolvesDisplayAndIconFonts(t *testing.T) {
-	s := NewStore("")
-
-	display, err := s.FontData("default", "Inter")
-	if err != nil {
-		t.Fatalf("FontData(display): %v", err)
-	}
-	if len(display) == 0 {
-		t.Error("display font data is empty")
+func TestPaletteFlatten(t *testing.T) {
+	p := DefaultPalette("light")
+	p.BG, p.Surface = "#000000", "#ffffff80"
+	if got := p.Flatten().Surface; got != "#808080" {
+		t.Errorf("Surface = %q, want #808080", got)
 	}
 
-	icon, err := s.FontData("default", IconFontFamily("default"))
-	if err != nil {
-		t.Fatalf("FontData(icon): %v", err)
-	}
-	if len(icon) == 0 {
-		t.Error("icon font data is empty")
-	}
-	if bytes.Equal(display, icon) {
-		t.Error("icon font resolved to the display font")
+	p = DefaultPalette("light")
+	p.BG, p.Border = "#ffffff", "#00000000"
+	if got := p.Flatten().Border; got != "#ffffff" {
+		t.Errorf("Border = %q, want #ffffff", got)
 	}
 
-	if _, err := s.FontData("default", "NoSuchFont"); err == nil {
-		t.Error("expected an error for an unknown font name")
+	p = DefaultPalette("light")
+	p.Text, p.Primary = "#abc", "#a1b2c3"
+	got := p.Flatten()
+	if got.Text != "#abc" || got.Primary != "#a1b2c3" {
+		t.Errorf("opaque values changed: %q %q", got.Text, got.Primary)
 	}
 }
 
-func TestIconFontFamilyMatchesWidgetMarkup(t *testing.T) {
-	// internal/widgets/weather/static.go emits exactly this family name, and
-	// app/router/main.go registers it with the litehtml renderer. The
-	// @font-face family has to agree with both.
-	if got := IconFontFamily("mytheme"); got != "icon-font-mytheme" {
-		t.Errorf("IconFontFamily = %q, want %q", got, "icon-font-mytheme")
+func TestWritePaletteVarsOrder(t *testing.T) {
+	var b strings.Builder
+	writePaletteVars(&b, DefaultPalette("light"))
+	want := "--dashi-bg:#ffffff;--dashi-surface:#f5f5f7;--dashi-border:#e0e0e5;" +
+		"--dashi-text:#333333;--dashi-text-muted:#666666;" +
+		"--dashi-primary:#0a84ff;--dashi-on-primary:#ffffff;" +
+		"--dashi-secondary:#8b5cf6;--dashi-success:#16a34a;" +
+		"--dashi-warning:#d97706;--dashi-danger:#dc2626;"
+	if got := b.String(); got != want {
+		t.Errorf("got  %s\nwant %s", got, want)
 	}
 }

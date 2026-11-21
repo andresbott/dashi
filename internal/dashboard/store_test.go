@@ -949,7 +949,7 @@ func TestStaleInlineBackgroundIsIgnoredNotFatal(t *testing.T) {
 	if d.Name != "Legacy" {
 		t.Errorf("got name %q", d.Name)
 	}
-	if d.BackgroundID != "" {
-		t.Errorf("expected no background reference, got %q", d.BackgroundID)
+	if d.ThemeID != "" {
+		t.Errorf("expected no theme reference, got %q", d.ThemeID)
 	}
 }

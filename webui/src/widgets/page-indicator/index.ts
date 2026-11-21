@@ -8,6 +8,7 @@ const pageIndicator: WidgetModule = {
     label: 'Page Indicator',
     icon: 'ti-circles',
     description: 'Shows dots for each page',
+    category: 'layout',
     noWidgetProp: true,
 }
 

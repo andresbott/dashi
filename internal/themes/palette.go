@@ -1,221 +1,202 @@
 package themes
 
 import (
+	"encoding/hex"
 	"fmt"
-	"net/url"
+	"image/color"
+	"math"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
-// Palette is the closed set of theme colours. Every field is guaranteed
-// non-empty: keys a theme.yaml omits fall back to DefaultPalette, whose
-// values are the ones internal/dashboard/static/master.html hardcoded
-// before themes owned colours.
-//
-// The browser stack consumes these as CSS custom properties (see
-// ThemeCSS); the image stack consumes concrete values, because litehtml
-// cannot read custom properties.
+// Palette is the set of colour roles for one colour mode. Every value is a
+// hex colour; BG must be opaque because it is the page base everything else
+// is composited onto.
 type Palette struct {
-	FG       string // primary text
-	Muted    string // secondary text
-	BG       string // page background
-	Surface  string // raised surfaces: cards, bars
-	Border   string // hairlines
-	Accent   string // interactive / highlight
-	AccentFG string // text drawn on top of Accent
-	Warn     string
-	Danger   string
+	BG        string `json:"bg"`
+	Surface   string `json:"surface"`
+	Border    string `json:"border"`
+	Text      string `json:"text"`
+	TextMuted string `json:"textMuted"`
+	Primary   string `json:"primary"`
+	OnPrimary string `json:"onPrimary"`
+	Secondary string `json:"secondary"`
+	Success   string `json:"success"`
+	Warning   string `json:"warning"`
+	Danger    string `json:"danger"`
 }
 
-var paletteLight = Palette{
-	FG: "#333333", Muted: "#666666", BG: "#ffffff", Surface: "#f5f5f7",
-	Border: "#e0e0e5", Accent: "#0a84ff", AccentFG: "#ffffff",
-	Warn: "#d97706", Danger: "#dc2626",
+// Colors holds the palette for each colour mode.
+type Colors struct {
+	Light Palette `json:"light"`
+	Dark  Palette `json:"dark"`
 }
 
-var paletteDark = Palette{
-	FG: "#e0e0e0", Muted: "#999999", BG: "#1a1a2e", Surface: "#23233d",
-	Border: "#33334d", Accent: "#4a90d9", AccentFG: "#ffffff",
-	Warn: "#f59e0b", Danger: "#ef4444",
+var opaqueHexRe = regexp.MustCompile(`^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
+
+// role binds a role's JSON name and CSS variable to its field in a palette.
+type role struct {
+	name   string
+	cssVar string
+	field  func(p *Palette) *string
+	opaque bool
 }
 
-// DefaultPalette returns the built-in palette for a colour mode. Any
-// value other than "dark" is treated as light.
+// paletteRoles is in CSS variable output order.
+var paletteRoles = []role{
+	{"bg", "--dashi-bg", func(p *Palette) *string { return &p.BG }, true},
+	{"surface", "--dashi-surface", func(p *Palette) *string { return &p.Surface }, false},
+	{"border", "--dashi-border", func(p *Palette) *string { return &p.Border }, false},
+	{"text", "--dashi-text", func(p *Palette) *string { return &p.Text }, false},
+	{"textMuted", "--dashi-text-muted", func(p *Palette) *string { return &p.TextMuted }, false},
+	{"primary", "--dashi-primary", func(p *Palette) *string { return &p.Primary }, false},
+	{"onPrimary", "--dashi-on-primary", func(p *Palette) *string { return &p.OnPrimary }, false},
+	{"secondary", "--dashi-secondary", func(p *Palette) *string { return &p.Secondary }, false},
+	{"success", "--dashi-success", func(p *Palette) *string { return &p.Success }, false},
+	{"warning", "--dashi-warning", func(p *Palette) *string { return &p.Warning }, false},
+	{"danger", "--dashi-danger", func(p *Palette) *string { return &p.Danger }, false},
+}
+
+func (r role) valid(v string) bool {
+	if r.opaque {
+		return opaqueHexRe.MatchString(v)
+	}
+	return hexColorRe.MatchString(v)
+}
+
+// DefaultPalette returns the built-in palette: dark for "dark", light for
+// anything else.
 func DefaultPalette(colorMode string) Palette {
 	if colorMode == "dark" {
-		return paletteDark
+		return Palette{
+			BG: "#1a1a2e", Surface: "#23233d", Border: "#33334d",
+			Text: "#e0e0e0", TextMuted: "#999999",
+			Primary: "#4a90d9", OnPrimary: "#ffffff",
+			Secondary: "#a78bfa", Success: "#22c55e", Warning: "#f59e0b", Danger: "#ef4444",
+		}
 	}
-	return paletteLight
+	return Palette{
+		BG: "#ffffff", Surface: "#f5f5f7", Border: "#e0e0e5",
+		Text: "#333333", TextMuted: "#666666",
+		Primary: "#0a84ff", OnPrimary: "#ffffff",
+		Secondary: "#8b5cf6", Success: "#16a34a", Warning: "#d97706", Danger: "#dc2626",
+	}
 }
 
-var hexColorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
-
-// set assigns a manifest colour key, reporting whether the key is known.
-func (p *Palette) set(key, value string) bool {
-	switch key {
-	case "fg":
-		p.FG = value
-	case "muted":
-		p.Muted = value
-	case "bg":
-		p.BG = value
-	case "surface":
-		p.Surface = value
-	case "border":
-		p.Border = value
-	case "accent":
-		p.Accent = value
-	case "accentFg":
-		p.AccentFG = value
-	case "warn":
-		p.Warn = value
-	case "danger":
-		p.Danger = value
-	default:
-		return false
-	}
-	return true
-}
-
-// merge applies manifest overrides onto base. Unknown keys and values
-// that are not 6-digit hex are ignored — theme loading elsewhere in this
-// package is lenient rather than fatal, and a malformed colour should
-// not take a dashboard down.
-func merge(base Palette, over map[string]string) Palette {
-	out := base
-	for key, value := range over {
-		if !hexColorRe.MatchString(value) {
+// Validate reports whether every role holds a valid hex colour and BG is
+// opaque. Errors wrap ErrInvalidConfig and name the offending role.
+func (p Palette) Validate() error {
+	for _, r := range paletteRoles {
+		v := *r.field(&p)
+		if r.valid(v) {
 			continue
 		}
-		out.set(key, value)
-	}
-	return out
-}
-
-// Palette returns the resolved palette for a theme and colour mode.
-// Unknown themes get the built-in defaults.
-func (s *Store) Palette(themeName, colorMode string) Palette {
-	base := DefaultPalette(colorMode)
-	th, ok := s.lookupTheme(themeName)
-	if !ok {
-		return base
-	}
-	if colorMode == "dark" {
-		return merge(base, th.manifest.ColorsDark)
-	}
-	return merge(base, th.manifest.Colors)
-}
-
-// FontFamily returns the theme's first display font name, or "" when the
-// theme declares none.
-func (s *Store) FontFamily(themeName string) string {
-	th, ok := s.lookupTheme(themeName)
-	if !ok || len(th.manifest.Fonts) == 0 {
-		return ""
-	}
-	return th.manifest.Fonts[0].Name
-}
-
-// IconFontFamily returns the CSS font-family name under which a theme's
-// icon font is registered. It matches what the widget templates emit
-// (see internal/widgets/weather/static.go) and what the litehtml renderer
-// registers at startup (app/router/main.go), so image-stack markup rendered
-// into a browser resolves the same family.
-func IconFontFamily(themeName string) string {
-	return "icon-font-" + themeName
-}
-
-// FontData resolves a font by the name the browser stack requests it under:
-// a display font declared in theme.yaml, or the theme's icon font under
-// IconFontFamily(theme). Display fonts win a name collision, which keeps
-// existing URLs stable.
-func (s *Store) FontData(themeName, fontName string) ([]byte, error) {
-	if data, err := s.GetDisplayFontData(themeName, fontName); err == nil {
-		return data, nil
-	}
-	if fontName == IconFontFamily(themeName) {
-		return s.GetFontData(themeName)
-	}
-	return nil, fmt.Errorf("font %q not found in theme %q", fontName, themeName)
-}
-
-// fontFaces writes an @font-face rule per font the theme serves: its
-// display fonts, plus its icon font when the theme uses one.
-//
-// Without these, the browser stack has no way to load a theme font at all:
-// --dashi-font would name a family the browser has never seen, and
-// font-icon themes would render tofu, because widgets emit
-// `font-family: icon-font-{theme}` — a family that otherwise only exists
-// inside the litehtml renderer.
-//
-// No format() hint is emitted on purpose. The route serves whatever bytes
-// the theme shipped under a fixed font/ttf Content-Type; browsers sniff the
-// actual format, so claiming truetype would break a theme shipping woff2.
-func (s *Store) fontFaces(b *strings.Builder, themeName string) {
-	th, ok := s.lookupTheme(themeName)
-	if !ok {
-		return
-	}
-	escapedTheme := url.PathEscape(themeName)
-	for _, font := range th.manifest.Fonts {
-		if font.Name == "" || font.File == "" {
-			continue
+		if r.opaque {
+			return fmt.Errorf("%w: %s must be an opaque hex colour, got %q", ErrInvalidConfig, r.name, v)
 		}
-		fmt.Fprintf(b, "@font-face{font-family:'%s';src:url('/api/v0/themes/%s/fonts/%s');font-display:swap;}\n",
-			cssIdent(font.Name), escapedTheme, url.PathEscape(font.Name))
+		return fmt.Errorf("%w: %s must be a hex colour, got %q", ErrInvalidConfig, r.name, v)
 	}
-	if ic := th.icons(); ic != nil && ic.Type == ThemeTypeFont && ic.FontFile != "" {
-		family := IconFontFamily(themeName)
-		fmt.Fprintf(b, "@font-face{font-family:'%s';src:url('/api/v0/themes/%s/fonts/%s');font-display:block;}\n",
-			cssIdent(family), escapedTheme, url.PathEscape(family))
-	}
+	return nil
 }
 
-// ThemeCSS renders a theme as CSS custom properties for the browser
-// stack: light values on :root, dark values under the
-// [data-color-mode="dark"] attribute the page shell sets on <html>. It also
-// carries the theme's @font-face rules, since the browser has no other way
-// to obtain a theme's fonts.
-func (s *Store) ThemeCSS(themeName string) []byte {
-	var b strings.Builder
-
-	s.fontFaces(&b, themeName)
-
-	b.WriteString(":root{")
-	writePaletteVars(&b, s.Palette(themeName, "light"))
-	if font := s.FontFamily(themeName); font != "" {
-		fmt.Fprintf(&b, "--dashi-font:'%s';", cssIdent(font))
+// withDefaults keeps each valid role and replaces every other one with the
+// default for colorMode, so malformed stored data can never reach CSS.
+func (p Palette) withDefaults(colorMode string) Palette {
+	def := DefaultPalette(colorMode)
+	for _, r := range paletteRoles {
+		dst := r.field(&p)
+		if !r.valid(*dst) {
+			*dst = *r.field(&def)
+		}
 	}
-	b.WriteString("}\n")
-
-	b.WriteString(`:root[data-color-mode="dark"]{`)
-	writePaletteVars(&b, s.Palette(themeName, "dark"))
-	b.WriteString("}\n")
-
-	return []byte(b.String())
+	return p
 }
 
+// Flatten composites every #rrggbbaa value over BG and returns it as a
+// lowercase #rrggbb. Other values are left unchanged. It is for consumers
+// that cannot render alpha, such as the e-ink pipeline.
+func (p Palette) Flatten() Palette {
+	bg, ok := parseOpaqueHex(p.BG)
+	if !ok {
+		return p
+	}
+	for _, r := range paletteRoles {
+		dst := r.field(&p)
+		*dst = flattenOver(*dst, bg)
+	}
+	return p
+}
+
+// flattenOver composites a #rrggbbaa value over the opaque bg channels and
+// returns it as a lowercase #rrggbb. Any other value is returned unchanged.
+func flattenOver(v string, bg [3]int) string {
+	if len(v) != 9 || !hexColorRe.MatchString(v) {
+		return v
+	}
+	var ch [4]int
+	for i := range ch {
+		n, err := strconv.ParseUint(v[1+2*i:3+2*i], 16, 8)
+		if err != nil {
+			return v
+		}
+		ch[i] = int(n)
+	}
+	a := float64(ch[3]) / 255
+	blend := func(fg, base int) int {
+		return int(math.Round(float64(fg)*a + float64(base)*(1-a)))
+	}
+	return fmt.Sprintf("#%02x%02x%02x", blend(ch[0], bg[0]), blend(ch[1], bg[1]), blend(ch[2], bg[2]))
+}
+
+// ParseColor parses a palette value (#rgb, #rrggbb or #rrggbbaa) into a
+// colour, for consumers that paint with image/color rather than CSS.
+func ParseColor(s string) (color.NRGBA, bool) {
+	if !hexColorRe.MatchString(s) {
+		return color.NRGBA{}, false
+	}
+	h := s[1:]
+	if len(h) == 3 {
+		h = string([]byte{h[0], h[0], h[1], h[1], h[2], h[2]})
+	}
+	b, err := hex.DecodeString(h)
+	if err != nil {
+		return color.NRGBA{}, false
+	}
+	c := color.NRGBA{R: b[0], G: b[1], B: b[2], A: 0xff}
+	if len(b) == 4 {
+		c.A = b[3]
+	}
+	return c, true
+}
+
+// parseOpaqueHex parses #rgb or #rrggbb into its channels.
+func parseOpaqueHex(s string) ([3]int, bool) {
+	var out [3]int
+	if !opaqueHexRe.MatchString(s) {
+		return out, false
+	}
+	h := s[1:]
+	if len(h) == 3 {
+		h = string([]byte{h[0], h[0], h[1], h[1], h[2], h[2]})
+	}
+	for i := range out {
+		n, err := strconv.ParseUint(h[2*i:2*i+2], 16, 8)
+		if err != nil {
+			return out, false
+		}
+		out[i] = int(n)
+	}
+	return out, true
+}
+
+// writePaletteVars writes the palette as CSS custom declarations. Callers
+// must pass a validated or withDefaults-sanitised palette.
 func writePaletteVars(b *strings.Builder, p Palette) {
-	fmt.Fprintf(b, "--dashi-fg:%s;", p.FG)
-	fmt.Fprintf(b, "--dashi-muted:%s;", p.Muted)
-	fmt.Fprintf(b, "--dashi-bg:%s;", p.BG)
-	fmt.Fprintf(b, "--dashi-surface:%s;", p.Surface)
-	fmt.Fprintf(b, "--dashi-border:%s;", p.Border)
-	fmt.Fprintf(b, "--dashi-accent:%s;", p.Accent)
-	fmt.Fprintf(b, "--dashi-accent-fg:%s;", p.AccentFG)
-	fmt.Fprintf(b, "--dashi-warn:%s;", p.Warn)
-	fmt.Fprintf(b, "--dashi-danger:%s;", p.Danger)
-}
-
-// cssIdent strips characters that could terminate a CSS string,
-// declaration or block. theme.yaml is user-uploaded, so a font name must
-// not be able to inject arbitrary CSS into the generated stylesheet.
-func cssIdent(s string) string {
-	return strings.Map(func(r rune) rune {
-		switch r {
-		case '\'', '"', '\\', ';', '{', '}', '<', '>', '\n', '\r':
-			return -1
-		}
-		return r
-	}, s)
+	for _, r := range paletteRoles {
+		b.WriteString(r.cssVar)
+		b.WriteByte(':')
+		b.WriteString(*r.field(&p))
+		b.WriteByte(';')
+	}
 }

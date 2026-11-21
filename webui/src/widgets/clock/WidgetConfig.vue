@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, computed, inject } from 'vue'
-import { DASHBOARD_THEME } from '@/lib/injectionKeys'
+import { DASHBOARD_WIDGET_THEME } from '@/lib/injectionKeys'
 import Checkbox from 'primevue/checkbox'
 import Select from 'primevue/select'
 import type { ClockWidgetConfig } from './types'
-import { useThemes } from '@/composables/useThemes'
+import { useWidgetThemes } from '@/composables/useWidgetThemes'
 
 const props = defineProps<{
     config: ClockWidgetConfig | null
@@ -17,11 +17,11 @@ const emit = defineEmits<{
 const hour12 = ref(props.config?.hour12 ?? false)
 const showSeconds = ref(props.config?.showSeconds ?? true)
 const showDate = ref(props.config?.showDate ?? true)
-const { data: themesData } = useThemes()
-const dashboardTheme = inject(DASHBOARD_THEME, ref('default'))
+const { data: widgetThemes } = useWidgetThemes()
+const dashboardWidgetTheme = inject(DASHBOARD_WIDGET_THEME, ref('default'))
 
 const fontOptions = computed(() => {
-    const selectedTheme = themesData.value?.find(t => t.name === dashboardTheme.value)
+    const selectedTheme = widgetThemes.value?.find(t => t.name === dashboardWidgetTheme.value)
     const fonts = selectedTheme?.fonts ?? []
     return fonts.map(f => ({ label: f.name, value: f.name }))
 })

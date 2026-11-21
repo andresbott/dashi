@@ -33,7 +33,7 @@ type RenderData struct {
 	MaxWidth      string
 	HAlign        string
 	VAlign        string
-	Theme         string
+	WidgetTheme   string
 	ColorMode     string
 	FontFamily    string
 	CustomCSS     string
@@ -42,7 +42,9 @@ type RenderData struct {
 	Rows          []dashboard.Row
 	PageIndex     int
 	TotalPages    int
-	Palette       themes.Palette
+	// Palette must be opaque (see themes.Palette.Flatten): litehtml cannot
+	// render #rrggbbaa colours.
+	Palette themes.Palette
 }
 
 type pageData struct {
@@ -78,11 +80,11 @@ var debugColors = []string{"#ffcccc", "#ccffcc", "#ccccff", "#ffffcc", "#ffccff"
 // Render writes the complete HTML page for the given data to w.
 func (r *Renderer) Render(w io.Writer, data RenderData) error {
 	pData := pageData{
-		Name:          data.Name,
-		MaxWidth:      data.MaxWidth,
-		HAlign:        mapHAlign(data.HAlign),
-		VAlign:        mapVAlign(data.VAlign),
-		FontFamily:    data.FontFamily,
+		Name:       data.Name,
+		MaxWidth:   data.MaxWidth,
+		HAlign:     mapHAlign(data.HAlign),
+		VAlign:     mapVAlign(data.VAlign),
+		FontFamily: data.FontFamily,
 		// Owner-uploaded stylesheet; SanitizeCustomCSS neutralises any
 		// </style> breakout before it reaches the template.
 		CustomCSS:     template.CSS(dashboard.SanitizeCustomCSS(data.CustomCSS)),
@@ -104,7 +106,7 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 			Width:             row.Width,
 			HasExplicitHeight: hasExplicitHeight,
 		}
-		ctx := widgets.RenderContext{DashboardID: data.DashboardID, Theme: data.Theme, ColorMode: data.ColorMode, Palette: data.Palette, QueryParams: data.QueryParams, PageIndex: data.PageIndex, TotalPages: data.TotalPages}
+		ctx := widgets.RenderContext{DashboardID: data.DashboardID, WidgetTheme: data.WidgetTheme, ColorMode: data.ColorMode, Palette: data.Palette, QueryParams: data.QueryParams, PageIndex: data.PageIndex, TotalPages: data.TotalPages}
 		debug := data.QueryParams["debug"] == "1"
 		colorIdx := 0
 		placements := dashboard.PlaceRow(row.Widgets)

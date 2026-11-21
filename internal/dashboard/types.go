@@ -19,23 +19,27 @@ type Page struct {
 
 // Dashboard represents a user-defined dashboard with a layout of widgets in rows.
 type Dashboard struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Icon        string    `json:"icon"`
-	Type        string    `json:"type"`
-	Default     bool      `json:"default,omitempty"`
-	Container   Container `json:"container"`
-	Theme       string    `json:"theme,omitempty"`
-	ColorMode   string    `json:"colorMode,omitempty"`
-	AccentColor string    `json:"accentColor,omitempty"`
-	// BackgroundID references a background entity (internal/backgrounds).
-	// Deliberately a different JSON key from the removed inline
-	// "background" object: a stale object under this name would fail to
-	// unmarshal into a string and take the whole dashboard down with it.
-	// Under this key, encoding/json ignores it and the dashboard renders
-	// the theme background.
-	BackgroundID string `json:"backgroundId,omitempty"`
-	Pages        []Page `json:"pages"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Icon      string    `json:"icon"`
+	Type      string    `json:"type"`
+	Default   bool      `json:"default,omitempty"`
+	Container Container `json:"container"`
+	// ThemeID references a theme entity (internal/themes): colours and page
+	// background. Empty, unknown or dangling references render with the
+	// builtin default theme.
+	ThemeID string `json:"themeId,omitempty"`
+	// WidgetTheme names a widget theme (internal/widgetthemes): fonts and
+	// icons. Empty or unknown names render with the default widget theme.
+	WidgetTheme string `json:"widgetTheme,omitempty"`
+	ColorMode   string `json:"colorMode,omitempty"`
+	// Dither picks how an image dashboard is dithered for the e-ink formats
+	// (png-bw, png-spectra6, bw, spectra6): empty is plain Floyd-Steinberg,
+	// "auto" lets einkimage pick per render, any other value names an
+	// einkimage processing preset. See DitherModes; the store rejects
+	// anything else. Interactive dashboards ignore it.
+	Dither string `json:"dither,omitempty"`
+	Pages  []Page `json:"pages"`
 }
 
 // DashboardMeta is the lightweight listing representation (no rows).

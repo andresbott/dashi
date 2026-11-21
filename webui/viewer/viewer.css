@@ -7,8 +7,8 @@
 @source "../../internal/widgets/*/browser.html";
 
 @theme {
-  /* Themes set --dashi-font at runtime (see themes.ThemeCSS); Inter is the
-     embedded fallback. */
+  /* Widget themes set --dashi-font at runtime (see
+     widgetthemes.Store.FontFacesCSS); Inter is the embedded fallback. */
   --font-sans: var(--dashi-font, "Inter"), ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -17,7 +17,7 @@
 @layer base {
   html {
     background: var(--dashi-bg);
-    color: var(--dashi-fg);
+    color: var(--dashi-text);
     font-family: var(--font-sans);
   }
 
@@ -29,5 +29,36 @@
      everything except plain colours. */
   body {
     background: var(--dashi-page-bg, var(--dashi-bg));
+  }
+}
+
+/* Responsive row grid. page.html hands each row its height and each cell its
+   width/offset (fractions of the 12-column grid) as CSS variables instead of
+   inline declarations, so they can be dropped on narrow screens: below
+   Tailwind's `sm` breakpoint (40rem = 640px, phones) every cell takes the full
+   width and the row's cells stack in order; a fixed row height becomes a
+   minimum so stacked cells are not clipped. Only the browser stack reads
+   this; the image/PNG stack has its own templates and is unaffected. */
+@layer components {
+  .dashi-row {
+    height: var(--dashi-row-height, auto);
+  }
+
+  .dashi-cell {
+    min-width: 0;
+    width: var(--dashi-cell-width, 100%);
+    margin-left: var(--dashi-cell-offset, 0);
+  }
+
+  @media (width < 40rem) {
+    .dashi-row {
+      height: auto;
+      min-height: var(--dashi-row-height, auto);
+    }
+
+    .dashi-cell {
+      width: 100%;
+      margin-left: 0;
+    }
   }
 }

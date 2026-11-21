@@ -1,46 +1,60 @@
 import { apiClient } from '@/lib/api/client'
-import type { ThemeInfo, FontIconResponse } from '@/types/theme'
+import type { Theme, ThemeMeta, CreateThemeDTO } from '@/types/theme'
 import { withBase } from '@/lib/base'
 
-const THEMES_PATH = '/themes'
+export const listThemes = async (): Promise<ThemeMeta[]> => {
+    const { data } = await apiClient.get<{ items?: ThemeMeta[] }>('/themes')
+    return data.items ?? []
+}
 
-export const getThemes = async (): Promise<ThemeInfo[]> => {
-    const { data } = await apiClient.get<ThemeInfo[]>(THEMES_PATH)
+export const getTheme = async (id: string): Promise<Theme> => {
+    const { data } = await apiClient.get<Theme>(`/themes/${encodeURIComponent(id)}`)
     return data
 }
 
-export const getFontIcon = async (themeName: string, iconName: string): Promise<FontIconResponse> => {
-    const { data } = await apiClient.get<FontIconResponse>(`${THEMES_PATH}/${themeName}/icons/${iconName}`)
+export const createTheme = async (payload: CreateThemeDTO): Promise<Theme> => {
+    const { data } = await apiClient.post<Theme>('/themes', payload)
     return data
 }
 
-export const getIconUrl = (themeName: string, iconName: string): string => {
-    return withBase(`/api/v0${THEMES_PATH}/${themeName}/icons/${iconName}`)
+export const updateTheme = async (id: string, payload: Theme): Promise<Theme> => {
+    const { data } = await apiClient.put<Theme>(`/themes/${encodeURIComponent(id)}`, payload)
+    return data
 }
 
-export const getFontUrl = (themeName: string, fontName: string): string => {
-    return withBase(`/api/v0${THEMES_PATH}/${encodeURIComponent(themeName)}/fonts/${encodeURIComponent(fontName)}`)
+export const deleteTheme = async (id: string): Promise<void> => {
+    await apiClient.delete(`/themes/${encodeURIComponent(id)}`)
 }
 
-export const getThemeBackgroundUrl = (themeName: string, fileName: string): string => {
-    return withBase(`/api/v0${THEMES_PATH}/${encodeURIComponent(themeName)}/backgrounds/${encodeURIComponent(fileName)}`)
+// copyTheme duplicates a theme, uploaded assets included, under a new ID. The
+// server names the copy "Copy of <name>".
+export const copyTheme = async (id: string): Promise<Theme> => {
+    const { data } = await apiClient.post<Theme>(`/themes/${encodeURIComponent(id)}/copy`)
+    return data
 }
 
-// ---------- admin CRUD ----------
+export const listThemeAssets = async (id: string): Promise<string[]> => {
+    const { data } = await apiClient.get<{ items?: string[] }>(`/themes/${encodeURIComponent(id)}/assets`)
+    return data.items ?? []
+}
 
-export const uploadTheme = async (zipBytes: ArrayBuffer): Promise<ThemeInfo> => {
-    const { data } = await apiClient.post<ThemeInfo>(
-        `${THEMES_PATH}/upload`,
-        zipBytes,
-        { headers: { 'Content-Type': 'application/zip' } },
+// assetPath may contain slashes; each segment is encoded separately so the
+// path structure survives.
+const encodeAssetPath = (assetPath: string): string =>
+    assetPath.split('/').map(encodeURIComponent).join('/')
+
+export const uploadThemeAsset = async (id: string, assetPath: string, bytes: ArrayBuffer): Promise<void> => {
+    await apiClient.post(
+        `/themes/${encodeURIComponent(id)}/assets/${encodeAssetPath(assetPath)}`,
+        bytes,
+        { headers: { 'Content-Type': 'application/octet-stream' } },
     )
-    return data
 }
 
-export const deleteTheme = async (name: string): Promise<void> => {
-    await apiClient.delete(`${THEMES_PATH}/${encodeURIComponent(name)}`)
+export const deleteThemeAsset = async (id: string, assetPath: string): Promise<void> => {
+    await apiClient.delete(`/themes/${encodeURIComponent(id)}/assets/${encodeAssetPath(assetPath)}`)
 }
 
-export const themeDownloadUrl = (name: string): string => {
-    return withBase(`/api/v0${THEMES_PATH}/${encodeURIComponent(name)}/download`)
-}
+// themeAssetUrl is the browser-facing URL of a theme's own image.
+export const themeAssetUrl = (id: string, assetPath: string): string =>
+    withBase(`/api/v0/themes/${encodeURIComponent(id)}/assets/${encodeAssetPath(assetPath)}`)

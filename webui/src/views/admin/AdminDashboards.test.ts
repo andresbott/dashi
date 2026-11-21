@@ -5,6 +5,7 @@ import PrimeVue from 'primevue/config'
 import AdminDashboards from './AdminDashboards.vue'
 
 const setDefaultDashboard = vi.fn()
+const push = vi.fn()
 const dashboards = ref<{ id: string; name: string; type?: string; default?: boolean }[]>([])
 
 vi.mock('@/composables/useDashboards', () => ({
@@ -22,7 +23,7 @@ vi.mock('@/composables/useDashboards', () => ({
 vi.mock('@/lib/api/dashboard', () => ({ downloadDashboard: vi.fn() }))
 vi.mock('@/lib/serverInfo', () => ({ dashboardViewUrl: (id: string) => `http://viewer/${id}` }))
 vi.mock('vue-router', () => ({
-    useRouter: () => ({ push: vi.fn(), resolve: () => ({ href: '/somewhere' }) }),
+    useRouter: () => ({ push, resolve: () => ({ href: '/somewhere' }) }),
 }))
 vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: vi.fn() }) }))
 
@@ -35,10 +36,49 @@ function mountView() {
     })
 }
 
-// The default button is the first action in each row.
 function defaultButton(wrapper: ReturnType<typeof mountView>, rowIndex: number) {
-    return wrapper.findAll('tbody tr')[rowIndex].findAll('button')[0]
+    return wrapper.findAll('tbody tr')[rowIndex].find('button[aria-label$="efault dashboard"]')
 }
+
+function previewButton(wrapper: ReturnType<typeof mountView>, rowIndex: number) {
+    return wrapper.findAll('tbody tr')[rowIndex].find('[data-testid="eink-preview-button"]')
+}
+
+describe('AdminDashboards e-ink preview', () => {
+    beforeEach(() => {
+        push.mockClear()
+        dashboards.value = [
+            { id: 'aaa111', name: 'Alpha', type: 'interactive' },
+            { id: 'bbb222', name: 'Bravo', type: 'image' },
+            { id: 'ccc333', name: 'Charlie' },
+            { id: 'ddd444', name: 'Delta', type: 'image' },
+        ]
+    })
+
+    it('offers the preview only on image dashboards', () => {
+        const wrapper = mountView()
+        expect(previewButton(wrapper, 0).exists()).toBe(false)
+        expect(previewButton(wrapper, 1).exists()).toBe(true)
+        expect(previewButton(wrapper, 1).attributes('aria-label')).toBe('E-ink preview (PNG)')
+        expect(previewButton(wrapper, 2).exists()).toBe(false)
+        expect(previewButton(wrapper, 3).exists()).toBe(true)
+    })
+
+    it('opens the preview page of the clicked dashboard, marked as coming from the list', async () => {
+        const wrapper = mountView()
+        await previewButton(wrapper, 1).trigger('click')
+        await flushPromises()
+        expect(push).toHaveBeenCalledWith({
+            name: 'dashboard-eink-preview',
+            params: { id: 'bbb222' },
+            query: { from: 'list' },
+        })
+
+        await previewButton(wrapper, 3).trigger('click')
+        await flushPromises()
+        expect(push).toHaveBeenLastCalledWith(expect.objectContaining({ params: { id: 'ddd444' } }))
+    })
+})
 
 describe('AdminDashboards type icon', () => {
     function typeIcon(wrapper: ReturnType<typeof mountView>, rowIndex: number) {

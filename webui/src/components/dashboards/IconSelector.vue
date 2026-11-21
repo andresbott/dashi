@@ -5,7 +5,7 @@ import Popover from 'primevue/popover'
 import InputText from 'primevue/inputtext'
 import { tablerIcons } from '@/data/tablerIcons'
 
-const props = defineProps<{
+defineProps<{
     modelValue: string
 }>()
 

@@ -3,6 +3,7 @@ package widgets
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"html/template"
 	"testing"
 
@@ -90,12 +91,42 @@ func TestRenderBrowserUnknownTypeYieldsEmpty(t *testing.T) {
 	}
 }
 
+func TestRegistry_ValidateConfig(t *testing.T) {
+	errBad := errors.New("bad config")
+	r := NewRegistry()
+	r.RegisterValidator("strict", func(config json.RawMessage) error {
+		if string(config) == `"bad"` {
+			return errBad
+		}
+		return nil
+	})
+
+	tests := []struct {
+		name       string
+		widgetType string
+		config     string
+		want       error
+	}{
+		{name: "passes its validator", widgetType: "strict", config: `"ok"`},
+		{name: "fails its validator", widgetType: "strict", config: `"bad"`, want: errBad},
+		{name: "type without validator accepts anything", widgetType: "lenient", config: `"bad"`},
+		{name: "unknown type accepts anything", widgetType: "", config: `"bad"`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := r.ValidateConfig(tc.widgetType, json.RawMessage(tc.config)); !errors.Is(got, tc.want) {
+				t.Errorf("ValidateConfig() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestEffectivePaletteReturnsContextPaletteWhenSet(t *testing.T) {
-	custom := themes.Palette{FG: "#111111", Muted: "#222222"}
+	custom := themes.Palette{Text: "#111111", TextMuted: "#222222"}
 	ctx := RenderContext{ColorMode: "dark", Palette: custom}
 
-	if got := ctx.EffectivePalette(); got.Muted != "#222222" {
-		t.Errorf("EffectivePalette().Muted = %q, want the context's %q", got.Muted, "#222222")
+	if got := ctx.EffectivePalette(); got.TextMuted != "#222222" {
+		t.Errorf("EffectivePalette().TextMuted = %q, want the context's %q", got.TextMuted, "#222222")
 	}
 }
 

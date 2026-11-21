@@ -79,6 +79,7 @@ func orderedDither(buf []uint8, width, height int, palette Palette, size [2]int,
 	matrix := bayerMatrix(w, h)
 	div := float64(len(matrix) * len(matrix[0]))
 	const threshold = 256.0
+	matcher := newPaletteMatcher(palette, matching)
 
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
@@ -90,7 +91,7 @@ func orderedDither(buf []uint8, width, height int, palette Palette, size [2]int,
 			r := clampByte(float64(buf[idx]) + factor*threshold)
 			g := clampByte(float64(buf[idx+1]) + factor*threshold)
 			b := clampByte(float64(buf[idx+2]) + factor*threshold)
-			newPixel := findClosestPaletteColor([3]uint8{r, g, b}, palette, matching)
+			newPixel := matcher.closest([3]uint8{r, g, b})
 			buf[idx] = newPixel[0]
 			buf[idx+1] = newPixel[1]
 			buf[idx+2] = newPixel[2]

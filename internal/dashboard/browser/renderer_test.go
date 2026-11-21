@@ -22,7 +22,8 @@ func baseData() RenderData {
 	return RenderData{
 		Name:        "My Dash",
 		DashboardID: "abc123",
-		Theme:       "default",
+		ThemeID:     "th1234",
+		WidgetTheme: "mono",
 		ColorMode:   "dark",
 		Rows: []dashboard.Row{{
 			Title:   "Top",
@@ -48,7 +49,8 @@ func TestRenderIncludesShellAssets(t *testing.T) {
 		`<!DOCTYPE html>`,
 		`href="/_dashi/assets/viewer.css"`,
 		`href="/_dashi/assets/widgets.css"`,
-		`href="/_dashi/theme/default.css"`,
+		`href="/_dashi/theme/th1234.css"`,
+		`href="/_dashi/widget-theme/mono.css"`,
 		`data-color-mode="dark"`,
 		`<title>My Dash</title>`,
 	} {
@@ -65,7 +67,7 @@ func TestRenderPlacesWidgetHTMLInSizedCell(t *testing.T) {
 		t.Errorf("widget HTML missing:\n%s", out)
 	}
 	// 4 of 12 columns.
-	if !strings.Contains(out, `width: 33.3333%`) {
+	if !strings.Contains(out, `--dashi-cell-width: 33.3333%`) {
 		t.Errorf("cell width missing:\n%s", out)
 	}
 	if !strings.Contains(out, `Top`) {
@@ -82,11 +84,54 @@ func TestRenderPositionsWidgetWithLeadingMargin(t *testing.T) {
 	out := render(t, NewRenderer(testRegistry(), nil), data)
 
 	// Column 4 leaves 3 empty columns (3/12 = 25%) before a span-6 (50%) widget.
-	if !strings.Contains(out, "margin-left: 25.0000%") {
+	if !strings.Contains(out, "--dashi-cell-offset: 25.0000%") {
 		t.Errorf("expected 25%% leading margin for a column-4 widget:\n%s", out)
 	}
-	if !strings.Contains(out, "width: 50.0000%") {
+	if !strings.Contains(out, "--dashi-cell-width: 50.0000%") {
 		t.Errorf("expected the span-6 width to be preserved:\n%s", out)
+	}
+}
+
+func TestRenderIsMobileReady(t *testing.T) {
+	data := baseData()
+	data.Rows = []dashboard.Row{{
+		Height:  "180px",
+		Width:   "900px",
+		Widgets: []dashboard.Widget{{ID: "w1", Type: "demo", Width: 6, Column: 4}},
+	}}
+	out := render(t, NewRenderer(testRegistry(), nil), data)
+
+	if !strings.Contains(out, `<meta name="viewport" content="width=device-width, initial-scale=1">`) {
+		t.Errorf("viewport meta missing, phones would render a zoomed-out desktop page:\n%s", out)
+	}
+	// Inline width/margin/height could not be undone by a media query, so
+	// the grid geometry must travel as CSS variables only.
+	for _, banned := range []string{`style="width: 50`, `margin-left:`, `style="height:`} {
+		if strings.Contains(out, banned) {
+			t.Errorf("grid geometry rendered inline as %q; it must be a CSS variable:\n%s", banned, out)
+		}
+	}
+	if !strings.Contains(out, `--dashi-row-height: 180px`) {
+		t.Errorf("row height must be handed over as --dashi-row-height:\n%s", out)
+	}
+	// A fixed row width may never push the page wider than a phone screen.
+	if !strings.Contains(out, `class="flex max-w-full flex-wrap items-stretch" style="width: 900px"`) {
+		t.Errorf("fixed row width must be capped by max-w-full:\n%s", out)
+	}
+}
+
+func TestViewerCSSStacksCellsOnPhones(t *testing.T) {
+	// The compiled stylesheet must apply the CSS variables from the sm
+	// breakpoint up and stack every cell full width below it.
+	css := string(viewerCSS)
+	for _, want := range []string{
+		".dashi-cell{min-width:0;width:var(--dashi-cell-width,100%);margin-left:var(--dashi-cell-offset,0)}",
+		".dashi-row{height:var(--dashi-row-height,auto)}",
+		"@media not all and (min-width:40rem){.dashi-row{height:auto;min-height:var(--dashi-row-height,auto)}.dashi-cell{width:100%;margin-left:0}}",
+	} {
+		if !strings.Contains(css, want) {
+			t.Errorf("viewer.css missing %q; run make viewer-css", want)
+		}
 	}
 }
 
@@ -115,12 +160,48 @@ func TestRenderAppendsCustomCSSLast(t *testing.T) {
 	out := render(t, NewRenderer(testRegistry(), nil), data)
 
 	custom := strings.Index(out, ".dashi-demo{color:red}")
-	theme := strings.Index(out, `/_dashi/theme/default.css`)
+	theme := strings.Index(out, `/_dashi/theme/th1234.css`)
+	widgetTheme := strings.Index(out, `/_dashi/widget-theme/mono.css`)
 	if custom < 0 {
 		t.Fatalf("custom CSS missing:\n%s", out)
 	}
-	if custom < theme {
-		t.Error("custom.css must come after the theme stylesheet so it wins")
+	if custom < theme || custom < widgetTheme {
+		t.Error("custom.css must come after both theme stylesheets so it wins")
+	}
+}
+
+func TestRenderDefaultsEmptyThemeReferences(t *testing.T) {
+	data := baseData()
+	data.ThemeID = ""
+	data.WidgetTheme = ""
+	out := render(t, NewRenderer(testRegistry(), nil), data)
+
+	for _, want := range []string{
+		`href="/_dashi/theme/default.css"`,
+		`href="/_dashi/widget-theme/default.css"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestRenderNoInlineRootStyle(t *testing.T) {
+	// Per-dashboard colour overrides are gone: every colour comes from the
+	// linked theme stylesheet, so <html> carries no style attribute and the
+	// page carries no background <style> block.
+	out := render(t, NewRenderer(testRegistry(), nil), baseData())
+
+	start := strings.Index(out, "<html")
+	if start < 0 {
+		t.Fatalf("no <html> tag:\n%s", out)
+	}
+	end := strings.Index(out[start:], ">")
+	if tag := out[start : start+end]; strings.Contains(tag, "style=") {
+		t.Errorf("<html> must carry no inline style, got %q", tag)
+	}
+	if strings.Contains(out, "--dashi-page-bg") {
+		t.Errorf("page must not inline background CSS:\n%s", out)
 	}
 }
 
@@ -141,63 +222,6 @@ func TestRenderEscapesDashboardName(t *testing.T) {
 
 	if strings.Contains(out, "<script>alert(1)</script>") {
 		t.Errorf("dashboard name was not escaped:\n%s", out)
-	}
-}
-
-func TestRenderIncludesValidAccentColorAndBackground(t *testing.T) {
-	data := baseData()
-	data.AccentColor = "#ff0000"
-	data.BackgroundCSS = template.CSS(":root{--dashi-page-bg:linear-gradient(to bottom, #fff, #000);}\n")
-	out := render(t, NewRenderer(testRegistry(), nil), data)
-
-	if !strings.Contains(out, "--dashi-accent:#ff0000;") {
-		t.Errorf("valid accent color missing:\n%s", out)
-	}
-	if !strings.Contains(out, "--dashi-page-bg:linear-gradient(to bottom, #fff, #000);") {
-		t.Errorf("valid background missing:\n%s", out)
-	}
-}
-
-func TestRenderRejectsInvalidAccentColor(t *testing.T) {
-	data := baseData()
-	data.AccentColor = "red"
-	out := render(t, NewRenderer(testRegistry(), nil), data)
-
-	if strings.Contains(out, "--dashi-accent:red") {
-		t.Errorf("invalid accent color (not 6-digit hex) should not appear:\n%s", out)
-	}
-}
-
-func TestRenderRejectsBackgroundWithAttributeBreakout(t *testing.T) {
-	// Backgrounds now live in a <style> block rather than an inline
-	// attribute, so attribute breakout is no longer a concern at the
-	// renderer level. The CSS is generated by backgrounds.BrowserCSS from
-	// validated enums and sanitized inputs.
-	data := baseData()
-	data.BackgroundCSS = template.CSS(`:root{--dashi-page-bg:red;}`)
-	out := render(t, NewRenderer(testRegistry(), nil), data)
-
-	// The background must appear in a style block, never in a style attribute.
-	if strings.Contains(out, `style="--dashi-page-bg`) {
-		t.Errorf("background leaked into an inline style attribute:\n%s", out)
-	}
-	if !strings.Contains(out, "<style>:root{--dashi-page-bg:red;}</style>") {
-		t.Errorf("expected background in a style block:\n%s", out)
-	}
-}
-
-func TestRenderPreservesImageBackgroundURL(t *testing.T) {
-	// The browser stack references image backgrounds by URL — the bytes are
-	// served by the existing asset route, not inlined into every response.
-	// backgrounds.BrowserCSS generates the CSS; the renderer passes it through.
-	data := baseData()
-	data.BackgroundCSS = template.CSS(`:root{--dashi-page-bg:url('/api/v0/dashboards/abc123/assets/bg.png') center/cover no-repeat;}`)
-	out := render(t, NewRenderer(testRegistry(), nil), data)
-
-	// The URL must appear in a style block. Quotes are not HTML-escaped inside
-	// <style> elements (they're parsed as CSS, not HTML).
-	if !strings.Contains(out, `url('/api/v0/dashboards/abc123/assets/bg.png')`) {
-		t.Errorf("image background URL should be preserved:\n%s", out)
 	}
 }
 
@@ -279,77 +303,5 @@ func TestRenderPageNavLinksEveryPageAndMarksCurrent(t *testing.T) {
 	}
 	if strings.Contains(out, "<script") && !strings.Contains(out, "/_dashi/widgets/") {
 		t.Error("page navigation must not need JavaScript")
-	}
-}
-
-func newTestRenderer(t *testing.T) *Renderer {
-	t.Helper()
-	return NewRenderer(testRegistry(), nil)
-}
-
-func TestRenderEmitsBackgroundStyleBlockForBothModes(t *testing.T) {
-	r := newTestRenderer(t) // reuse the existing helper in this file
-	var buf strings.Builder
-	err := r.Render(&buf, RenderData{
-		Name: "Test",
-		BackgroundCSS: template.CSS(":root{--dashi-page-bg:#ffffff;}\n" +
-			":root[data-color-mode=\"dark\"]{--dashi-page-bg:#101014;}\n"),
-	})
-	if err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	html := buf.String()
-	if !strings.Contains(html, "--dashi-page-bg:#ffffff") {
-		t.Error("light rule missing from the page")
-	}
-	if !strings.Contains(html, `:root[data-color-mode="dark"]{--dashi-page-bg:#101014`) {
-		t.Error("dark rule missing from the page")
-	}
-	if strings.Contains(html, `style="--dashi-page-bg`) {
-		t.Error("page background must no longer be an inline style attribute")
-	}
-}
-
-func TestBackgroundStyleBlockPrecedesCustomCSS(t *testing.T) {
-	// custom.css must win, so it has to come last in the document.
-	r := newTestRenderer(t)
-	var buf strings.Builder
-	err := r.Render(&buf, RenderData{
-		Name:          "Test",
-		BackgroundCSS: template.CSS(":root{--dashi-page-bg:#ffffff;}\n"),
-		CustomCSS:     "body{outline:1px solid red}",
-	})
-	if err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	html := buf.String()
-	bgAt := strings.Index(html, "--dashi-page-bg")
-	customAt := strings.Index(html, "outline:1px solid red")
-	if bgAt < 0 || customAt < 0 {
-		t.Fatalf("expected both blocks, got bg=%d custom=%d", bgAt, customAt)
-	}
-	if bgAt > customAt {
-		t.Error("the background block must precede custom.css")
-	}
-}
-
-func TestRenderOmitsStyleBlockWhenNoBackground(t *testing.T) {
-	r := newTestRenderer(t)
-	var buf strings.Builder
-	if err := r.Render(&buf, RenderData{Name: "Test"}); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	if strings.Contains(buf.String(), "--dashi-page-bg") {
-		t.Error("expected no page-bg declaration at all")
-	}
-}
-
-func TestRootStyleStillCarriesAccentColor(t *testing.T) {
-	got := rootStyle(RenderData{AccentColor: "#ff0000"})
-	if !strings.Contains(got, "--dashi-accent:#ff0000") {
-		t.Fatalf("got %q", got)
-	}
-	if strings.Contains(got, "page-bg") {
-		t.Fatalf("page-bg must not be in the style attribute: %q", got)
 	}
 }

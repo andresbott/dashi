@@ -1,0 +1,32 @@
+{
+  "types": [
+    "battery", "bookmark", "clock", "image", "markdown", "market",
+    "page-indicator", "search", "stack", "sysinfo", "transport",
+    "weather", "weather-compact", "xkcd"
+  ],
+  "configs": {
+    "bookmark": { "fields": ["icon", "subtitle", "textBelow", "title", "url"] },
+    "clock": { "fields": ["font", "hour12", "showDate", "showSeconds"] },
+    "image": { "fields": ["fit", "image"] },
+    "market": { "fields": ["range", "showChange", "showChart", "symbol"] },
+    "markdown": { "fields": ["filename"] },
+    "search": { "fields": [], "editorOnly": ["engine", "placeholder"] },
+    "stack": { "fields": ["widgets"], "noForm": true },
+    "sysinfo": {
+      "fields": ["disks", "showMemory", "showUptime"],
+      "editorOnly": ["horizontal", "showCpu", "showHostInfo", "showNetwork", "showProcesses", "showSwap", "tempSensors"]
+    },
+    "transport": { "fields": ["limit", "stationId", "stationName"] },
+    "weather": {
+      "fields": [
+        "city", "compact", "compactAlign", "compactCity", "compactDescription",
+        "compactFeelsLike", "forecastDays", "graphBgColor", "graphHeight", "graphHours",
+        "graphRainColor", "graphShowRain", "graphShowTemp", "graphTempColor", "hourlyCount",
+        "hourlySlots", "latitude", "longitude", "showAirQuality", "showCurrent",
+        "showDetails", "showForecast", "showGraph", "showHourly", "showHumidity",
+        "showPressure", "showSunrise", "showSunset", "showUV", "showVisibility", "showWind"
+      ]
+    },
+    "xkcd": { "fields": ["mode"] }
+  }
+}

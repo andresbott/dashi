@@ -8,6 +8,7 @@ const sysinfo: WidgetModule = {
     label: 'System Info',
     icon: 'ti-server-cog',
     description: 'Host disk, memory, and uptime',
+    category: 'information',
 }
 
 export default sysinfo

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/andresbott/dashi/internal/dashboard"
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
@@ -430,8 +431,8 @@ func TestRenderer_Render_RenderContext(t *testing.T) {
 	renderer := NewRenderer(reg)
 
 	data := RenderData{
-		Name:  "Dashboard",
-		Theme: "dark",
+		Name:        "Dashboard",
+		WidgetTheme: "mono",
 		QueryParams: map[string]string{
 			"foo": "bar",
 		},
@@ -453,8 +454,8 @@ func TestRenderer_Render_RenderContext(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if capturedContext.Theme != "dark" {
-		t.Errorf("expected theme 'dark', got %s", capturedContext.Theme)
+	if capturedContext.WidgetTheme != "mono" {
+		t.Errorf("expected widget theme 'mono', got %s", capturedContext.WidgetTheme)
 	}
 	if capturedContext.QueryParams["foo"] != "bar" {
 		t.Errorf("expected query param foo=bar, got %v", capturedContext.QueryParams)
@@ -544,5 +545,18 @@ func TestMasterTemplateUsesPaletteNotHardcodedColors(t *testing.T) {
 	}
 	if !strings.Contains(masterHTML, ".Palette.") {
 		t.Error("master.html should reference palette fields")
+	}
+}
+
+func TestRenderUsesPaletteTextColour(t *testing.T) {
+	var buf bytes.Buffer
+	pal := themes.DefaultPalette("light")
+	pal.Text = "#123456"
+	err := NewRenderer(widgets.NewRegistry()).Render(&buf, RenderData{Name: "P", Palette: pal})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(buf.String(), "color: #123456;") {
+		t.Errorf("body colour must come from Palette.Text:\n%s", buf.String())
 	}
 }

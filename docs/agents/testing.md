@@ -10,6 +10,7 @@ for the tag-time gate.
 | `make test` | `go test ./... -cover` — fast Go suite |
 | `make ui-test` | `cd webui && npm test` = `vue-tsc --noEmit` **then** vitest — type errors fail the suite before any test runs |
 | `make lint` | `golangci-lint run` (config: `.golangci.yaml`) |
+| `make ui-lint` | `cd webui && npm run lint` = ESLint 9 flat config (`webui/eslint.config.js`: eslint-plugin-vue essential + Vue TypeScript recommended, Prettier formatting rules skipped). Added 2026-11-06; before that the lint script pointed at a config that did not exist |
 | `make coverage` | per-package gate: **every** package under `./internal/...` must be ≥ **70%** — not a total figure; one weak package fails the build |
 | `make benchmark` | `go test -bench=. ./...` |
 | `make license-check` | go-licence-detector against `allowedLicenses.json` / `overrideLicenses.json` |
@@ -37,9 +38,9 @@ CLAUDE.md).
 ## Conventions
 
 - Go: table-driven tests, `_test.go` next to the source; each widget package
-  tests its image renderer output (`image_test.go` for ported widgets,
-  `static_test.go` for unported ones) and, if data-backed, its client with a
-  stubbed HTTP server (`client_test.go` or `handler_test.go`).
+  tests its image renderer output (`image_test.go`, or `{name}_test.go` in
+  battery, bookmark, pageindicator and stack) and, if data-backed, its client
+  with a stubbed HTTP server (`client_test.go` or `handler_test.go`).
 - Handler auth behavior has dedicated tests: `dashboards_auth_test.go`,
   `middleware_auth_test.go`, `store_auth_test.go` — extend these when touching
   the auth path.

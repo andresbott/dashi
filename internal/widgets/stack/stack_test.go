@@ -92,12 +92,12 @@ func TestRenderStatic_PassesContext(t *testing.T) {
 
 	config := json.RawMessage(`{"widgets":[{"id":"1","type":"ctx","title":"C","config":{}}]}`)
 	renderer := NewStaticRenderer(reg)
-	ctx := widgets.RenderContext{Theme: "dark", PageIndex: 2, TotalPages: 5}
+	ctx := widgets.RenderContext{WidgetTheme: "dark", PageIndex: 2, TotalPages: 5}
 	_, err := renderer(config, ctx)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if receivedCtx.Theme != "dark" || receivedCtx.PageIndex != 2 || receivedCtx.TotalPages != 5 {
+	if receivedCtx.WidgetTheme != "dark" || receivedCtx.PageIndex != 2 || receivedCtx.TotalPages != 5 {
 		t.Errorf("context not passed through: %+v", receivedCtx)
 	}
 }

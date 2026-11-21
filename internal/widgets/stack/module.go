@@ -1,6 +1,9 @@
 package stack
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
@@ -24,4 +27,22 @@ func (m *Module) Type() string { return "stack" }
 // Renderer returns the stack's static renderer.
 func (m *Module) Renderer() widgets.StaticRenderer {
 	return NewStaticRenderer(m.registry)
+}
+
+// ValidateConfig implements widgets.ConfigValidator. A stack has no rule of
+// its own; it runs each child's validator through the registry, so a child
+// (a bookmark, say) cannot slip past save-time validation by being nested.
+func (m *Module) ValidateConfig(config json.RawMessage) error {
+	var cfg stackConfig
+	if len(config) > 0 {
+		if err := json.Unmarshal(config, &cfg); err != nil {
+			return fmt.Errorf("stack config: %w", err)
+		}
+	}
+	for _, child := range cfg.Widgets {
+		if err := m.registry.ValidateConfig(child.Type, child.Config); err != nil {
+			return fmt.Errorf("stack child %q (%s): %w", child.ID, child.Type, err)
+		}
+	}
+	return nil
 }

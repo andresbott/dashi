@@ -9,6 +9,7 @@ import (
 
 	_ "embed"
 
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
@@ -25,11 +26,11 @@ type clockConfig struct {
 }
 
 type clockData struct {
-	Time       string
-	Date       string
-	ShowDate   bool
-	Font       string
-	MutedColor string
+	Time     string
+	Date     string
+	ShowDate bool
+	Font     string
+	Palette  themes.Palette
 }
 
 // NewStaticRenderer returns a StaticRenderer that renders the current time.
@@ -51,10 +52,10 @@ func NewStaticRenderer(nowFn func() time.Time) func(json.RawMessage, widgets.Ren
 		timeStr := formatTime(now, cfg.Hour12, cfg.ShowSeconds)
 
 		data := clockData{
-			Time:       timeStr,
-			ShowDate:   cfg.ShowDate,
-			Font:       cfg.Font,
-			MutedColor: ctx.EffectivePalette().Muted,
+			Time:     timeStr,
+			ShowDate: cfg.ShowDate,
+			Font:     cfg.Font,
+			Palette:  ctx.EffectivePalette(),
 		}
 		if cfg.ShowDate {
 			data.Date = now.Format("Monday, January 2, 2006")

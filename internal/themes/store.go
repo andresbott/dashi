@@ -1,634 +1,558 @@
 package themes
 
 import (
-	"archive/zip"
-	"bytes"
-	_ "embed"
-	"errors"
+	"crypto/rand"
+	"encoding/json"
 	"fmt"
-	"io"
+	"io/fs"
+	"math/big"
+	"mime"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
 	"unicode"
 
-	"gopkg.in/yaml.v3"
+	"github.com/andresbott/dashi/internal/data/images"
+	"golang.org/x/text/unicode/norm"
 )
 
-// MaxUploadSize caps uploaded theme zip bodies. 20 MB is generous for
-// icon/style themes (a few fonts + an icons manifest); upload handlers
-// should enforce the same cap via http.MaxBytesReader.
-const MaxUploadSize = 20 << 20 // 20 MB
+const themeFile = "theme.json"
+const assetsDir = "assets"
 
-// Sentinel errors. Handlers map these to HTTP status codes with
-// errors.Is — do not wrap or rename without also updating the handler.
-var (
-	ErrNotFound       = errors.New("themes: not found")
-	ErrConflict       = errors.New("themes: already exists")
-	ErrBuiltin        = errors.New("themes: builtin theme cannot be modified")
-	ErrInvalidName    = errors.New("themes: invalid name")
-	ErrInvalidArchive = errors.New("themes: invalid archive")
-	ErrInvalidType    = errors.New("themes: invalid or missing type")
-)
-
-//go:embed defaults/theme.yaml
-var defaultThemeYAML []byte
-
-//go:embed defaults/tabler-icons.ttf
-var defaultFontTTF []byte
-
-//go:embed defaults/Inter-Regular.ttf
-var interRegularTTF []byte
-
-//go:embed defaults/backgrounds/celeste.jpg
-var defaultBgJPG []byte
-
-var embeddedFonts = map[string][]byte{
-	"tabler-icons.ttf":  defaultFontTTF,
-	"Inter-Regular.ttf": interRegularTTF,
-}
-
-var embeddedBackgrounds = map[string][]byte{
-	"bg.jpg": defaultBgJPG,
-}
-
+// Store persists themes as one folder per entity. The folder name is
+// snake_case of the display name and an in-memory id -> folder index is
+// built at startup, so renaming a theme never moves it out from under the
+// dashboards referencing it by id.
+//
+// The builtin themes (see builtins) are never written to disk: Get returns
+// them from code and every write on one fails with ErrBuiltin.
+//
+// Build exactly one Store per process (in newSharedDeps): a second instance
+// would hold a stale index.
 type Store struct {
-	mu       sync.RWMutex
-	themes   map[string]*theme
-	builtins map[string]bool // names of embedded themes that cannot be deleted
-	rootDir  string          // directory where user themes live on disk (empty = disk writes disabled)
+	dir   string
+	pool  *images.Store
+	mu    sync.RWMutex
+	index map[string]string // id -> folder
 }
 
-func NewStore(themesDir string) *Store {
-	s := &Store{
-		themes:   make(map[string]*theme),
-		builtins: make(map[string]bool),
-		rootDir:  themesDir,
+func NewStore(dir string, pool *images.Store) *Store {
+	s := &Store{dir: dir, pool: pool, index: make(map[string]string)}
+	s.buildIndex()
+	return s
+}
+
+func (s *Store) buildIndex() {
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return
 	}
-	s.loadEmbeddedDefault()
-	if themesDir != "" {
-		s.loadUserThemes(themesDir)
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		t, ok := readThemeFile(filepath.Join(s.dir, e.Name()))
+		if !ok {
+			continue
+		}
+		s.index[t.ID] = e.Name()
+	}
+}
+
+// readThemeFile reads dir/theme.json. It reports false for a missing or
+// unparsable file, an empty ID, or a stored file claiming a builtin ID,
+// which must never shadow the builtin.
+func readThemeFile(dir string) (Theme, bool) {
+	raw, err := os.ReadFile(filepath.Join(dir, themeFile))
+	if err != nil {
+		return Theme{}, false
+	}
+	var t Theme
+	if err := json.Unmarshal(raw, &t); err != nil {
+		return Theme{}, false
+	}
+	if t.ID == "" || IsBuiltin(t.ID) {
+		return Theme{}, false
+	}
+	return t, true
+}
+
+func (s *Store) themeDir(id string) (string, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	folder, ok := s.index[id]
+	if !ok {
+		return "", false
+	}
+	return filepath.Join(s.dir, folder), true
+}
+
+const idChars = "abcdefghijklmnopqrstuvwxyz0123456789"
+const idLen = 6
+
+func randomID() (string, error) {
+	b := make([]byte, idLen)
+	for i := range b {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(idChars))))
+		if err != nil {
+			return "", fmt.Errorf("generate random ID: %w", err)
+		}
+		b[i] = idChars[n.Int64()]
+	}
+	return string(b), nil
+}
+
+func isValidID(id string) bool {
+	if id == "" {
+		return false
+	}
+	for _, c := range id {
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') {
+			return false
+		}
+	}
+	return true
+}
+
+var nonAlphaNum = regexp.MustCompile(`[^a-z0-9]+`)
+
+func toSnakeCase(name string) string {
+	s := strings.ToLower(norm.NFKD.String(name))
+	var buf strings.Builder
+	for _, r := range s {
+		if r < unicode.MaxASCII {
+			buf.WriteRune(r)
+		}
+	}
+	s = nonAlphaNum.ReplaceAllString(buf.String(), "_")
+	s = strings.Trim(s, "_")
+	if s == "" {
+		s = "theme"
 	}
 	return s
 }
 
-func (s *Store) loadEmbeddedDefault() {
-	var m themeManifest
-	if err := yaml.Unmarshal(defaultThemeYAML, &m); err != nil {
-		panic(fmt.Sprintf("embedded default theme.yaml is invalid: %v", err))
+func (s *Store) uniqueFolder(base string) string {
+	candidate := base
+	for i := 2; ; i++ {
+		if _, err := os.Stat(filepath.Join(s.dir, candidate)); os.IsNotExist(err) {
+			return candidate
+		}
+		candidate = fmt.Sprintf("%s_%d", base, i)
 	}
-	if !AllowedThemeKinds[m.Type] {
-		panic(fmt.Sprintf("embedded default theme.yaml has invalid type %q", m.Type))
-	}
-	s.themes[m.Name] = &theme{manifest: m}
-	s.builtins[m.Name] = true
 }
 
-func (s *Store) loadUserThemes(dir string) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return
+// Create stores t. An empty ID is assigned a random one; a builtin ID is
+// refused.
+func (s *Store) Create(t Theme) (Theme, error) {
+	if IsBuiltin(t.ID) {
+		return Theme{}, ErrBuiltin
 	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		themeDir := filepath.Join(dir, entry.Name())
-		manifestPath := filepath.Join(themeDir, "theme.yaml")
-		data, err := os.ReadFile(manifestPath)
+	if err := t.Validate(); err != nil {
+		return Theme{}, err
+	}
+	if err := os.MkdirAll(s.dir, 0o750); err != nil {
+		return Theme{}, fmt.Errorf("create dir: %w", err)
+	}
+	if t.ID == "" {
+		id, err := randomID()
 		if err != nil {
-			continue
+			return Theme{}, err
 		}
-		var m themeManifest
-		if err := yaml.Unmarshal(data, &m); err != nil {
-			continue
-		}
-		if !AllowedThemeKinds[m.Type] {
-			// Skip themes with missing/invalid top-level type rather than
-			// crashing — they won't show up in the admin UI or be resolvable.
-			continue
-		}
-		s.themes[entry.Name()] = &theme{manifest: m, dir: themeDir}
-	}
-}
-
-func (s *Store) themeInfoLocked(name string, th *theme) ThemeInfo {
-	fonts := make([]FontInfo, len(th.manifest.Fonts))
-	for i, f := range th.manifest.Fonts {
-		fonts[i] = FontInfo{Name: f.Name}
-	}
-	iconType := ""
-	if ic := th.icons(); ic != nil {
-		iconType = ic.Type
-	}
-	return ThemeInfo{
-		Name:        name,
-		Type:        th.manifest.Type,
-		Description: th.manifest.Description,
-		Fonts:       fonts,
-		HasIcons:    th.hasIcons(),
-		IconType:    iconType,
-		Builtin:     s.builtins[name],
-	}
-}
-
-func (s *Store) List() []ThemeInfo {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	result := make([]ThemeInfo, 0, len(s.themes))
-	for name, th := range s.themes {
-		result = append(result, s.themeInfoLocked(name, th))
-	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Name < result[j].Name
-	})
-	return result
-}
-
-func (s *Store) Get(name string) (ThemeInfo, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	th, ok := s.themes[name]
-	if !ok {
-		return ThemeInfo{}, false
-	}
-	return s.themeInfoLocked(name, th), true
-}
-
-// lookupTheme returns a reference to the in-memory theme under an
-// RLock. The returned *theme is safe to use read-only afterwards — its
-// fields are never mutated once loaded; Upload/Delete swap the map
-// entry rather than mutating in place.
-func (s *Store) lookupTheme(name string) (*theme, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	th, ok := s.themes[name]
-	return th, ok
-}
-
-func (s *Store) ResolveIcon(themeName, canonicalName string) (ResolvedIcon, error) {
-	th, ok := s.lookupTheme(themeName)
-	if !ok {
-		return ResolvedIcon{}, fmt.Errorf("theme %q not found", themeName)
-	}
-	ic := th.icons()
-	if ic == nil {
-		return ResolvedIcon{}, fmt.Errorf("theme %q has no icon config", themeName)
-	}
-	switch ic.Type {
-	case ThemeTypeFont:
-		return s.resolveFontIcon(th, ic, canonicalName)
-	case ThemeTypeImage:
-		return s.resolveImageIcon(th, canonicalName)
-	default:
-		return ResolvedIcon{}, fmt.Errorf("theme %q has unknown icon type %q", themeName, ic.Type)
-	}
-}
-
-func (s *Store) resolveFontIcon(th *theme, ic *manifestIcons, canonicalName string) (ResolvedIcon, error) {
-	icon, ok := ic.Icons[canonicalName]
-	if !ok {
-		return ResolvedIcon{}, fmt.Errorf("icon %q not found in font theme", canonicalName)
-	}
-	fontFile := ""
-	if ic.FontFile != "" {
-		if th.dir != "" {
-			fontFile = filepath.Join(th.dir, ic.FontFile)
-		} else {
-			fontFile = "embedded:default"
-		}
-	}
-	return ResolvedIcon{
-		Type:      ThemeTypeFont,
-		CSSClass:  ic.ClassPrefix + icon.Class,
-		Codepoint: icon.Codepoint,
-		FontFile:  fontFile,
-	}, nil
-}
-
-func (s *Store) resolveImageIcon(th *theme, canonicalName string) (ResolvedIcon, error) {
-	if strings.ContainsAny(canonicalName, "/\\") || strings.Contains(canonicalName, "..") {
-		return ResolvedIcon{}, fmt.Errorf("invalid icon name %q", canonicalName)
-	}
-	iconsDir := filepath.Join(th.dir, "widgets", "weather", "icons")
-	for _, ext := range []string{".svg", ".png", ".jpg", ".webp"} {
-		path := filepath.Join(iconsDir, canonicalName+ext)
-		if !strings.HasPrefix(path, iconsDir+string(filepath.Separator)) {
-			return ResolvedIcon{}, fmt.Errorf("invalid icon name %q", canonicalName)
-		}
-		if _, err := os.Stat(path); err == nil {
-			return ResolvedIcon{
-				Type:     ThemeTypeImage,
-				FilePath: path,
-			}, nil
-		}
-	}
-	return ResolvedIcon{}, fmt.Errorf("icon %q not found in image theme %q", canonicalName, th.manifest.Name)
-}
-
-func (s *Store) GetFontData(themeName string) ([]byte, error) {
-	th, ok := s.lookupTheme(themeName)
-	if !ok {
-		return nil, fmt.Errorf("theme %q not found", themeName)
-	}
-	ic := th.icons()
-	if ic == nil || ic.Type != ThemeTypeFont || ic.FontFile == "" {
-		return nil, fmt.Errorf("theme %q has no icon font file", themeName)
-	}
-	if th.dir == "" {
-		if data, ok := embeddedFonts[ic.FontFile]; ok {
-			return data, nil
-		}
-		return nil, fmt.Errorf("embedded font %q not found", ic.FontFile)
-	}
-	fontPath := filepath.Join(th.dir, ic.FontFile)
-	return os.ReadFile(fontPath)
-}
-
-func (s *Store) GetDisplayFontData(themeName, fontName string) ([]byte, error) {
-	th, ok := s.lookupTheme(themeName)
-	if !ok {
-		return nil, fmt.Errorf("theme %q not found", themeName)
-	}
-	for _, f := range th.manifest.Fonts {
-		if f.Name == fontName {
-			if th.dir == "" {
-				if data, ok := embeddedFonts[f.File]; ok {
-					return data, nil
-				}
-				return nil, fmt.Errorf("embedded font file %q not found", f.File)
-			}
-			fontPath := filepath.Join(th.dir, f.File)
-			return os.ReadFile(fontPath)
-		}
-	}
-	return nil, fmt.Errorf("font %q not found in theme %q", fontName, themeName)
-}
-
-// ListBackgrounds returns the filenames of background images in a theme's backgrounds/ directory.
-func (s *Store) ListBackgrounds(themeName string) []string {
-	th, ok := s.lookupTheme(themeName)
-	if !ok {
-		return nil
-	}
-	if th.dir == "" {
-		// Embedded default theme: return embedded backgrounds.
-		result := make([]string, 0, len(embeddedBackgrounds))
-		for name := range embeddedBackgrounds {
-			result = append(result, name)
-		}
-		sort.Strings(result)
-		return result
-	}
-	bgDir := filepath.Join(th.dir, "backgrounds")
-	entries, err := os.ReadDir(bgDir)
-	if err != nil {
-		return nil
-	}
-	imageExts := map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".webp": true, ".svg": true}
-	var result []string
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		ext := strings.ToLower(filepath.Ext(e.Name()))
-		if imageExts[ext] {
-			result = append(result, e.Name())
-		}
-	}
-	return result
-}
-
-// GetBackgroundData returns the raw bytes of a background image file.
-func (s *Store) GetBackgroundData(themeName, fileName string) ([]byte, error) {
-	th, ok := s.lookupTheme(themeName)
-	if !ok {
-		return nil, fmt.Errorf("theme %q not found", themeName)
-	}
-	if strings.ContainsAny(fileName, "/\\") || strings.Contains(fileName, "..") {
-		return nil, fmt.Errorf("invalid filename %q", fileName)
-	}
-	if th.dir == "" {
-		// Embedded default theme: return embedded background data.
-		if data, ok := embeddedBackgrounds[fileName]; ok {
-			return data, nil
-		}
-		return nil, fmt.Errorf("background %q not found in embedded theme", fileName)
-	}
-	bgPath := filepath.Join(th.dir, "backgrounds", fileName)
-	if !strings.HasPrefix(bgPath, filepath.Join(th.dir, "backgrounds")+string(filepath.Separator)) {
-		return nil, fmt.Errorf("invalid filename %q", fileName)
-	}
-	return os.ReadFile(bgPath)
-}
-
-// ---------- admin CRUD ----------
-
-// validateThemeName enforces the directory-safe name rules for themes.
-// Theme names become directory names on disk, so the rules match the
-// flat-store rules used for files in internal/data.
-func validateThemeName(name string) error {
-	trimmed := strings.TrimSpace(name)
-	if trimmed == "" {
-		return fmt.Errorf("%w: empty", ErrInvalidName)
-	}
-	if len(trimmed) > 100 {
-		return fmt.Errorf("%w: name exceeds 100 bytes", ErrInvalidName)
-	}
-	if strings.ContainsAny(trimmed, `/\`) {
-		return fmt.Errorf("%w: path separator not allowed", ErrInvalidName)
-	}
-	if strings.HasPrefix(trimmed, ".") {
-		return fmt.Errorf("%w: leading dot not allowed", ErrInvalidName)
-	}
-	if strings.Contains(trimmed, "..") {
-		return fmt.Errorf("%w: traversal not allowed", ErrInvalidName)
-	}
-	for _, r := range trimmed {
-		if r == 0 || unicode.IsControl(r) {
-			return fmt.Errorf("%w: control character not allowed", ErrInvalidName)
-		}
-	}
-	return nil
-}
-
-// Upload validates zipBytes as a theme archive and extracts it into the
-// on-disk themes root as {rootDir}/{name}. The archive must contain a
-// theme.yaml at the zip root with a `name` and `type` field; the
-// on-disk directory is named after the manifest's name (not the
-// uploaded filename).
-//
-// Returns ErrConflict if a theme with the same name already exists
-// (including the embedded default) — upload is reject-on-conflict.
-func (s *Store) Upload(zipBytes []byte) (ThemeInfo, error) {
-	if s.rootDir == "" {
-		return ThemeInfo{}, errors.New("themes: store has no writable directory")
-	}
-	if int64(len(zipBytes)) > MaxUploadSize {
-		return ThemeInfo{}, fmt.Errorf("%w: exceeds %d bytes", ErrInvalidArchive, MaxUploadSize)
+		t.ID = id
 	}
 
-	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
-	if err != nil {
-		return ThemeInfo{}, fmt.Errorf("%w: %v", ErrInvalidArchive, err)
-	}
-
-	// 1. Sanity-check every entry up front (name, traversal) before we
-	//    touch the filesystem.
-	var manifestEntry *zip.File
-	for _, f := range zr.File {
-		if err := validateZipMemberName(f.Name); err != nil {
-			return ThemeInfo{}, err
-		}
-		if f.Name == "theme.yaml" {
-			manifestEntry = f
-		}
-	}
-	if manifestEntry == nil {
-		return ThemeInfo{}, fmt.Errorf("%w: missing theme.yaml at archive root", ErrInvalidArchive)
-	}
-
-	// 2. Parse theme.yaml and validate required fields.
-	manifestBytes, err := readZipFile(manifestEntry)
-	if err != nil {
-		return ThemeInfo{}, fmt.Errorf("%w: read theme.yaml: %v", ErrInvalidArchive, err)
-	}
-	var m themeManifest
-	if err := yaml.Unmarshal(manifestBytes, &m); err != nil {
-		return ThemeInfo{}, fmt.Errorf("%w: parse theme.yaml: %v", ErrInvalidArchive, err)
-	}
-	if err := validateThemeName(m.Name); err != nil {
-		return ThemeInfo{}, err
-	}
-	if !AllowedThemeKinds[m.Type] {
-		return ThemeInfo{}, fmt.Errorf("%w: %q (must be one of theme, icon, style)", ErrInvalidType, m.Type)
-	}
-
-	// 3. Conflict check + reserve the slot. We use the map as the lock:
-	//    hold the write lock for the whole upload so concurrent uploads
-	//    of the same name can't race.
 	s.mu.Lock()
-	if _, exists := s.themes[m.Name]; exists {
+	folder := s.uniqueFolder(toSnakeCase(t.Name))
+	dirPath := filepath.Join(s.dir, folder)
+	if err := os.MkdirAll(dirPath, 0o750); err != nil {
 		s.mu.Unlock()
-		return ThemeInfo{}, ErrConflict
+		return Theme{}, fmt.Errorf("create theme dir: %w", err)
 	}
-	destDir := filepath.Join(s.rootDir, m.Name)
-	if _, err := os.Stat(destDir); err == nil {
-		s.mu.Unlock()
-		return ThemeInfo{}, ErrConflict
-	}
-
-	// 4. Extract into a sibling temp dir, then atomic-rename into place.
-	if err := os.MkdirAll(s.rootDir, 0o750); err != nil {
-		s.mu.Unlock()
-		return ThemeInfo{}, fmt.Errorf("create themes dir: %w", err)
-	}
-	tmpDir, err := os.MkdirTemp(s.rootDir, ".upload-*")
-	if err != nil {
-		s.mu.Unlock()
-		return ThemeInfo{}, fmt.Errorf("create tmp dir: %w", err)
-	}
-	if err := extractZipInto(zr, tmpDir); err != nil {
-		_ = os.RemoveAll(tmpDir)
-		s.mu.Unlock()
-		return ThemeInfo{}, err
-	}
-	if err := os.Rename(tmpDir, destDir); err != nil {
-		_ = os.RemoveAll(tmpDir)
-		s.mu.Unlock()
-		return ThemeInfo{}, fmt.Errorf("rename into place: %w", err)
-	}
-
-	// 5. Register in-memory.
-	s.themes[m.Name] = &theme{manifest: m, dir: destDir}
-	info := s.themeInfoLocked(m.Name, s.themes[m.Name])
+	s.index[t.ID] = folder
 	s.mu.Unlock()
-	return info, nil
+
+	if err := s.write(t); err != nil {
+		s.rollbackCreate(t.ID, dirPath)
+		return Theme{}, err
+	}
+	return t, nil
 }
 
-// Delete removes an uploaded theme by name. Builtin themes cannot be
-// deleted. Returns ErrNotFound if the theme does not exist.
-func (s *Store) Delete(name string) error {
+// rollbackCreate undoes a partially completed Create: it removes the folder
+// that was made for the theme and drops its index entry, so a failed write
+// cannot leave an id resolving to a directory with no theme.json.
+func (s *Store) rollbackCreate(id, dirPath string) {
+	_ = os.RemoveAll(dirPath)
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	delete(s.index, id)
+	s.mu.Unlock()
+}
 
-	if s.builtins[name] {
-		return ErrBuiltin
-	}
-	th, ok := s.themes[name]
+func (s *Store) write(t Theme) error {
+	dir, ok := s.themeDir(t.ID)
 	if !ok {
 		return ErrNotFound
 	}
-	if th.dir == "" {
-		// Defensive: a non-builtin with no dir shouldn't exist, but if
-		// it somehow does we refuse to touch it.
-		return ErrBuiltin
+	raw, err := json.MarshalIndent(t, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal theme: %w", err)
 	}
-	// Sanity check: the theme dir must live under rootDir.
-	if s.rootDir == "" || !strings.HasPrefix(th.dir, s.rootDir+string(filepath.Separator)) {
-		return fmt.Errorf("themes: theme dir %q is outside rootDir", th.dir)
+	if err := os.WriteFile(filepath.Join(dir, themeFile), raw, 0o600); err != nil {
+		return fmt.Errorf("write theme file: %w", err)
 	}
-	if err := os.RemoveAll(th.dir); err != nil {
-		return fmt.Errorf("remove theme dir: %w", err)
-	}
-	delete(s.themes, name)
 	return nil
 }
 
-// Zip re-packages a theme into a zip archive for download. Uploaded
-// themes are walked from disk; the embedded default is reconstructed
-// from the bytes baked into the binary.
-func (s *Store) Zip(name string) ([]byte, error) {
-	th, ok := s.lookupTheme(name)
+// Get returns the theme with the given ID; a builtin ID returns the builtin.
+func (s *Store) Get(id string) (Theme, error) {
+	if t, ok := Builtin(id); ok {
+		return t, nil
+	}
+	if !isValidID(id) {
+		return Theme{}, ErrInvalidID
+	}
+	dir, ok := s.themeDir(id)
+	if !ok {
+		return Theme{}, ErrNotFound
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, themeFile))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return Theme{}, ErrNotFound
+		}
+		return Theme{}, fmt.Errorf("read theme %s: %w", id, err)
+	}
+	var t Theme
+	if err := json.Unmarshal(raw, &t); err != nil {
+		return Theme{}, fmt.Errorf("unmarshal theme %s: %w", id, err)
+	}
+	return t, nil
+}
+
+// Resolve returns the theme a dashboard should render with: the stored
+// theme, or DefaultTheme() for an empty, unknown, dangling or unreadable
+// reference. It never fails, so a bad reference can never break a render.
+func (s *Store) Resolve(id string) Theme {
+	t, err := s.Get(id)
+	if err != nil {
+		return DefaultTheme()
+	}
+	return t
+}
+
+// List returns one Meta per theme, the builtins included and flagged, ordered
+// case-insensitively by name. usage maps a theme ID to the number of
+// dashboards referencing it; a nil map yields zero counts.
+func (s *Store) List(usage map[string]int) ([]Meta, error) {
+	if err := os.MkdirAll(s.dir, 0o750); err != nil {
+		return nil, fmt.Errorf("ensure dir: %w", err)
+	}
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return nil, fmt.Errorf("read dir: %w", err)
+	}
+	out := make([]Meta, 0, len(builtins)+len(entries))
+	for _, fn := range builtins {
+		out = append(out, newMeta(fn(), true, usage))
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		t, ok := readThemeFile(filepath.Join(s.dir, e.Name()))
+		if !ok {
+			continue
+		}
+		out = append(out, newMeta(t, false, usage))
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
+	})
+	return out, nil
+}
+
+func newMeta(t Theme, builtin bool, usage map[string]int) Meta {
+	return Meta{
+		ID:         t.ID,
+		Name:       t.Name,
+		Builtin:    builtin,
+		UsedBy:     usage[t.ID],
+		PreviewCSS: string(BrowserCSS(t)),
+		Colors:     t.Colors,
+	}
+}
+
+func (s *Store) Update(t Theme) (Theme, error) {
+	if IsBuiltin(t.ID) {
+		return Theme{}, ErrBuiltin
+	}
+	if !isValidID(t.ID) {
+		return Theme{}, ErrInvalidID
+	}
+	if err := t.Validate(); err != nil {
+		return Theme{}, err
+	}
+
+	s.mu.Lock()
+	folder, ok := s.index[t.ID]
+	if !ok {
+		s.mu.Unlock()
+		return Theme{}, ErrNotFound
+	}
+	oldDir := filepath.Join(s.dir, folder)
+	if _, err := os.Stat(oldDir); err != nil {
+		s.mu.Unlock()
+		if os.IsNotExist(err) {
+			return Theme{}, ErrNotFound
+		}
+		return Theme{}, fmt.Errorf("stat theme %s: %w", t.ID, err)
+	}
+	if newFolder := toSnakeCase(t.Name); newFolder != folder {
+		newPath := filepath.Join(s.dir, newFolder)
+		if _, err := os.Stat(newPath); os.IsNotExist(err) {
+			if err := os.Rename(oldDir, newPath); err == nil {
+				s.index[t.ID] = newFolder
+			}
+		}
+	}
+	s.mu.Unlock()
+
+	if err := s.write(t); err != nil {
+		return Theme{}, err
+	}
+	return t, nil
+}
+
+func (s *Store) Delete(id string) error {
+	if IsBuiltin(id) {
+		return ErrBuiltin
+	}
+	if !isValidID(id) {
+		return ErrInvalidID
+	}
+	dir, ok := s.themeDir(id)
+	if !ok {
+		return ErrNotFound
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("delete theme %s: %w", id, err)
+	}
+	s.mu.Lock()
+	delete(s.index, id)
+	s.mu.Unlock()
+	return nil
+}
+
+// Copy duplicates a theme, assets included, into a new theme with a new ID
+// and the name "Copy of <name>". The copy owns its own asset files, so it
+// survives the original being deleted. Copying a builtin yields a regular,
+// editable theme with the builtin's palettes and no assets.
+func (s *Store) Copy(id string) (Theme, error) {
+	src, err := s.Get(id)
+	if err != nil {
+		return Theme{}, err
+	}
+	cp := src
+	cp.ID = ""
+	cp.Name = "Copy of " + src.Name
+	created, err := s.Create(cp)
+	if err != nil {
+		return Theme{}, err
+	}
+	if IsBuiltin(id) {
+		return created, nil
+	}
+	if err := s.copyAssets(id, created.ID); err != nil {
+		_ = s.Delete(created.ID)
+		return Theme{}, err
+	}
+	return created, nil
+}
+
+// copyAssets copies every regular file under the source theme's assets/
+// into the destination's. Anything else (symlinks, devices) is skipped so a
+// hand-placed link cannot pull files from outside the theme into the copy.
+func (s *Store) copyAssets(srcID, dstID string) error {
+	srcDir, ok := s.themeDir(srcID)
+	if !ok {
+		return ErrNotFound
+	}
+	dstDir, ok := s.themeDir(dstID)
+	if !ok {
+		return ErrNotFound
+	}
+	srcRoot := filepath.Join(srcDir, assetsDir)
+	dstRoot := filepath.Join(dstDir, assetsDir)
+	err := filepath.WalkDir(srcRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) && path == srcRoot {
+				return nil // no assets/ folder yet
+			}
+			return err
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		rel, err := filepath.Rel(srcRoot, path)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path) //nolint:gosec // G304: path comes from walking this store's own assets folder
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dstRoot, rel)
+		if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, 0o600) //nolint:gosec // G703: target is the destination theme's assets dir joined with a path relative to the walked source assets dir
+	})
+	if err != nil {
+		return fmt.Errorf("copy assets: %w", err)
+	}
+	return nil
+}
+
+// validateAssetName accepts a path relative to the theme's assets/ folder.
+// Validation lives here rather than in the handler, matching
+// dashboard.Store.
+func validateAssetName(name string) error {
+	if err := ValidateRef("asset:" + name); err != nil {
+		return err
+	}
+	if filepath.Base(filepath.Clean(name)) == themeFile {
+		return fmt.Errorf("%w: %s is reserved", ErrInvalidConfig, themeFile)
+	}
+	return nil
+}
+
+func (s *Store) assetPath(id, name string) (string, error) {
+	if !isValidID(id) {
+		return "", ErrInvalidID
+	}
+	if err := validateAssetName(name); err != nil {
+		return "", err
+	}
+	dir, ok := s.themeDir(id)
+	if !ok {
+		return "", ErrNotFound
+	}
+	return filepath.Join(dir, assetsDir, filepath.Clean(name)), nil
+}
+
+func (s *Store) SaveAsset(id, name string, data []byte) error {
+	if IsBuiltin(id) {
+		return ErrBuiltin
+	}
+	full, err := s.assetPath(id, name)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+		return fmt.Errorf("create asset directory: %w", err)
+	}
+	if err := os.WriteFile(full, data, 0o600); err != nil {
+		return fmt.Errorf("write asset: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) GetAsset(id, name string) ([]byte, string, error) {
+	full, err := s.assetPath(id, name)
+	if err != nil {
+		return nil, "", err
+	}
+	data, err := os.ReadFile(full)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, "", ErrNotFound
+		}
+		return nil, "", fmt.Errorf("read asset: %w", err)
+	}
+	mimeType := mime.TypeByExtension(filepath.Ext(name))
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	return data, mimeType, nil
+}
+
+func (s *Store) DeleteAsset(id, name string) error {
+	if IsBuiltin(id) {
+		return ErrBuiltin
+	}
+	full, err := s.assetPath(id, name)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(full); err != nil {
+		if os.IsNotExist(err) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("delete asset: %w", err)
+	}
+	return nil
+}
+
+// ListAssets returns paths relative to the theme's assets/ folder. The
+// builtins have none.
+func (s *Store) ListAssets(id string) ([]string, error) {
+	if IsBuiltin(id) {
+		return []string{}, nil
+	}
+	if !isValidID(id) {
+		return nil, ErrInvalidID
+	}
+	dir, ok := s.themeDir(id)
 	if !ok {
 		return nil, ErrNotFound
 	}
-	if th.dir == "" {
-		return zipEmbeddedDefault()
-	}
-
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-	err := filepath.Walk(th.dir, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		rel, err := filepath.Rel(th.dir, path)
+	root := filepath.Join(dir, assetsDir)
+	assets := []string{}
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			if os.IsNotExist(err) {
+				return nil // no assets/ folder yet
+			}
 			return err
 		}
-		if rel == "." {
+		if d.IsDir() {
 			return nil
 		}
-		// Use forward slashes in zip entries regardless of OS.
-		zipPath := filepath.ToSlash(rel)
-		if info.IsDir() {
-			_, err := zw.Create(zipPath + "/")
-			return err
-		}
-		w, err := zw.Create(zipPath)
+		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
-		f, err := os.Open(path) //nolint:gosec // G304: path comes from filepath.Walk of th.dir, which is a controlled themes root.
-		if err != nil {
-			return err
-		}
-		defer func() { _ = f.Close() }()
-		_, err = io.Copy(w, f)
-		return err
+		assets = append(assets, rel)
+		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("zip theme: %w", err)
+		return nil, fmt.Errorf("walk assets: %w", err)
 	}
-	if err := zw.Close(); err != nil {
-		return nil, fmt.Errorf("close zip: %w", err)
-	}
-	return buf.Bytes(), nil
+	sort.Strings(assets)
+	return assets, nil
 }
 
-// zipEmbeddedDefault reconstructs the builtin default theme as a zip
-// archive from the bytes baked into the binary. The layout mirrors
-// what Upload would produce on disk: theme.yaml + font TTFs at the
-// root, and backgrounds under backgrounds/.
-func zipEmbeddedDefault() ([]byte, error) {
-	entries := []struct {
-		path string
-		data []byte
-	}{
-		{"theme.yaml", defaultThemeYAML},
-		{"Inter-Regular.ttf", interRegularTTF},
-		{"tabler-icons.ttf", defaultFontTTF},
-		{"backgrounds/bg.jpg", defaultBgJPG},
+// LoadImage returns the bytes an image reference points at. The litehtml
+// stack needs raw bytes because it fetches nothing over the network.
+func (s *Store) LoadImage(id, ref string) ([]byte, error) {
+	scheme, path, ok := strings.Cut(ref, ":")
+	if !ok {
+		return nil, fmt.Errorf("%w: reference %q has no scheme", ErrInvalidConfig, ref)
 	}
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-	for _, e := range entries {
-		w, err := zw.Create(e.path)
-		if err != nil {
-			return nil, fmt.Errorf("zip builtin: create %q: %w", e.path, err)
+	switch scheme {
+	case "asset":
+		data, _, err := s.GetAsset(id, path)
+		return data, err
+	case "shared":
+		if s.pool == nil {
+			return nil, fmt.Errorf("shared image pool not configured")
 		}
-		if _, err := w.Write(e.data); err != nil {
-			return nil, fmt.Errorf("zip builtin: write %q: %w", e.path, err)
-		}
+		data, _, err := s.pool.Get(path)
+		return data, err
 	}
-	if err := zw.Close(); err != nil {
-		return nil, fmt.Errorf("zip builtin: close: %w", err)
-	}
-	return buf.Bytes(), nil
-}
-
-// validateZipMemberName rejects absolute paths, parent-traversal
-// segments, and backslashes (Windows-style paths are not allowed in
-// zips per APPNOTE, but archivers produce them anyway).
-func validateZipMemberName(name string) error {
-	if name == "" {
-		return fmt.Errorf("%w: empty member name", ErrInvalidArchive)
-	}
-	if strings.ContainsRune(name, '\\') {
-		return fmt.Errorf("%w: member %q uses backslash", ErrInvalidArchive, name)
-	}
-	if strings.HasPrefix(name, "/") {
-		return fmt.Errorf("%w: member %q is absolute", ErrInvalidArchive, name)
-	}
-	clean := filepath.ToSlash(filepath.Clean(name))
-	if clean == ".." || strings.HasPrefix(clean, "../") || strings.Contains(clean, "/../") {
-		return fmt.Errorf("%w: member %q contains traversal", ErrInvalidArchive, name)
-	}
-	return nil
-}
-
-func readZipFile(f *zip.File) ([]byte, error) {
-	rc, err := f.Open()
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rc.Close() }()
-	return io.ReadAll(io.LimitReader(rc, MaxUploadSize))
-}
-
-// extractZipInto writes every regular file in zr under destDir,
-// preserving directory structure. The caller is responsible for
-// cleanup if this function returns an error.
-func extractZipInto(zr *zip.Reader, destDir string) error {
-	for _, f := range zr.File {
-		target := filepath.Join(destDir, filepath.FromSlash(f.Name))
-		// Belt-and-suspenders: ensure we didn't escape destDir even
-		// after cleaning.
-		if !strings.HasPrefix(target, destDir+string(filepath.Separator)) && target != destDir {
-			return fmt.Errorf("%w: member %q escapes destination", ErrInvalidArchive, f.Name)
-		}
-		if strings.HasSuffix(f.Name, "/") {
-			if err := os.MkdirAll(target, 0o750); err != nil {
-				return fmt.Errorf("mkdir: %w", err)
-			}
-			continue
-		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
-			return fmt.Errorf("mkdir parent: %w", err)
-		}
-		if err := writeZipFile(f, target); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func writeZipFile(f *zip.File, target string) error {
-	rc, err := f.Open()
-	if err != nil {
-		return fmt.Errorf("open zip entry %q: %w", f.Name, err)
-	}
-	defer func() { _ = rc.Close() }()
-	out, err := os.Create(target)
-	if err != nil {
-		return fmt.Errorf("create %q: %w", target, err)
-	}
-	defer func() { _ = out.Close() }()
-	if _, err := io.Copy(out, io.LimitReader(rc, MaxUploadSize)); err != nil {
-		return fmt.Errorf("write %q: %w", target, err)
-	}
-	return nil
+	return nil, fmt.Errorf("%w: unsupported reference scheme %q", ErrInvalidConfig, scheme)
 }

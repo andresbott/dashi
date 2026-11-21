@@ -1,72 +1,86 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import { useAdminThemes } from '@/composables/useThemes'
-import { themeDownloadUrl } from '@/lib/api/themes'
+import { useListThemes } from '@/composables/useThemes'
+import { pageBgValue } from '@/lib/themeCss'
+import type { ThemeMeta } from '@/types/theme'
 import { useToast } from 'primevue/usetoast'
 
+const router = useRouter()
 const toast = useToast()
 const {
-    themes: themesData,
+    themes: data,
     isLoading,
-    uploadTheme,
-    isUploading,
+    createTheme,
+    isCreating,
     deleteTheme,
-} = useAdminThemes()
-const themes = computed(() => themesData.value ?? [])
+    copyTheme,
+    isCopying,
+} = useListThemes()
 
-const typeSeverity = (type: string): 'info' | 'success' | 'warning' | 'secondary' => {
-    switch (type) {
-        case 'theme': return 'info'
-        case 'icon':  return 'success'
-        case 'style': return 'warning'
-        default:      return 'secondary'
-    }
+const themes = computed(() => data.value ?? [])
+
+// The builtins are always listed; the default one's palettes seed a new theme.
+const builtin = computed(() => themes.value.find(t => t.id === 'default') ?? null)
+
+const openEditor = (id: string) => {
+    router.push({ name: 'admin-theme-edit', params: { id } })
 }
 
-// Upload
-const uploadInput = ref<HTMLInputElement | null>(null)
-
-const handleFilePicked = async (event: Event) => {
-    const input = event.target as HTMLInputElement
-    const file = input.files?.[0]
-    if (!file) return
+const handleCreate = async () => {
+    if (!builtin.value) return
     try {
-        const bytes = await file.arrayBuffer()
-        const info = await uploadTheme(bytes)
-        toast.add({ severity: 'success', summary: 'Uploaded', detail: info.name, life: 3000 })
-    } catch (err: unknown) {
-        // axios error shape: err.response?.data?.error
-        const axErr = err as { response?: { data?: { error?: string } } }
-        const message = axErr?.response?.data?.error ?? 'Failed to upload'
-        toast.add({ severity: 'error', summary: 'Upload failed', detail: message, life: 5000 })
-    } finally {
-        if (uploadInput.value) uploadInput.value.value = ''
+        const created = await createTheme({
+            name: 'New theme',
+            background: {},
+            // A plain copy: query data is a reactive proxy, which structuredClone rejects.
+            colors: JSON.parse(JSON.stringify(builtin.value.colors)),
+        })
+        openEditor(created.id)
+    } catch {
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to create theme', life: 5000 })
     }
 }
 
-// Delete
-const deleteDialogVisible = ref(false)
-const themeToDelete = ref<string | null>(null)
+// Copy works on every row, the builtin included: it is how the builtin gets
+// customised. The copy opens straight in the editor.
+const handleCopy = async (row: ThemeMeta) => {
+    try {
+        const copy = await copyTheme(row.id)
+        openEditor(copy.id)
+    } catch {
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to copy theme', life: 5000 })
+    }
+}
 
-const showDeleteDialog = (name: string) => {
-    themeToDelete.value = name
+const deleteDialogVisible = ref(false)
+const toDelete = ref<ThemeMeta | null>(null)
+
+const showDeleteDialog = (row: ThemeMeta) => {
+    toDelete.value = row
     deleteDialogVisible.value = true
 }
 
+// Deleting a referenced theme is allowed: those dashboards fall back to the
+// default theme. The count is here so the choice is an informed one.
+const deleteMessage = computed(() => {
+    const n = toDelete.value?.usedBy ?? 0
+    if (n === 0) return 'Are you sure you want to delete this theme?'
+    return `${n} dashboard${n === 1 ? '' : 's'} use this theme and will fall back to the default theme. Delete anyway?`
+})
+
 const confirmDelete = async () => {
-    if (!themeToDelete.value) return
-    const name = themeToDelete.value
+    if (!toDelete.value) return
     try {
-        await deleteTheme(name)
+        await deleteTheme(toDelete.value.id)
         deleteDialogVisible.value = false
-        themeToDelete.value = null
-        toast.add({ severity: 'success', summary: 'Deleted', detail: name, life: 3000 })
+        toDelete.value = null
     } catch {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete', life: 5000 })
     }
@@ -78,23 +92,17 @@ const confirmDelete = async () => {
         <div class="admin-section-header">
             <h2 class="admin-section-title">Themes</h2>
             <Button
-                label="Upload"
-                icon="ti ti-upload"
-                :loading="isUploading"
-                @click="uploadInput?.click()"
-            />
-            <input
-                ref="uploadInput"
-                type="file"
-                accept=".zip,application/zip"
-                style="display: none"
-                @change="handleFilePicked"
+                label="New theme"
+                icon="ti ti-plus"
+                :loading="isCreating"
+                :disabled="!builtin"
+                @click="handleCreate"
             />
         </div>
 
         <Card v-if="!themes.length && !isLoading">
             <template #content>
-                <div class="info-message">No themes yet. Upload a theme zip to get started.</div>
+                <div class="info-message">No themes yet. Create one to get started.</div>
             </template>
         </Card>
 
@@ -103,47 +111,72 @@ const confirmDelete = async () => {
                 <DataTable
                     :value="themes"
                     :loading="isLoading"
-                    data-key="name"
+                    data-key="id"
                     class="p-datatable-sm"
                     stripedRows
                 >
-                    <Column field="name" header="Name">
-                        <template #body="{ data }">
-                            <span>{{ data.name }}</span>
+                    <Column header="" style="width: 80px">
+                        <template #body="{ data: row }">
+                            <div class="swatch" :style="{ background: pageBgValue(row.previewCss) }" />
+                        </template>
+                    </Column>
+                    <Column header="Name">
+                        <template #body="{ data: row }">
+                            <span>{{ row.name }}</span>
                             <Tag
-                                v-if="data.builtin"
-                                value="Builtin"
+                                v-if="row.builtin"
+                                value="Built-in"
                                 severity="info"
                                 class="ml-2"
                             />
                         </template>
                     </Column>
-                    <Column header="Type" style="width: 120px">
-                        <template #body="{ data }">
-                            <Tag :value="data.type" :severity="typeSeverity(data.type)" />
+                    <Column header="Colours" style="width: 120px" headerClass="hide-below-md" bodyClass="hide-below-md">
+                        <template #body="{ data: row }">
+                            <div class="flex gap-1">
+                                <span class="color-chip" :style="{ background: row.colors.light.primary }" title="Primary" />
+                                <span class="color-chip" :style="{ background: row.colors.light.secondary }" title="Secondary" />
+                                <span class="color-chip" :style="{ background: row.colors.light.surface }" title="Card surface" />
+                            </div>
                         </template>
                     </Column>
-                    <Column field="description" header="Description" />
-                    <Column header="Actions" style="width: 120px">
-                        <template #body="{ data }">
+                    <Column header="Used by" style="width: 160px" headerClass="hide-below-md" bodyClass="hide-below-md">
+                        <template #body="{ data: row }">
+                            <span :class="{ 'text-muted': row.usedBy === 0 }">
+                                {{ row.usedBy }} dashboard{{ row.usedBy === 1 ? '' : 's' }}
+                            </span>
+                        </template>
+                    </Column>
+                    <Column header="Actions" style="width: 140px">
+                        <template #body="{ data: row }">
                             <div class="flex gap-1 justify-content-end">
                                 <Button
-                                    as="a"
-                                    :href="themeDownloadUrl(data.name)"
-                                    :download="data.name + '.zip'"
-                                    icon="ti ti-download"
+                                    v-if="!row.builtin"
+                                    icon="ti ti-pencil"
+                                    aria-label="Edit"
                                     text
                                     rounded
-                                    class="p-1 action-link"
+                                    class="p-1"
+                                    @click="openEditor(row.id)"
                                 />
                                 <Button
-                                    v-if="!data.builtin"
+                                    icon="ti ti-copy"
+                                    aria-label="Copy"
+                                    text
+                                    rounded
+                                    class="p-1"
+                                    :disabled="isCopying"
+                                    @click="handleCopy(row)"
+                                />
+                                <Button
+                                    v-if="!row.builtin"
                                     icon="ti ti-trash"
+                                    aria-label="Delete"
                                     text
                                     rounded
                                     severity="danger"
                                     class="p-1"
-                                    @click="showDeleteDialog(data.name)"
+                                    @click="showDeleteDialog(row)"
                                 />
                             </div>
                         </template>
@@ -155,41 +188,31 @@ const confirmDelete = async () => {
 
     <ConfirmDialog
         v-model:visible="deleteDialogVisible"
-        :name="themeToDelete ?? ''"
-        title="Delete Theme"
-        message="Are you sure you want to delete this theme? This cannot be undone."
+        :name="toDelete?.name ?? ''"
+        title="Delete theme"
+        :message="deleteMessage"
         @confirm="confirmDelete"
     />
 </template>
 
 <style scoped>
-.admin-section {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+/* .admin-section* and .info-message are shared: see assets/style.scss. */
+.swatch {
+    width: 64px;
+    height: 40px;
+    border-radius: 4px;
+    border: 1px solid var(--p-content-border-color);
+    background-size: cover;
 }
 
-.admin-section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
+.color-chip {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid var(--p-content-border-color);
 }
 
-.admin-section-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--p-text-color);
-    margin: 0;
-}
-
-.info-message {
-    padding: 1rem;
-    text-align: center;
+.text-muted {
     color: var(--p-text-muted-color);
-}
-
-.action-link {
-    text-decoration: none;
 }
 </style>

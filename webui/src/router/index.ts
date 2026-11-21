@@ -18,12 +18,13 @@ const router = createRouter({
                 { path: 'dashboards', name: 'admin-dashboards', component: () => import('@/views/admin/AdminDashboards.vue') },
                 { path: 'notes', name: 'admin-notes', component: () => import('@/views/admin/AdminNotes.vue') },
                 { path: 'images', name: 'admin-images', component: () => import('@/views/admin/AdminImages.vue') },
-                { path: 'backgrounds', name: 'admin-backgrounds', component: () => import('@/views/admin/AdminBackgrounds.vue') },
-                { path: 'backgrounds/:id', name: 'admin-background-edit', component: () => import('@/views/admin/AdminBackgroundEdit.vue') },
-                { path: 'background-images', name: 'admin-background-images', component: () => import('@/views/admin/AdminBackgroundImages.vue') },
                 { path: 'themes', name: 'admin-themes', component: () => import('@/views/admin/AdminThemes.vue') },
+                { path: 'themes/:id', name: 'admin-theme-edit', component: () => import('@/views/admin/AdminThemeEdit.vue') },
+                { path: 'widget-themes', name: 'admin-widget-themes', component: () => import('@/views/admin/AdminWidgetThemes.vue') },
+                { path: 'background-images', name: 'admin-background-images', component: () => import('@/views/admin/AdminBackgroundImages.vue') },
                 { path: 'docs/dashboards', name: 'doc-dashboards', component: () => import('@/views/docs/DocDashboards.vue') },
                 { path: 'docs/widgets', name: 'doc-widgets', component: () => import('@/views/docs/DocWidgets.vue') },
+                { path: 'docs/widgets/:type', name: 'doc-widget', component: () => import('@/views/docs/DocWidget.vue') },
                 { path: 'docs/theming', name: 'doc-theming', component: () => import('@/views/docs/DocTheming.vue') },
             ],
         },
@@ -38,10 +39,22 @@ const router = createRouter({
             component: () => import('@/views/dashboards/DashboardSettingsView.vue')
         },
         {
+            // Query: preset, width/height (custom preset only), format,
+            // rotation, page (0-based), actual, from (edit|list).
+            path: '/dashboards/:id/eink-preview',
+            name: 'dashboard-eink-preview',
+            component: () => import('@/views/dashboards/DashboardEinkPreviewView.vue')
+        },
+        {
             path: '/:id',
             name: 'dashboard-view',
             component: () => import('@/views/dashboards/DashboardView.vue')
-        }
+        },
+        {
+            // Unknown paths (e.g. a mistyped /admin/... URL) fall back to the landing page.
+            path: '/:pathMatch(.*)*',
+            redirect: '/',
+        },
     ]
 })
 

@@ -2,6 +2,6 @@
      data-hour12="{{if .Hour12}}1{{else}}0{{end}}"
      data-seconds="{{if .ShowSeconds}}1{{else}}0{{end}}"{{if .Font}}
      style="font-family: '{{.Font}}';"{{end}}>
-    <span class="dashi-clock__time text-4xl font-semibold text-[var(--dashi-fg)] tabular-nums">{{.Time}}</span>
-    {{if .ShowDate}}<span class="dashi-clock__date mt-1 block text-sm text-[var(--dashi-muted)]">{{.Date}}</span>{{end}}
+    <span class="dashi-clock__time text-4xl font-semibold text-[var(--dashi-text)] tabular-nums">{{.Time}}</span>
+    {{if .ShowDate}}<span class="dashi-clock__date mt-1 block text-sm text-[var(--dashi-text-muted)]">{{.Date}}</span>{{end}}
 </div>

@@ -8,19 +8,17 @@ import (
 	"net/http"
 
 	"github.com/andresbott/dashi/internal/dashboard"
-	"github.com/andresbott/dashi/internal/themes"
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type DashboardHandler struct {
-	store      *dashboard.Store
-	themeStore *themes.Store
-	logger     *slog.Logger
+	store  *dashboard.Store
+	logger *slog.Logger
 }
 
-func NewDashboardHandler(store *dashboard.Store, themeStore *themes.Store, logger *slog.Logger) *DashboardHandler {
-	return &DashboardHandler{store: store, themeStore: themeStore, logger: logger}
+func NewDashboardHandler(store *dashboard.Store, logger *slog.Logger) *DashboardHandler {
+	return &DashboardHandler{store: store, logger: logger}
 }
 
 func (h *DashboardHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +57,10 @@ func (h *DashboardHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	created, err := h.store.Create(d)
 	if err != nil {
+		if errors.Is(err, dashboard.ErrInvalidWidgetConfig) || errors.Is(err, dashboard.ErrInvalidDither) {
+			ErrorJSON(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		h.logger.Error("create dashboard", slog.String("error", err.Error()))
 		ErrorJSON(w, "internal server error", http.StatusInternalServerError)
 		return
@@ -78,9 +80,12 @@ func (h *DashboardHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	updated, err := h.store.Update(d)
 	if err != nil {
-		if errors.Is(err, dashboard.ErrNotFound) || errors.Is(err, dashboard.ErrInvalidID) {
+		switch {
+		case errors.Is(err, dashboard.ErrNotFound) || errors.Is(err, dashboard.ErrInvalidID):
 			ErrorJSON(w, "not found", http.StatusNotFound)
-		} else {
+		case errors.Is(err, dashboard.ErrInvalidWidgetConfig), errors.Is(err, dashboard.ErrInvalidDither):
+			ErrorJSON(w, err.Error(), http.StatusBadRequest)
+		default:
 			h.logger.Error("update dashboard", slog.String("error", err.Error()))
 			ErrorJSON(w, "internal server error", http.StatusInternalServerError)
 		}

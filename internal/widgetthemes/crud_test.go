@@ -1,0 +1,347 @@
+package widgetthemes
+
+import (
+	"archive/zip"
+	"bytes"
+	"errors"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"testing"
+)
+
+// buildThemeZip builds an in-memory zip containing a widget_theme.yaml plus any
+// additional files. Pass yaml = "" to skip the manifest (for
+// missing-manifest tests).
+func buildThemeZip(t *testing.T, yaml string, extra map[string]string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	if yaml != "" {
+		w, err := zw.Create("widget_theme.yaml")
+		if err != nil {
+			t.Fatalf("create widget_theme.yaml entry: %v", err)
+		}
+		if _, err := w.Write([]byte(yaml)); err != nil {
+			t.Fatalf("write widget_theme.yaml: %v", err)
+		}
+	}
+	for name, body := range extra {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatalf("create %q entry: %v", name, err)
+		}
+		if _, err := w.Write([]byte(body)); err != nil {
+			t.Fatalf("write %q: %v", name, err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close zip: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func TestUpload_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	zipBytes := buildThemeZip(t, `name: "cool"
+description: "a cool theme"
+`, map[string]string{
+		"readme.txt": "hi",
+	})
+
+	info, err := store.Upload(zipBytes)
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if info.Name != "cool" || info.Builtin {
+		t.Fatalf("unexpected info: %+v", info)
+	}
+
+	// Directory should exist with manifest + extra file.
+	themeDir := filepath.Join(dir, "cool")
+	if _, err := os.Stat(filepath.Join(themeDir, "widget_theme.yaml")); err != nil {
+		t.Errorf("widget_theme.yaml missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(themeDir, "readme.txt")); err != nil {
+		t.Errorf("readme.txt missing: %v", err)
+	}
+
+	// List should include the new theme.
+	found := false
+	for _, th := range store.List() {
+		if th.Name == "cool" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("uploaded theme not in List()")
+	}
+}
+
+func TestUpload_MissingManifest(t *testing.T) {
+	store := NewStore(t.TempDir())
+	zipBytes := buildThemeZip(t, "", map[string]string{"readme.txt": "hi"})
+	_, err := store.Upload(zipBytes)
+	if !errors.Is(err, ErrInvalidArchive) {
+		t.Fatalf("got %v, want ErrInvalidArchive", err)
+	}
+}
+
+// TestUploadRejectsLegacyManifest pins Review Focus 4: an old-format pack
+// (theme.yaml, no widget_theme.yaml) is an invalid archive whose message
+// tells the uploader which file is expected.
+func TestUploadRejectsLegacyManifest(t *testing.T) {
+	store := NewStore(t.TempDir())
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, err := zw.Create("theme.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("name: \"old\"\ntype: style\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.Upload(buf.Bytes())
+	if !errors.Is(err, ErrInvalidArchive) {
+		t.Fatalf("got %v, want ErrInvalidArchive", err)
+	}
+	if !strings.Contains(err.Error(), "widget_theme.yaml") {
+		t.Errorf("message %q does not name widget_theme.yaml", err.Error())
+	}
+}
+
+func TestUploadAcceptsManifestWithoutType(t *testing.T) {
+	store := NewStore(t.TempDir())
+	zipBytes := buildThemeZip(t, `name: "plain"
+description: "fonts only"
+fonts:
+  - name: "Inter"
+    file: "Inter-Regular.ttf"
+`, map[string]string{"Inter-Regular.ttf": "x"})
+	if _, err := store.Upload(zipBytes); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	found := false
+	for _, th := range store.List() {
+		if th.Name == "plain" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("uploaded theme not in List()")
+	}
+}
+
+func TestUploadRejectsUnsafeFontPaths(t *testing.T) {
+	tests := map[string]string{
+		"font file traversal": `name: "evil"
+fonts:
+  - name: "Evil"
+    file: "../../etc/passwd"
+`,
+		"font file absolute": `name: "evil"
+fonts:
+  - name: "Evil"
+    file: "/etc/passwd"
+`,
+		"icon font traversal": `name: "evil"
+icons:
+  type: font
+  fontFile: "../../etc/passwd"
+  icons:
+    clear-sky: {class: "sun", codepoint: "1234"}
+`,
+		"font file missing from archive": `name: "evil"
+fonts:
+  - name: "Evil"
+    file: "nope.ttf"
+`,
+		"icon font missing from archive": `name: "evil"
+icons:
+  type: font
+  fontFile: "nope.ttf"
+  icons:
+    clear-sky: {class: "sun", codepoint: "1234"}
+`,
+	}
+	for name, manifest := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			store := NewStore(dir)
+			_, err := store.Upload(buildThemeZip(t, manifest, nil))
+			if !errors.Is(err, ErrInvalidArchive) {
+				t.Fatalf("got %v, want ErrInvalidArchive", err)
+			}
+			if _, err := os.Stat(filepath.Join(dir, "evil")); !os.IsNotExist(err) {
+				t.Errorf("rejected pack was extracted: %v", err)
+			}
+		})
+	}
+}
+
+func TestUploadAcceptsFontsInSubdir(t *testing.T) {
+	store := NewStore(t.TempDir())
+	zipBytes := buildThemeZip(t, `name: "nested"
+fonts:
+  - name: "Inter"
+    file: "fonts/Inter.ttf"
+icons:
+  type: font
+  fontFile: "./fonts/icons.ttf"
+  icons:
+    clear-sky: {class: "sun", codepoint: "1234"}
+`, map[string]string{"fonts/Inter.ttf": "x", "fonts/icons.ttf": "y"})
+	if _, err := store.Upload(zipBytes); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if data, err := store.GetFontData("nested"); err != nil || string(data) != "y" {
+		t.Fatalf("GetFontData = %q, %v", data, err)
+	}
+}
+
+func TestUpload_Conflict(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+	zipBytes := buildThemeZip(t, `name: "dup"
+`, nil)
+	if _, err := store.Upload(zipBytes); err != nil {
+		t.Fatalf("first upload: %v", err)
+	}
+	_, err := store.Upload(zipBytes)
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("got %v, want ErrConflict", err)
+	}
+}
+
+func TestUpload_ConflictWithBuiltin(t *testing.T) {
+	store := NewStore(t.TempDir())
+	zipBytes := buildThemeZip(t, `name: "default"
+`, nil)
+	_, err := store.Upload(zipBytes)
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("got %v, want ErrConflict (builtin collision)", err)
+	}
+}
+
+func TestUpload_PathTraversalInZip(t *testing.T) {
+	store := NewStore(t.TempDir())
+	zipBytes := buildThemeZip(t, `name: "evil"
+`, map[string]string{
+		"../outside.txt": "escape",
+	})
+	_, err := store.Upload(zipBytes)
+	if !errors.Is(err, ErrInvalidArchive) {
+		t.Fatalf("got %v, want ErrInvalidArchive", err)
+	}
+}
+
+func TestUpload_InvalidName(t *testing.T) {
+	store := NewStore(t.TempDir())
+	zipBytes := buildThemeZip(t, `name: "bad/name"
+`, nil)
+	_, err := store.Upload(zipBytes)
+	if !errors.Is(err, ErrInvalidName) {
+		t.Fatalf("got %v, want ErrInvalidName", err)
+	}
+}
+
+func TestUpload_TooLarge(t *testing.T) {
+	store := NewStore(t.TempDir())
+	big := make([]byte, MaxUploadSize+1)
+	_, err := store.Upload(big)
+	if !errors.Is(err, ErrInvalidArchive) {
+		t.Fatalf("got %v, want ErrInvalidArchive", err)
+	}
+}
+
+func TestDelete_RemovesTheme(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+	zipBytes := buildThemeZip(t, `name: "gone"
+`, nil)
+	if _, err := store.Upload(zipBytes); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if err := store.Delete("gone"); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, ok := store.Get("gone"); ok {
+		t.Error("theme still present after delete")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "gone")); !os.IsNotExist(err) {
+		t.Errorf("theme dir still on disk: err=%v", err)
+	}
+}
+
+func TestDelete_Missing(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if err := store.Delete("nope"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("got %v, want ErrNotFound", err)
+	}
+}
+
+func TestDelete_Builtin(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if err := store.Delete("default"); !errors.Is(err, ErrBuiltin) {
+		t.Fatalf("got %v, want ErrBuiltin", err)
+	}
+}
+
+func TestZip_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+	orig := buildThemeZip(t, `name: "rt"
+description: "round trip"
+`, map[string]string{
+		"sub/file.txt": "content",
+	})
+	if _, err := store.Upload(orig); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+
+	data, err := store.Zip("rt")
+	if err != nil {
+		t.Fatalf("zip: %v", err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatalf("read zip: %v", err)
+	}
+	names := map[string]bool{}
+	for _, f := range zr.File {
+		names[f.Name] = true
+	}
+	if !names["widget_theme.yaml"] {
+		t.Error("zip missing widget_theme.yaml")
+	}
+	if !names["sub/file.txt"] {
+		t.Errorf("zip missing sub/file.txt, got %v", names)
+	}
+}
+
+func TestZipDefaultHasNoBackgrounds(t *testing.T) {
+	store := NewStore(t.TempDir())
+	data, err := store.Zip("default")
+	if err != nil {
+		t.Fatalf("zip builtin: %v", err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatalf("read zip: %v", err)
+	}
+	var got []string
+	for _, f := range zr.File {
+		got = append(got, f.Name)
+	}
+	sort.Strings(got)
+	want := []string{"Inter-Regular.ttf", "tabler-icons.ttf", "widget_theme.yaml"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("zip entries = %v, want %v", got, want)
+	}
+}

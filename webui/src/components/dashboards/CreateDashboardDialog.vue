@@ -48,7 +48,7 @@ const handleSave = () => {
         :draggable="false"
         header="New Dashboard"
     >
-        <div class="flex flex-column gap-3" style="min-width: 350px">
+        <div class="flex flex-column gap-3 dialog-form">
             <div class="flex align-items-center gap-2">
                 <InputText
                     v-model="name"

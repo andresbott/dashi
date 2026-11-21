@@ -8,6 +8,7 @@ const stack: WidgetModule = {
     label: 'Stack',
     icon: 'ti-layout-rows',
     description: 'Stack widgets vertically in a column',
+    category: 'layout',
 }
 
 export default stack

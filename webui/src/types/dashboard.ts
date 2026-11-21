@@ -36,6 +36,10 @@ export interface Page {
 
 export type ColorMode = 'auto' | 'light' | 'dark'
 
+// How an image dashboard is dithered for the e-ink formats. Absent means
+// plain Floyd-Steinberg; see lib/dither.ts for the options shown in settings.
+export type DitherMode = 'auto' | 'balanced' | 'dynamic' | 'vivid' | 'soft' | 'grayscale'
+
 export interface Dashboard {
     id: string
     name: string
@@ -43,13 +47,15 @@ export interface Dashboard {
     type: DashboardType
     default?: boolean
     container: Container
-    theme?: string
+    // References a theme entity (colours and background, see types/theme.ts)
+    // by ID. Empty or dangling renders the builtin "default".
+    themeId?: string
+    // References a widget theme (fonts and icons, see types/widgetTheme.ts)
+    // by name. Empty or unknown renders "default".
+    widgetTheme?: string
     colorMode?: ColorMode
-    accentColor?: string
-    // References a background entity (see types/background.ts). Deliberately a
-    // different key from the removed inline `background` object: the backend
-    // ignores that stale key rather than failing to parse older dashboards.
-    backgroundId?: string
+    // Image dashboards only; ignored for interactive ones.
+    dither?: DitherMode
     pages: Page[]
 }
 
@@ -67,12 +73,8 @@ export interface CreateDashboardDTO {
     icon: string
     type: DashboardType
     container: Container
-    theme?: string
+    themeId?: string
+    widgetTheme?: string
     colorMode?: ColorMode
-    accentColor?: string
-    // References a background entity (see types/background.ts). Deliberately a
-    // different key from the removed inline `background` object: the backend
-    // ignores that stale key rather than failing to parse older dashboards.
-    backgroundId?: string
     pages: Page[]
 }

@@ -1,536 +1,601 @@
 package themes
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/andresbott/dashi/internal/data/images"
 )
 
-func TestNewStore_LoadsEmbeddedDefault(t *testing.T) {
-	store := NewStore("")
-	themes := store.List()
+func newTestStore(t *testing.T) (*Store, string) {
+	t.Helper()
+	dir := t.TempDir()
+	pool, err := images.NewStore(filepath.Join(dir, "pool"))
+	if err != nil {
+		t.Fatalf("create pool: %v", err)
+	}
+	return NewStore(filepath.Join(dir, "themes"), pool), dir
+}
 
-	found := false
-	for _, th := range themes {
-		if th.Name == "default" {
-			found = true
-			if !th.HasIcons {
-				t.Error("default theme should have icons")
-			}
-			if len(th.Fonts) != 1 {
-				t.Errorf("default theme fonts count = %d, want 1", len(th.Fonts))
-			}
-			if len(th.Fonts) > 0 && th.Fonts[0].Name != "Inter" {
-				t.Errorf("default theme font name = %q, want %q", th.Fonts[0].Name, "Inter")
-			}
+// mustCreate creates a valid theme named name and fails the test on error.
+func mustCreate(t *testing.T, s *Store, name string) Theme {
+	t.Helper()
+	created, err := s.Create(testTheme(name))
+	if err != nil {
+		t.Fatalf("create %q: %v", name, err)
+	}
+	return created
+}
+
+func TestCreateAssignsIDAndSnakeCaseFolder(t *testing.T) {
+	s, dir := newTestStore(t)
+	got := mustCreate(t, s, "My Sunset!")
+	if len(got.ID) != 6 {
+		t.Fatalf("expected a 6-char id, got %q", got.ID)
+	}
+	for _, c := range got.ID {
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') {
+			t.Fatalf("id %q is not lowercase alphanumeric", got.ID)
 		}
 	}
-	if !found {
-		t.Error("expected default theme to be loaded")
+	path := filepath.Join(dir, "themes", "my_sunset", "theme.json")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected %s to exist: %v", path, err)
 	}
 }
 
-func TestNewStore_LoadsUserTheme(t *testing.T) {
-	dir := t.TempDir()
-	themeDir := filepath.Join(dir, "my-icons")
-	iconsDir := filepath.Join(themeDir, "widgets", "weather", "icons")
-	if err := os.MkdirAll(iconsDir, 0o750); err != nil {
-		t.Fatal(err)
+func TestCreateUnnamableFallsBackToThemeFolder(t *testing.T) {
+	s, dir := newTestStore(t)
+	mustCreate(t, s, "!!!")
+	if _, err := os.Stat(filepath.Join(dir, "themes", "theme", "theme.json")); err != nil {
+		t.Fatalf("expected the fallback folder name: %v", err)
 	}
+}
 
-	manifest := `name: "My Icons"
-type: icon
-description: "Custom weather icons"
-icons:
-  type: image
-`
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
+func TestCreateRejectsInvalidConfig(t *testing.T) {
+	s, _ := newTestStore(t)
+	th := testTheme("Bad")
+	th.Background.Gradient = &Gradient{Direction: "sideways", Light: []string{"#000", "#fff"}}
+	if _, err := s.Create(th); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(iconsDir, "clear-sky.svg"), []byte("<svg/>"), 0o600); err != nil {
-		t.Fatal(err)
+}
+
+func TestCreateRejectsIncompletePalette(t *testing.T) {
+	s, _ := newTestStore(t)
+	th := testTheme("Half")
+	th.Colors.Dark = Palette{}
+	if _, err := s.Create(th); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got %v", err)
 	}
+}
 
-	store := NewStore(dir)
-	themes := store.List()
+// builtinIDs lists every builtin, so each builtin test runs for all of them.
+var builtinIDs = []string{DefaultID, EmberID}
 
-	found := false
-	for _, th := range themes {
-		if th.Name == "my-icons" {
-			found = true
-			if !th.HasIcons {
-				t.Error("theme should have icons")
-			}
-			if th.Description != "Custom weather icons" {
-				t.Errorf("theme description = %q, want %q", th.Description, "Custom weather icons")
-			}
+func TestCreateRejectsBuiltinID(t *testing.T) {
+	s, _ := newTestStore(t)
+	for _, id := range builtinIDs {
+		th := testTheme("Imposter")
+		th.ID = id
+		if _, err := s.Create(th); !errors.Is(err, ErrBuiltin) {
+			t.Fatalf("%s: expected ErrBuiltin, got %v", id, err)
 		}
 	}
-	if !found {
-		t.Error("expected my-icons theme to be loaded")
-	}
 }
 
-func TestStore_UserThemeOverridesEmbedded(t *testing.T) {
-	dir := t.TempDir()
-	themeDir := filepath.Join(dir, "default")
-	if err := os.MkdirAll(themeDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest := `name: "default"
-type: icon
-description: "User override of default"
-icons:
-  type: image
-`
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	store := NewStore(dir)
-	th, ok := store.Get("default")
-	if !ok {
-		t.Fatal("expected default theme")
-	}
-	if th.Description != "User override of default" {
-		t.Errorf("description = %q, want user override", th.Description)
-	}
-}
-
-func TestStore_ResolveIcon_FontTheme(t *testing.T) {
-	store := NewStore("")
-	result, err := store.ResolveIcon("default", "clear-sky")
+func TestGetRoundTrips(t *testing.T) {
+	s, _ := newTestStore(t)
+	th := testTheme("Dusk")
+	th.Background.Gradient = &Gradient{Direction: "135deg", Light: []string{"#000000", "#ffffff"}}
+	th.Colors.Dark.Surface = "#23233d80"
+	created, err := s.Create(th)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("create: %v", err)
 	}
-	if result.Type != ThemeTypeFont {
-		t.Errorf("type = %q, want %q", result.Type, ThemeTypeFont)
-	}
-	if result.CSSClass != "ti ti-sun" {
-		t.Errorf("css class = %q, want %q", result.CSSClass, "ti ti-sun")
-	}
-}
-
-func TestStore_ResolveIcon_ImageTheme(t *testing.T) {
-	dir := t.TempDir()
-	themeDir := filepath.Join(dir, "custom")
-	iconsDir := filepath.Join(themeDir, "widgets", "weather", "icons")
-	if err := os.MkdirAll(iconsDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest := `name: "custom"
-type: icon
-description: "Custom icons"
-icons:
-  type: image
-`
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(iconsDir, "clear-sky.svg"), []byte("<svg>sun</svg>"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	store := NewStore(dir)
-	result, err := store.ResolveIcon("custom", "clear-sky")
+	got, err := s.Get(created.ID)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("get: %v", err)
 	}
-	if result.Type != ThemeTypeImage {
-		t.Errorf("type = %q, want %q", result.Type, ThemeTypeImage)
+	if got.Name != "Dusk" || got.Background.Gradient == nil || got.Background.Gradient.Direction != "135deg" {
+		t.Fatalf("round trip lost data: %+v", got)
 	}
-	if result.FilePath == "" {
-		t.Error("expected file path to be set")
+	if got.Colors != th.Colors {
+		t.Fatalf("round trip lost colours: %+v", got.Colors)
 	}
 }
 
-func TestStore_ResolveIcon_FontThemeCodepoint(t *testing.T) {
-	store := NewStore("")
-	resolved, err := store.ResolveIcon("default", "clear-sky")
+func TestGetDefaultIsBuiltin(t *testing.T) {
+	s, _ := newTestStore(t)
+	got, err := s.Get("default")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("get default: %v", err)
 	}
-	if resolved.CSSClass != "ti ti-sun" {
-		t.Errorf("expected CSS class 'ti ti-sun', got %q", resolved.CSSClass)
-	}
-	if resolved.Codepoint != "eb30" {
-		t.Errorf("expected codepoint 'eb30', got %q", resolved.Codepoint)
+	if got != DefaultTheme() {
+		t.Fatalf("got %+v, want DefaultTheme()", got)
 	}
 }
 
-func TestStore_ResolveIcon_DetailIcons(t *testing.T) {
-	store := NewStore("")
-	detailIcons := []string{"sunrise", "sunset", "wind", "humidity", "pressure", "uv-index", "visibility", "air-quality"}
-	for _, name := range detailIcons {
-		result, err := store.ResolveIcon("default", name)
+func TestGetEmberIsBuiltin(t *testing.T) {
+	s, _ := newTestStore(t)
+	got, err := s.Get(EmberID)
+	if err != nil {
+		t.Fatalf("get ember: %v", err)
+	}
+	if got != EmberTheme() {
+		t.Fatalf("got %+v, want EmberTheme()", got)
+	}
+	if s.Resolve(EmberID) != EmberTheme() {
+		t.Fatal("Resolve must return the Ember builtin, not fall back to default")
+	}
+}
+
+func TestBuiltinThemesAreValid(t *testing.T) {
+	for _, id := range builtinIDs {
+		th, ok := Builtin(id)
+		if !ok {
+			t.Fatalf("%s: not registered", id)
+		}
+		if th.ID != id {
+			t.Errorf("%s: constructor returns ID %q", id, th.ID)
+		}
+		if err := th.Validate(); err != nil {
+			t.Errorf("%s: %v", id, err)
+		}
+		// A 6-character ID could collide with a randomID.
+		if len(id) == idLen {
+			t.Errorf("%s: builtin IDs must not be %d characters long", id, idLen)
+		}
+	}
+	if len(builtins) != len(builtinIDs) {
+		t.Errorf("builtinIDs is out of date: %d registered, %d listed", len(builtins), len(builtinIDs))
+	}
+}
+
+func TestResolveUnknownFallsBack(t *testing.T) {
+	s, _ := newTestStore(t)
+	for _, id := range []string{"zzzzzz", "", "../etc"} {
+		if got := s.Resolve(id); got != DefaultTheme() {
+			t.Errorf("Resolve(%q) = %+v, want DefaultTheme()", id, got)
+		}
+	}
+}
+
+func TestResolveReturnsStoredTheme(t *testing.T) {
+	s, _ := newTestStore(t)
+	created := mustCreate(t, s, "Stored")
+	if got := s.Resolve(created.ID); got.ID != created.ID || got.Name != "Stored" {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestGetUnknownIDReturnsNotFound(t *testing.T) {
+	s, _ := newTestStore(t)
+	if _, err := s.Get("zzzzzz"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestGetInvalidIDReturnsInvalidID(t *testing.T) {
+	s, _ := newTestStore(t)
+	if _, err := s.Get("../etc"); !errors.Is(err, ErrInvalidID) {
+		t.Fatalf("expected ErrInvalidID, got %v", err)
+	}
+}
+
+func TestBuiltinIsReadOnly(t *testing.T) {
+	s, _ := newTestStore(t)
+	for _, id := range builtinIDs {
+		th, _ := Builtin(id)
+		th.Name = "Hijacked"
+		if _, err := s.Update(th); !errors.Is(err, ErrBuiltin) {
+			t.Errorf("%s Update: expected ErrBuiltin, got %v", id, err)
+		}
+		if err := s.Delete(id); !errors.Is(err, ErrBuiltin) {
+			t.Errorf("%s Delete: expected ErrBuiltin, got %v", id, err)
+		}
+		if err := s.SaveAsset(id, "a.png", []byte("x")); !errors.Is(err, ErrBuiltin) {
+			t.Errorf("%s SaveAsset: expected ErrBuiltin, got %v", id, err)
+		}
+		if err := s.DeleteAsset(id, "a.png"); !errors.Is(err, ErrBuiltin) {
+			t.Errorf("%s DeleteAsset: expected ErrBuiltin, got %v", id, err)
+		}
+	}
+}
+
+func TestBuiltinHasNoAssets(t *testing.T) {
+	s, _ := newTestStore(t)
+	for _, id := range builtinIDs {
+		list, err := s.ListAssets(id)
 		if err != nil {
-			t.Errorf("failed to resolve detail icon %q: %v", name, err)
-			continue
+			t.Fatalf("%s list assets: %v", id, err)
 		}
-		if result.Type != ThemeTypeFont {
-			t.Errorf("detail icon %q: type = %q, want %q", name, result.Type, ThemeTypeFont)
+		if list == nil || len(list) != 0 {
+			t.Fatalf("%s: expected an empty, non-nil list, got %#v", id, list)
 		}
-		if result.CSSClass == "" {
-			t.Errorf("detail icon %q: expected non-empty CSS class", name)
-		}
-		if result.Codepoint == "" {
-			t.Errorf("detail icon %q: expected non-empty codepoint", name)
-		}
+	}
+	if _, _, err := s.GetAsset(DefaultID, "a.png"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
 
-func TestStore_ResolveIcon_UnknownTheme(t *testing.T) {
-	store := NewStore("")
-	_, err := store.ResolveIcon("nonexistent", "clear-sky")
-	if err == nil {
-		t.Error("expected error for unknown theme")
+func TestUpdateRenamesFolderButKeepsID(t *testing.T) {
+	s, dir := newTestStore(t)
+	created := mustCreate(t, s, "Before")
+	created.Name = "After"
+	if _, err := s.Update(created); err != nil {
+		t.Fatalf("update: %v", err)
 	}
-}
-
-func TestStore_ResolveIcon_UnknownIcon(t *testing.T) {
-	store := NewStore("")
-	_, err := store.ResolveIcon("default", "nonexistent-icon")
-	if err == nil {
-		t.Error("expected error for unknown icon in font theme")
+	if _, err := os.Stat(filepath.Join(dir, "themes", "after")); err != nil {
+		t.Fatalf("expected the folder to be renamed: %v", err)
 	}
-}
-
-func TestStore_GetFontData_Default(t *testing.T) {
-	store := NewStore("")
-	data, err := store.GetFontData("default")
+	got, err := s.Get(created.ID)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("the id must still resolve after a rename: %v", err)
 	}
-	if len(data) == 0 {
-		t.Error("expected non-empty font data for default theme")
-	}
-	// TTF files start with 0x00 0x01 0x00 0x00
-	if len(data) < 4 || data[0] != 0x00 || data[1] != 0x01 {
-		t.Error("expected valid TTF header")
+	if got.Name != "After" {
+		t.Fatalf("got name %q", got.Name)
 	}
 }
 
-func TestStore_GetFontData_NoFont(t *testing.T) {
-	store := NewStore("")
-	_, err := store.GetFontData("nonexistent")
-	if err == nil {
-		t.Error("expected error for nonexistent theme")
+func TestUpdateUnknownIDReturnsNotFound(t *testing.T) {
+	s, _ := newTestStore(t)
+	th := testTheme("Ghost")
+	th.ID = "zzzzzz"
+	if _, err := s.Update(th); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
 
-func TestStore_GetDisplayFontData_Default(t *testing.T) {
-	store := NewStore("")
-	data, err := store.GetDisplayFontData("default", "Inter")
+func TestUpdateRejectsIncompletePalette(t *testing.T) {
+	s, _ := newTestStore(t)
+	created := mustCreate(t, s, "Full")
+	created.Colors.Light.Text = ""
+	if _, err := s.Update(created); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig, got %v", err)
+	}
+}
+
+func TestDeleteRemovesFolderAndIndexEntry(t *testing.T) {
+	s, dir := newTestStore(t)
+	created := mustCreate(t, s, "Gone")
+	if err := s.Delete(created.ID); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "themes", "gone")); !os.IsNotExist(err) {
+		t.Fatalf("expected the folder to be gone, got %v", err)
+	}
+	if _, err := s.Get(created.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound after delete, got %v", err)
+	}
+}
+
+func TestListIncludesBuiltins(t *testing.T) {
+	s, _ := newTestStore(t)
+	metas, err := s.List(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("list: %v", err)
 	}
-	if len(data) == 0 {
-		t.Error("expected non-empty font data for Inter")
+	if len(metas) != 2 {
+		t.Fatalf("expected only the builtins, got %+v", metas)
 	}
-	// TTF files start with 0x00 0x01 0x00 0x00
-	if len(data) < 4 || data[0] != 0x00 || data[1] != 0x01 {
-		t.Error("expected valid TTF header")
+	// Sorted by name: Default, Ember.
+	if metas[0].ID != DefaultID || !metas[0].Builtin {
+		t.Fatalf("got %+v", metas[0])
+	}
+	if metas[0].Colors != DefaultTheme().Colors {
+		t.Errorf("expected the default colours, got %+v", metas[0].Colors)
+	}
+	if !strings.Contains(metas[0].PreviewCSS, "--dashi-bg:#ffffff;") {
+		t.Errorf("expected preview CSS, got %q", metas[0].PreviewCSS)
+	}
+	if metas[1].ID != EmberID || !metas[1].Builtin || metas[1].Colors != EmberTheme().Colors {
+		t.Fatalf("got %+v", metas[1])
 	}
 }
 
-func TestStore_GetDisplayFontData_NotFound(t *testing.T) {
-	store := NewStore("")
-	_, err := store.GetDisplayFontData("default", "NonexistentFont")
-	if err == nil {
-		t.Error("expected error for nonexistent font")
+func TestListSortsByNameAndCarriesUsageAndPreview(t *testing.T) {
+	s, _ := newTestStore(t)
+	zebraTheme := testTheme("Zebra")
+	zebraTheme.Background.Gradient = &Gradient{Direction: "to right", Light: []string{"#123456", "#654321"}}
+	b, err := s.Create(zebraTheme)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	mustCreate(t, s, "apple")
+
+	metas, err := s.List(map[string]int{b.ID: 3, DefaultID: 2})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(metas) != 4 {
+		t.Fatalf("expected 2 themes plus the 2 builtins, got %d", len(metas))
+	}
+	var names []string
+	for _, m := range metas {
+		names = append(names, m.Name)
+	}
+	if strings.Join(names, ",") != "apple,Default,Ember,Zebra" {
+		t.Fatalf("expected case-insensitive name order, got %v", names)
+	}
+	if metas[0].Builtin || metas[3].Builtin {
+		t.Error("stored themes must not be flagged builtin")
+	}
+	if metas[1].UsedBy != 2 {
+		t.Errorf("expected the builtin UsedBy 2, got %d", metas[1].UsedBy)
+	}
+	zebra := metas[3]
+	if zebra.UsedBy != 3 {
+		t.Errorf("expected UsedBy 3, got %d", zebra.UsedBy)
+	}
+	if !strings.Contains(zebra.PreviewCSS, "#123456") {
+		t.Errorf("expected preview CSS, got %q", zebra.PreviewCSS)
+	}
+	if zebra.Colors != zebraTheme.Colors {
+		t.Errorf("expected the meta to carry colours, got %+v", zebra.Colors)
 	}
 }
 
-func TestStore_GetDisplayFontData_UserTheme(t *testing.T) {
+func TestListSkipsStoredThemeClaimingBuiltinID(t *testing.T) {
+	s, dir := newTestStore(t)
+	folder := filepath.Join(dir, "themes", "imposter")
+	if err := os.MkdirAll(folder, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	raw := `{"id":"ember","name":"Imposter","background":{},"colors":{}}`
+	if err := os.WriteFile(filepath.Join(folder, "theme.json"), []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	metas, err := s.List(nil)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(metas) != 2 || metas[0].Name != "Default" || metas[1].Name != "Ember" {
+		t.Fatalf("a stored theme must not shadow a builtin, got %+v", metas)
+	}
+}
+
+func TestIndexIsRebuiltOnStartup(t *testing.T) {
 	dir := t.TempDir()
-	themeDir := filepath.Join(dir, "custom")
-	if err := os.MkdirAll(themeDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
+	pool, _ := images.NewStore(filepath.Join(dir, "pool"))
+	themesDir := filepath.Join(dir, "themes")
 
-	// Create a minimal TTF file (fake but valid header)
-	fakeTTF := []byte{0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if err := os.WriteFile(filepath.Join(themeDir, "myfont.ttf"), fakeTTF, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	first := NewStore(themesDir, pool)
+	created := mustCreate(t, first, "Persisted")
 
-	manifest := `name: "custom"
-type: style
-description: "Custom theme with font"
-fonts:
-  - name: "My Font"
-    file: "myfont.ttf"
-`
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	store := NewStore(dir)
-	data, err := store.GetDisplayFontData("custom", "My Font")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(data) != len(fakeTTF) {
-		t.Errorf("expected font data length %d, got %d", len(fakeTTF), len(data))
+	second := NewStore(themesDir, pool)
+	if _, err := second.Get(created.ID); err != nil {
+		t.Fatalf("a fresh store must find the theme by id: %v", err)
 	}
 }
 
-func TestStore_NewFormatThemeWithFontsAndIcons(t *testing.T) {
+func TestAssetLifecycle(t *testing.T) {
+	s, _ := newTestStore(t)
+	created := mustCreate(t, s, "Assets")
+
+	if err := s.SaveAsset(created.ID, "pic.png", []byte("png-bytes")); err != nil {
+		t.Fatalf("save asset: %v", err)
+	}
+	list, err := s.ListAssets(created.ID)
+	if err != nil {
+		t.Fatalf("list assets: %v", err)
+	}
+	if len(list) != 1 || list[0] != "pic.png" {
+		t.Fatalf("got %v", list)
+	}
+	data, mime, err := s.GetAsset(created.ID, "pic.png")
+	if err != nil {
+		t.Fatalf("get asset: %v", err)
+	}
+	if string(data) != "png-bytes" {
+		t.Errorf("got %q", data)
+	}
+	if mime != "image/png" {
+		t.Errorf("got mime %q", mime)
+	}
+	if err := s.DeleteAsset(created.ID, "pic.png"); err != nil {
+		t.Fatalf("delete asset: %v", err)
+	}
+	if list, _ := s.ListAssets(created.ID); len(list) != 0 {
+		t.Fatalf("expected no assets, got %v", list)
+	}
+}
+
+func TestAssetRejectsTraversalAndBadExtension(t *testing.T) {
+	s, _ := newTestStore(t)
+	created := mustCreate(t, s, "Assets")
+
+	cases := []string{"../escape.png", "/abs.png", "script.js", "theme.json", ""}
+	for _, name := range cases {
+		t.Run(name, func(t *testing.T) {
+			if err := s.SaveAsset(created.ID, name, []byte("x")); err == nil {
+				t.Fatalf("expected %q to be rejected", name)
+			}
+		})
+	}
+}
+
+func TestListAssetsExcludesThemeJSON(t *testing.T) {
+	s, _ := newTestStore(t)
+	created := mustCreate(t, s, "Assets")
+	list, err := s.ListAssets(created.ID)
+	if err != nil {
+		t.Fatalf("list assets: %v", err)
+	}
+	for _, a := range list {
+		if a == "theme.json" {
+			t.Fatal("theme.json must not appear as an asset")
+		}
+	}
+}
+
+func TestLoadImageFromAssetAndPool(t *testing.T) {
 	dir := t.TempDir()
-	themeDir := filepath.Join(dir, "newformat")
-	if err := os.MkdirAll(themeDir, 0o750); err != nil {
-		t.Fatal(err)
+	pool, _ := images.NewStore(filepath.Join(dir, "pool"))
+	if err := pool.Save("shared.png", []byte("pool-bytes")); err != nil {
+		t.Fatalf("seed pool: %v", err)
 	}
+	s := NewStore(filepath.Join(dir, "themes"), pool)
+	created := mustCreate(t, s, "Loader")
+	_ = s.SaveAsset(created.ID, "own.png", []byte("own-bytes"))
 
-	// Create fake font files
-	fakeTTF := []byte{0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	if err := os.WriteFile(filepath.Join(themeDir, "display.ttf"), fakeTTF, 0o600); err != nil {
-		t.Fatal(err)
+	own, err := s.LoadImage(created.ID, "asset:own.png")
+	if err != nil || string(own) != "own-bytes" {
+		t.Fatalf("asset ref: %q, %v", own, err)
 	}
-	if err := os.WriteFile(filepath.Join(themeDir, "icons.ttf"), fakeTTF, 0o600); err != nil {
-		t.Fatal(err)
+	shared, err := s.LoadImage(created.ID, "shared:shared.png")
+	if err != nil || string(shared) != "pool-bytes" {
+		t.Fatalf("shared ref: %q, %v", shared, err)
 	}
-
-	manifest := `name: "newformat"
-type: icon
-description: "Theme with new manifest format"
-fonts:
-  - name: "Display Font"
-    file: "display.ttf"
-  - name: "Another Font"
-    file: "display.ttf"
-icons:
-  type: font
-  classPrefix: "icon-"
-  fontFile: "icons.ttf"
-  icons:
-    test-icon:
-      class: "test"
-      codepoint: "1234"
-`
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
+	if _, err := s.LoadImage(created.ID, "theme:default/x.png"); err == nil {
+		t.Fatal("theme refs must be rejected")
 	}
+}
 
-	store := NewStore(dir)
+// createOceanWithAsset creates "Ocean" with a custom palette and an image
+// asset at img/a.png referenced by its background.
+func createOceanWithAsset(t *testing.T, s *Store) Theme {
+	t.Helper()
+	th := testTheme("Ocean")
+	th.Colors.Light.Primary = "#0077be"
+	th.Colors.Dark.Surface = "#00334e80"
+	th.Background.Image = &Image{Light: "asset:img/a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
+	created, err := s.Create(th)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := s.SaveAsset(created.ID, "img/a.png", []byte("ocean-bytes")); err != nil {
+		t.Fatalf("save asset: %v", err)
+	}
+	return created
+}
 
-	// Test theme info
-	th, ok := store.Get("newformat")
+func TestCopyTheme(t *testing.T) {
+	s, _ := newTestStore(t)
+	orig := createOceanWithAsset(t, s)
+
+	cp, err := s.Copy(orig.ID)
+	if err != nil {
+		t.Fatalf("copy: %v", err)
+	}
+	if cp.ID == orig.ID || cp.ID == "" {
+		t.Fatalf("expected a new id, got %q (original %q)", cp.ID, orig.ID)
+	}
+	if cp.Name != "Copy of Ocean" {
+		t.Errorf("Name = %q", cp.Name)
+	}
+	if cp.Colors != orig.Colors {
+		t.Errorf("colours differ: %+v vs %+v", cp.Colors, orig.Colors)
+	}
+	data, _, err := s.GetAsset(cp.ID, "img/a.png")
+	if err != nil || string(data) != "ocean-bytes" {
+		t.Fatalf("copied asset: %q, %v", data, err)
+	}
+	stored, err := s.Get(cp.ID)
+	if err != nil {
+		t.Fatalf("the copy must be persisted: %v", err)
+	}
+	if stored.Background.Image == nil || stored.Background.Image.Light != "asset:img/a.png" {
+		t.Errorf("background not copied: %+v", stored.Background)
+	}
+}
+
+func TestCopyEmber(t *testing.T) {
+	s, _ := newTestStore(t)
+	cp, err := s.Copy(EmberID)
+	if err != nil {
+		t.Fatalf("copy ember: %v", err)
+	}
+	if cp.ID == EmberID || cp.Name != "Copy of Ember" || cp.Colors != EmberTheme().Colors {
+		t.Fatalf("got %+v", cp)
+	}
+	if _, err := s.Update(cp); err != nil {
+		t.Errorf("the copy must be editable: %v", err)
+	}
+}
+
+func TestCopyDefault(t *testing.T) {
+	s, _ := newTestStore(t)
+	cp, err := s.Copy(DefaultID)
+	if err != nil {
+		t.Fatalf("copy default: %v", err)
+	}
+	if cp.ID == DefaultID || cp.ID == "" {
+		t.Fatalf("expected a new id, got %q", cp.ID)
+	}
+	if cp.Name != "Copy of Default" {
+		t.Errorf("Name = %q", cp.Name)
+	}
+	if cp.Colors != DefaultTheme().Colors {
+		t.Errorf("expected default colours, got %+v", cp.Colors)
+	}
+	// The copy is a regular, editable theme.
+	if _, err := s.Update(cp); err != nil {
+		t.Errorf("the copy must be editable: %v", err)
+	}
+	list, err := s.ListAssets(cp.ID)
+	if err != nil || len(list) != 0 {
+		t.Fatalf("expected no assets, got %v, %v", list, err)
+	}
+	metas, _ := s.List(nil)
+	for _, m := range metas {
+		if m.ID == cp.ID && m.Builtin {
+			t.Error("the copy must not be flagged builtin")
+		}
+	}
+}
+
+func TestCopyThemeSurvivesOriginalDelete(t *testing.T) {
+	// Review Focus 3: the copy owns its own asset files.
+	s, _ := newTestStore(t)
+	orig := createOceanWithAsset(t, s)
+	cp, err := s.Copy(orig.ID)
+	if err != nil {
+		t.Fatalf("copy: %v", err)
+	}
+	if err := s.Delete(orig.ID); err != nil {
+		t.Fatalf("delete original: %v", err)
+	}
+	data, err := s.LoadImage(cp.ID, "asset:img/a.png")
+	if err != nil || string(data) != "ocean-bytes" {
+		t.Fatalf("copy lost its image: %q, %v", data, err)
+	}
+}
+
+func TestCopyUnknownReturnsNotFound(t *testing.T) {
+	s, _ := newTestStore(t)
+	if _, err := s.Copy("zzzzzz"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+	if _, err := s.Copy("../x"); !errors.Is(err, ErrInvalidID) {
+		t.Fatalf("expected ErrInvalidID, got %v", err)
+	}
+}
+
+func TestRollbackCreateRemovesFolderAndIndexEntry(t *testing.T) {
+	s, _ := newTestStore(t)
+	created := mustCreate(t, s, "ToBeRolledBack")
+
+	folderPath, ok := s.themeDir(created.ID)
 	if !ok {
-		t.Fatal("expected newformat theme to be loaded")
+		t.Fatalf("theme %s not in index", created.ID)
 	}
-	if !th.HasIcons {
-		t.Error("theme should have icons")
+	if _, err := os.Stat(folderPath); err != nil {
+		t.Fatalf("expected folder to exist before rollback: %v", err)
 	}
-	if len(th.Fonts) != 2 {
-		t.Errorf("expected 2 fonts, got %d", len(th.Fonts))
-	}
-	if len(th.Fonts) > 0 && th.Fonts[0].Name != "Display Font" {
-		t.Errorf("first font name = %q, want %q", th.Fonts[0].Name, "Display Font")
+	if _, err := s.Get(created.ID); err != nil {
+		t.Fatalf("expected Get to succeed before rollback: %v", err)
 	}
 
-	// Test icon resolution
-	resolved, err := store.ResolveIcon("newformat", "test-icon")
-	if err != nil {
-		t.Fatalf("unexpected error resolving icon: %v", err)
-	}
-	if resolved.Type != ThemeTypeFont {
-		t.Errorf("icon type = %q, want %q", resolved.Type, ThemeTypeFont)
-	}
-	if resolved.CSSClass != "icon-test" {
-		t.Errorf("css class = %q, want %q", resolved.CSSClass, "icon-test")
-	}
+	s.rollbackCreate(created.ID, folderPath)
 
-	// Test display font retrieval
-	data, err := store.GetDisplayFontData("newformat", "Display Font")
-	if err != nil {
-		t.Fatalf("unexpected error getting display font: %v", err)
+	if _, err := os.Stat(folderPath); !os.IsNotExist(err) {
+		t.Fatalf("expected folder to be removed, got %v", err)
 	}
-	if len(data) != len(fakeTTF) {
-		t.Errorf("expected font data length %d, got %d", len(fakeTTF), len(data))
-	}
-
-	// Test icon font retrieval
-	iconData, err := store.GetFontData("newformat")
-	if err != nil {
-		t.Fatalf("unexpected error getting icon font: %v", err)
-	}
-	if len(iconData) != len(fakeTTF) {
-		t.Errorf("expected icon font data length %d, got %d", len(fakeTTF), len(iconData))
-	}
-}
-
-func TestStore_ResolveIcon_ThemeNoIconConfig(t *testing.T) {
-	dir := t.TempDir()
-	themeDir := filepath.Join(dir, "noicons")
-	if err := os.MkdirAll(themeDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest := `name: "noicons"
-type: style
-description: "Theme without icons"
-`
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	store := NewStore(dir)
-	_, err := store.ResolveIcon("noicons", "test-icon")
-	if err == nil {
-		t.Error("expected error for theme with no icon config")
-	}
-}
-
-func TestStore_ResolveIcon_InvalidIconName(t *testing.T) {
-	dir := t.TempDir()
-	themeDir := filepath.Join(dir, "custom")
-	iconsDir := filepath.Join(themeDir, "widgets", "weather", "icons")
-	if err := os.MkdirAll(iconsDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest := `name: "custom"
-type: icon
-description: "Custom icons"
-icons:
-  type: image
-`
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	store := NewStore(dir)
-
-	// Test path traversal attempts
-	_, err := store.ResolveIcon("custom", "../etc/passwd")
-	if err == nil {
-		t.Error("expected error for icon name with path traversal")
-	}
-
-	_, err = store.ResolveIcon("custom", "subdir/icon")
-	if err == nil {
-		t.Error("expected error for icon name with slash")
-	}
-}
-
-func TestStore_ListBackgrounds(t *testing.T) {
-	dir := t.TempDir()
-	themeDir := filepath.Join(dir, "mytheme")
-	bgDir := filepath.Join(themeDir, "backgrounds")
-	if err := os.MkdirAll(bgDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest := `name: "mytheme"
-type: style
-description: "Theme with backgrounds"
-`
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create some background images
-	if err := os.WriteFile(filepath.Join(bgDir, "bg1.png"), []byte("fake png"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(bgDir, "bg2.jpg"), []byte("fake jpg"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(bgDir, "bg3.webp"), []byte("fake webp"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(bgDir, "readme.txt"), []byte("not an image"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	store := NewStore(dir)
-	backgrounds := store.ListBackgrounds("mytheme")
-
-	if len(backgrounds) != 3 {
-		t.Errorf("expected 3 backgrounds, got %d", len(backgrounds))
-	}
-
-	// Check that only image files are returned
-	found := make(map[string]bool)
-	for _, bg := range backgrounds {
-		found[bg] = true
-	}
-	if !found["bg1.png"] || !found["bg2.jpg"] || !found["bg3.webp"] {
-		t.Errorf("expected bg1.png, bg2.jpg, bg3.webp, got %v", backgrounds)
-	}
-	if found["readme.txt"] {
-		t.Error("readme.txt should not be in backgrounds list")
-	}
-}
-
-func TestStore_ListBackgrounds_NoTheme(t *testing.T) {
-	store := NewStore("")
-	backgrounds := store.ListBackgrounds("nonexistent")
-	if backgrounds != nil {
-		t.Errorf("expected nil for nonexistent theme, got %v", backgrounds)
-	}
-}
-
-func TestStore_GetBackgroundData(t *testing.T) {
-	dir := t.TempDir()
-	themeDir := filepath.Join(dir, "mytheme")
-	bgDir := filepath.Join(themeDir, "backgrounds")
-	if err := os.MkdirAll(bgDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest := `name: "mytheme"
-type: style
-description: "Theme with backgrounds"
-`
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	testData := []byte("fake image data")
-	if err := os.WriteFile(filepath.Join(bgDir, "test.png"), testData, 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	store := NewStore(dir)
-	data, err := store.GetBackgroundData("mytheme", "test.png")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if string(data) != string(testData) {
-		t.Errorf("expected %q, got %q", testData, data)
-	}
-}
-
-func TestStore_GetBackgroundData_InvalidPath(t *testing.T) {
-	dir := t.TempDir()
-	themeDir := filepath.Join(dir, "mytheme")
-	bgDir := filepath.Join(themeDir, "backgrounds")
-	if err := os.MkdirAll(bgDir, 0o750); err != nil {
-		t.Fatal(err)
-	}
-
-	manifest := `name: "mytheme"
-type: style
-description: "Theme with backgrounds"
-`
-	if err := os.WriteFile(filepath.Join(themeDir, "theme.yaml"), []byte(manifest), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	store := NewStore(dir)
-
-	// Test path traversal
-	_, err := store.GetBackgroundData("mytheme", "../etc/passwd")
-	if err == nil {
-		t.Error("expected error for path traversal attempt")
-	}
-
-	_, err = store.GetBackgroundData("mytheme", "subdir/file.png")
-	if err == nil {
-		t.Error("expected error for filename with slash")
+	if _, err := s.Get(created.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound after rollback, got %v", err)
 	}
 }

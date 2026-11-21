@@ -35,6 +35,37 @@ func TestRenderBrowserPrefillsTimeAndCarriesConfigAsDataAttributes(t *testing.T)
 	}
 }
 
+// The font name comes straight from widget config into a style attribute.
+// html/template's CSS-string escaping must keep a crafted value from
+// breaking out of the quoted font-family, on both render stacks.
+func TestFontConfigCannotBreakOutOfStyle(t *testing.T) {
+	config := json.RawMessage(`{"font":"x'; background:url(javascript:alert(1)); a:'"}`)
+	renderers := map[string]widgets.StaticRenderer{
+		"browser": NewModuleWithClock(fixedNow).RenderBrowser,
+		"image":   NewStaticRenderer(fixedNow),
+	}
+	for name, render := range renderers {
+		t.Run(name, func(t *testing.T) {
+			out, err := render(config, widgets.RenderContext{})
+			if err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			html := string(out)
+			// html/template either CSS-escapes the value or, as today,
+			// replaces it with the inert #ZgotmplZ; either way nothing of
+			// the payload survives as live CSS.
+			if !strings.Contains(html, "font-family:") {
+				t.Fatalf("font style not rendered: %s", html)
+			}
+			for _, bad := range []string{"x'; background", "x&#39;; background", "javascript:"} {
+				if strings.Contains(html, bad) {
+					t.Errorf("font value broke out of the CSS string (%q): %s", bad, html)
+				}
+			}
+		})
+	}
+}
+
 func TestRenderBrowserOmitsDateWhenDisabled(t *testing.T) {
 	m := NewModuleWithClock(fixedNow)
 	out, err := m.RenderBrowser(json.RawMessage(`{}`), widgets.RenderContext{})

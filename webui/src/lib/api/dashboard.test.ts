@@ -9,6 +9,7 @@ import {
     getDashboardAssets,
 } from './dashboard'
 import { apiClient } from './client'
+import type { Dashboard, CreateDashboardDTO } from '@/types/dashboard'
 
 vi.mock('./client', () => ({
     apiClient: {
@@ -55,7 +56,7 @@ describe('dashboard API', () => {
             const payload = { name: 'new', type: 'html' }
             const created = { id: '2', ...payload }
             vi.mocked(apiClient.post).mockResolvedValue({ data: created })
-            const result = await createDashboard(payload as any)
+            const result = await createDashboard(payload as unknown as CreateDashboardDTO)
             expect(result).toEqual(created)
             expect(apiClient.post).toHaveBeenCalledWith('/dashboards', payload)
         })
@@ -65,7 +66,7 @@ describe('dashboard API', () => {
         it('puts and returns updated dashboard', async () => {
             const payload = { id: '1', name: 'updated' }
             vi.mocked(apiClient.put).mockResolvedValue({ data: payload })
-            const result = await updateDashboard('1', payload as any)
+            const result = await updateDashboard('1', payload as unknown as Dashboard)
             expect(result).toEqual(payload)
             expect(apiClient.put).toHaveBeenCalledWith('/dashboards/1', payload)
         })

@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
-import ColorPicker from 'primevue/colorpicker'
 
-import { useGetDashboard, useUpdateDashboard, useDashboardAuth } from '@/composables/useDashboards'
-import { useListBackgrounds } from '@/composables/useBackgrounds'
-import { useAutosave } from '@/composables/useAutosave'
-import { useThemes } from '@/composables/useThemes'
-import { pageBgValue } from '@/lib/backgroundCss'
+import { useDashboardAuth } from '@/composables/useDashboards'
+import { useDashboardDraft } from '@/composables/useDashboardDraft'
+import { useListThemes } from '@/composables/useThemes'
+import { useWidgetThemes } from '@/composables/useWidgetThemes'
+import { pageBgValue } from '@/lib/themeCss'
+import { DITHER_OPTIONS, DITHER_PLAIN, type DitherOption } from '@/lib/dither'
 import { useToast } from 'primevue/usetoast'
-import type { Dashboard } from '@/types/dashboard'
+import type { ColorMode } from '@/types/dashboard'
 import dashiIcon from '@/assets/icon-64.png'
 
 const route = useRoute()
@@ -20,64 +20,123 @@ const router = useRouter()
 const toast = useToast()
 const id = computed(() => route.params.id as string)
 
-const { data: serverDashboard, isLoading, isError } = useGetDashboard(() => id.value)
-const { updateDashboard } = useUpdateDashboard()
-const { backgrounds: backgroundList } = useListBackgrounds()
+const { draft: localDashboard, isLoading, isError, saveStatus, hasUnsaved, flush } = useDashboardDraft(() => id.value)
+const { themes: themeList } = useListThemes()
+const { data: widgetThemeList } = useWidgetThemes()
 const { auth: dashAuth, isLoadingAuth, setAuth, isSettingAuth, deleteAuth, isDeletingAuth } = useDashboardAuth(() => id.value)
 
 const authUsername = ref('')
 const authPassword = ref('')
 
-const { data: themesData } = useThemes()
-const themeOptions = computed(() => {
-    if (!themesData.value) return []
-    return themesData.value.map(t => ({ label: t.name, value: t.name }))
-})
+const protectionFailed = () => {
+    toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to update protection', life: 5000 })
+}
 
-const localDashboard = ref<Dashboard | null>(null)
+const submitAuth = async () => {
+    try {
+        await setAuth({ username: authUsername.value, password: authPassword.value })
+        authUsername.value = ''
+        authPassword.value = ''
+    } catch {
+        protectionFailed()
+    }
+}
 
-// A dashboard no longer describes its own background; it points at a background
-// entity, which is edited in the Backgrounds admin section.
-const backgroundOptions = computed(() => [
-    { label: 'None (theme background)', value: '' },
-    ...(backgroundList.value ?? []).map(b => ({ label: b.name, value: b.id })),
-])
+const removeAuth = async () => {
+    try {
+        await deleteAuth()
+        authUsername.value = ''
+        authPassword.value = ''
+    } catch {
+        protectionFailed()
+    }
+}
 
-const backgroundId = computed({
-    get: () => localDashboard.value?.backgroundId ?? '',
+// A dashboard points at a theme (colours and background) by ID and at a widget
+// theme (fonts and icons) by name. Both are edited in their admin sections; an
+// empty reference renders the builtin "default".
+//
+// A dangling reference (the theme was deleted) also renders "default", so it
+// is displayed as such. That is decided only once the list has loaded, so a
+// valid reference never flashes "Default" first, and the stored value is left
+// alone until the user picks another one.
+const displayedRef = (stored: string | undefined, known: string[] | undefined): string => {
+    const v = stored || 'default'
+    return known && !known.includes(v) ? 'default' : v
+}
+
+const themeOptions = computed(() =>
+    (themeList.value ?? []).map(t => ({ label: t.name, value: t.id })),
+)
+
+const themeId = computed({
+    get: () => displayedRef(localDashboard.value?.themeId, themeList.value?.map(t => t.id)),
     set: (v: string) => {
-        if (localDashboard.value) localDashboard.value.backgroundId = v
+        if (localDashboard.value) localDashboard.value.themeId = v
     },
 })
 
-const selectedBackground = computed(
-    () => (backgroundList.value ?? []).find(b => b.id === backgroundId.value) ?? null,
+const selectedTheme = computed(
+    () => (themeList.value ?? []).find(t => t.id === themeId.value) ?? null,
 )
 
-const swatchValue = computed(() =>
-    selectedBackground.value ? pageBgValue(selectedBackground.value.previewCss) : 'transparent',
-)
+// The swatch follows the dashboard's colour mode; "auto" previews light.
+const previewMode = computed(() => (localDashboard.value?.colorMode === 'dark' ? 'dark' : 'light'))
 
-watch(serverDashboard, (val) => {
-    if (val && !localDashboard.value) {
-        localDashboard.value = JSON.parse(JSON.stringify(val))
-    }
-}, { immediate: true })
-
-const { status: saveStatus, flush } = useAutosave<Dashboard>({
-    source: () => localDashboard.value,
-    save: (d) => updateDashboard({ id: id.value, payload: d }),
-})
-
-watch(saveStatus, (s) => {
-    if (s === 'error') {
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to save settings', life: 5000 })
+const swatch = computed(() => {
+    const t = selectedTheme.value
+    if (!t) return null
+    const palette = t.colors[previewMode.value]
+    return {
+        background: pageBgValue(t.previewCss, previewMode.value),
+        primary: palette.primary,
+        secondary: palette.secondary,
     }
 })
 
+const widgetThemeOptions = computed(() =>
+    (widgetThemeList.value ?? []).map(t => ({ label: t.name, value: t.name })),
+)
+
+const widgetTheme = computed({
+    get: () => displayedRef(localDashboard.value?.widgetTheme, widgetThemeList.value?.map(t => t.name)),
+    set: (v: string) => {
+        if (localDashboard.value) localDashboard.value.widgetTheme = v
+    },
+})
+
+// Plain dithering is the absent field, so picking it removes the key rather
+// than storing a value the server would have to know about.
+const dither = computed<DitherOption['value']>({
+    get: () => localDashboard.value?.dither || DITHER_PLAIN,
+    set: (v) => {
+        if (!localDashboard.value) return
+        if (v === DITHER_PLAIN) delete localDashboard.value.dither
+        else localDashboard.value.dither = v
+    },
+})
+
+const ditherHint = computed(() => DITHER_OPTIONS.find(o => o.value === dither.value)?.hint ?? '')
+
+const saveIndicator = computed(() => {
+    if (saveStatus.value === 'error') return { icon: 'ti ti-alert-circle', label: 'Save failed' }
+    if (saveStatus.value === 'saving') return { icon: 'ti ti-loader-2', label: 'Saving…' }
+    if (hasUnsaved.value) return { icon: 'ti ti-pencil', label: 'Unsaved changes' }
+    if (saveStatus.value === 'saved') return { icon: 'ti ti-check', label: 'Saved' }
+    return null
+})
+
+const goToAdmin = async () => {
+    await flush()
+    router.push({ name: 'admin-dashboards' })
+}
+
+// vue-router records the previous in-app location in history.state.back; it
+// is null when this page was opened directly, in which case "back" means the
+// editor rather than leaving the app.
 const goBack = async () => {
     await flush()
-    if (window.history.length > 1) {
+    if (router.options.history.state.back) {
         router.back()
     } else {
         router.push({ name: 'dashboard-edit', params: { id: id.value } })
@@ -99,21 +158,31 @@ const activeSection = ref('general')
 <template>
     <header class="app-topbar">
         <img :src="dashiIcon" alt="Dashi" class="app-topbar-icon" />
-        <span class="app-topbar-title" @click="router.push('/admin')">Dashi</span>
+        <button type="button" class="app-topbar-title" @click="goToAdmin">Dashi</button>
     </header>
     <div class="settings-view">
         <div v-if="isLoading" class="p-4">Loading...</div>
         <div v-else-if="isError" class="p-4">Failed to load dashboard.</div>
         <template v-else-if="localDashboard">
-            <div class="flex align-items-center gap-2 mb-4">
+            <div class="flex flex-wrap align-items-center gap-2 mb-4">
                 <Button
                     icon="ti ti-arrow-left"
                     severity="secondary"
                     text
                     rounded
+                    aria-label="Back"
                     @click="goBack"
                 />
-                <span class="text-xl font-bold text-color flex-grow-1">{{ localDashboard.name }} — Settings</span>
+                <span class="settings-title text-xl font-bold text-color">{{ localDashboard.name }} — Settings</span>
+                <span
+                    v-if="saveIndicator"
+                    class="save-status"
+                    :class="{ 'save-status-error': saveStatus === 'error' }"
+                    aria-live="polite"
+                >
+                    <i :class="saveIndicator.icon" />
+                    {{ saveIndicator.label }}
+                </span>
             </div>
 
             <div class="settings-layout">
@@ -151,52 +220,72 @@ const activeSection = ref('general')
                             class="w-full"
                         />
                     </div>
+                    <div v-if="localDashboard.type === 'image'" class="flex flex-column gap-1">
+                        <label class="font-semibold text-sm">Dither</label>
+                        <Select
+                            :modelValue="dither"
+                            @update:modelValue="(v: DitherOption['value'] | undefined) => { if (v !== undefined) dither = v }"
+                            :options="DITHER_OPTIONS"
+                            optionLabel="label"
+                            optionValue="value"
+                            class="w-full"
+                            data-testid="dither-select"
+                        />
+                        <small class="settings-hint" data-testid="dither-hint">{{ ditherHint }}</small>
+                        <small class="settings-hint">
+                            Applies to the e-ink formats (png-bw, png-spectra6, bw, spectra6).
+                            Compare the options with E-ink preview in the editor.
+                        </small>
+                    </div>
                 </div>
 
-                <!-- Appearance (theme, colors, container, background) -->
+                <!-- Appearance (theme, widget theme, colour mode, container) -->
                 <div v-if="activeSection === 'appearance'" class="flex flex-column gap-3">
-                    <label class="settings-subsection">Theme & Colors</label>
+                    <label class="settings-subsection">Theme</label>
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Theme</label>
                         <Select
-                            :modelValue="localDashboard.theme || 'default'"
-                            @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.theme = v }"
+                            :modelValue="themeId"
+                            @update:modelValue="(v: string | undefined) => { if (v !== undefined) themeId = v }"
                             :options="themeOptions"
                             optionLabel="label"
                             optionValue="value"
                             class="w-full"
                         />
-                    </div>
-                    <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Background</label>
-                        <Select
-                            :modelValue="backgroundId"
-                            @update:modelValue="(v: string | undefined) => { if (v !== undefined) backgroundId = v }"
-                            :options="backgroundOptions"
-                            optionLabel="label"
-                            optionValue="value"
-                            placeholder="None (theme background)"
-                            class="w-full"
-                        />
                         <small class="settings-hint">
-                            Backgrounds are shared between dashboards and edited in the
-                            Backgrounds admin section.
+                            Colours and background. Themes are shared between dashboards
+                            and edited in the Themes admin section.
                         </small>
                     </div>
-                    <div v-if="selectedBackground" class="flex align-items-center gap-2">
-                        <div class="bg-swatch" :style="{ background: swatchValue }" />
+                    <div v-if="selectedTheme && swatch" class="flex align-items-center gap-2">
+                        <div class="theme-swatch" :style="{ background: swatch.background }" />
+                        <span class="color-chip" :style="{ background: swatch.primary }" title="Primary" />
+                        <span class="color-chip" :style="{ background: swatch.secondary }" title="Secondary" />
                         <Button
-                            label="Edit background"
+                            v-if="!selectedTheme.builtin"
+                            label="Edit theme"
                             icon="ti ti-external-link"
                             text
-                            @click="router.push({ name: 'admin-background-edit', params: { id: selectedBackground.id } })"
+                            @click="router.push({ name: 'admin-theme-edit', params: { id: selectedTheme.id } })"
                         />
+                    </div>
+                    <div class="flex flex-column gap-1">
+                        <label class="font-semibold text-sm">Widget theme</label>
+                        <Select
+                            :modelValue="widgetTheme"
+                            @update:modelValue="(v: string | undefined) => { if (v !== undefined) widgetTheme = v }"
+                            :options="widgetThemeOptions"
+                            optionLabel="label"
+                            optionValue="value"
+                            class="w-full"
+                        />
+                        <small class="settings-hint">Fonts and icons.</small>
                     </div>
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Color Mode</label>
                         <Select
                             :modelValue="localDashboard.colorMode || 'auto'"
-                            @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.colorMode = v as any }"
+                            @update:modelValue="(v: ColorMode | undefined) => { if (localDashboard && v !== undefined) localDashboard.colorMode = v }"
                             :options="[
                                 { label: 'Auto', value: 'auto' },
                                 { label: 'Light', value: 'light' },
@@ -207,22 +296,6 @@ const activeSection = ref('general')
                             class="w-full"
                         />
                     </div>
-                    <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Accent Color</label>
-                        <div class="flex align-items-center gap-2">
-                            <ColorPicker
-                                :modelValue="localDashboard!.accentColor?.replace('#', '') || '3B82F6'"
-                                @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.accentColor = '#' + v }"
-                            />
-                            <InputText
-                                :modelValue="localDashboard!.accentColor || '#3B82F6'"
-                                @update:modelValue="(v: string | undefined) => { if (localDashboard && v !== undefined) localDashboard.accentColor = v }"
-                                class="flex-1"
-                                placeholder="#3B82F6"
-                            />
-                        </div>
-                    </div>
-
                     <label class="settings-subsection">Container</label>
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Max Width</label>
@@ -269,7 +342,7 @@ const activeSection = ref('general')
                         <div class="flex flex-column gap-2">
                             <InputText v-model="authUsername" placeholder="Username" />
                             <InputText v-model="authPassword" type="password" placeholder="New password" />
-                            <div class="flex gap-2">
+                            <div class="flex flex-wrap gap-2">
                                 <Button
                                     label="Update"
                                     icon="ti ti-check"
@@ -277,7 +350,7 @@ const activeSection = ref('general')
                                     size="small"
                                     :loading="isSettingAuth"
                                     :disabled="!authUsername || !authPassword"
-                                    @click="setAuth({ username: authUsername, password: authPassword }).then(() => { authUsername = ''; authPassword = '' })"
+                                    @click="submitAuth"
                                 />
                                 <Button
                                     label="Remove Protection"
@@ -286,7 +359,7 @@ const activeSection = ref('general')
                                     size="small"
                                     outlined
                                     :loading="isDeletingAuth"
-                                    @click="deleteAuth()"
+                                    @click="removeAuth"
                                 />
                             </div>
                         </div>
@@ -302,7 +375,7 @@ const activeSection = ref('general')
                                 size="small"
                                 :loading="isSettingAuth"
                                 :disabled="!authUsername || !authPassword"
-                                @click="setAuth({ username: authUsername, password: authPassword }).then(() => { authUsername = ''; authPassword = '' })"
+                                @click="submitAuth"
                             />
                         </div>
                     </template>
@@ -317,16 +390,34 @@ const activeSection = ref('general')
     </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/assets/breakpoints' as bp;
+
 .settings-view {
     max-width: 1200px;
     margin: 0 auto;
     padding: 1.5rem 1rem;
+
+    @include bp.below-md {
+        padding: 1rem 0.75rem;
+    }
+}
+
+.settings-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: break-word;
 }
 
 .settings-layout {
     display: flex;
     gap: 2rem;
+
+    /* Phones: the section list becomes a tab strip above the panel. */
+    @include bp.below-md {
+        flex-direction: column;
+        gap: 1rem;
+    }
 }
 
 .settings-nav {
@@ -337,6 +428,16 @@ const activeSection = ref('general')
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+
+    @include bp.below-md {
+        position: static;
+        align-self: stretch;
+        min-width: 0;
+        flex-direction: row;
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--p-surface-200);
+    }
 }
 
 .settings-nav-item {
@@ -393,10 +494,35 @@ const activeSection = ref('general')
     border-top: 1px solid var(--p-surface-200);
 }
 
-.gradient-preview {
-    width: 100%;
-    height: 24px;
+.settings-hint {
+    color: var(--p-text-muted-color);
+}
+
+.theme-swatch {
+    width: 64px;
+    height: 40px;
     border-radius: 4px;
     border: 1px solid var(--p-surface-border);
+    background-size: cover;
+}
+
+.color-chip {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid var(--p-surface-border);
+}
+
+.save-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--p-text-muted-color);
+    white-space: nowrap;
+}
+
+.save-status-error {
+    color: var(--p-red-500);
 }
 </style>

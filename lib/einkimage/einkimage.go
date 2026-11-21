@@ -34,11 +34,9 @@ func DitherImage(src *image.RGBA, opts DitherOptions) (*image.RGBA, error) {
 
 	switch resolved.DitheringType {
 	case QuantizationOnly:
+		matcher := newPaletteMatcher(palette, resolved.ColorMatching)
 		for i := 0; i < len(buf); i += 4 {
-			newPixel := findClosestPaletteColor(
-				[3]uint8{buf[i], buf[i+1], buf[i+2]},
-				palette, resolved.ColorMatching,
-			)
+			newPixel := matcher.closest([3]uint8{buf[i], buf[i+1], buf[i+2]})
 			buf[i], buf[i+1], buf[i+2] = newPixel[0], newPixel[1], newPixel[2]
 		}
 	case Random:

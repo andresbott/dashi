@@ -132,6 +132,98 @@ describe('useAutosave', () => {
         expect(result.error.value).toBe(err)
     })
 
+    it('retries a failed save on the next flush', async () => {
+        const err = new Error('boom')
+        const save = vi.fn().mockRejectedValueOnce(err).mockResolvedValue(undefined)
+        const { source, result } = setupAutosave<{ n: number }>({ initial: { n: 0 }, save, delay: 1000 })
+
+        source.value = { n: 1 }
+        await vi.advanceTimersByTimeAsync(1000)
+        await flushPromises()
+        expect(save).toHaveBeenCalledTimes(1)
+        expect(result.status.value).toBe('error')
+
+        await result.flush()
+
+        expect(save).toHaveBeenCalledTimes(2)
+        expect(save).toHaveBeenLastCalledWith({ n: 1 })
+        expect(result.status.value).toBe('saved')
+        expect(result.error.value).toBeNull()
+    })
+
+    it('retries a failed save when the source changes again', async () => {
+        const err = new Error('boom')
+        const save = vi.fn().mockRejectedValueOnce(err).mockResolvedValue(undefined)
+        const { source, result } = setupAutosave<{ n: number }>({ initial: { n: 0 }, save, delay: 1000 })
+
+        source.value = { n: 1 }
+        await vi.advanceTimersByTimeAsync(1000)
+        await flushPromises()
+        expect(save).toHaveBeenCalledTimes(1)
+        expect(result.status.value).toBe('error')
+
+        source.value = { n: 2 }
+        await vi.advanceTimersByTimeAsync(1000)
+        await flushPromises()
+
+        expect(save).toHaveBeenCalledTimes(2)
+        expect(save).toHaveBeenLastCalledWith({ n: 2 })
+        expect(result.status.value).toBe('saved')
+    })
+
+    it('flush() waits for an in-flight save to finish', async () => {
+        let resolve!: () => void
+        const save = vi.fn().mockReturnValue(new Promise<void>((r) => (resolve = r)))
+        const { source, result } = setupAutosave<{ n: number }>({ initial: { n: 0 }, save, delay: 1000 })
+
+        source.value = { n: 1 }
+        await vi.advanceTimersByTimeAsync(1000) // save dispatched, still pending
+        expect(save).toHaveBeenCalledTimes(1)
+
+        let flushed = false
+        const flushing = result.flush().then(() => {
+            flushed = true
+        })
+        await flushPromises()
+        expect(flushed).toBe(false)
+
+        resolve()
+        await flushing
+        expect(flushed).toBe(true)
+        expect(result.status.value).toBe('saved')
+    })
+
+    it('flush() also persists changes made while a save was in flight', async () => {
+        const resolvers: Array<() => void> = []
+        const save = vi.fn().mockImplementation(() => new Promise<void>((r) => resolvers.push(r)))
+        const { source, result } = setupAutosave<{ n: number }>({ initial: { n: 0 }, save, delay: 1000 })
+
+        source.value = { n: 1 }
+        await vi.advanceTimersByTimeAsync(1000) // save #1 dispatched, still pending
+        expect(save).toHaveBeenCalledTimes(1)
+
+        source.value = { n: 2 } // lands mid-save
+
+        let flushed = false
+        const flushing = result.flush().then(() => {
+            flushed = true
+        })
+        await flushPromises()
+        expect(save).toHaveBeenCalledTimes(1)
+        expect(flushed).toBe(false)
+
+        resolvers[0]() // save #1 completes -> follow-up save for the newer value
+        await flushPromises()
+        expect(save).toHaveBeenCalledTimes(2)
+        expect(save).toHaveBeenLastCalledWith({ n: 2 })
+        expect(flushed).toBe(false)
+
+        resolvers[1]()
+        await flushing
+        expect(flushed).toBe(true)
+        expect(result.status.value).toBe('saved')
+    })
+
     it('runs a follow-up save for changes made while a save is in flight', async () => {
         const resolvers: Array<() => void> = []
         const save = vi.fn().mockImplementation(() => new Promise<void>((r) => resolvers.push(r)))

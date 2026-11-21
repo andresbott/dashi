@@ -7,7 +7,7 @@ Statuses verified against the code on 2026-07-22.
 
 | Feature | Status | Where |
 |---|---|---|
-| CRUD + list | Implemented | `app/router/handlers/dashboards.go`, `internal/dashboard/store.go` |
+| CRUD + list | Implemented | `app/router/handlers/dashboards.go`, `internal/dashboard/store.go`; widget configs are checked on save (bookmark URLs, see Not implemented / partial) |
 | Zip export/import | Implemented | `Store.ExportZip`/`Store.ImportZip`; routes in `app/router/api_v0.go` |
 | Default dashboard flag | Implemented | `Dashboard.Default`; viewer resolves root `/` server-side and redirects (`app/router/main.go:246-260`), falling back to first by name when none marked default |
 | Preview dashboards (`-prev` suffix) | **Removed** (earlier on this branch) | Feature and all related symbols (`DeletePreviews`, `previewSuffix`, `isPreviewID`) deleted — historical record only |
@@ -31,12 +31,21 @@ PNG — DIY-by-design gap, do not "fix" it).
 |---|---|---|
 | Interactive viewer (server-rendered HTML) | Implemented | Viewer is server-rendered (see [viewer.md](viewer.md)); editor is Vue SPA in `webui/`, embedded via `app/spa` |
 | Image dashboards → PNG | Implemented | `middleware_static.go` → `internal/dashboard/static` (HTML) → `internal/dashboard/image` (litehtml → PNG) |
-| Display protocol (headers/query: format, width, height, rotation, action) | Implemented | `parseDisplayHeaders` in `middleware_static.go`; formats: `png`, `png-bw`, `png-spectra6`, packed `bw`, `spectra6` |
-| E-ink dithering | Implemented (2026-05-01, PR #18) | `lib/einkimage` (library) + `internal/dashboard/image/dither.go` (integration); "enhanced dither" listed as debt in TODO.md |
+| Display protocol (headers/query: format, width, height, rotation, action) | Implemented | `parseDisplayHeaders` in `middleware_static.go`; formats: `png`, `png-bw`, `png-spectra6`, packed `bw`, `spectra6`; width/height 1–4096 (`maxDisplaySide`, 400 otherwise) |
+| E-ink dithering | Implemented (2026-05-01, PR #18) | `lib/einkimage` (library) + `internal/dashboard/image/dither.go` (integration) |
+| Per-dashboard dither mode ("enhanced dither") | Implemented (2026-11-21) | `Dashboard.Dither` (`dither` in dashboard.json): absent = plain Floyd-Steinberg (unchanged output), `auto` = `einkimage.SuggestProcessingOptions` per render, or a preset name; validated on save (`internal/dashboard/dither.go`, 400 on unknown); "Dither" select in `DashboardSettingsView.vue` (image dashboards only). See [rendering.md](rendering.md#dither-modes-per-dashboard-2026-11-21) |
+| E-ink preview page (editor + dashboards list) | Implemented (2026-11-21; the first version was a dialog, replaced by this page) | SPA route `/dashboards/:id/eink-preview` (`views/dashboards/DashboardEinkPreviewView.vue`): image left/centre, controls panel on the right (stacked below md) — device preset or custom W×H, format (`png-bw`/`png-spectra6`/`png`), rotation, page, Actual pixels, Refresh. All settings live in the query string (`preset`, `width`/`height` for custom, `format`, `rotation`, `page` 0-based, `actual=1`, `from=edit\|list`; `router.replace`, invalid values fall back to defaults), so reload/bookmark keep them; Back returns via history or to the `from` entry point. 90°/180°/270° renders are shown turned upright with a caption; the panel's PNG is unchanged. Entry points, image dashboards only: the "E-ink preview" button in `DashboardEditView.vue` (flushes pending autosave, opens on the active page) and a tablet icon in each image row of `/admin/dashboards`; an interactive dashboard opened by URL shows a message. Fetches the server PNG from the **editor's own** `GET /{id}?format=…` (no new server route, no viewer auth); nothing saved. Presets and query/rotation helpers in `webui/src/lib/einkPreview.ts`. See [rendering.md](rendering.md#viewer-and-editor-notes) |
 | Swipe navigation for displays | Implemented | `X-Action: swipe_left/right` → redirect with new `?page=` |
 | Image dashboards viewed in browser | Implemented | Image-type dashboards with no display headers render through the browser stack (see [viewer.md](viewer.md)); `serveImageHTMLPreview` was removed |
-| Themes (fonts, icons, backgrounds) | Implemented | `internal/themes`; embedded default (Inter + Tabler); user themes `{dataDir}/themes/{name}/theme.yaml`; legacy manifest format still parsed |
-| Theme bootstrap CLI | Implemented | `dashi theme create [name] --type image|font` |
+| Themes (background + light/dark palette) | Implemented | `internal/themes`; `{dataDir}/data/themes/{name}/theme.json` + `assets/`; builtin read-only `default` and `ember` (registry in `internal/themes/builtin.go`; `GET /themes/{id}` flags them `builtin`); copy (`POST /themes/{id}/copy`); dashboards select via `themeId`; editor `AdminThemeEdit.vue` with the background section in `webui/src/components/admin/ThemeBackgroundEditor.vue` (see [viewer.md](viewer.md#editing-a-background)) |
+| Mobile layout (~375px phones) | Implemented (2026-11-21) | Viewer: below 640px every row stacks into one full-width column (CSS variables in `page.html` + rules in `webui/viewer/viewer.css`). Editor SPA: below 768px the admin sidebar is a hamburger drawer, dialogs are capped to the viewport, list tables drop secondary columns, the drag grid keeps 12 columns and scrolls sideways. Breakpoints and details: [viewer.md](viewer.md#responsive-layout-mobile) |
+| Admin sidebar grouping | Implemented | `AdminLayout.vue`: **Theming** = Themes, Background images (the shared `shared:` pool), Widget themes; **Content** = user data widgets show (Notes, Images). Route names and paths unchanged (`/admin/background-images`) |
+| Widget themes (fonts + icons) | Implemented | `internal/widgetthemes`; embedded default (Inter + Tabler); user packs `{dataDir}/data/widget_themes/{name}/widget_theme.yaml`; zip upload/download; uploads and deletes take effect without a restart in both stacks (PNG fonts re-synced via `Store.OnChange`, see [rendering.md](rendering.md#fonts)); hand-placed or CLI-created packs still need a restart; dashboards select via `widgetTheme`; old `theme.yaml` packs are rejected on upload |
+| Widget theme bootstrap CLI | Implemented | `dashi widget-theme create [name] --type image|font` (`app/cmd/widget_theme.go`) |
+
+No migration: old `data/backgrounds`, `{dataDir}/themes` packs and the dashboard
+keys `theme`, `backgroundId`, `accentColor` are ignored; dangling references
+fall back to `default`. Details: [viewer.md](viewer.md#theming-two-entities-css-variables-and-concrete-values).
 
 ## Data sources (all in-memory cached, warmup at startup for weather/market)
 
@@ -55,10 +64,15 @@ PNG — DIY-by-design gap, do not "fix" it).
   into both routers; only the metrics endpoint is missing.
 - **App-level auth** (`Auth` config block): scaffolding only, nothing consumes
   it. Per-dashboard basic auth is the only working auth.
-- **Widget config validation / XSS fix**: catalogued in `docs/TODO.md` with fix
-  options (frontend URL validation, backend per-type validation, or both).
+- **Widget config validation**: partial by design. The mechanism is in place
+  (optional `widgets.ConfigValidator`, run by the dashboard store on create,
+  update and zip import; a rejection answers 400), but only **bookmark** (URL
+  allowlist) and **stack** (delegates to its children) declare rules. Other
+  widgets stay pass-through; add a validator when a widget puts config into a
+  dangerous sink. See [architecture.md](architecture.md#security-model--know-the-boundaries).
 - **Market widget config UI exists** (`MarketWidgetConfig.vue`) — older
   autodoc saying "Not implemented" is stale.
-- Root `TODO.md` backlog: HA addon, enhanced dither, isolated widget
-  components, remove previews, recreate themes, e-ink preview dialog,
-  user-data dir migration.
+- Root `TODO.md` backlog: HA addon, isolated widget components, remove
+  previews, user-data dir migration. Enhanced dither and the e-ink preview
+  (shipped as a dialog, now a page) have shipped (see Rendering); the file
+  still lists them.

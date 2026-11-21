@@ -18,9 +18,14 @@ const { items: itemsData, isLoading, uploadItem, isUploading, deleteItem } = use
 const items = computed(() => itemsData.value ?? [])
 
 // Both kinds this component serves are image libraries: 'images' feeds the
-// image widget, 'backgrounds' is the shared pool that backgrounds reference
-// with `shared:`. Background *configurations* live in AdminBackgrounds.vue.
+// image widget, 'backgrounds' is the shared pool that theme backgrounds
+// reference with `shared:`. Themes themselves live in AdminThemes.vue.
 const title = computed(() => (props.kind === 'images' ? 'Images' : 'Shared background images'))
+const description = computed(() =>
+    props.kind === 'backgrounds'
+        ? 'Images any theme can pick as its background. Images uploaded in a theme editor belong to that theme instead.'
+        : '',
+)
 
 // Upload
 const uploadInput = ref<HTMLInputElement | null>(null)
@@ -116,6 +121,7 @@ const formatTime = (t: string): string => {
                 @change="handleFilePicked"
             />
         </div>
+        <p v-if="description" class="section-description">{{ description }}</p>
 
         <Card v-if="!items.length && !isLoading">
             <template #content>
@@ -138,10 +144,10 @@ const formatTime = (t: string): string => {
                         </template>
                     </Column>
                     <Column field="name" header="Name" />
-                    <Column header="Size" style="width: 100px">
+                    <Column header="Size" style="width: 100px" headerClass="hide-below-md" bodyClass="hide-below-md">
                         <template #body="{ data }">{{ formatSize(data.size) }}</template>
                     </Column>
-                    <Column header="Modified" style="width: 200px">
+                    <Column header="Modified" style="width: 200px" headerClass="hide-below-md" bodyClass="hide-below-md">
                         <template #body="{ data }">{{ formatTime(data.modTime) }}</template>
                     </Column>
                     <Column header="Actions" style="width: 120px">
@@ -190,29 +196,9 @@ const formatTime = (t: string): string => {
 </template>
 
 <style scoped>
-.admin-section {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.admin-section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-}
-
-.admin-section-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--p-text-color);
-    margin: 0;
-}
-
-.info-message {
-    padding: 1rem;
-    text-align: center;
+/* .admin-section* and .info-message are shared: see assets/style.scss. */
+.section-description {
+    margin: -0.5rem 0 0;
     color: var(--p-text-muted-color);
 }
 
@@ -221,7 +207,7 @@ const formatTime = (t: string): string => {
     height: 48px;
     object-fit: cover;
     border-radius: 4px;
-    border: 1px solid var(--p-surface-border);
+    border: 1px solid var(--p-content-border-color);
     background: var(--p-surface-100);
 }
 

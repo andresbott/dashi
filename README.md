@@ -44,9 +44,9 @@ viewer is served on port `8087` for browsers and ESP32/e-ink devices. See
   - **Interactive** -- live Vue.js web app with real-time data
   - **Image** -- server-side PNG for e-ink displays, status monitors, etc.
 - **Flexible layout** -- 12-column grid, configurable rows, alignment, max width
-- **Backgrounds** -- solid color, gradient, or image (from theme or uploads)
+- **Themes** -- a background (gradient or image) plus light and dark colour palettes; copy the built-in Default to customise
 - **Color modes** -- auto (follows OS preference), light, or dark
-- **Themes** -- customizable fonts and icon sets (default: Inter + Tabler icons)
+- **Widget themes** -- fonts and icon sets, uploadable as zip packs (default: Inter + Tabler icons)
 - **Custom CSS** -- per-dashboard sidecar files for advanced styling
 - **Widgets:**
   - **Weather** -- current conditions, hourly/7-day forecast, graph (Open-Meteo)

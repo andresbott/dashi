@@ -11,14 +11,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/andresbott/dashi/internal/backgrounds"
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/dashboard/browser"
-	"github.com/andresbott/dashi/internal/data/images"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
+	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
 // newTestMiddleware creates a test middleware stack with a store and test widget.
@@ -49,8 +49,8 @@ func newTestMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.Han
 	})
 
 	bs, _ := images.NewStore(t.TempDir())
-	bgStore := backgrounds.NewStore(t.TempDir(), bs)
-	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themes.NewStore(""), bgStore)
+	themeStore := themes.NewStore(t.TempDir(), bs)
+	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetthemes.NewStore(""))
 	return mid(spaHandler)
 }
 
@@ -327,7 +327,7 @@ func TestImageDashboard_RefreshInterval(t *testing.T) {
 		{
 			Name:            "P0",
 			RefreshInterval: 300,
-			Rows: []dashboard.Row{{ID: "r1", Height: "auto", Width: "100%", Widgets: []dashboard.Widget{{ID: "w1", Type: "test", Width: 12, Config: json.RawMessage(`{}`)}}}}},
+			Rows:            []dashboard.Row{{ID: "r1", Height: "auto", Width: "100%", Widgets: []dashboard.Widget{{ID: "w1", Type: "test", Width: 12, Config: json.RawMessage(`{}`)}}}}},
 	}
 
 	handler := newTestMiddleware(t, imageDashboard("test", pages...))
@@ -354,7 +354,7 @@ func TestImageDashboard_NoRefreshIntervalWhenZero(t *testing.T) {
 		{
 			Name:            "P0",
 			RefreshInterval: 0,
-			Rows: []dashboard.Row{{ID: "r1", Height: "auto", Width: "100%", Widgets: []dashboard.Widget{{ID: "w1", Type: "test", Width: 12, Config: json.RawMessage(`{}`)}}}}},
+			Rows:            []dashboard.Row{{ID: "r1", Height: "auto", Width: "100%", Widgets: []dashboard.Widget{{ID: "w1", Type: "test", Width: 12, Config: json.RawMessage(`{}`)}}}}},
 	}
 
 	handler := newTestMiddleware(t, imageDashboard("test", pages...))
@@ -641,21 +641,77 @@ func TestImageDashboard_RotationQueryParam(t *testing.T) {
 	}
 }
 
+func TestParseDisplayHeadersSizeBounds(t *testing.T) {
+	tests := []struct {
+		name    string
+		query   string
+		headers map[string]string
+		wantErr string // "" = accepted
+	}{
+		{name: "width at max via query", query: "?format=png&width=4096&height=480"},
+		{name: "height at max via query", query: "?format=png&width=800&height=4096"},
+		{name: "both at max via headers", headers: map[string]string{"X-Display-Width": "4096", "X-Display-Height": "4096"}},
+		{name: "width 1 is the minimum", query: "?format=png&width=1&height=1"},
+		{name: "width over max via query", query: "?format=png&width=4097&height=480", wantErr: "invalid X-Display-Width: 4097 (must be 1 to 4096)"},
+		{name: "height over max via query", query: "?format=png&width=800&height=4097", wantErr: "invalid X-Display-Height: 4097 (must be 1 to 4096)"},
+		{name: "width over max via header", headers: map[string]string{"X-Display-Width": "4097", "X-Display-Height": "480"}, wantErr: "invalid X-Display-Width: 4097 (must be 1 to 4096)"},
+		{name: "height over max via header", headers: map[string]string{"X-Display-Width": "800", "X-Display-Height": "4097"}, wantErr: "invalid X-Display-Height: 4097 (must be 1 to 4096)"},
+		{name: "header over max wins over valid query", query: "?format=png&width=800&height=480", headers: map[string]string{"X-Display-Width": "100000"}, wantErr: "invalid X-Display-Width: 100000 (must be 1 to 4096)"},
+		{name: "zero width", query: "?format=png&width=0&height=480", wantErr: "invalid X-Display-Width: 0 (must be 1 to 4096)"},
+		{name: "negative height", query: "?format=png&width=800&height=-5", wantErr: "invalid X-Display-Height: -5 (must be 1 to 4096)"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/test"+tc.query, nil)
+			if tc.query == "" {
+				req.Header.Set("X-Display-Format", "png")
+			}
+			for k, v := range tc.headers {
+				req.Header.Set(k, v)
+			}
+			_, err := parseDisplayHeaders(req)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || err.Error() != tc.wantErr {
+				t.Fatalf("error = %v, want %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+// An oversized display request must be refused before anything is rendered,
+// with the limit in the 400 body so a client can tell what to fix.
+func TestImageDashboard_OversizedDisplayAnswers400WithLimit(t *testing.T) {
+	handler := newTestMiddleware(t, imageDashboard("test"))
+
+	req := httptest.NewRequest("GET", "/test?format=png&width=800&height=100000", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("must be 1 to 4096")) {
+		t.Errorf("body %q does not name the limit", rec.Body)
+	}
+}
+
 func TestResolveImageBackgroundWithGradientOnly(t *testing.T) {
 	// When the background has a gradient but no image, resolveImageBackground
 	// should return the gradient CSS and nil bytes.
-	bgStore := backgrounds.NewStore(t.TempDir(), nil)
-	bg := backgrounds.Background{
-		ID:       "gradientonly",
-		Name:     "Gradient Only",
-		Gradient: &backgrounds.Gradient{Direction: "to right", Light: []string{"#000000", "#ffffff"}},
-	}
-	if _, err := bgStore.Create(bg); err != nil {
-		t.Fatal(err)
+	themeStore := themes.NewStore(t.TempDir(), nil)
+	theme := themes.Theme{
+		ID:         "gradientonly",
+		Name:       "Gradient Only",
+		Colors:     themes.DefaultTheme().Colors,
+		Background: themes.Background{Gradient: &themes.Gradient{Direction: "to right", Light: []string{"#000000", "#ffffff"}}},
 	}
 
-	dash := dashboard.Dashboard{BackgroundID: "gradientonly", ColorMode: "light"}
-	css, imageData := resolveImageBackground(dash, bgStore)
+	css, imageData := resolveImageBackground(theme, "light", themeStore)
 
 	if css != "linear-gradient(to right,#000000,#ffffff)" {
 		t.Errorf("expected gradient CSS, got %q", css)
@@ -673,7 +729,7 @@ func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bgStore := backgrounds.NewStore(t.TempDir(), imageStore)
+	themeStore := themes.NewStore(t.TempDir(), imageStore)
 
 	// Save a small test image
 	testPNG := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A} // PNG signature
@@ -681,19 +737,16 @@ func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bg := backgrounds.Background{
-		ID:   "withimage",
-		Name: "With Image",
-		Image: &backgrounds.Image{
+	theme := themes.Theme{
+		ID:     "withimage",
+		Name:   "With Image",
+		Colors: themes.DefaultTheme().Colors,
+		Background: themes.Background{Image: &themes.Image{
 			Light: "shared:test.png", Fit: "cover", Position: "center", Repeat: "no-repeat",
-		},
-	}
-	if _, err := bgStore.Create(bg); err != nil {
-		t.Fatal(err)
+		}},
 	}
 
-	dash := dashboard.Dashboard{BackgroundID: "withimage", ColorMode: "light"}
-	css, imageData := resolveImageBackground(dash, bgStore)
+	css, imageData := resolveImageBackground(theme, "light", themeStore)
 
 	if css != "transparent" {
 		t.Errorf("expected 'transparent' css to prevent theme-background paint-over, got %q", css)
@@ -705,10 +758,48 @@ func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
 	}
 }
 
+// Review Focus 5: litehtml cannot render alpha, so a translucent surface must
+// reach the image stack as an opaque 6-digit colour composited over bg.
+func TestBuildRenderDataFlattensPalette(t *testing.T) {
+	light := themes.DefaultPalette("light")
+	light.BG = "#000000"
+	light.Surface = "#ffffff80"
+	theme := themes.Theme{
+		ID:     "translucent",
+		Name:   "Translucent",
+		Colors: themes.Colors{Light: light, Dark: themes.DefaultPalette("dark")},
+	}
+	dash := imageDashboard("flat")
+	dash.ColorMode = "light"
+
+	got := buildRenderData(dash, 0, nil, dashboard.NewStore(t.TempDir()), theme, widgetthemes.NewStore(""))
+
+	if got.Palette.Surface != "#808080" {
+		t.Errorf("Palette.Surface = %q, want #808080 (#ffffff80 over #000000)", got.Palette.Surface)
+	}
+	if got.Palette.BG != "#000000" {
+		t.Errorf("Palette.BG = %q, want #000000", got.Palette.BG)
+	}
+}
+
+func TestBuildRenderDataCarriesWidgetThemeAndFont(t *testing.T) {
+	dash := imageDashboard("wt")
+	dash.WidgetTheme = "default"
+
+	got := buildRenderData(dash, 0, nil, dashboard.NewStore(t.TempDir()), themes.DefaultTheme(), widgetthemes.NewStore(""))
+
+	if got.WidgetTheme != "default" {
+		t.Errorf("WidgetTheme = %q, want default", got.WidgetTheme)
+	}
+	if got.FontFamily != "Inter" {
+		t.Errorf("FontFamily = %q, want Inter", got.FontFamily)
+	}
+}
+
 func TestImageDashboardWithDanglingBackgroundRefStillRenders(t *testing.T) {
-	// Create an image dashboard with a BackgroundID that references nothing.
+	// Create an image dashboard with a ThemeID that references nothing.
 	dash := imageDashboard("dangling-bg-test")
-	dash.BackgroundID = "nonexistent-bg-id"
+	dash.ThemeID = "nonexistent-bg-id"
 
 	handler := newTestMiddleware(t, dash)
 
@@ -724,7 +815,7 @@ func TestImageDashboardWithDanglingBackgroundRefStillRenders(t *testing.T) {
 func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 	// Regression test for the bug where ImageCSS's empty string caused the
 	// template to fall back to opaque theme background, covering the
-	// pre-composited image. This test proves the full path: bgStore.LoadImage
+	// pre-composited image. This test proves the full path: themeStore.LoadImage
 	// is called, bytes reach RenderToImage, and the color survives onto pixels.
 
 	// Create a distinctive solid-red 10x10 PNG
@@ -739,13 +830,13 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Set up stores - use same imageStore for both saving and bgStore
+	// Set up stores - use same imageStore for both saving and themeStore
 	dashStore := dashboard.NewStore(t.TempDir())
 	imageStore, err := images.NewStore(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	bgStore := backgrounds.NewStore(t.TempDir(), imageStore)
+	themeStore := themes.NewStore(t.TempDir(), imageStore)
 
 	// Save the red image to the shared image store
 	if err := imageStore.Save("red.png", redBuf.Bytes()); err != nil {
@@ -753,26 +844,27 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 	}
 
 	// Create a background entity referencing it
-	bg := backgrounds.Background{
-		ID:   "redbg",
-		Name: "Red Background",
-		Image: &backgrounds.Image{
+	bg := themes.Theme{
+		ID:     "redbg",
+		Name:   "Red Background",
+		Colors: themes.DefaultTheme().Colors,
+		Background: themes.Background{Image: &themes.Image{
 			Light:    "shared:red.png",
 			Fit:      "cover",
 			Position: "center",
 			Repeat:   "no-repeat",
-		},
+		}},
 	}
-	if _, err := bgStore.Create(bg); err != nil {
+	if _, err := themeStore.Create(bg); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create an image dashboard with real content and the background
 	dash := dashboard.Dashboard{
-		ID:           "testredbg",
-		Name:         "Red BG Test",
-		Type:         "image",
-		BackgroundID: "redbg",
+		ID:      "testredbg",
+		Name:    "Red BG Test",
+		Type:    "image",
+		ThemeID: "redbg",
 		Container: dashboard.Container{
 			MaxWidth:        "100%",
 			VerticalAlign:   "top",
@@ -810,7 +902,7 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("SPA"))
 	})
-	mid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themes.NewStore(""), bgStore)
+	mid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetthemes.NewStore(""))
 	handler := mid(spaHandler)
 
 	// Request the PNG

@@ -8,6 +8,7 @@ const image: WidgetModule = {
     label: 'Image',
     icon: 'ti-photo',
     description: 'Display an uploaded image',
+    category: 'information',
 }
 
 export default image

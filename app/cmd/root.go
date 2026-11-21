@@ -32,7 +32,7 @@ func newRootCommand() *cobra.Command {
 		serverCmd(),
 		versionCmd(),
 		generateConfigCmd(),
-		themeCmd(),
+		widgetThemeCmd(),
 	)
 
 	return cmd

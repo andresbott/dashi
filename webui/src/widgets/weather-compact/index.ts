@@ -8,6 +8,7 @@ const weatherCompact: WidgetModule = {
     label: 'Weather (Compact)',
     icon: 'ti-cloud',
     description: 'Compact weather display',
+    category: 'weather',
 }
 
 export default weatherCompact

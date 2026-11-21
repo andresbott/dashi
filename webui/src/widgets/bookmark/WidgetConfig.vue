@@ -9,6 +9,7 @@ import type { BookmarkWidgetConfig } from './types'
 import { parseIcon, getSelfhstIconUrl, getDashboardIconUrl } from '@/lib/iconUtils'
 import type { IconType } from '@/lib/iconUtils'
 import { useDashboardAssets } from '@/composables/useDashboards'
+import { isSafeBookmarkUrl, BOOKMARK_URL_ERROR } from './url'
 
 const props = defineProps<{
     config: BookmarkWidgetConfig | null
@@ -89,23 +90,9 @@ watch(() => props.config, (val) => {
     }
 })
 
-const isSafeUrl = (url: string): boolean => {
-    if (!url) return true
-    try {
-        const parsed = new URL(url)
-        return ['http:', 'https:'].includes(parsed.protocol)
-    } catch {
-        // Allow relative URLs and empty strings
-        return !url.toLowerCase().trimStart().startsWith('javascript:')
-    }
-}
-
-const urlError = computed(() => {
-    if (editUrl.value && !isSafeUrl(editUrl.value)) {
-        return 'Only http:// and https:// URLs are allowed'
-    }
-    return ''
-})
+// Same rule the server enforces on save (see ./url.ts). While the URL fails
+// it, no change is emitted, so the dashboard is never autosaved with it.
+const urlError = computed(() => (isSafeBookmarkUrl(editUrl.value) ? '' : BOOKMARK_URL_ERROR))
 
 const emitUpdate = () => {
     if (urlError.value) return
@@ -191,7 +178,7 @@ const onTablerSelect = (icon: string) => {
         <div class="flex flex-column gap-1">
             <label class="text-sm font-semibold">URL</label>
             <InputText v-model="editUrl" placeholder="https://example.com" @input="emitUpdate" :invalid="!!urlError" />
-            <small v-if="urlError" class="text-red-500">{{ urlError }}</small>
+            <small v-if="urlError" class="text-red-500 bookmark-url-error">{{ urlError }}</small>
         </div>
         <div class="flex align-items-center gap-2">
             <Checkbox v-model="editTextBelow" :binary="true" inputId="bookmarkTextBelow" @update:modelValue="emitUpdate" />

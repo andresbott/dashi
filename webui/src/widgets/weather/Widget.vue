@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue'
-import { DASHBOARD_THEME } from '@/lib/injectionKeys'
+import { computed } from 'vue'
 import { useWeather } from './composable'
-import { useThemes } from '@/composables/useThemes'
+import { useWidgetThemes } from '@/composables/useWidgetThemes'
 import WeatherIcon from './WeatherIcon.vue'
 import type { WeatherWidgetConfig } from './types'
 import type { Widget } from '@/types/dashboard'
@@ -25,7 +24,9 @@ const forecastDays = computed(() => config.value?.forecastDays ?? 7)
 const showHourly = computed(() => config.value?.showHourly ?? false)
 const hourlyCount = computed(() => config.value?.hourlyCount ?? 12)
 const hourlySlots = computed(() => config.value?.hourlySlots ?? 6)
-const iconTheme = inject(DASHBOARD_THEME, ref('default'))
+// The editor preview is theme-agnostic: icons always come from the builtin
+// widget theme. The dashboard's widget theme applies in the Go viewer only.
+const iconTheme = 'default'
 
 const showGraph = computed(() => config.value?.showGraph ?? false)
 const graphHours = computed(() => config.value?.graphHours ?? 24)
@@ -59,7 +60,7 @@ const lat = computed(() => config.value?.latitude)
 const lon = computed(() => config.value?.longitude)
 
 const { data: weather, isLoading, isError } = useWeather(lat, lon)
-const { data: themes } = useThemes()
+const { data: themes } = useWidgetThemes()
 
 const formatTemp = (temp: number) => `${Math.round(temp)}°`
 

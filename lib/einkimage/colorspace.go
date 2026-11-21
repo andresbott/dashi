@@ -85,10 +85,20 @@ func linearToSRGB(v float64) float64 {
 	return 12.92 * v
 }
 
+// srgbToLinear8 holds srgbToLinear(v/255) for every 8-bit channel value:
+// math.Pow dominated per-pixel L*a*b* conversion, and the input only ever
+// takes 256 values, so the table gives identical results.
+var srgbToLinear8 = func() (t [256]float64) {
+	for i := range t {
+		t[i] = srgbToLinear(float64(i) / 255)
+	}
+	return t
+}()
+
 func rgbToXYZ(r, g, b uint8) (float64, float64, float64) {
-	rn := srgbToLinear(float64(r) / 255)
-	gn := srgbToLinear(float64(g) / 255)
-	bn := srgbToLinear(float64(b) / 255)
+	rn := srgbToLinear8[r]
+	gn := srgbToLinear8[g]
+	bn := srgbToLinear8[b]
 	return (rn*0.4124564 + gn*0.3575761 + bn*0.1804375) * 100,
 		(rn*0.2126729 + gn*0.7151522 + bn*0.072175) * 100,
 		(rn*0.0193339 + gn*0.119192 + bn*0.9503041) * 100

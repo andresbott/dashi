@@ -40,7 +40,7 @@ const confirmDelete = async () => {
         await deleteDashboard(dashboardToDelete.value.id)
         deleteDialogVisible.value = false
         dashboardToDelete.value = null
-    } catch (err) {
+    } catch {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete dashboard', life: 5000 })
     }
 }
@@ -54,7 +54,7 @@ const handleCreate = async ({ name, type, container }) => {
         const created = await createDashboard({ name, icon: '', type, container, pages: [{ name: '', rows: [] }] })
         createDialogVisible.value = false
         router.push({ name: 'dashboard-edit', params: { id: created.id } })
-    } catch (err) {
+    } catch {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to create dashboard', life: 5000 })
     } finally {
         isCreating.value = false
@@ -88,7 +88,7 @@ const handleSetDefault = async (dashboard) => {
     pendingDefaultId.value = dashboard.id
     try {
         await setDefaultDashboard(dashboard.id)
-    } catch (err) {
+    } catch {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to set default dashboard', life: 5000 })
     } finally {
         pendingDefaultId.value = null
@@ -105,10 +105,17 @@ const DASHBOARD_TYPES = {
 
 const dashboardType = (d) => DASHBOARD_TYPES[d.type] ?? DASHBOARD_TYPES.interactive
 
+// E-ink preview, the same page the editor opens, for image dashboards only
+// (an interactive one answers a display request with HTML). It opens on the
+// first page; `from` lets its Back button return here without history.
+const openEinkPreview = (d) => {
+    router.push({ name: 'dashboard-eink-preview', params: { id: d.id }, query: { from: 'list' } })
+}
+
 const handleDownload = async (id) => {
     try {
         await downloadDashboard(id)
-    } catch (err) {
+    } catch {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to download dashboard', life: 5000 })
     }
 }
@@ -172,9 +179,21 @@ const handleDownload = async (id) => {
                             </span>
                         </template>
                     </Column>
-                    <Column header="Actions" style="width: 220px">
+                    <Column header="Actions" style="width: 260px">
                         <template #body="{ data }">
-                            <div class="flex gap-1 justify-content-end">
+                            <div class="flex flex-wrap md:flex-nowrap gap-1 justify-content-end">
+                                <!-- Leftmost, so the buttons after it line up across image and interactive rows. -->
+                                <Button
+                                    v-if="data.type === 'image'"
+                                    v-tooltip.top="'E-ink preview (PNG)'"
+                                    aria-label="E-ink preview (PNG)"
+                                    icon="ti ti-device-tablet"
+                                    text
+                                    rounded
+                                    class="p-1"
+                                    data-testid="eink-preview-button"
+                                    @click="openEinkPreview(data)"
+                                />
                                 <Button
                                     v-tooltip.top="data.default ? 'Default dashboard' : 'Make default dashboard'"
                                     :aria-label="data.default ? 'Default dashboard' : 'Make default dashboard'"
@@ -252,32 +271,7 @@ const handleDownload = async (id) => {
 </template>
 
 <style scoped>
-.admin-section {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.admin-section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-}
-
-.admin-section-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--p-text-color);
-    margin: 0;
-}
-
-.info-message {
-    padding: 1rem;
-    text-align: center;
-    color: var(--p-text-muted-color);
-}
-
+/* .admin-section* and .info-message are shared: see assets/style.scss. */
 .action-link {
     text-decoration: none;
 }

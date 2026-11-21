@@ -39,9 +39,14 @@
                     <td>Icon identifier shown in listings.</td>
                 </tr>
                 <tr>
-                    <td><code>theme</code></td>
+                    <td><code>themeId</code></td>
                     <td>string</td>
-                    <td>Theme name. Defaults to <code>"default"</code>. Controls fonts and icon set.</td>
+                    <td>Theme ID. Defaults to <code>"default"</code>. Controls the background and the light/dark colour palette.</td>
+                </tr>
+                <tr>
+                    <td><code>widgetTheme</code></td>
+                    <td>string</td>
+                    <td>Widget theme name. Defaults to <code>"default"</code>. Controls fonts and the icon set.</td>
                 </tr>
                 <tr>
                     <td><code>colorMode</code></td>
@@ -49,9 +54,9 @@
                     <td>Color scheme. <code>auto</code> follows system preference.</td>
                 </tr>
                 <tr>
-                    <td><code>accentColor</code></td>
-                    <td>hex color</td>
-                    <td>Custom accent color override.</td>
+                    <td><code>dither</code></td>
+                    <td>omitted | <code>auto</code> | <code>balanced</code> | <code>dynamic</code> | <code>vivid</code> | <code>soft</code> | <code>grayscale</code></td>
+                    <td>Image type only. How the e-ink formats (<code>png-bw</code>, <code>png-spectra6</code>, <code>bw</code>, <code>spectra6</code>) are dithered. Omitted = plain Floyd-Steinberg with no tone adjustment. <code>auto</code> classifies each render and picks the processing for it. The other values are fixed presets: <code>grayscale</code> suits black-and-white panels, <code>vivid</code> colour panels. Any other value is rejected on save.</td>
                 </tr>
                 <tr>
                     <td><code>pages[].refreshInterval</code></td>
@@ -92,18 +97,7 @@
         </table>
 
         <h4>Background</h4>
-        <p>Sets the full-screen background behind the dashboard content. Images can come from the dashboard's own assets or from a theme.</p>
-        <table>
-            <thead>
-                <tr><th>Type</th><th>Value</th></tr>
-            </thead>
-            <tbody>
-                <tr><td><code>none</code></td><td>No background (white).</td></tr>
-                <tr><td><code>color</code></td><td>Hex color, e.g. <code>#1a1a2e</code>.</td></tr>
-                <tr><td><code>gradient</code></td><td>CSS gradient string.</td></tr>
-                <tr><td><code>image</code></td><td><code>dashboard:filename.jpg</code> or <code>theme:name/file.png</code>.</td></tr>
-            </tbody>
-        </table>
+        <p>The dashboard background is not a dashboard property: it is part of the selected theme (<code>themeId</code>) and can be a gradient or an image. Without one, the theme palette <code>bg</code> colour is used. See <a href="#theme-themes">Theming</a>.</p>
 
         <hr class="doc-divider" />
         <h3 id="dash-pages">Pages</h3>
@@ -147,8 +141,8 @@
                 <tr>
                     <td><code>X-Display-Format</code></td>
                     <td><code>format</code></td>
-                    <td><code>png</code>, <code>png-bw</code>, <code>png-7color</code>, <code>bw</code>, <code>7color</code></td>
-                    <td>Output format. <code>png</code> = full color PNG. <code>png-bw</code> = dithered B&amp;W PNG. <code>png-7color</code> = 7-color palette PNG. <code>bw</code> = raw 1bpp packed binary. <code>7color</code> = raw 4bpp packed binary.</td>
+                    <td><code>png</code>, <code>png-bw</code>, <code>png-spectra6</code>, <code>bw</code>, <code>spectra6</code></td>
+                    <td>Output format. <code>png</code> = full color PNG. <code>png-bw</code> = dithered B&amp;W PNG. <code>png-spectra6</code> = Spectra 6 palette PNG. <code>bw</code> = raw 1bpp packed binary. <code>spectra6</code> = raw 4bpp packed binary.</td>
                 </tr>
                 <tr>
                     <td><code>X-Display-Width</code></td>
@@ -205,12 +199,12 @@
                 <tr>
                     <td><code>png-bw</code></td>
                     <td><code>image/png</code></td>
-                    <td>Floyd-Steinberg dithered black &amp; white, encoded as grayscale PNG.</td>
+                    <td>Dithered black &amp; white (see the dashboard's <code>dither</code> setting), encoded as PNG in the panel's muted greys.</td>
                 </tr>
                 <tr>
-                    <td><code>png-7color</code></td>
+                    <td><code>png-spectra6</code></td>
                     <td><code>image/png</code></td>
-                    <td>Dithered to a 7-color e-ink palette (black, white, green, blue, red, yellow, orange), encoded as PNG.</td>
+                    <td>Dithered to the Spectra 6 e-ink palette (black, white, green, blue, red, yellow), encoded as PNG in the calibrated panel colours.</td>
                 </tr>
                 <tr>
                     <td><code>bw</code></td>
@@ -218,13 +212,13 @@
                     <td>Raw 1-bit-per-pixel packed binary (MSB first). Size: <code>ceil(width/8) × height</code> bytes.</td>
                 </tr>
                 <tr>
-                    <td><code>7color</code></td>
+                    <td><code>spectra6</code></td>
                     <td><code>application/octet-stream</code></td>
-                    <td>Raw 4-bit-per-pixel packed binary (two pixels per byte). Size: <code>(width × height) / 2</code> bytes.</td>
+                    <td>Raw 4-bit-per-pixel packed binary (two pixels per byte, high nibble = left pixel; 0 black, 1 white, 2 green, 3 blue, 4 red, 5 yellow). Size: <code>(width × height) / 2</code> bytes.</td>
                 </tr>
             </tbody>
         </table>
-        <p class="doc-hint">The <code>bw</code> and <code>7color</code> raw formats are optimized for direct transfer to e-ink display controllers without additional decoding.</p>
+        <p class="doc-hint">The <code>bw</code> and <code>spectra6</code> raw formats are optimized for direct transfer to e-ink display controllers without additional decoding.</p>
 
         <h4>Browser Preview</h4>
         <p>When an image dashboard is accessed without any display parameters (no headers, no <code>format</code>/<code>width</code>/<code>height</code> query params), the server returns an HTML preview of the rendered page instead of an image. This allows viewing the dashboard in a regular browser for debugging and development.</p>
@@ -298,6 +292,6 @@
                 <tr><td>Max file size</td><td>10 MB per file</td></tr>
             </tbody>
         </table>
-        <p>Uploaded assets can be used as dashboard backgrounds (<code>dashboard:filename.jpg</code>) or referenced in custom CSS.</p>
+        <p>Uploaded assets can be used by widgets (e.g. the image widget) or referenced in custom CSS.</p>
     </section>
 </template>

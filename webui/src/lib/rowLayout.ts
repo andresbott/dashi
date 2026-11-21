@@ -111,6 +111,52 @@ export function columnFromDrag(opts: {
     return Math.max(opts.min, Math.min(opts.max, opts.originColumn + delta))
 }
 
+// totalSpan is the number of grid columns a row's widgets occupy once packed
+// tightly (gaps excluded). A row whose total exceeds GRID_COLUMNS can never fit
+// on one line, whatever the columns say.
+export function totalSpan(widgets: Positioned[]): number {
+    return widgets.reduce((sum, w) => sum + span(w.width), 0)
+}
+
+// fitsInRow reports whether a widget of the given width can join the row
+// without pushing the row past the 12-column line.
+export function fitsInRow(widgets: Positioned[], width: number): boolean {
+    return totalSpan(widgets) + span(width) <= GRID_COLUMNS
+}
+
+// maxResizeWidth is the widest a widget at index may grow: it is capped by the
+// grid's right edge and by the widgets after it, which placeRow pushes along
+// (consuming their gaps first) and which must still end on the same line.
+export function maxResizeWidth(widgets: Positioned[], index: number): number {
+    const placed = placeRow(widgets)
+    const p = placed[index]
+    if (!p) return GRID_COLUMNS
+    const following = totalSpan(widgets.slice(index + 1))
+    return Math.max(1, GRID_COLUMNS - p.column + 1 - following)
+}
+
+// clampRowToLine keeps a row on a single line: when the resolved placement runs
+// past column 12 but the widths would fit, columns are pulled left starting
+// from the right-hand end (so leading gaps survive as long as there is room).
+// Order is preserved. If the widths cannot fit at all, the row is returned
+// untouched and renders wrapped, as before.
+export function clampRowToLine(widgets: Widget[]): Widget[] {
+    const placed = placeRow(widgets)
+    const last = placed[placed.length - 1]
+    if (!last || last.column + last.width - 1 <= GRID_COLUMNS) return widgets
+    if (totalSpan(widgets) > GRID_COLUMNS) return widgets
+
+    const out = [...widgets]
+    let limit = GRID_COLUMNS + 1 // first column the widget to the right occupies
+    for (let i = out.length - 1; i >= 0; i--) {
+        const maxStart = limit - placed[i].width
+        const column = Math.min(placed[i].column, maxStart)
+        if (column !== placed[i].column) out[i] = { ...out[i], column }
+        limit = column
+    }
+    return out
+}
+
 // moveWidgetToColumn moves the widget at fromIndex to targetColumn within its
 // own row, reordering the array so array order matches the new left-to-right
 // visual order (placeRow renders in array order). The dragged widget is

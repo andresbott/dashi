@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue'
-import { DASHBOARD_THEME } from '@/lib/injectionKeys'
+import { computed } from 'vue'
 import { useWeather } from '@/widgets/weather/composable'
-import { useThemes } from '@/composables/useThemes'
+import { useWidgetThemes } from '@/composables/useWidgetThemes'
 import WeatherIcon from '@/widgets/weather/WeatherIcon.vue'
 import type { WeatherWidgetConfig } from '@/widgets/weather/types'
 import type { Widget } from '@/types/dashboard'
@@ -22,13 +21,15 @@ const compactCity = computed(() => config.value?.compactCity ?? true)
 const compactFeelsLike = computed(() => config.value?.compactFeelsLike ?? false)
 const compactDescription = computed(() => config.value?.compactDescription ?? true)
 const compactAlign = computed(() => config.value?.compactAlign ?? 'left')
-const iconTheme = inject(DASHBOARD_THEME, ref('default'))
+// The editor preview is theme-agnostic: icons always come from the builtin
+// widget theme. The dashboard's widget theme applies in the Go viewer only.
+const iconTheme = 'default'
 
 const lat = computed(() => config.value?.latitude)
 const lon = computed(() => config.value?.longitude)
 
 const { data: weather, isLoading, isError } = useWeather(lat, lon)
-const { data: themes } = useThemes()
+const { data: themes } = useWidgetThemes()
 
 const formatTemp = (temp: number) => `${Math.round(temp)}°`
 const cityName = computed(() => config.value?.city?.split(',')[0] ?? '')

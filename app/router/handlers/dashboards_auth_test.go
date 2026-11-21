@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/andresbott/dashi/internal/dashboard"
-	"github.com/andresbott/dashi/internal/themes"
 	"github.com/gorilla/mux"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -18,8 +17,7 @@ func setupAuthTestHandler(t *testing.T) (*DashboardHandler, *dashboard.Store) {
 	t.Helper()
 	dir := t.TempDir()
 	store := dashboard.NewStore(dir)
-	themeStore := themes.NewStore("")
-	h := NewDashboardHandler(store, themeStore, slog.Default())
+	h := NewDashboardHandler(store, slog.Default())
 	return h, store
 }
 

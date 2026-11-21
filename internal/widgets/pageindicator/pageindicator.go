@@ -8,6 +8,7 @@ import (
 
 	_ "embed"
 
+	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
@@ -21,8 +22,8 @@ type dot struct {
 }
 
 type pageIndicatorData struct {
-	Dots       []dot
-	MutedColor string
+	Dots    []dot
+	Palette themes.Palette
 }
 
 // NewStaticRenderer returns a StaticRenderer for page indicator widgets.
@@ -39,8 +40,8 @@ func NewStaticRenderer() func(json.RawMessage, widgets.RenderContext) (template.
 		}
 
 		data := pageIndicatorData{
-			Dots:       dots,
-			MutedColor: ctx.EffectivePalette().Muted,
+			Dots:    dots,
+			Palette: ctx.EffectivePalette(),
 		}
 
 		var buf bytes.Buffer

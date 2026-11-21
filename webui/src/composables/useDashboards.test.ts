@@ -4,6 +4,7 @@ import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { mount, flushPromises } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import * as dashboardApi from '@/lib/api/dashboard'
+import type { Dashboard, DashboardMeta } from '@/types/dashboard'
 
 vi.mock('@/lib/api/dashboard', () => ({
     getDashboards: vi.fn(),
@@ -31,7 +32,7 @@ function withQueryClient(setup: () => unknown) {
 describe('useListDashboards', () => {
     it('fetches dashboard list', async () => {
         const items = [{ id: '1', name: 'Test' }]
-        vi.mocked(dashboardApi.getDashboards).mockResolvedValue(items as any)
+        vi.mocked(dashboardApi.getDashboards).mockResolvedValue(items as DashboardMeta[])
 
         let result: ReturnType<typeof useListDashboards>
         withQueryClient(() => {
@@ -46,8 +47,8 @@ describe('useListDashboards', () => {
         vi.mocked(dashboardApi.getDashboards).mockResolvedValue([
             { id: '1', name: 'One', default: true },
             { id: '2', name: 'Two' },
-        ] as any)
-        vi.mocked(dashboardApi.setDefaultDashboard).mockResolvedValue({ id: '2', default: true } as any)
+        ] as DashboardMeta[])
+        vi.mocked(dashboardApi.setDefaultDashboard).mockResolvedValue({ id: '2', default: true } as Dashboard)
 
         let result: ReturnType<typeof useListDashboards>
         withQueryClient(() => {
@@ -58,7 +59,7 @@ describe('useListDashboards', () => {
         vi.mocked(dashboardApi.getDashboards).mockResolvedValue([
             { id: '1', name: 'One' },
             { id: '2', name: 'Two', default: true },
-        ] as any)
+        ] as DashboardMeta[])
         await result!.setDefaultDashboard('2')
         await flushPromises()
 
@@ -73,7 +74,7 @@ describe('useListDashboards', () => {
 describe('useGetDashboard', () => {
     it('fetches a single dashboard by ID', async () => {
         const dash = { id: '1', name: 'Test' }
-        vi.mocked(dashboardApi.getDashboard).mockResolvedValue(dash as any)
+        vi.mocked(dashboardApi.getDashboard).mockResolvedValue(dash as Dashboard)
 
         let result: ReturnType<typeof useGetDashboard>
         withQueryClient(() => {

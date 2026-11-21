@@ -7,8 +7,6 @@ export interface ParsedIcon {
     value: string
 }
 
-const IMAGE_EXTENSIONS = /\.(png|webp|svg|jpg|jpeg|ico|gif)$/i
-
 export function parseIcon(icon: string): ParsedIcon {
     if (icon.startsWith('selfhst:')) {
         return { type: 'selfhst', value: icon.slice(8) }

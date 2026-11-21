@@ -1,45 +1,42 @@
+import { computed } from 'vue'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
-import { getThemes, getFontIcon, uploadTheme, deleteTheme } from '@/lib/api/themes'
+import {
+    listThemes,
+    getTheme,
+    createTheme,
+    updateTheme,
+    deleteTheme,
+    copyTheme,
+    listThemeAssets,
+    uploadThemeAsset,
+    deleteThemeAsset,
+} from '@/lib/api/themes'
+import type { Theme, CreateThemeDTO } from '@/types/theme'
 import { invalidateAndRefetch } from '@/composables/queryUtils'
-import type { Ref } from 'vue'
 
-export function useThemes() {
-    return useQuery({
-        queryKey: ['themes'],
-        queryFn: getThemes,
-        staleTime: 5 * 60 * 1000, // themes rarely change
-    })
-}
+const THEMES_QUERY_KEY = ['themes']
 
-export function useFontIconClass(themeName: Ref<string>, iconName: Ref<string>, enabled: Ref<boolean>) {
-    return useQuery({
-        queryKey: ['theme-icon', themeName, iconName],
-        queryFn: () => getFontIcon(themeName.value || 'default', iconName.value),
-        enabled: () => enabled.value && !!iconName.value,
-        staleTime: 60 * 60 * 1000, // icon mappings are stable
-    })
-}
-
-// useAdminThemes powers the admin CRUD page. It reuses the same query
-// key as useThemes so uploads/deletes invalidate the cached list
-// everywhere.
-export function useAdminThemes() {
+export function useListThemes() {
     const queryClient = useQueryClient()
-    const queryKey = ['themes']
-    const doInvalidate = () => invalidateAndRefetch(queryClient, queryKey)
+    const doInvalidate = () => invalidateAndRefetch(queryClient, THEMES_QUERY_KEY)
 
     const query = useQuery({
-        queryKey,
-        queryFn: getThemes,
+        queryKey: THEMES_QUERY_KEY,
+        queryFn: listThemes,
     })
 
-    const uploadMutation = useMutation({
-        mutationFn: (zipBytes: ArrayBuffer) => uploadTheme(zipBytes),
+    const createMutation = useMutation({
+        mutationFn: (payload: CreateThemeDTO) => createTheme(payload),
         onSuccess: doInvalidate,
     })
 
     const deleteMutation = useMutation({
-        mutationFn: (name: string) => deleteTheme(name),
+        mutationFn: (id: string) => deleteTheme(id),
+        onSuccess: doInvalidate,
+    })
+
+    const copyMutation = useMutation({
+        mutationFn: (id: string) => copyTheme(id),
         onSuccess: doInvalidate,
     })
 
@@ -47,11 +44,72 @@ export function useAdminThemes() {
         themes: query.data,
         isLoading: query.isLoading,
         isError: query.isError,
+        error: query.error,
 
-        uploadTheme: uploadMutation.mutateAsync,
-        isUploading: uploadMutation.isPending,
+        createTheme: createMutation.mutateAsync,
+        isCreating: createMutation.isPending,
 
         deleteTheme: deleteMutation.mutateAsync,
         isDeleting: deleteMutation.isPending,
+
+        copyTheme: copyMutation.mutateAsync,
+        isCopying: copyMutation.isPending,
+    }
+}
+
+export function useGetTheme(id: () => string) {
+    const idRef = computed(id)
+    return useQuery({
+        queryKey: ['theme', idRef],
+        queryFn: () => getTheme(idRef.value),
+        enabled: computed(() => !!idRef.value),
+    })
+}
+
+export function useUpdateTheme() {
+    const queryClient = useQueryClient()
+    const mutation = useMutation({
+        mutationFn: ({ id, payload }: { id: string; payload: Theme }) =>
+            updateTheme(id, payload),
+        onSuccess: (data, variables) => {
+            invalidateAndRefetch(queryClient, THEMES_QUERY_KEY)
+            queryClient.setQueryData(['theme', variables.id], data)
+        },
+    })
+    return {
+        updateTheme: mutation.mutateAsync,
+        isUpdating: mutation.isPending,
+    }
+}
+
+export function useThemeAssets(id: () => string) {
+    const idRef = computed(id)
+    const queryClient = useQueryClient()
+    const key = computed(() => ['theme-assets', idRef.value])
+    const doInvalidate = () => invalidateAndRefetch(queryClient, ['theme-assets', idRef.value])
+
+    const query = useQuery({
+        queryKey: key,
+        queryFn: () => listThemeAssets(idRef.value),
+        enabled: computed(() => !!idRef.value),
+    })
+
+    const uploadMutation = useMutation({
+        mutationFn: ({ name, bytes }: { name: string; bytes: ArrayBuffer }) =>
+            uploadThemeAsset(idRef.value, name, bytes),
+        onSuccess: doInvalidate,
+    })
+
+    const deleteMutation = useMutation({
+        mutationFn: (name: string) => deleteThemeAsset(idRef.value, name),
+        onSuccess: doInvalidate,
+    })
+
+    return {
+        assets: query.data,
+        isLoadingAssets: query.isLoading,
+        uploadAsset: uploadMutation.mutateAsync,
+        isUploadingAsset: uploadMutation.isPending,
+        deleteAsset: deleteMutation.mutateAsync,
     }
 }
