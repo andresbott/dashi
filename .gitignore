@@ -51,3 +51,4 @@ config.yaml
 .playwright-mcp/
 docs/superpowers
 .superpowers
+.todo.json.lock
