@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { browserCss, cssVars, pageBgValue } from '@/lib/themeCss'
+import { browserCss, cssVars, isValidBackground, pageBgValue, previewStyle } from '@/lib/themeCss'
 import type { Palette, Theme, ThemeImage } from '@/types/theme'
 
 interface FixtureCase {
@@ -92,6 +92,40 @@ describe('browserCss', () => {
     it('percent-encodes a single quote in a reference', () => {
         const css = browserCss(withImage({ light: "shared:it's.png", fit: 'cover', position: 'center', repeat: 'no-repeat' }))
         expect(css).toContain('it%27s.png')
+    })
+})
+
+describe('isValidBackground', () => {
+    const img = { fit: 'cover', position: 'center', repeat: 'no-repeat' } as const
+
+    it.each([
+        ['an empty background', {}, true],
+        ['a valid gradient', { gradient: { direction: '90deg', light: ['#000', '#ffffff80'] } }, true],
+        ['a half-typed stop', { gradient: { direction: '90deg', light: ['#000', '#ff'] } }, false],
+        ['a single stop', { gradient: { direction: '90deg', light: ['#000'] } }, false],
+        ['an invalid dark stop', { gradient: { direction: '90deg', light: ['#000', '#fff'], dark: ['#000', 'x'] } }, false],
+        ['an empty dark list (falls back to light)', { gradient: { direction: '90deg', light: ['#000', '#fff'], dark: [] } }, true],
+        ['a chosen image', { image: { light: 'shared:a.png', ...img } }, true],
+        ['an image layer with no image', { image: { light: '', ...img } }, false],
+    ])('%s → %s', (_name, bg, want) => {
+        expect(isValidBackground(bg)).toBe(want)
+    })
+})
+
+describe('previewStyle', () => {
+    it('scopes one mode and composites the page background over the bg colour', () => {
+        const t = theme({
+            background: { gradient: { direction: '90deg', light: ['#000000', '#ffffff'], dark: ['#111111', '#222222'] } },
+        })
+        const light = previewStyle(t, 'light')
+        expect(light['--dashi-bg']).toBe('#ffffff')
+        expect(light['--dashi-page-bg']).toBe('linear-gradient(90deg,#000000,#ffffff)')
+        expect(light.background).toBe('var(--dashi-page-bg, none), var(--dashi-bg)')
+        expect(previewStyle(t, 'dark')['--dashi-page-bg']).toBe('linear-gradient(90deg,#111111,#222222)')
+    })
+
+    it('has no page-bg for a plain theme', () => {
+        expect(previewStyle(theme())['--dashi-page-bg']).toBeUndefined()
     })
 })
 

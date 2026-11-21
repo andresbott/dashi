@@ -21,6 +21,11 @@ const items = computed(() => itemsData.value ?? [])
 // image widget, 'backgrounds' is the shared pool that theme backgrounds
 // reference with `shared:`. Themes themselves live in AdminThemes.vue.
 const title = computed(() => (props.kind === 'images' ? 'Images' : 'Shared background images'))
+const description = computed(() =>
+    props.kind === 'backgrounds'
+        ? 'Images any theme can pick as its background. Images uploaded in a theme editor belong to that theme instead.'
+        : '',
+)
 
 // Upload
 const uploadInput = ref<HTMLInputElement | null>(null)
@@ -116,6 +121,7 @@ const formatTime = (t: string): string => {
                 @change="handleFilePicked"
             />
         </div>
+        <p v-if="description" class="section-description">{{ description }}</p>
 
         <Card v-if="!items.length && !isLoading">
             <template #content>
@@ -210,6 +216,11 @@ const formatTime = (t: string): string => {
     margin: 0;
 }
 
+.section-description {
+    margin: -0.5rem 0 0;
+    color: var(--p-text-muted-color);
+}
+
 .info-message {
     padding: 1rem;
     text-align: center;
@@ -221,7 +232,7 @@ const formatTime = (t: string): string => {
     height: 48px;
     object-fit: cover;
     border-radius: 4px;
-    border: 1px solid var(--p-surface-border);
+    border: 1px solid var(--p-content-border-color);
     background: var(--p-surface-100);
 }
 

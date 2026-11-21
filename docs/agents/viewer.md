@@ -269,6 +269,39 @@ which returns the CSS plus the image ref so the bytes can be loaded
 (`Store.LoadImage`) and drawn on the canvas - litehtml fetches nothing over
 the network, so that path must not be "modernised".
 
+### Editing a background
+
+A background is part of its theme, not an entity of its own: there is no
+background store, list or ID, and none should be reintroduced. The theme
+editor (`webui/src/views/admin/AdminThemeEdit.vue`) delegates the whole
+`background` object to `webui/src/components/admin/ThemeBackgroundEditor.vue`
+via `v-model:background`; the component edits it in place, so the view's
+`useAutosave` (deep watch) persists it with the rest of the theme. What the
+component offers is bounded by the model in `internal/themes/types.go`:
+
+- **Base**: palette `bg` or a linear gradient. Direction is edited as an angle
+  (keyword directions display as their angle and are only rewritten when the
+  slider moves). Stops are colours only, spread evenly - there are no stop
+  positions and no radial gradients in the model. Stops can be added (copy of
+  the last), removed (never below two), reordered, typed as hex or picked
+  (the picker keeps a stop's alpha); optional separate dark stops.
+- **Image**: a thumbnail grid of this theme's own assets (`asset:`) and the
+  shared pool (`shared:`), filtered to the extensions `ValidateRef` accepts.
+  **Upload goes into the theme's own assets** (copied with the theme) and
+  selects the file; the pool is managed on its own page (Theming → Background
+  images). A deleted image still referenced is flagged in the picker. Optional
+  separate dark image; fit/position/repeat are shared by both modes.
+- **Preview**: light and dark tiles built with `previewStyle` from
+  `webui/src/lib/themeCss.ts` (the TS mirror of `BrowserCSS`), compositing
+  `--dashi-page-bg` over `--dashi-bg` the way `<body>` over `<html>` does in
+  the viewer.
+
+Client-side validity is `isValidBackground` (same file), mirroring
+`validateGradient`/`validateImage` for what the controls can break; autosave
+holds while it fails. The component takes a `disabled` prop for read-only use,
+though builtin themes currently never reach the form (the view shows a
+"cannot be edited" card for them).
+
 ## Page navigation
 
 A multi-page dashboard renders plain `<a href="?page=N">` links at the bottom

@@ -6,6 +6,9 @@ import dashiIcon from '@/assets/icon-64.png'
 const route = useRoute()
 const router = useRouter()
 
+// Sections are grouped by what they hold: Content is user data that widgets
+// display (notes, images), Theming is how dashboards look. Background images
+// sit under Theming because only theme backgrounds use them.
 const groups = [
     {
         label: 'Dashboards',
@@ -16,8 +19,9 @@ const groups = [
     {
         label: 'Theming',
         items: [
-            { key: 'admin-themes',        label: 'Themes',        icon: 'ti ti-palette' },
-            { key: 'admin-widget-themes', label: 'Widget themes', icon: 'ti ti-typography' },
+            { key: 'admin-themes',            label: 'Themes',            icon: 'ti ti-palette' },
+            { key: 'admin-background-images', label: 'Background images', icon: 'ti ti-library-photo' },
+            { key: 'admin-widget-themes',     label: 'Widget themes',     icon: 'ti ti-typography' },
         ],
     },
     {
@@ -25,7 +29,6 @@ const groups = [
         items: [
             { key: 'admin-notes',  label: 'Notes',  icon: 'ti ti-notes' },
             { key: 'admin-images', label: 'Images', icon: 'ti ti-photo' },
-            { key: 'admin-background-images', label: 'Background images', icon: 'ti ti-library-photo' },
         ],
     },
     {

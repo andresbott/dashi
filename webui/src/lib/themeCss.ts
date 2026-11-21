@@ -51,6 +51,20 @@ export const isValidRoleColor = (role: PaletteRole, value: string): boolean =>
 // (Go: validateColor): any hex colour, alpha allowed.
 export const isValidStopColor = (value: string): boolean => HEX.test(value)
 
+// isValidBackground mirrors Go's validateGradient/validateImage for the fields
+// the editor lets you break: every gradient stop must be a hex colour (at
+// least two of them) and an image layer needs a chosen light image. Directions
+// and image enums come from closed controls, so they are not re-checked here.
+export const isValidBackground = (bg: ThemeBackground | undefined): boolean => {
+    const g = bg?.gradient
+    if (g) {
+        if (g.light.length < 2 || !g.light.every(isValidStopColor)) return false
+        if (g.dark?.length && (g.dark.length < 2 || !g.dark.every(isValidStopColor))) return false
+    }
+    if (bg?.image && !bg.image.light) return false
+    return true
+}
+
 const FIT_VALUES = new Set(['cover', 'contain', 'stretch', 'original'])
 const POSITION_VALUES = new Set([
     'center', 'top', 'bottom', 'left', 'right',
@@ -171,6 +185,20 @@ export function cssVars(css: string, mode: 'light' | 'dark' = 'light'): Record<s
         if (idx > 0) vars[decl.slice(0, idx)] = decl.slice(idx + 1)
     }
     return vars
+}
+
+// previewStyle is an inline style that scopes a theme to one element: the
+// mode's palette variables plus the page background as the viewer composes it.
+// The viewer paints --dashi-bg on <html> and --dashi-page-bg on <body>
+// (webui/viewer/viewer.css), so translucent stops and uncovered image areas
+// show the palette bg. One element reproduces that with the bg as the final
+// layer's colour. Applied to a preview box instead of :root, so the admin UI
+// around it keeps its own styling.
+export function previewStyle(theme: Theme, mode: 'light' | 'dark' = 'light'): Record<string, string> {
+    return {
+        ...cssVars(browserCss(theme), mode),
+        background: 'var(--dashi-page-bg, none), var(--dashi-bg)',
+    }
 }
 
 // pageBgValue extracts what one colour mode's page actually shows out of a

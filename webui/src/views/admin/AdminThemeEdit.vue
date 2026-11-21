@@ -4,24 +4,15 @@ import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import InputText from 'primevue/inputtext'
-import Select from 'primevue/select'
-import Slider from 'primevue/slider'
 import SelectButton from 'primevue/selectbutton'
 import ColorPicker from 'primevue/colorpicker'
-import ToggleSwitch from 'primevue/toggleswitch'
 import { useToast } from 'primevue/usetoast'
 
-import { useGetTheme, useUpdateTheme, useThemeAssets } from '@/composables/useThemes'
-import { useDataItems } from '@/composables/useDataItems'
+import ThemeBackgroundEditor from '@/components/admin/ThemeBackgroundEditor.vue'
+import { useGetTheme, useUpdateTheme } from '@/composables/useThemes'
 import { useAutosave } from '@/composables/useAutosave'
-import { browserCss, cssVars, isValidRoleColor, isValidStopColor, PALETTE_ROLES } from '@/lib/themeCss'
-import type {
-    Theme,
-    ImageFit,
-    ImagePosition,
-    ImageRepeat,
-    PaletteRole,
-} from '@/types/theme'
+import { isValidBackground, isValidRoleColor, previewStyle, PALETTE_ROLES } from '@/lib/themeCss'
+import type { Theme, PaletteRole } from '@/types/theme'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,8 +25,6 @@ const { data: serverTheme, isLoading, isError } = useGetTheme(() => id.value)
 // hides their Edit button, but the URL can still be typed.
 const isBuiltin = computed(() => serverTheme.value?.builtin === true)
 const { updateTheme } = useUpdateTheme()
-const { assets, uploadAsset, isUploadingAsset } = useThemeAssets(() => id.value)
-const { items: sharedImages } = useDataItems('backgrounds')
 
 // Editing happens on a local clone; autosave persists it after each change.
 const local = ref<Theme | null>(null)
@@ -93,190 +82,11 @@ const setFromPicker = (role: PaletteRole, v: string | undefined) => {
     palette[role] = `#${v}${alpha}`
 }
 
-// ---- background: palette bg or gradient ----
-
-type BaseKind = 'none' | 'gradient'
-
-const baseKindOptions = [
-    { label: 'Palette background', value: 'none' },
-    { label: 'Gradient', value: 'gradient' },
-]
-
-const baseKind = computed<BaseKind>(() => (local.value?.background.gradient ? 'gradient' : 'none'))
-
-const setBaseKind = (kind: BaseKind) => {
-    if (!local.value) return
-    if (kind === 'gradient') {
-        local.value.background.gradient ??= { direction: 'to bottom right', light: ['#667eea', '#764ba2'] }
-    } else {
-        delete local.value.background.gradient
-    }
-}
-
-// ---- dark overrides ----
-// An absent `dark` key means "fall back to light". The toggles therefore delete
-// the key rather than writing an empty string, which would fail validation.
-
-const gradientDarkEnabled = computed({
-    get: () => local.value?.background.gradient?.dark !== undefined,
-    set: (on: boolean) => {
-        const gradient = local.value?.background.gradient
-        if (!gradient) return
-        if (on) gradient.dark = [...gradient.light]
-        else delete gradient.dark
-    },
-})
-
-const imageDarkEnabled = computed({
-    get: () => local.value?.background.image?.dark !== undefined,
-    set: (on: boolean) => {
-        const image = local.value?.background.image
-        if (!image) return
-        if (on) image.dark = image.light
-        else delete image.dark
-    },
-})
-
-// ---- gradient direction ----
-
-// The direction is edited purely as an angle. A stored value may still be one
-// of the CSS keywords the backend also accepts, so those map onto their
-// equivalent angle for display: 0deg points up and the angle runs clockwise.
-const keywordAngles: Record<string, number> = {
-    'to top': 0,
-    'to top right': 45,
-    'to right': 90,
-    'to bottom right': 135,
-    'to bottom': 180,
-    'to bottom left': 225,
-    'to left': 270,
-    'to top left': 315,
-}
-
-const angle = computed({
-    get: () => {
-        const dir = local.value?.background.gradient?.direction ?? ''
-        if (dir in keywordAngles) return keywordAngles[dir]
-        return parseInt(dir.replace('deg', ''), 10) || 0
-    },
-    // Moving the slider converts the direction to degrees. A stored keyword is
-    // left untouched until then, so simply opening the editor never rewrites it.
-    set: (v: number) => {
-        const gradient = local.value?.background.gradient
-        if (!gradient) return
-        const n = Math.min(360, Math.max(0, Math.round(v || 0)))
-        gradient.direction = `${n}deg`
-    },
-})
-
-const addStop = (stopMode: Mode) => {
-    const stops = local.value?.background.gradient?.[stopMode]
-    if (stops) stops.push('#ffffff')
-}
-
-// A gradient needs at least two stops, so the last two cannot be removed.
-const removeStop = (stopMode: Mode, index: number) => {
-    const stops = local.value?.background.gradient?.[stopMode]
-    if (stops && stops.length > 2) stops.splice(index, 1)
-}
-
-// ---- image ----
-
-const fitOptions: { label: string; value: ImageFit }[] = [
-    { label: 'Cover', value: 'cover' },
-    { label: 'Contain', value: 'contain' },
-    { label: 'Stretch', value: 'stretch' },
-    { label: 'Original size', value: 'original' },
-]
-
-const positionOptions: { label: string; value: ImagePosition }[] = [
-    { label: 'Center', value: 'center' },
-    { label: 'Top', value: 'top' },
-    { label: 'Bottom', value: 'bottom' },
-    { label: 'Left', value: 'left' },
-    { label: 'Right', value: 'right' },
-    { label: 'Top left', value: 'top left' },
-    { label: 'Top right', value: 'top right' },
-    { label: 'Bottom left', value: 'bottom left' },
-    { label: 'Bottom right', value: 'bottom right' },
-]
-
-const repeatOptions: { label: string; value: ImageRepeat }[] = [
-    { label: 'No repeat', value: 'no-repeat' },
-    { label: 'Tile', value: 'repeat' },
-    { label: 'Tile horizontally', value: 'repeat-x' },
-    { label: 'Tile vertically', value: 'repeat-y' },
-]
-
-const imageEnabled = computed({
-    get: () => local.value?.background.image !== undefined,
-    set: (on: boolean) => {
-        if (!local.value) return
-        if (on) {
-            local.value.background.image = {
-                light: '',
-                fit: 'cover',
-                position: 'center',
-                repeat: 'no-repeat',
-            }
-        } else {
-            delete local.value.background.image
-        }
-    },
-})
-
-// Two sources, grouped: this theme's own uploads (asset:) and the
-// admin-curated shared pool (shared:).
-const imageOptions = computed(() => {
-    const groups: { label: string; items: { label: string; value: string }[] }[] = []
-    const own = assets.value ?? []
-    if (own.length) {
-        groups.push({
-            label: 'This theme',
-            items: own.map(a => ({ label: a, value: `asset:${a}` })),
-        })
-    }
-    const shared = sharedImages.value ?? []
-    if (shared.length) {
-        groups.push({
-            label: 'Shared images',
-            items: shared.map(i => ({ label: i.name, value: `shared:${i.name}` })),
-        })
-    }
-    return groups
-})
-
-const uploadInput = ref<HTMLInputElement | null>(null)
-
-const handleUpload = async (event: Event) => {
-    const input = event.target as HTMLInputElement
-    const file = input.files?.[0]
-    if (!file) return
-    try {
-        await uploadAsset({ name: file.name, bytes: await file.arrayBuffer() })
-        // Select what was just uploaded — that is invariably why it was uploaded.
-        if (local.value?.background.image) local.value.background.image.light = `asset:${file.name}`
-        toast.add({ severity: 'success', summary: 'Uploaded', detail: file.name, life: 3000 })
-    } catch {
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to upload image', life: 5000 })
-    } finally {
-        if (uploadInput.value) uploadInput.value.value = ''
-    }
-}
-
 // ---- preview ----
 
 // Generated by the same logic the server uses, so the preview shows what the
-// dashboard will actually render — no save and no round-trip required. The
-// variables are applied inline to the preview box only, never to :root, so
-// the admin UI around it keeps its own styling.
-const previewStyle = computed(() => {
-    if (!local.value) return {}
-    return {
-        ...cssVars(browserCss(local.value), mode.value),
-        background: 'var(--dashi-page-bg, var(--dashi-bg))',
-    }
-})
+// dashboard will actually render — no save and no round-trip required.
+const themePreviewStyle = computed(() => (local.value ? previewStyle(local.value, mode.value) : {}))
 
 const previewChips: { role: PaletteRole; label: string }[] = [
     { role: 'primary', label: 'Primary' },
@@ -291,17 +101,14 @@ const previewChips: { role: PaletteRole; label: string }[] = [
 // a half-typed value is highlighted instead of autosaved into a 400.
 
 const nameInvalid = computed(() => !local.value?.name.trim())
-const imageLightInvalid = computed(() => local.value?.background.image?.light === '')
 
 const isValid = computed(() => {
     const t = local.value
-    if (!t || nameInvalid.value || imageLightInvalid.value) return false
+    if (!t || nameInvalid.value) return false
     for (const m of ['light', 'dark'] as const) {
         if (!roles.every(role => isValidRoleColor(role, t.colors[m][role]))) return false
     }
-    const g = t.background.gradient
-    if (g && ![...g.light, ...(g.dark ?? [])].every(isValidStopColor)) return false
-    return true
+    return isValidBackground(t.background)
 })
 
 // ---- autosave ----
@@ -403,178 +210,14 @@ const goBack = async () => {
                                 must be opaque.
                             </small>
 
-                            <!-- Background: palette bg or gradient, optionally an image over it -->
+                            <!-- Background: a base (palette bg or gradient) plus an optional image -->
                             <label class="edit-subsection">Background</label>
-                            <SelectButton
-                                :modelValue="baseKind"
-                                :options="baseKindOptions"
-                                optionLabel="label"
-                                optionValue="value"
-                                :allowEmpty="false"
-                                @update:modelValue="(v: BaseKind) => setBaseKind(v)"
+                            <ThemeBackgroundEditor
+                                v-model:background="local.background"
+                                :themeId="local.id"
+                                :colors="local.colors"
+                                :disabled="isBuiltin"
                             />
-
-                            <template v-if="local.background.gradient">
-                                <div class="flex flex-column gap-1">
-                                    <div class="flex align-items-center justify-content-between">
-                                        <label class="font-semibold text-sm">Angle</label>
-                                        <span class="angle-readout">{{ angle }}°</span>
-                                    </div>
-                                    <Slider
-                                        :modelValue="angle"
-                                        @update:modelValue="(v: number | number[]) => { angle = Array.isArray(v) ? v[0] : v }"
-                                        :min="0"
-                                        :max="360"
-                                        :step="5"
-                                        class="angle-slider"
-                                    />
-                                    <small class="edit-hint">0° points up, increasing clockwise.</small>
-                                </div>
-
-                                <div class="flex flex-column gap-1">
-                                    <label class="font-semibold text-sm">Colour stops</label>
-                                    <div
-                                        v-for="(_stop, i) in local.background.gradient.light"
-                                        :key="'l' + i"
-                                        class="flex align-items-center gap-2"
-                                    >
-                                        <ColorPicker
-                                            :modelValue="pickerValue(local.background.gradient.light[i])"
-                                            @update:modelValue="(v: string | undefined) => { if (v !== undefined && local?.background.gradient) local.background.gradient.light[i] = '#' + v }"
-                                        />
-                                        <InputText
-                                        v-model="local.background.gradient.light[i]"
-                                        :invalid="!isValidStopColor(local.background.gradient.light[i])"
-                                        :data-testid="`stop-light-${i}`"
-                                        class="flex-grow-1"
-                                    />
-                                        <Button
-                                            icon="ti ti-trash"
-                                            text
-                                            rounded
-                                            severity="danger"
-                                            :disabled="local.background.gradient.light.length <= 2"
-                                            @click="removeStop('light', i)"
-                                        />
-                                    </div>
-                                    <Button
-                                        label="Add stop"
-                                        icon="ti ti-plus"
-                                        text
-                                        size="small"
-                                        @click="addStop('light')"
-                                    />
-                                </div>
-
-                                <div class="flex align-items-center gap-2">
-                                    <ToggleSwitch v-model="gradientDarkEnabled" />
-                                    <span class="text-sm">Different stops in dark mode</span>
-                                </div>
-                                <div v-if="local.background.gradient.dark" class="flex flex-column gap-1">
-                                    <label class="font-semibold text-sm">Dark stops</label>
-                                    <div
-                                        v-for="(_stop, i) in local.background.gradient.dark"
-                                        :key="'d' + i"
-                                        class="flex align-items-center gap-2"
-                                    >
-                                        <ColorPicker
-                                            :modelValue="pickerValue(local.background.gradient.dark[i])"
-                                            @update:modelValue="(v: string | undefined) => { if (v !== undefined && local?.background.gradient?.dark) local.background.gradient.dark[i] = '#' + v }"
-                                        />
-                                        <InputText
-                                            v-model="local.background.gradient.dark[i]"
-                                            :invalid="!isValidStopColor(local.background.gradient.dark[i])"
-                                            :data-testid="`stop-dark-${i}`"
-                                            class="flex-grow-1"
-                                        />
-                                        <Button
-                                            icon="ti ti-trash"
-                                            text
-                                            rounded
-                                            severity="danger"
-                                            :disabled="local.background.gradient.dark.length <= 2"
-                                            @click="removeStop('dark', i)"
-                                        />
-                                    </div>
-                                    <Button label="Add stop" icon="ti ti-plus" text size="small" @click="addStop('dark')" />
-                                </div>
-                            </template>
-
-                            <!-- Image layer, painted over the base -->
-                            <div class="flex align-items-center gap-2">
-                                <ToggleSwitch v-model="imageEnabled" data-testid="image-toggle" />
-                                <span class="text-sm">Use an image</span>
-                            </div>
-
-                            <template v-if="local.background.image">
-                                <div class="flex flex-column gap-1">
-                                    <label class="font-semibold text-sm">Image</label>
-                                    <div class="flex gap-2">
-                                        <Select
-                                            v-model="local.background.image.light"
-                                            :invalid="imageLightInvalid"
-                                            :options="imageOptions"
-                                            optionLabel="label"
-                                            optionValue="value"
-                                            optionGroupLabel="label"
-                                            optionGroupChildren="items"
-                                            placeholder="Select an image…"
-                                            class="flex-grow-1"
-                                        />
-                                        <Button
-                                            label="Upload"
-                                            icon="ti ti-upload"
-                                            severity="secondary"
-                                            :loading="isUploadingAsset"
-                                            @click="uploadInput?.click()"
-                                        />
-                                        <input
-                                            ref="uploadInput"
-                                            type="file"
-                                            accept="image/*"
-                                            style="display: none"
-                                            @change="handleUpload"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div class="flex align-items-center gap-2">
-                                    <ToggleSwitch v-model="imageDarkEnabled" />
-                                    <span class="text-sm">Different image in dark mode</span>
-                                </div>
-                                <div v-if="local.background.image.dark !== undefined" class="flex flex-column gap-1">
-                                    <label class="font-semibold text-sm">Dark image</label>
-                                    <Select
-                                        v-model="local.background.image.dark"
-                                        :options="imageOptions"
-                                        optionLabel="label"
-                                        optionValue="value"
-                                        optionGroupLabel="label"
-                                        optionGroupChildren="items"
-                                        placeholder="Select an image…"
-                                        class="w-full"
-                                    />
-                                </div>
-
-                                <div class="edit-row">
-                                    <div class="flex flex-column gap-1 flex-grow-1">
-                                        <label class="font-semibold text-sm">Fit</label>
-                                        <Select v-model="local.background.image.fit" :options="fitOptions" optionLabel="label" optionValue="value" />
-                                    </div>
-                                    <div class="flex flex-column gap-1 flex-grow-1">
-                                        <label class="font-semibold text-sm">Position</label>
-                                        <Select v-model="local.background.image.position" :options="positionOptions" optionLabel="label" optionValue="value" />
-                                    </div>
-                                    <div class="flex flex-column gap-1 flex-grow-1">
-                                        <label class="font-semibold text-sm">Repeat</label>
-                                        <Select v-model="local.background.image.repeat" :options="repeatOptions" optionLabel="label" optionValue="value" />
-                                    </div>
-                                </div>
-                                <small class="edit-hint">
-                                    Fit, position and repeat apply in browsers only. E-ink and
-                                    image dashboards always cover the canvas.
-                                </small>
-                            </template>
                         </div>
 
                         <!-- Live preview, scoped to the box -->
@@ -590,7 +233,7 @@ const goBack = async () => {
                                     size="small"
                                 />
                             </div>
-                            <div class="preview-box" :style="previewStyle">
+                            <div class="preview-box" :style="themePreviewStyle">
                                 <div class="preview-card">
                                     <div class="preview-title">Card title</div>
                                     <div class="preview-muted">Muted secondary text</div>
@@ -672,8 +315,7 @@ const goBack = async () => {
 .preview-box {
     height: 220px;
     border-radius: 6px;
-    border: 1px solid var(--p-surface-border);
-    background-size: cover;
+    border: 1px solid var(--p-content-border-color);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -728,11 +370,6 @@ const goBack = async () => {
     gap: 0.25rem;
 }
 
-.edit-row {
-    display: flex;
-    gap: 0.75rem;
-}
-
 .edit-subsection {
     margin-top: 0.5rem;
     font-size: 0.75rem;
@@ -746,21 +383,10 @@ const goBack = async () => {
     color: var(--p-text-muted-color);
 }
 
-/* A slider has no visible value, so the angle is shown beside its label. */
-.angle-readout {
-    font-variant-numeric: tabular-nums;
-    color: var(--p-text-muted-color);
-    font-size: 0.875rem;
-}
-
-.angle-slider {
-    margin: 0.5rem 0.25rem;
-}
-
 /* The colour swatch is unbordered by default, so a white or near-white value
    is invisible against the card and there is nothing to click. */
 :deep(.p-colorpicker-preview) {
-    border: 1px solid var(--p-surface-border);
+    border: 1px solid var(--p-content-border-color);
     border-radius: 4px;
 }
 

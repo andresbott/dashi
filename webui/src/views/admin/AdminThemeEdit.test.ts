@@ -26,7 +26,9 @@ vi.mock('@/composables/useThemes', () => ({
         isUploadingAsset: ref(false),
     }),
 }))
-vi.mock('@/composables/useDataItems', () => ({ useDataItems: () => ({ items: ref([]) }) }))
+vi.mock('@/composables/useDataItems', () => ({
+    useDataItems: () => ({ items: ref([{ name: 'sky.png', size: 1, modTime: '' }]) }),
+}))
 vi.mock('vue-router', () => ({
     useRoute: () => ({ params: routeParams }),
     useRouter: () => ({ push: vi.fn() }),
@@ -35,7 +37,7 @@ vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: toastAdd }) }))
 
 function mountView() {
     return mount(AdminThemeEdit, {
-        global: { plugins: [PrimeVue], directives: { tooltip: {} } },
+        global: { plugins: [PrimeVue], directives: { tooltip: {} }, stubs: { RouterLink: true } },
     })
 }
 
@@ -111,15 +113,30 @@ describe('AdminThemeEdit', () => {
         expect(updateTheme).toHaveBeenCalledTimes(1)
     })
 
-    it('does not save an enabled image with no image chosen', async () => {
+    it('does not save an image layer with no image chosen', async () => {
+        theme.value!.background = {
+            image: { light: '', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+        }
         const wrapper = mountView()
         await flushPromises()
 
-        await wrapper.find('[data-testid="image-toggle"] input').setValue(true)
+        await wrapper.find('#color-text').setValue('#123456')
         await settle()
         expect(updateTheme).not.toHaveBeenCalled()
         expect(toastAdd).not.toHaveBeenCalled()
-        expect(wrapper.find('.p-select.p-invalid').exists()).toBe(true)
+        expect(wrapper.text()).toContain('Pick an image')
+    })
+
+    it('saves a background image picked from the shared pool', async () => {
+        const wrapper = mountView()
+        await flushPromises()
+
+        await wrapper.find('[data-testid="image-light-shared:sky.png"]').trigger('click')
+        await settle()
+        expect(updateTheme).toHaveBeenCalledTimes(1)
+        expect(updateTheme.mock.calls[0][0].payload.background.image).toEqual({
+            light: 'shared:sky.png', fit: 'cover', position: 'center', repeat: 'no-repeat',
+        })
     })
 
     it('drops the alpha when the picker writes the page background', async () => {

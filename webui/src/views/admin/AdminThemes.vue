@@ -226,7 +226,7 @@ const confirmDelete = async () => {
     width: 64px;
     height: 40px;
     border-radius: 4px;
-    border: 1px solid var(--p-surface-border);
+    border: 1px solid var(--p-content-border-color);
     background-size: cover;
 }
 
@@ -234,7 +234,7 @@ const confirmDelete = async () => {
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    border: 1px solid var(--p-surface-border);
+    border: 1px solid var(--p-content-border-color);
 }
 
 .text-muted {
