@@ -7,8 +7,7 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import CreateDashboardDialog from '@/components/dashboards/CreateDashboardDialog.vue'
-import EinkPreviewDialog from '@/components/dashboards/EinkPreviewDialog.vue'
-import { useListDashboards, useGetDashboard } from '@/composables/useDashboards'
+import { useListDashboards } from '@/composables/useDashboards'
 import { downloadDashboard } from '@/lib/api/dashboard'
 import { dashboardViewUrl } from '@/lib/serverInfo'
 import { useToast } from 'primevue/usetoast'
@@ -106,19 +105,11 @@ const DASHBOARD_TYPES = {
 
 const dashboardType = (d) => DASHBOARD_TYPES[d.type] ?? DASHBOARD_TYPES.interactive
 
-// E-ink preview, the same dialog the editor opens, for image dashboards only
-// (an interactive one answers a display request with HTML). One dialog serves
-// the whole list. The list carries no pages, so the opened dashboard is
-// fetched for its page names; until it arrives the dialog offers page 1,
-// which it renders straight away. Nothing is pending here, so no flush.
-const einkPreviewVisible = ref(false)
-const einkPreviewId = ref('')
-const { data: einkPreviewDashboard } = useGetDashboard(() => einkPreviewId.value)
-const einkPreviewPageNames = computed(() => einkPreviewDashboard.value?.pages.map(p => p.name) ?? [''])
-
+// E-ink preview, the same page the editor opens, for image dashboards only
+// (an interactive one answers a display request with HTML). It opens on the
+// first page; `from` lets its Back button return here without history.
 const openEinkPreview = (d) => {
-    einkPreviewId.value = d.id
-    einkPreviewVisible.value = true
+    router.push({ name: 'dashboard-eink-preview', params: { id: d.id }, query: { from: 'list' } })
 }
 
 const handleDownload = async (id) => {
@@ -268,13 +259,6 @@ const handleDownload = async (id) => {
         v-model:visible="createDialogVisible"
         v-model:saving="isCreating"
         @confirm="handleCreate"
-    />
-
-    <EinkPreviewDialog
-        v-if="einkPreviewId"
-        v-model:visible="einkPreviewVisible"
-        :dashboardId="einkPreviewId"
-        :pageNames="einkPreviewPageNames"
     />
 
     <ConfirmDialog

@@ -6,7 +6,6 @@ import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import DashboardRow from '@/components/dashboards/DashboardRow.vue'
-import EinkPreviewDialog from '@/components/dashboards/EinkPreviewDialog.vue'
 
 import { useDashboardDraft } from '@/composables/useDashboardDraft'
 import type { Row } from '@/types/dashboard'
@@ -38,9 +37,7 @@ const renamePageInterval = ref<number | null>(0)
 
 // Only image dashboards render to PNG: the server answers an interactive
 // dashboard's display request with browser HTML, so there is nothing to show.
-const einkPreviewVisible = ref(false)
 const isImageDashboard = computed(() => localDashboard.value?.type === 'image')
-const pageNames = computed(() => (localDashboard.value?.pages ?? []).map(p => p.name))
 
 const pages = computed(() => localDashboard.value?.pages ?? [])
 const activePage = computed(() => pages.value[activePageIndex.value])
@@ -183,6 +180,17 @@ const goToSettings = async () => {
     router.push({ name: 'dashboard-settings', params: { id: id.value } })
 }
 
+// Pending edits are saved first, so the server renders what is on screen;
+// the preview opens on the page being edited.
+const goToEinkPreview = async () => {
+    await flush()
+    router.push({
+        name: 'dashboard-eink-preview',
+        params: { id: id.value },
+        query: { page: String(activePageIndex.value), from: 'edit' },
+    })
+}
+
 </script>
 
 <template>
@@ -219,7 +227,7 @@ const goToSettings = async () => {
                 label="E-ink preview"
                 severity="secondary"
                 data-testid="eink-preview-button"
-                @click="einkPreviewVisible = true"
+                @click="goToEinkPreview"
             />
             <Button
                 icon="ti ti-settings"
@@ -228,15 +236,6 @@ const goToSettings = async () => {
                 @click="goToSettings"
             />
         </div>
-
-        <EinkPreviewDialog
-            v-if="isImageDashboard"
-            v-model:visible="einkPreviewVisible"
-            :dashboardId="id"
-            :pageNames="pageNames"
-            :initialPage="activePageIndex"
-            :flush="flush"
-        />
 
         <div class="page-tabs">
             <div

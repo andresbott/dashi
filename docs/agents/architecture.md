@@ -164,8 +164,9 @@ not for current paths.
   before redesigning any of these — the direction is chosen. Note: "widgets
   as isolated components", "remove the preview feature", "enhanced dither"
   and the "e-ink preview dialog" have shipped (2026-11-21 for the last two,
-  see [rendering.md](rendering.md)); they remain in the file as historical
-  record.
+  see [rendering.md](rendering.md); the dialog has since become the
+  `/dashboards/:id/eink-preview` page); they remain in the file as
+  historical record.
 - Error bodies on both servers are double-wrapped: the go-bumbu middleware
   (`JsonErrors: true`) takes the handler's `{"error":"..."}` body as the
   message string of its own `{"error": ...}`. The SPA's `apiErrorMessage`

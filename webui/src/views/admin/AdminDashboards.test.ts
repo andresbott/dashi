@@ -1,14 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import PrimeVue from 'primevue/config'
 import AdminDashboards from './AdminDashboards.vue'
-import EinkPreviewDialog from '@/components/dashboards/EinkPreviewDialog.vue'
 
 const setDefaultDashboard = vi.fn()
+const push = vi.fn()
 const dashboards = ref<{ id: string; name: string; type?: string; default?: boolean }[]>([])
-// Full dashboards by id, as GET /api/v0/dashboards/{id} would return them.
-const fullDashboards = ref<Record<string, { id: string; pages: { name: string }[] }>>({})
 
 vi.mock('@/composables/useDashboards', () => ({
     useListDashboards: () => ({
@@ -20,15 +18,12 @@ vi.mock('@/composables/useDashboards', () => ({
         isUploadingZip: ref(false),
         setDefaultDashboard,
     }),
-    useGetDashboard: (id: () => string) => ({
-        data: computed(() => fullDashboards.value[id()]),
-    }),
 }))
 
 vi.mock('@/lib/api/dashboard', () => ({ downloadDashboard: vi.fn() }))
 vi.mock('@/lib/serverInfo', () => ({ dashboardViewUrl: (id: string) => `http://viewer/${id}` }))
 vi.mock('vue-router', () => ({
-    useRouter: () => ({ push: vi.fn(), resolve: () => ({ href: '/somewhere' }) }),
+    useRouter: () => ({ push, resolve: () => ({ href: '/somewhere' }) }),
 }))
 vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: vi.fn() }) }))
 
@@ -37,8 +32,6 @@ function mountView() {
         global: {
             plugins: [PrimeVue],
             directives: { tooltip: {} },
-            // The dialog has its own tests; here only what the list hands it matters.
-            stubs: { EinkPreviewDialog: true },
         },
     })
 }
@@ -53,10 +46,7 @@ function previewButton(wrapper: ReturnType<typeof mountView>, rowIndex: number) 
 
 describe('AdminDashboards e-ink preview', () => {
     beforeEach(() => {
-        fullDashboards.value = {
-            bbb222: { id: 'bbb222', pages: [{ name: 'Main' }, { name: '' }] },
-            ddd444: { id: 'ddd444', pages: [{ name: 'Only' }] },
-        }
+        push.mockClear()
         dashboards.value = [
             { id: 'aaa111', name: 'Alpha', type: 'interactive' },
             { id: 'bbb222', name: 'Bravo', type: 'image' },
@@ -74,41 +64,19 @@ describe('AdminDashboards e-ink preview', () => {
         expect(previewButton(wrapper, 3).exists()).toBe(true)
     })
 
-    it('does not mount the dialog until a preview is opened', () => {
-        const wrapper = mountView()
-        expect(wrapper.findComponent(EinkPreviewDialog).exists()).toBe(false)
-    })
-
-    it('opens the dialog for the clicked dashboard with its page names and no flush', async () => {
+    it('opens the preview page of the clicked dashboard, marked as coming from the list', async () => {
         const wrapper = mountView()
         await previewButton(wrapper, 1).trigger('click')
         await flushPromises()
-
-        const dialog = wrapper.findComponent(EinkPreviewDialog)
-        expect(dialog.props()).toMatchObject({ visible: true, dashboardId: 'bbb222', pageNames: ['Main', ''] })
-        expect(dialog.props('flush')).toBeUndefined()
-        expect(dialog.props('initialPage')).toBeUndefined()
-
-        // Close, then open another dashboard: the same dialog switches to it.
-        dialog.vm.$emit('update:visible', false)
-        await flushPromises()
-        expect(wrapper.findComponent(EinkPreviewDialog).props('visible')).toBe(false)
+        expect(push).toHaveBeenCalledWith({
+            name: 'dashboard-eink-preview',
+            params: { id: 'bbb222' },
+            query: { from: 'list' },
+        })
 
         await previewButton(wrapper, 3).trigger('click')
         await flushPromises()
-        expect(wrapper.findComponent(EinkPreviewDialog).props()).toMatchObject({
-            visible: true,
-            dashboardId: 'ddd444',
-            pageNames: ['Only'],
-        })
-    })
-
-    it('offers page 1 while the dashboard is still loading', async () => {
-        fullDashboards.value = {}
-        const wrapper = mountView()
-        await previewButton(wrapper, 1).trigger('click')
-        await flushPromises()
-        expect(wrapper.findComponent(EinkPreviewDialog).props('pageNames')).toEqual([''])
+        expect(push).toHaveBeenLastCalledWith(expect.objectContaining({ params: { id: 'ddd444' } }))
     })
 })
 

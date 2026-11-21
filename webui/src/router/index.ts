@@ -39,6 +39,13 @@ const router = createRouter({
             component: () => import('@/views/dashboards/DashboardSettingsView.vue')
         },
         {
+            // Query: preset, width/height (custom preset only), format,
+            // rotation, page (0-based), actual, from (edit|list).
+            path: '/dashboards/:id/eink-preview',
+            name: 'dashboard-eink-preview',
+            component: () => import('@/views/dashboards/DashboardEinkPreviewView.vue')
+        },
+        {
             path: '/:id',
             name: 'dashboard-view',
             component: () => import('@/views/dashboards/DashboardView.vue')
