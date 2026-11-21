@@ -4,6 +4,7 @@ import { DASHBOARD_ID } from '@/lib/injectionKeys'
 import type { Widget } from '@/types/dashboard'
 import type { BookmarkWidgetConfig } from './types'
 import { parseIcon, getSelfhstIconUrl, getDashboardIconUrl } from '@/lib/iconUtils'
+import { safeBookmarkHref } from './url'
 
 const props = defineProps<{
     widget: Widget
@@ -17,6 +18,10 @@ const config = computed<BookmarkWidgetConfig | null>(() => {
     if (!c.url || !c.title) return null
     return c
 })
+
+// Never bind a stored URL that fails the bookmark rule: the link renders
+// without an href instead.
+const href = computed(() => safeBookmarkHref(config.value?.url))
 
 const iconInfo = computed(() => {
     if (!config.value?.icon) return null
@@ -38,7 +43,7 @@ const iconInfo = computed(() => {
             <span>Configure bookmark in edit mode</span>
         </div>
 
-        <a v-else :href="config.url" target="_blank" rel="noopener noreferrer" class="bookmark-link" :class="{ 'bookmark-link--below': config.textBelow }">
+        <a v-else :href="href" target="_blank" rel="noopener noreferrer" class="bookmark-link" :class="{ 'bookmark-link--below': config.textBelow }">
             <img
                 v-if="iconInfo?.type === 'image'"
                 :src="iconInfo.src"

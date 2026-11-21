@@ -152,9 +152,14 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		if br, ok := m.(widgets.BrowserRenderable); ok {
 			registry.RegisterBrowser(m.Type(), br.RenderBrowser)
 		}
+		if v, ok := m.(widgets.ConfigValidator); ok {
+			registry.RegisterValidator(m.Type(), v.ValidateConfig)
+		}
 		configs := widgets.CollectConfigs(dashStore, m.Type())
 		go m.Warmup(warmupCtx, configs)
 	}
+	// Widget config is checked on create/update/import by each widget's own rule.
+	dashStore.SetWidgetValidator(registry)
 
 	staticRenderer := dashstatic.NewRenderer(registry)
 	browserAssets := browser.NewAssets(modules)

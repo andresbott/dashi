@@ -34,6 +34,49 @@ package hosts two.
   for the admin/editor SPA only; the viewer is server-rendered (see
   [viewer.md](viewer.md)).
 
+## Config validation
+
+Widget config is opaque to the store, but a module can reject its own config
+before it is saved by implementing the optional `widgets.ConfigValidator`
+(`ValidateConfig(config json.RawMessage) error`, in
+`internal/widgets/registry.go`). The `newSharedDeps` loop registers it with
+`registry.RegisterValidator`, and the store calls `Registry.ValidateConfig` for
+every widget on create, update and zip import; a failure is a 400 naming the
+widget and the reason (details in
+[architecture.md](architecture.md#security-model--know-the-boundaries)).
+
+- Validate only what is dangerous or unrenderable. A validator that rejects
+  config older dashboards already hold makes those dashboards unsavable until
+  the user fixes the widget, since every autosave sends the whole dashboard.
+- Keep the rule in the widget package and reuse it in the renderer: stored
+  config is never re-validated on read, so the renderer must still neutralise
+  bad values (bookmark renders `#`).
+- Mirror the rule in the editor form when users can type the value, and share
+  the cases: bookmark's `internal/widgets/bookmark/testdata/url_cases.json` is
+  read by both `bookmark_test.go` and `webui/src/widgets/bookmark/url.test.ts`.
+- Containers must delegate: `stack` validates each child through the
+  registry, so nesting a widget cannot skip its rule.
+
+Current validators: `bookmark` (URL allowlist: empty, `http://`, `https://` or
+a single-`/` path) and `stack`.
+
+### Sink audit (2026-11-21)
+
+Every place widget config reaches an `href`, `src`, `style`, `class` or a
+typed `template.*` value was checked. Only bookmark's `url` could carry script
+(fixed). The rest are safe: clock's `font` lands in a `style` attribute, where
+html/template escapes it or replaces it with `#ZgotmplZ` (and in Vue, a
+`:style` object binding); image `fit` is allowlisted and image/markdown names
+go through `encodeURIComponent` and the data stores' name checks; markdown
+HTML comes from goldmark with its safe defaults (raw HTML dropped, dangerous
+link schemes stripped; tests in `internal/data/notes/render_test.go`); search
+`engine` only selects one of the fixed `searchEngineUrls`; bookmark `icon` only
+feeds a CDN/asset `img src` or a CSS class. Weather's `resolveIconHTML` builds
+`template.HTML` with `fmt.Sprintf` from widget-theme manifest values (not
+widget config), HTML-escaped but not CSS-escaped. Theme packs are trusted
+uploads, but that is the one remaining hand-built HTML in `internal/widgets`.
+Re-run the audit when a widget gains a URL- or markup-shaped config field.
+
 ## Row placement
 
 Widgets carry a `Width` (1–12 column span) and an optional `Column` (1-based
@@ -63,7 +106,7 @@ detects the drag and paints the floating clone.
 | Type | Static (Go) | Interactive (Vue) | Config UI | Notes |
 |---|---|---|---|---|
 | weather / weather-compact | yes | yes | yes | shares `weather` package; two renderers |
-| bookmark | yes | yes | yes | XSS gap in `href` — see `docs/TODO.md` |
+| bookmark | yes | yes | yes | URL allowlist enforced on save, render and in the form — see [Config validation](#config-validation) |
 | clock | yes | yes | yes | |
 | battery | yes | yes | no | reads `%` from query param |
 | page-indicator | yes | yes | no | `noWidgetProp: true` on frontend |
@@ -71,7 +114,7 @@ detects the drag and paints the floating clone.
 | xkcd | yes | yes | yes | disk-cached comics |
 | transport | yes | yes | yes | Swiss transport; `swisstransport` folder on both sides |
 | sysinfo | yes | yes | yes | gopsutil, host metrics |
-| stack | yes | yes | no | container: renders children via the registry itself (`NewStaticRenderer(registry)`) |
+| stack | yes | yes | no | container: renders children via the registry itself (`NewStaticRenderer(registry)`), and validates them through it too |
 | markdown | yes | yes | yes | reads `.md` from dashboard `md/` dir via `dashboard.Store` (spec: `docs/superpowers/specs/2026-04-16-markdown-widget-design.md`) |
 | image | yes | yes | yes | serves uploaded dashboard assets |
 | search | **no** | yes | yes | deliberately interactive-only |
@@ -222,6 +265,9 @@ are required.
 6. **Warmup (if data-backed):** implement `Module.Warmup`, which `newSharedDeps`
    calls with every saved config of that type, so first render is warm. Widgets
    with nothing to warm embed `widgets.NoopModule`.
+7. **Validation (if config reaches a URL, markup or script sink):** implement
+   `widgets.ConfigValidator` and neutralise the same values in the renderer —
+   see [Config validation](#config-validation).
 
 Naming: type string is lowercase-kebab (`weather-compact`); Go package is the
 type without hyphens; the webui folder is the type string; Vue components are

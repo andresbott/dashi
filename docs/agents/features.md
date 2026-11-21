@@ -7,7 +7,7 @@ Statuses verified against the code on 2026-07-22.
 
 | Feature | Status | Where |
 |---|---|---|
-| CRUD + list | Implemented | `app/router/handlers/dashboards.go`, `internal/dashboard/store.go` |
+| CRUD + list | Implemented | `app/router/handlers/dashboards.go`, `internal/dashboard/store.go`; widget configs are checked on save (bookmark URLs, see Not implemented / partial) |
 | Zip export/import | Implemented | `Store.ExportZip`/`Store.ImportZip`; routes in `app/router/api_v0.go` |
 | Default dashboard flag | Implemented | `Dashboard.Default`; viewer resolves root `/` server-side and redirects (`app/router/main.go:246-260`), falling back to first by name when none marked default |
 | Preview dashboards (`-prev` suffix) | **Removed** (earlier on this branch) | Feature and all related symbols (`DeletePreviews`, `previewSuffix`, `isPreviewID`) deleted — historical record only |
@@ -60,8 +60,12 @@ fall back to `default`. Details: [viewer.md](viewer.md#theming-two-entities-css-
   into both routers; only the metrics endpoint is missing.
 - **App-level auth** (`Auth` config block): scaffolding only, nothing consumes
   it. Per-dashboard basic auth is the only working auth.
-- **Widget config validation / XSS fix**: catalogued in `docs/TODO.md` with fix
-  options (frontend URL validation, backend per-type validation, or both).
+- **Widget config validation**: partial by design. The mechanism is in place
+  (optional `widgets.ConfigValidator`, run by the dashboard store on create,
+  update and zip import; a rejection answers 400), but only **bookmark** (URL
+  allowlist) and **stack** (delegates to its children) declare rules. Other
+  widgets stay pass-through; add a validator when a widget puts config into a
+  dangerous sink. See [architecture.md](architecture.md#security-model--know-the-boundaries).
 - **Market widget config UI exists** (`MarketWidgetConfig.vue`) — older
   autodoc saying "Not implemented" is stale.
 - Root `TODO.md` backlog: HA addon, enhanced dither, isolated widget

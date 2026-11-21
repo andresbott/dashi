@@ -57,6 +57,10 @@ func (h *DashboardHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	created, err := h.store.Create(d)
 	if err != nil {
+		if errors.Is(err, dashboard.ErrInvalidWidgetConfig) {
+			ErrorJSON(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		h.logger.Error("create dashboard", slog.String("error", err.Error()))
 		ErrorJSON(w, "internal server error", http.StatusInternalServerError)
 		return
@@ -76,9 +80,12 @@ func (h *DashboardHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	updated, err := h.store.Update(d)
 	if err != nil {
-		if errors.Is(err, dashboard.ErrNotFound) || errors.Is(err, dashboard.ErrInvalidID) {
+		switch {
+		case errors.Is(err, dashboard.ErrNotFound) || errors.Is(err, dashboard.ErrInvalidID):
 			ErrorJSON(w, "not found", http.StatusNotFound)
-		} else {
+		case errors.Is(err, dashboard.ErrInvalidWidgetConfig):
+			ErrorJSON(w, err.Error(), http.StatusBadRequest)
+		default:
 			h.logger.Error("update dashboard", slog.String("error", err.Error()))
 			ErrorJSON(w, "internal server error", http.StatusInternalServerError)
 		}

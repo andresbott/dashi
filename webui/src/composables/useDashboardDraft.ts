@@ -2,6 +2,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, type Ref, type Comput
 import { useToast } from 'primevue/usetoast'
 import { useGetDashboard, useUpdateDashboard } from '@/composables/useDashboards'
 import { useAutosave, type AutosaveStatus } from '@/composables/useAutosave'
+import { apiErrorMessage } from '@/lib/api/client'
 import type { Dashboard } from '@/types/dashboard'
 
 export interface UseDashboardDraftResult {
@@ -31,7 +32,7 @@ export function useDashboardDraft(id: () => string): UseDashboardDraftResult {
     const draft = ref<Dashboard | null>(null)
     const dirty = ref(false)
 
-    const { status: saveStatus, isSaving, flush } = useAutosave<Dashboard>({
+    const { status: saveStatus, error: saveError, isSaving, flush } = useAutosave<Dashboard>({
         source: () => draft.value,
         // The id travels with the draft, so a save never targets the route's
         // current id if the route moved on since the change was made.
@@ -65,7 +66,11 @@ export function useDashboardDraft(id: () => string): UseDashboardDraftResult {
     watch(saveStatus, (s) => {
         if (s === 'saved') dirty.value = false
         if (s === 'error') {
-            toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to save dashboard', life: 5000 })
+            // A 400 names the cause, e.g. which widget's config the server
+            // rejected; anything else keeps the generic message.
+            const reason = apiErrorMessage(saveError.value)
+            const detail = reason ? `Failed to save dashboard: ${reason}` : 'Failed to save dashboard'
+            toast.add({ severity: 'error', summary: 'Error', detail, life: 8000 })
         }
     })
 

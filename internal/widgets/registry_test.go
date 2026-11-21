@@ -3,6 +3,7 @@ package widgets
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"html/template"
 	"testing"
 
@@ -87,6 +88,36 @@ func TestRenderBrowserUnknownTypeYieldsEmpty(t *testing.T) {
 	}
 	if got != "" {
 		t.Errorf("got %q, want empty output for an unknown type", got)
+	}
+}
+
+func TestRegistry_ValidateConfig(t *testing.T) {
+	errBad := errors.New("bad config")
+	r := NewRegistry()
+	r.RegisterValidator("strict", func(config json.RawMessage) error {
+		if string(config) == `"bad"` {
+			return errBad
+		}
+		return nil
+	})
+
+	tests := []struct {
+		name       string
+		widgetType string
+		config     string
+		want       error
+	}{
+		{name: "passes its validator", widgetType: "strict", config: `"ok"`},
+		{name: "fails its validator", widgetType: "strict", config: `"bad"`, want: errBad},
+		{name: "type without validator accepts anything", widgetType: "lenient", config: `"bad"`},
+		{name: "unknown type accepts anything", widgetType: "", config: `"bad"`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := r.ValidateConfig(tc.widgetType, json.RawMessage(tc.config)); !errors.Is(got, tc.want) {
+				t.Errorf("ValidateConfig() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

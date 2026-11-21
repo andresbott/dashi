@@ -1,7 +1,10 @@
 package bookmark
 
 import (
+	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -75,6 +78,8 @@ func TestRenderStatic_EmptyURL(t *testing.T) {
 	}
 }
 
+// Protocol-relative URLs leave the server, so the rule rejects them; a
+// legacy stored one renders inert.
 func TestRenderStatic_ProtocolRelativeURL(t *testing.T) {
 	config := json.RawMessage(`{
 		"url": "//example.com/path",
@@ -88,8 +93,86 @@ func TestRenderStatic_ProtocolRelativeURL(t *testing.T) {
 	}
 
 	html := string(got)
-	if !strings.Contains(html, `href="//example.com/path"`) {
-		t.Errorf("expected protocol-relative URL preserved, got: %s", html)
+	if !strings.Contains(html, `href="#"`) || strings.Contains(html, "example.com") {
+		t.Errorf("expected protocol-relative URL rendered as '#', got: %s", html)
+	}
+}
+
+type urlCase struct {
+	URL   string `json:"url"`
+	Valid bool   `json:"valid"`
+}
+
+// loadURLCases reads the case table shared with the editor's url.test.ts.
+func loadURLCases(t *testing.T) []urlCase {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "url_cases.json"))
+	if err != nil {
+		t.Fatalf("read url cases: %v", err)
+	}
+	var file struct {
+		Cases []urlCase `json:"cases"`
+	}
+	if err := json.Unmarshal(data, &file); err != nil {
+		t.Fatalf("parse url cases: %v", err)
+	}
+	if len(file.Cases) == 0 {
+		t.Fatal("no url cases")
+	}
+	return file.Cases
+}
+
+func TestValidateURL_SharedCases(t *testing.T) {
+	for _, tc := range loadURLCases(t) {
+		t.Run(tc.URL, func(t *testing.T) {
+			err := validateURL(tc.URL)
+			if tc.Valid && err != nil {
+				t.Errorf("validateURL(%q) = %v, want nil", tc.URL, err)
+			}
+			if !tc.Valid && err == nil {
+				t.Errorf("validateURL(%q) = nil, want error", tc.URL)
+			}
+		})
+	}
+}
+
+// Every URL the rule rejects must render as the inert "#", whatever the
+// stored dashboard carries.
+func TestRenderStatic_RejectedURLsRenderInert(t *testing.T) {
+	renderer := NewStaticRenderer()
+	for _, tc := range loadURLCases(t) {
+		if tc.Valid {
+			continue
+		}
+		t.Run(tc.URL, func(t *testing.T) {
+			config, err := json.Marshal(bookmarkConfig{URL: tc.URL, Title: "T"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := renderer(config, widgets.RenderContext{})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !strings.Contains(string(got), `href="#"`) {
+				t.Errorf("want href=\"#\" for %q, got: %s", tc.URL, got)
+			}
+		})
+	}
+}
+
+// html/template is a second layer under sanitizeURL: even if a dangerous
+// URL reached the template, its URL filter replaces it.
+func TestTemplate_FiltersDangerousSchemes(t *testing.T) {
+	for _, url := range []string{"javascript:alert(1)", "vbscript:x", "data:text/html,x"} {
+		t.Run(url, func(t *testing.T) {
+			var buf bytes.Buffer
+			if err := tmpl.Execute(&buf, bookmarkData{URL: url}); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(buf.String(), `href="#ZgotmplZ"`) {
+				t.Errorf("template did not filter %q: %s", url, buf.String())
+			}
+		})
 	}
 }
 

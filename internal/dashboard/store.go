@@ -25,18 +25,56 @@ import (
 var (
 	ErrNotFound  = errors.New("dashboard not found")
 	ErrInvalidID = errors.New("invalid dashboard ID")
+	// ErrInvalidWidgetConfig wraps a WidgetValidator rejection; the
+	// wrapped message says which widget failed and why.
+	ErrInvalidWidgetConfig = errors.New("invalid widget config")
 )
 
+// WidgetValidator checks one widget's config before the store persists a
+// dashboard. The store treats widget config as opaque, so the rules live
+// with each widget (internal/widgets) and are injected by the app layer;
+// *widgets.Registry satisfies this interface.
+type WidgetValidator interface {
+	ValidateConfig(widgetType string, config json.RawMessage) error
+}
+
 type Store struct {
-	dir   string
-	mu    sync.RWMutex
-	index map[string]string // id -> folder name
+	dir       string
+	mu        sync.RWMutex
+	index     map[string]string // id -> folder name
+	validator WidgetValidator
 }
 
 func NewStore(dir string) *Store {
 	s := &Store{dir: dir, index: make(map[string]string)}
 	s.buildIndex()
 	return s
+}
+
+// SetWidgetValidator installs the validator that Create, Update and
+// ImportZip run on every widget before writing. Call it once at startup,
+// before the store serves requests; without one, widget config is not
+// checked.
+func (s *Store) SetWidgetValidator(v WidgetValidator) {
+	s.validator = v
+}
+
+// validateWidgets runs the widget validator over every widget of d and
+// returns the first rejection wrapped in ErrInvalidWidgetConfig.
+func (s *Store) validateWidgets(d Dashboard) error {
+	if s.validator == nil {
+		return nil
+	}
+	for _, page := range d.Pages {
+		for _, row := range page.Rows {
+			for _, w := range row.Widgets {
+				if err := s.validator.ValidateConfig(w.Type, w.Config); err != nil {
+					return fmt.Errorf("%w: %s widget %q on page %q: %w", ErrInvalidWidgetConfig, w.Type, w.ID, page.Name, err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (s *Store) ensureDir() error {
@@ -184,6 +222,9 @@ func (s *Store) uniqueFolder(base string) string {
 }
 
 func (s *Store) Create(d Dashboard) (Dashboard, error) {
+	if err := s.validateWidgets(d); err != nil {
+		return Dashboard{}, err
+	}
 	if err := s.ensureDir(); err != nil {
 		return Dashboard{}, fmt.Errorf("create dir: %w", err)
 	}
@@ -312,6 +353,10 @@ func (s *Store) List() ([]DashboardMeta, error) {
 func (s *Store) Update(d Dashboard) (Dashboard, error) {
 	if !isValidID(d.ID) {
 		return Dashboard{}, ErrInvalidID
+	}
+	// Before anything touches disk: a rejected update must not rename the folder.
+	if err := s.validateWidgets(d); err != nil {
+		return Dashboard{}, err
 	}
 
 	s.mu.Lock()
@@ -546,6 +591,9 @@ func (s *Store) ImportZip(data []byte) (Dashboard, error) {
 
 	if d.Name == "" {
 		return Dashboard{}, fmt.Errorf("dashboard name is required")
+	}
+	if err := s.validateWidgets(d); err != nil {
+		return Dashboard{}, err
 	}
 
 	// Assign a new random ID

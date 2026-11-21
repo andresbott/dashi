@@ -19,7 +19,8 @@ vi.mock('@/lib/api/dashboard', () => ({
     setDashboardAuth: vi.fn(),
     deleteDashboardAuth: vi.fn(),
 }))
-vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: vi.fn() }) }))
+const toastAdd = vi.hoisted(() => vi.fn())
+vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: toastAdd }) }))
 
 function makeDashboard(id: string, name: string): Dashboard {
     return {
@@ -101,6 +102,25 @@ describe('useDashboardDraft', () => {
         expect(calls[0][0]).toBe('1')
         expect(calls[0][1]).toMatchObject({ id: '1', name: 'Edited One' })
         expect(result.hasUnsaved.value).toBe(false)
+    })
+
+    it('shows the server reason when a save is rejected', async () => {
+        vi.mocked(dashboardApi.getDashboard).mockResolvedValue(makeDashboard('1', 'One'))
+        vi.mocked(dashboardApi.updateDashboard).mockRejectedValue({
+            response: { status: 400, data: { error: '{"error":"invalid widget config: bookmark widget \\"b1\\""}' } },
+        })
+        toastAdd.mockClear()
+        const { result } = setupDraft('1')
+        await flushPromises()
+
+        result.draft.value!.name = 'Changed'
+        await result.flush()
+        await flushPromises()
+
+        expect(toastAdd).toHaveBeenCalledWith(expect.objectContaining({
+            severity: 'error',
+            detail: 'Failed to save dashboard: invalid widget config: bookmark widget "b1"',
+        }))
     })
 
     it('registers a beforeunload guard while mounted and removes it on unmount', async () => {

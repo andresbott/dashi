@@ -42,19 +42,41 @@ func (c RenderContext) EffectivePalette() themes.Palette {
 // StaticRenderer renders a widget's HTML fragment from its JSON config.
 type StaticRenderer func(config json.RawMessage, ctx RenderContext) (template.HTML, error)
 
+// ConfigValidateFunc checks a widget's config JSON before it is persisted.
+type ConfigValidateFunc func(config json.RawMessage) error
+
 // Registry maps widget type strings to their renderers. It holds one map
-// per output stack: image (litehtml/e-ink) and browser.
+// per output stack: image (litehtml/e-ink) and browser, plus the optional
+// per-type config validators.
 type Registry struct {
-	renderers map[string]StaticRenderer
-	browser   map[string]StaticRenderer
+	renderers  map[string]StaticRenderer
+	browser    map[string]StaticRenderer
+	validators map[string]ConfigValidateFunc
 }
 
 // NewRegistry creates an empty widget registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		renderers: make(map[string]StaticRenderer),
-		browser:   make(map[string]StaticRenderer),
+		renderers:  make(map[string]StaticRenderer),
+		browser:    make(map[string]StaticRenderer),
+		validators: make(map[string]ConfigValidateFunc),
 	}
+}
+
+// RegisterValidator adds a config validator for the given widget type.
+func (r *Registry) RegisterValidator(widgetType string, validate ConfigValidateFunc) {
+	r.validators[widgetType] = validate
+}
+
+// ValidateConfig runs the validator registered for widgetType. Types
+// without a validator (including unknown types) accept any config: widget
+// config stays opaque unless the widget itself declares a rule.
+func (r *Registry) ValidateConfig(widgetType string, config json.RawMessage) error {
+	validate, ok := r.validators[widgetType]
+	if !ok {
+		return nil
+	}
+	return validate(config)
 }
 
 // Register adds a static renderer for the given widget type.
@@ -130,6 +152,18 @@ func (NoopModule) Warmup(ctx context.Context, configs []json.RawMessage) {}
 // back to their image renderer via Registry.RenderBrowser.
 type BrowserRenderable interface {
 	RenderBrowser(config json.RawMessage, ctx RenderContext) (template.HTML, error)
+}
+
+// ConfigValidator is implemented by widget modules that reject unsafe or
+// malformed config before it is saved. It is optional like
+// BrowserRenderable: the router registers it via Registry.RegisterValidator
+// and the dashboard store calls Registry.ValidateConfig for every widget on
+// create, update and zip import, answering 400 when it fails. Validation
+// is a gate on writes only — renderers must still treat stored config as
+// untrusted, because dashboards saved before a rule existed (or edited by
+// hand on disk) never pass through it.
+type ConfigValidator interface {
+	ValidateConfig(config json.RawMessage) error
 }
 
 // BrowserAssets is implemented by widget modules that ship browser-stack
