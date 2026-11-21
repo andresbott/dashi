@@ -190,59 +190,65 @@ const selectLocation = (loc: { name: string; country: string; latitude: number; 
 </script>
 
 <template>
+    <!-- Three columns in the wide settings dialog (location + display | extra
+         info | forecast + graph); one column on phones. -->
     <div class="weather-config">
-        <div class="flex flex-column gap-1">
-            <label class="text-sm font-semibold">Search city</label>
-            <div class="flex gap-2">
-                <InputText
-                    v-model="searchQuery"
-                    placeholder="Type a city name..."
-                    class="flex-grow-1"
-                />
-                <i v-if="isSearching" class="ti ti-loader-2 weather-config-spinner" style="align-self: center" />
+        <section class="weather-config-section" data-testid="weather-config-location">
+            <div class="flex flex-column gap-1">
+                <label class="text-sm font-semibold">Search city</label>
+                <div class="flex gap-2">
+                    <InputText
+                        v-model="searchQuery"
+                        placeholder="Type a city name..."
+                        class="flex-grow-1"
+                    />
+                    <i v-if="isSearching" class="ti ti-loader-2 weather-config-spinner" style="align-self: center" />
+                </div>
             </div>
-        </div>
 
-        <div v-if="locations && locations.length > 0" class="weather-config-results">
-            <Button
-                v-for="(loc, i) in locations"
-                :key="i"
-                class="weather-config-result"
-                text
-                severity="secondary"
-                @click="selectLocation(loc)"
-            >
-                <span class="font-semibold">{{ loc.name }}</span>
-                <span class="text-sm ml-1" style="color: var(--p-text-muted-color)">{{ loc.country }}</span>
-                <span class="text-xs ml-auto" style="color: var(--p-text-muted-color)">
-                    {{ loc.latitude.toFixed(2) }}, {{ loc.longitude.toFixed(2) }}
-                </span>
-            </Button>
-        </div>
-
-        <div v-if="config && config.latitude != null" class="weather-config-selected mt-3">
-            <label class="text-sm font-semibold">Current location</label>
-            <div class="text-sm">
-                <i class="ti ti-map-pin" />
-                {{ config.city }}
-                <span style="color: var(--p-text-muted-color)">
-                    ({{ config.latitude.toFixed(4) }}, {{ config.longitude.toFixed(4) }})
-                </span>
+            <div v-if="locations && locations.length > 0" class="weather-config-results">
+                <Button
+                    v-for="(loc, i) in locations"
+                    :key="i"
+                    class="weather-config-result"
+                    text
+                    severity="secondary"
+                    @click="selectLocation(loc)"
+                >
+                    <span class="font-semibold">{{ loc.name }}</span>
+                    <span class="text-sm ml-1" style="color: var(--p-text-muted-color)">{{ loc.country }}</span>
+                    <span class="text-xs ml-auto" style="color: var(--p-text-muted-color)">
+                        {{ loc.latitude.toFixed(2) }}, {{ loc.longitude.toFixed(2) }}
+                    </span>
+                </Button>
             </div>
-        </div>
 
-        <div class="flex flex-column gap-3 mt-3">
+            <div v-if="config && config.latitude != null" class="weather-config-selected">
+                <label class="text-sm font-semibold">Current location</label>
+                <div class="text-sm">
+                    <i class="ti ti-map-pin" />
+                    {{ config.city }}
+                    <span style="color: var(--p-text-muted-color)">
+                        ({{ config.latitude.toFixed(4) }}, {{ config.longitude.toFixed(4) }})
+                    </span>
+                </div>
+            </div>
+
+            <div class="config-divider" />
             <label class="text-sm font-semibold">Display</label>
-                <div class="flex align-items-center gap-2">
-                    <Checkbox v-model="showCurrent" :binary="true" inputId="weatherShowCurrent" @update:modelValue="emitUpdate" />
-                    <label for="weatherShowCurrent" class="text-sm">Show current weather</label>
-                </div>
-                <div class="flex align-items-center gap-2">
-                    <Checkbox v-model="showDetails" :binary="true" inputId="weatherDetails" @update:modelValue="emitUpdate" />
-                    <label for="weatherDetails" class="text-sm">Show details (feels like, humidity, wind)</label>
-                </div>
-                <div class="config-divider" />
-                <label class="text-sm font-semibold">Extra Info</label>
+            <div class="flex align-items-center gap-2">
+                <Checkbox v-model="showCurrent" :binary="true" inputId="weatherShowCurrent" @update:modelValue="emitUpdate" />
+                <label for="weatherShowCurrent" class="text-sm">Show current weather</label>
+            </div>
+            <div class="flex align-items-center gap-2">
+                <Checkbox v-model="showDetails" :binary="true" inputId="weatherDetails" @update:modelValue="emitUpdate" />
+                <label for="weatherDetails" class="text-sm">Show details (feels like, humidity, wind)</label>
+            </div>
+        </section>
+
+        <section class="weather-config-section" data-testid="weather-config-extra">
+            <label class="text-sm font-semibold">Extra Info</label>
+            <div class="weather-config-extra-grid">
                 <div class="flex align-items-center gap-2">
                     <Checkbox v-model="showSunrise" :binary="true" inputId="weatherSunrise" @update:modelValue="emitUpdate" />
                     <label for="weatherSunrise" class="text-sm">Sunrise</label>
@@ -275,72 +281,118 @@ const selectLocation = (loc: { name: string; country: string; latitude: number; 
                     <Checkbox v-model="showAirQuality" :binary="true" inputId="weatherAirQuality" @update:modelValue="emitUpdate" />
                     <label for="weatherAirQuality" class="text-sm">Air Quality (AQI)</label>
                 </div>
-                <div class="config-divider" />
+            </div>
+        </section>
+
+        <section class="weather-config-section" data-testid="weather-config-forecast">
+            <label class="text-sm font-semibold">Forecast</label>
+            <div class="flex align-items-center gap-2">
+                <Checkbox v-model="showHourly" :binary="true" inputId="weatherHourly" @update:modelValue="emitUpdate" />
+                <label for="weatherHourly" class="text-sm">Show hourly forecast</label>
+            </div>
+            <div v-if="showHourly" class="flex flex-column gap-2 ml-4">
+                <div class="flex flex-column gap-1">
+                    <label class="text-sm">Hours ahead: {{ hourlyCount }}</label>
+                    <Slider v-model="hourlyCount" :min="1" :max="24" :step="1" class="w-full" @slideend="emitUpdate" />
+                </div>
+                <div class="flex flex-column gap-1">
+                    <label class="text-sm">Slots to show: {{ hourlySlots }}</label>
+                    <Slider v-model="hourlySlots" :min="1" :max="12" :step="1" class="w-full" @slideend="emitUpdate" />
+                </div>
+            </div>
+            <div class="flex align-items-center gap-2">
+                <Checkbox v-model="showForecast" :binary="true" inputId="weatherForecast" @update:modelValue="emitUpdate" />
+                <label for="weatherForecast" class="text-sm">Show daily forecast</label>
+            </div>
+            <div v-if="showForecast" class="flex flex-column gap-1 ml-4">
+                <label class="text-sm">Days to show: {{ forecastDays }}</label>
+                <Slider v-model="forecastDays" :min="1" :max="7" :step="1" class="w-full" @slideend="emitUpdate" />
+            </div>
+            <div class="config-divider" />
+            <div class="flex align-items-center gap-2">
+                <Checkbox v-model="showGraph" :binary="true" inputId="weatherGraph" @update:modelValue="emitUpdate" />
+                <label for="weatherGraph" class="text-sm">Show forecast graph</label>
+            </div>
+            <div v-if="showGraph" class="flex flex-column gap-2 ml-4">
                 <div class="flex align-items-center gap-2">
-                    <Checkbox v-model="showHourly" :binary="true" inputId="weatherHourly" @update:modelValue="emitUpdate" />
-                    <label for="weatherHourly" class="text-sm">Show hourly forecast</label>
-                </div>
-                <div v-if="showHourly" class="flex flex-column gap-2 ml-4">
-                    <div class="flex flex-column gap-1">
-                        <label class="text-sm">Hours ahead: {{ hourlyCount }}</label>
-                        <Slider v-model="hourlyCount" :min="1" :max="24" :step="1" class="w-full" @slideend="emitUpdate" />
-                    </div>
-                    <div class="flex flex-column gap-1">
-                        <label class="text-sm">Slots to show: {{ hourlySlots }}</label>
-                        <Slider v-model="hourlySlots" :min="1" :max="12" :step="1" class="w-full" @slideend="emitUpdate" />
-                    </div>
+                    <Checkbox v-model="graphShowTemp" :binary="true" inputId="weatherGraphShowTemp" @update:modelValue="emitUpdate" />
+                    <label for="weatherGraphShowTemp" class="text-sm">Show temperature labels</label>
                 </div>
                 <div class="flex align-items-center gap-2">
-                    <Checkbox v-model="showForecast" :binary="true" inputId="weatherForecast" @update:modelValue="emitUpdate" />
-                    <label for="weatherForecast" class="text-sm">Show daily forecast</label>
+                    <Checkbox v-model="graphShowRain" :binary="true" inputId="weatherGraphShowRain" @update:modelValue="emitUpdate" />
+                    <label for="weatherGraphShowRain" class="text-sm">Show rain labels</label>
                 </div>
-                <div v-if="showForecast" class="flex flex-column gap-1 ml-4">
-                    <label class="text-sm">Days to show: {{ forecastDays }}</label>
-                    <Slider v-model="forecastDays" :min="1" :max="7" :step="1" class="w-full" @slideend="emitUpdate" />
+                <div class="flex flex-column gap-1">
+                    <label class="text-sm">Hours to show: {{ graphHours }}</label>
+                    <Slider v-model="graphHours" :min="3" :max="24" :step="1" class="w-full" @slideend="emitUpdate" />
                 </div>
-                <div class="config-divider" />
-                <div class="flex align-items-center gap-2">
-                    <Checkbox v-model="showGraph" :binary="true" inputId="weatherGraph" @update:modelValue="emitUpdate" />
-                    <label for="weatherGraph" class="text-sm">Show forecast graph</label>
-                </div>
-                <div v-if="showGraph" class="flex flex-column gap-2 ml-4">
+                <div class="flex flex-wrap align-items-center gap-3">
                     <div class="flex align-items-center gap-2">
-                        <Checkbox v-model="graphShowTemp" :binary="true" inputId="weatherGraphShowTemp" @update:modelValue="emitUpdate" />
-                        <label for="weatherGraphShowTemp" class="text-sm">Show temperature labels</label>
-                    </div>
-                    <div class="flex align-items-center gap-2">
-                        <Checkbox v-model="graphShowRain" :binary="true" inputId="weatherGraphShowRain" @update:modelValue="emitUpdate" />
-                        <label for="weatherGraphShowRain" class="text-sm">Show rain labels</label>
-                    </div>
-                    <div class="flex flex-column gap-1">
-                        <label class="text-sm">Hours to show: {{ graphHours }}</label>
-                        <Slider v-model="graphHours" :min="3" :max="24" :step="1" class="w-full" @slideend="emitUpdate" />
-                    </div>
-                    <div class="flex align-items-center gap-2">
-                        <label class="text-sm" style="min-width: 100px">Temp color</label>
+                        <label class="text-sm">Temp color</label>
                         <ColorPicker :modelValue="graphTempColor.replace('#', '')" @update:modelValue="emitColorUpdate('graphTempColor', $event)" />
                     </div>
                     <div class="flex align-items-center gap-2">
-                        <label class="text-sm" style="min-width: 100px">Rain color</label>
+                        <label class="text-sm">Rain color</label>
                         <ColorPicker :modelValue="graphRainColor.replace('#', '')" @update:modelValue="emitColorUpdate('graphRainColor', $event)" />
                     </div>
-                    <div class="flex flex-column gap-1">
-                        <label class="text-sm">Height (px): {{ graphHeight }}</label>
-                        <Slider v-model="graphHeight" :min="100" :max="600" :step="10" class="w-full" @slideend="emitUpdate" />
-                    </div>
                 </div>
-        </div>
+                <div class="flex flex-column gap-1">
+                    <label class="text-sm">Height (px): {{ graphHeight }}</label>
+                    <Slider v-model="graphHeight" :min="100" :max="600" :step="10" class="w-full" @slideend="emitUpdate" />
+                </div>
+            </div>
+        </section>
     </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@use '@/assets/breakpoints' as bp;
+
+.weather-config {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.5rem;
+
+    @include bp.below-md {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 1rem;
+    }
+}
+
+.weather-config-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+
+    // A thin rule between the columns; between the stacked sections on phones.
+    & + & {
+        border-left: 1px solid var(--p-surface-200, #e5e7eb);
+        padding-left: 1.5rem;
+
+        @include bp.below-md {
+            border-left: none;
+            padding-left: 0;
+            border-top: 1px solid var(--p-surface-200, #e5e7eb);
+            padding-top: 1rem;
+        }
+    }
+}
+
+// Two checkboxes per row; the labels are short enough for a third of 60rem.
+.weather-config-extra-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+}
+
 .weather-config-results {
     display: flex;
     flex-direction: column;
-    margin-top: 0.5rem;
+    max-height: 16rem;
+    overflow-y: auto;
     border: 1px solid var(--p-surface-200);
     border-radius: 6px;
-    overflow: hidden;
 }
 
 .weather-config-result {

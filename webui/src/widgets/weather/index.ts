@@ -8,6 +8,7 @@ const weather: WidgetModule = {
     label: 'Weather',
     icon: 'ti-sun',
     description: 'Current conditions and forecast',
+    settingsSize: 'wide',
 }
 
 export default weather
