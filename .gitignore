@@ -46,6 +46,8 @@ app/spa/files/ui/*
 # local env (secrets, API keys)
 .env
 config.yaml
+# the Home Assistant add-on manifest is not local config; release CI reads it
+!ha-addon/config.yaml
 
 # AI stuff
 .playwright-mcp/

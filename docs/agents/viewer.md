@@ -180,6 +180,13 @@ all `browser.html` widget templates, then writes
 changing templates; the output is committed (it is a build artifact, not
 generated code).
 
+`webui/viewer/viewer.css` imports Tailwind with `source(none)`, so only the
+two `@source` globs are scanned. Without it, Tailwind's automatic detection
+also scans `webui/`, pulling admin-SPA class names into the viewer stylesheet.
+Every admin UI change then made the committed file stale, and the release
+job, which regenerates it, failed on a dirty git tree (v0.4.0). A new viewer
+template location needs its own `@source` line.
+
 **Hard rule for widget templates:** no computed or concatenated Tailwind class
 names in Go. Tailwind extraction is static, so `class="text-{{.Size}}"` in a
 template produces **no CSS** — the class silently does not exist. Put dynamic
