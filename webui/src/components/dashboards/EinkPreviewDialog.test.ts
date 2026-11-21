@@ -162,6 +162,15 @@ describe('EinkPreviewDialog', () => {
         expect(wrapper.find('[data-testid="eink-error"]').text()).toContain('Only image dashboards')
     })
 
+    // The admin list opens the dialog with no draft to flush and no page.
+    it('renders the first page without a flush, as the admin list opens it', async () => {
+        const wrapper = mountDialog({ flush: undefined, initialPage: undefined, pageNames: [''] })
+        await settle()
+        expect(requestedUrls()).toEqual(['/d1?format=png-bw&width=800&height=480&rotation=0&page=0'])
+        expect(flush).not.toHaveBeenCalled()
+        expect(wrapper.find('[data-testid="eink-image"]').exists()).toBe(true)
+    })
+
     it('does not fetch while closed', async () => {
         mountDialog({ visible: false })
         await settle()

@@ -20,13 +20,15 @@ import {
 
 // Shows the server-rendered PNG an e-ink panel would receive for this
 // dashboard. Every control is local to the dialog: nothing is written to the
-// dashboard.
+// dashboard. Opened from the editor toolbar and from the admin dashboards list.
 const props = defineProps<{
     dashboardId: string
     pageNames: string[]
-    // Page selected when the dialog opens (the editor's active page).
+    // Page selected when the dialog opens (the editor's active page; the
+    // list passes none, so page 1).
     initialPage?: number
-    // Persists pending edits first, so the render reflects them.
+    // Persists pending edits first, so the render reflects them. Only the
+    // editor has any; the list has nothing to save.
     flush?: () => Promise<void>
 }>()
 

@@ -7,7 +7,8 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import CreateDashboardDialog from '@/components/dashboards/CreateDashboardDialog.vue'
-import { useListDashboards } from '@/composables/useDashboards'
+import EinkPreviewDialog from '@/components/dashboards/EinkPreviewDialog.vue'
+import { useListDashboards, useGetDashboard } from '@/composables/useDashboards'
 import { downloadDashboard } from '@/lib/api/dashboard'
 import { dashboardViewUrl } from '@/lib/serverInfo'
 import { useToast } from 'primevue/usetoast'
@@ -105,6 +106,21 @@ const DASHBOARD_TYPES = {
 
 const dashboardType = (d) => DASHBOARD_TYPES[d.type] ?? DASHBOARD_TYPES.interactive
 
+// E-ink preview, the same dialog the editor opens, for image dashboards only
+// (an interactive one answers a display request with HTML). One dialog serves
+// the whole list. The list carries no pages, so the opened dashboard is
+// fetched for its page names; until it arrives the dialog offers page 1,
+// which it renders straight away. Nothing is pending here, so no flush.
+const einkPreviewVisible = ref(false)
+const einkPreviewId = ref('')
+const { data: einkPreviewDashboard } = useGetDashboard(() => einkPreviewId.value)
+const einkPreviewPageNames = computed(() => einkPreviewDashboard.value?.pages.map(p => p.name) ?? [''])
+
+const openEinkPreview = (d) => {
+    einkPreviewId.value = d.id
+    einkPreviewVisible.value = true
+}
+
 const handleDownload = async (id) => {
     try {
         await downloadDashboard(id)
@@ -172,9 +188,21 @@ const handleDownload = async (id) => {
                             </span>
                         </template>
                     </Column>
-                    <Column header="Actions" style="width: 220px">
+                    <Column header="Actions" style="width: 260px">
                         <template #body="{ data }">
                             <div class="flex flex-wrap md:flex-nowrap gap-1 justify-content-end">
+                                <!-- Leftmost, so the buttons after it line up across image and interactive rows. -->
+                                <Button
+                                    v-if="data.type === 'image'"
+                                    v-tooltip.top="'E-ink preview (PNG)'"
+                                    aria-label="E-ink preview (PNG)"
+                                    icon="ti ti-device-tablet"
+                                    text
+                                    rounded
+                                    class="p-1"
+                                    data-testid="eink-preview-button"
+                                    @click="openEinkPreview(data)"
+                                />
                                 <Button
                                     v-tooltip.top="data.default ? 'Default dashboard' : 'Make default dashboard'"
                                     :aria-label="data.default ? 'Default dashboard' : 'Make default dashboard'"
@@ -240,6 +268,13 @@ const handleDownload = async (id) => {
         v-model:visible="createDialogVisible"
         v-model:saving="isCreating"
         @confirm="handleCreate"
+    />
+
+    <EinkPreviewDialog
+        v-if="einkPreviewId"
+        v-model:visible="einkPreviewVisible"
+        :dashboardId="einkPreviewId"
+        :pageNames="einkPreviewPageNames"
     />
 
     <ConfirmDialog

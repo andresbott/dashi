@@ -31,9 +31,13 @@ Headers take precedence over query params; either works:
 | Header | Query | Values |
 |---|---|---|
 | `X-Display-Format` | `format` | `png`, `png-bw`, `png-spectra6`, `bw`, `spectra6` (required) |
-| `X-Display-Width/Height` | `width`/`height` | required, positive ints |
+| `X-Display-Width/Height` | `width`/`height` | required ints, 1 to 4096 (`maxDisplaySide`); anything else is a 400 naming the limit |
 | `X-Display-Rotation` | `rotation` | 0/90/180/270 |
 | `X-Action` | `action` | `refresh` (default), `swipe_left`, `swipe_right` → page redirect |
+
+The size cap (2026-11-21) exists because a render allocates width×height RGBA
+up front, so an unbounded size let one request exhaust memory; real panels
+(largest: 13.3" Spectra 6, 1600×1200) sit far below it.
 
 Responses set `X-Refresh-Interval` from the page's `refreshInterval`. The
 packed formats (`bw`: 1bpp MSB-first; `spectra6`: 4bpp nibble codes) are raw
@@ -132,20 +136,25 @@ Image-stack widgets paint with these roles rather than hardcoded greys. Fallback
   route is a leftover: the Go servers intercept those paths with
   `staticMid` before the SPA ever sees them, so it only ever triggers on the
   Vite dev server.
-- **E-ink preview (2026-11-21)**: the editor's "E-ink preview" dialog
+- **E-ink preview (2026-11-21)**: the "E-ink preview" dialog
   (`EinkPreviewDialog.vue`, image dashboards only) shows the PNG the server
-  renders, not an SPA rendering. It `fetch`es `withBase('/{id}?format=…&width=…
+  renders, not an SPA rendering. Two entry points: the editor toolbar and a
+  tablet icon on each image row of the admin dashboards list
+  (`AdminDashboards.vue`), which fetches the dashboard for its page names and
+  passes no `flush`. It `fetch`es `withBase('/{id}?format=…&width=…
   &height=…&rotation=…&page=…')` from the **editor** server, whose router
   mounts the same `staticMid` as the viewer — so no extra route exists, query
   params stand in for the display headers, and the viewer's per-dashboard
   basic auth (viewer-only) never applies. `fetch` + object URL rather than
   `<img src>` so 400 reasons can be shown and nothing is cached
-  (`cache: 'no-store'`); pending autosave is flushed first. Formats offered:
+  (`cache: 'no-store'`); from the editor, pending autosave is flushed first. Formats offered:
   `png-bw`, `png-spectra6`, `png` (the packed formats are raw bytes). An
   interactive dashboard answers a display request with browser HTML, hence
   no button there. The Vite dev server proxies only display requests
-  (`^/[a-z0-9]+\?(.*&)?format=`) to the editor port. Note the server puts no
-  upper bound on width/height; the dialog clamps custom sizes to 4096.
+  (`^/[a-z0-9]+\?(.*&)?format=`) to the editor port. The dialog clamps
+  custom sizes to 4096 (`MAX_PREVIEW_SIDE`), the same limit the server
+  enforces (`maxDisplaySide`), so a typo renders at the cap instead of
+  failing with a 400.
 - Frontend dev: `cd webui && npm run dev` proxies `/api` and `/auth` to
   `http://localhost:8088` (the **editor** port) — run `make run` alongside.
   Because the proxy sets `changeOrigin`, `/api/v0/info` reports the viewer at
