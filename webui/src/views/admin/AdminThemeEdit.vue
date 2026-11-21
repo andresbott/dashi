@@ -28,11 +28,11 @@ const router = useRouter()
 const toast = useToast()
 const id = computed(() => route.params.id as string)
 
-// The builtin is served read-only (the server answers 403 to writes); the list
-// hides its Edit button, but the URL can still be typed.
-const isBuiltin = computed(() => id.value === 'default')
-
 const { data: serverTheme, isLoading, isError } = useGetTheme(() => id.value)
+
+// Builtins are served read-only (the server answers 403 to writes); the list
+// hides their Edit button, but the URL can still be typed.
+const isBuiltin = computed(() => serverTheme.value?.builtin === true)
 const { updateTheme } = useUpdateTheme()
 const { assets, uploadAsset, isUploadingAsset } = useThemeAssets(() => id.value)
 const { items: sharedImages } = useDataItems('backgrounds')
@@ -356,7 +356,7 @@ const goBack = async () => {
         <Card v-else-if="isBuiltin">
             <template #content>
                 <div class="info-message">
-                    The built-in theme cannot be edited. Copy it from the Themes list
+                    Built-in themes cannot be edited. Copy it from the Themes list
                     and edit the copy.
                 </div>
             </template>

@@ -164,6 +164,26 @@ func TestThemeGetDefault(t *testing.T) {
 	}
 }
 
+func TestThemeGetFlagsBuiltins(t *testing.T) {
+	r, themeStore, _ := newThemeTestRouter(t)
+	stored := mustCreateTheme(t, themeStore, "Mine")
+	cases := map[string]bool{themes.DefaultID: true, themes.EmberID: true, stored.ID: false}
+	for id, want := range cases {
+		rec := doJSON(t, r, http.MethodGet, "/themes/"+id, nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: expected 200, got %d", id, rec.Code)
+		}
+		var got struct {
+			ID      string `json:"id"`
+			Builtin bool   `json:"builtin"`
+		}
+		_ = json.Unmarshal(rec.Body.Bytes(), &got)
+		if got.ID != id || got.Builtin != want {
+			t.Errorf("%s: got id %q builtin %v, want builtin %v", id, got.ID, got.Builtin, want)
+		}
+	}
+}
+
 func TestListUsedBy(t *testing.T) {
 	r, themeStore, dashStore := newThemeTestRouter(t)
 	th := mustCreateTheme(t, themeStore, "Shared")
@@ -194,8 +214,8 @@ func TestListUsedBy(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(resp.Items) != 2 {
-		t.Fatalf("expected the theme plus the builtin, got %d", len(resp.Items))
+	if len(resp.Items) != 3 {
+		t.Fatalf("expected the theme plus the 2 builtins, got %d", len(resp.Items))
 	}
 	var found bool
 	for _, m := range resp.Items {

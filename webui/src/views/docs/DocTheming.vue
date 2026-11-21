@@ -11,7 +11,7 @@
             <li><strong>Background</strong> &mdash; optional. A gradient or an image, per colour mode. Without one, the page uses the palette <code>bg</code> colour.</li>
             <li><strong>Palette</strong> &mdash; a set of colour roles for light mode and another for dark mode.</li>
         </ul>
-        <p>The built-in <strong>Default</strong> theme is read-only. To customise it, use <strong>Copy</strong> and edit the copy. A copy also copies the theme's uploaded images, so it keeps working if the original is deleted. A dashboard that references a missing theme falls back to Default.</p>
+        <p>Dashi ships two built-in themes: <strong>Default</strong>, and <strong>Ember</strong> (warm paper in light mode, warm charcoal with amber accents in dark mode). Built-in themes are read-only. To customise one, use <strong>Copy</strong> and edit the copy. A copy also copies the theme's uploaded images, so it keeps working if the original is deleted. A dashboard that references a missing theme falls back to Default.</p>
 
         <h4>Palette roles</h4>
         <p>Colours are hex values (<code>#rgb</code>, <code>#rrggbb</code> or <code>#rrggbbaa</code>); <code>bg</code> must be opaque. Each role is exposed as a CSS variable that you can use in custom CSS.</p>

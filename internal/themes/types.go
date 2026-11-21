@@ -1,8 +1,8 @@
 // Package themes stores dashboard themes as first-class entities: a
 // light/dark colour palette plus a page background. Each stored theme is one
-// folder holding theme.json and an assets/ folder of uploaded images; a
-// read-only builtin "default" theme lives in code and is never written to
-// disk. Dashboards reference a theme by ID. Every field other than a colour
+// folder holding theme.json and an assets/ folder of uploaded images; the
+// read-only builtin themes ("default", "ember") live in code and are never
+// written to disk. Dashboards reference a theme by ID. Every field other than a colour
 // is a closed enum, so the CSS this package generates never contains
 // user-authored syntax.
 package themes

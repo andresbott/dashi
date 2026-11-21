@@ -41,7 +41,12 @@ const router = createRouter({
             path: '/:id',
             name: 'dashboard-view',
             component: () => import('@/views/dashboards/DashboardView.vue')
-        }
+        },
+        {
+            // Unknown paths (e.g. a mistyped /admin/... URL) fall back to the landing page.
+            path: '/:pathMatch(.*)*',
+            redirect: '/',
+        },
     ]
 })
 

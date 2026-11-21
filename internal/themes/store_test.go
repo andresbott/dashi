@@ -73,12 +73,17 @@ func TestCreateRejectsIncompletePalette(t *testing.T) {
 	}
 }
 
+// builtinIDs lists every builtin, so each builtin test runs for all of them.
+var builtinIDs = []string{DefaultID, EmberID}
+
 func TestCreateRejectsBuiltinID(t *testing.T) {
 	s, _ := newTestStore(t)
-	th := testTheme("Imposter")
-	th.ID = DefaultID
-	if _, err := s.Create(th); !errors.Is(err, ErrBuiltin) {
-		t.Fatalf("expected ErrBuiltin, got %v", err)
+	for _, id := range builtinIDs {
+		th := testTheme("Imposter")
+		th.ID = id
+		if _, err := s.Create(th); !errors.Is(err, ErrBuiltin) {
+			t.Fatalf("%s: expected ErrBuiltin, got %v", id, err)
+		}
 	}
 }
 
@@ -111,6 +116,42 @@ func TestGetDefaultIsBuiltin(t *testing.T) {
 	}
 	if got != DefaultTheme() {
 		t.Fatalf("got %+v, want DefaultTheme()", got)
+	}
+}
+
+func TestGetEmberIsBuiltin(t *testing.T) {
+	s, _ := newTestStore(t)
+	got, err := s.Get(EmberID)
+	if err != nil {
+		t.Fatalf("get ember: %v", err)
+	}
+	if got != EmberTheme() {
+		t.Fatalf("got %+v, want EmberTheme()", got)
+	}
+	if s.Resolve(EmberID) != EmberTheme() {
+		t.Fatal("Resolve must return the Ember builtin, not fall back to default")
+	}
+}
+
+func TestBuiltinThemesAreValid(t *testing.T) {
+	for _, id := range builtinIDs {
+		th, ok := Builtin(id)
+		if !ok {
+			t.Fatalf("%s: not registered", id)
+		}
+		if th.ID != id {
+			t.Errorf("%s: constructor returns ID %q", id, th.ID)
+		}
+		if err := th.Validate(); err != nil {
+			t.Errorf("%s: %v", id, err)
+		}
+		// A 6-character ID could collide with a randomID.
+		if len(id) == idLen {
+			t.Errorf("%s: builtin IDs must not be %d characters long", id, idLen)
+		}
+	}
+	if len(builtins) != len(builtinIDs) {
+		t.Errorf("builtinIDs is out of date: %d registered, %d listed", len(builtins), len(builtinIDs))
 	}
 }
 
@@ -147,30 +188,34 @@ func TestGetInvalidIDReturnsInvalidID(t *testing.T) {
 
 func TestBuiltinIsReadOnly(t *testing.T) {
 	s, _ := newTestStore(t)
-	th := DefaultTheme()
-	th.Name = "Hijacked"
-	if _, err := s.Update(th); !errors.Is(err, ErrBuiltin) {
-		t.Errorf("Update: expected ErrBuiltin, got %v", err)
-	}
-	if err := s.Delete(DefaultID); !errors.Is(err, ErrBuiltin) {
-		t.Errorf("Delete: expected ErrBuiltin, got %v", err)
-	}
-	if err := s.SaveAsset(DefaultID, "a.png", []byte("x")); !errors.Is(err, ErrBuiltin) {
-		t.Errorf("SaveAsset: expected ErrBuiltin, got %v", err)
-	}
-	if err := s.DeleteAsset(DefaultID, "a.png"); !errors.Is(err, ErrBuiltin) {
-		t.Errorf("DeleteAsset: expected ErrBuiltin, got %v", err)
+	for _, id := range builtinIDs {
+		th, _ := Builtin(id)
+		th.Name = "Hijacked"
+		if _, err := s.Update(th); !errors.Is(err, ErrBuiltin) {
+			t.Errorf("%s Update: expected ErrBuiltin, got %v", id, err)
+		}
+		if err := s.Delete(id); !errors.Is(err, ErrBuiltin) {
+			t.Errorf("%s Delete: expected ErrBuiltin, got %v", id, err)
+		}
+		if err := s.SaveAsset(id, "a.png", []byte("x")); !errors.Is(err, ErrBuiltin) {
+			t.Errorf("%s SaveAsset: expected ErrBuiltin, got %v", id, err)
+		}
+		if err := s.DeleteAsset(id, "a.png"); !errors.Is(err, ErrBuiltin) {
+			t.Errorf("%s DeleteAsset: expected ErrBuiltin, got %v", id, err)
+		}
 	}
 }
 
 func TestBuiltinHasNoAssets(t *testing.T) {
 	s, _ := newTestStore(t)
-	list, err := s.ListAssets(DefaultID)
-	if err != nil {
-		t.Fatalf("list assets: %v", err)
-	}
-	if list == nil || len(list) != 0 {
-		t.Fatalf("expected an empty, non-nil list, got %#v", list)
+	for _, id := range builtinIDs {
+		list, err := s.ListAssets(id)
+		if err != nil {
+			t.Fatalf("%s list assets: %v", id, err)
+		}
+		if list == nil || len(list) != 0 {
+			t.Fatalf("%s: expected an empty, non-nil list, got %#v", id, list)
+		}
 	}
 	if _, _, err := s.GetAsset(DefaultID, "a.png"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
@@ -228,16 +273,17 @@ func TestDeleteRemovesFolderAndIndexEntry(t *testing.T) {
 	}
 }
 
-func TestListIncludesBuiltin(t *testing.T) {
+func TestListIncludesBuiltins(t *testing.T) {
 	s, _ := newTestStore(t)
 	metas, err := s.List(nil)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(metas) != 1 {
-		t.Fatalf("expected only the builtin, got %+v", metas)
+	if len(metas) != 2 {
+		t.Fatalf("expected only the builtins, got %+v", metas)
 	}
-	if metas[0].ID != "default" || !metas[0].Builtin {
+	// Sorted by name: Default, Ember.
+	if metas[0].ID != DefaultID || !metas[0].Builtin {
 		t.Fatalf("got %+v", metas[0])
 	}
 	if metas[0].Colors != DefaultTheme().Colors {
@@ -245,6 +291,9 @@ func TestListIncludesBuiltin(t *testing.T) {
 	}
 	if !strings.Contains(metas[0].PreviewCSS, "--dashi-bg:#ffffff;") {
 		t.Errorf("expected preview CSS, got %q", metas[0].PreviewCSS)
+	}
+	if metas[1].ID != EmberID || !metas[1].Builtin || metas[1].Colors != EmberTheme().Colors {
+		t.Fatalf("got %+v", metas[1])
 	}
 }
 
@@ -262,23 +311,23 @@ func TestListSortsByNameAndCarriesUsageAndPreview(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(metas) != 3 {
-		t.Fatalf("expected 2 themes plus the builtin, got %d", len(metas))
+	if len(metas) != 4 {
+		t.Fatalf("expected 2 themes plus the 2 builtins, got %d", len(metas))
 	}
 	var names []string
 	for _, m := range metas {
 		names = append(names, m.Name)
 	}
-	if strings.Join(names, ",") != "apple,Default,Zebra" {
+	if strings.Join(names, ",") != "apple,Default,Ember,Zebra" {
 		t.Fatalf("expected case-insensitive name order, got %v", names)
 	}
-	if metas[0].Builtin || metas[2].Builtin {
+	if metas[0].Builtin || metas[3].Builtin {
 		t.Error("stored themes must not be flagged builtin")
 	}
 	if metas[1].UsedBy != 2 {
 		t.Errorf("expected the builtin UsedBy 2, got %d", metas[1].UsedBy)
 	}
-	zebra := metas[2]
+	zebra := metas[3]
 	if zebra.UsedBy != 3 {
 		t.Errorf("expected UsedBy 3, got %d", zebra.UsedBy)
 	}
@@ -296,7 +345,7 @@ func TestListSkipsStoredThemeClaimingBuiltinID(t *testing.T) {
 	if err := os.MkdirAll(folder, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	raw := `{"id":"default","name":"Imposter","background":{},"colors":{}}`
+	raw := `{"id":"ember","name":"Imposter","background":{},"colors":{}}`
 	if err := os.WriteFile(filepath.Join(folder, "theme.json"), []byte(raw), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -304,8 +353,8 @@ func TestListSkipsStoredThemeClaimingBuiltinID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(metas) != 1 || metas[0].Name != "Default" {
-		t.Fatalf("a stored theme must not shadow the builtin, got %+v", metas)
+	if len(metas) != 2 || metas[0].Name != "Default" || metas[1].Name != "Ember" {
+		t.Fatalf("a stored theme must not shadow a builtin, got %+v", metas)
 	}
 }
 
@@ -451,6 +500,20 @@ func TestCopyTheme(t *testing.T) {
 	}
 	if stored.Background.Image == nil || stored.Background.Image.Light != "asset:img/a.png" {
 		t.Errorf("background not copied: %+v", stored.Background)
+	}
+}
+
+func TestCopyEmber(t *testing.T) {
+	s, _ := newTestStore(t)
+	cp, err := s.Copy(EmberID)
+	if err != nil {
+		t.Fatalf("copy ember: %v", err)
+	}
+	if cp.ID == EmberID || cp.Name != "Copy of Ember" || cp.Colors != EmberTheme().Colors {
+		t.Fatalf("got %+v", cp)
+	}
+	if _, err := s.Update(cp); err != nil {
+		t.Errorf("the copy must be editable: %v", err)
 	}
 }
 

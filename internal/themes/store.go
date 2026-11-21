@@ -27,8 +27,8 @@ const assetsDir = "assets"
 // built at startup, so renaming a theme never moves it out from under the
 // dashboards referencing it by id.
 //
-// The builtin theme (DefaultID) is never written to disk: Get returns
-// DefaultTheme() for it and every write on it fails with ErrBuiltin.
+// The builtin themes (see builtins) are never written to disk: Get returns
+// them from code and every write on one fails with ErrBuiltin.
 //
 // Build exactly one Store per process (in newSharedDeps): a second instance
 // would hold a stale index.
@@ -63,7 +63,7 @@ func (s *Store) buildIndex() {
 }
 
 // readThemeFile reads dir/theme.json. It reports false for a missing or
-// unparsable file, an empty ID, or a stored file claiming the builtin ID,
+// unparsable file, an empty ID, or a stored file claiming a builtin ID,
 // which must never shadow the builtin.
 func readThemeFile(dir string) (Theme, bool) {
 	raw, err := os.ReadFile(filepath.Join(dir, themeFile))
@@ -74,7 +74,7 @@ func readThemeFile(dir string) (Theme, bool) {
 	if err := json.Unmarshal(raw, &t); err != nil {
 		return Theme{}, false
 	}
-	if t.ID == "" || t.ID == DefaultID {
+	if t.ID == "" || IsBuiltin(t.ID) {
 		return Theme{}, false
 	}
 	return t, true
@@ -145,10 +145,10 @@ func (s *Store) uniqueFolder(base string) string {
 	}
 }
 
-// Create stores t. An empty ID is assigned a random one; the builtin ID is
+// Create stores t. An empty ID is assigned a random one; a builtin ID is
 // refused.
 func (s *Store) Create(t Theme) (Theme, error) {
-	if t.ID == DefaultID {
+	if IsBuiltin(t.ID) {
 		return Theme{}, ErrBuiltin
 	}
 	if err := t.Validate(); err != nil {
@@ -207,10 +207,10 @@ func (s *Store) write(t Theme) error {
 	return nil
 }
 
-// Get returns the theme with the given ID; DefaultID returns DefaultTheme().
+// Get returns the theme with the given ID; a builtin ID returns the builtin.
 func (s *Store) Get(id string) (Theme, error) {
-	if id == DefaultID {
-		return DefaultTheme(), nil
+	if t, ok := Builtin(id); ok {
+		return t, nil
 	}
 	if !isValidID(id) {
 		return Theme{}, ErrInvalidID
@@ -244,7 +244,7 @@ func (s *Store) Resolve(id string) Theme {
 	return t
 }
 
-// List returns one Meta per theme, the builtin included and flagged, ordered
+// List returns one Meta per theme, the builtins included and flagged, ordered
 // case-insensitively by name. usage maps a theme ID to the number of
 // dashboards referencing it; a nil map yields zero counts.
 func (s *Store) List(usage map[string]int) ([]Meta, error) {
@@ -255,7 +255,10 @@ func (s *Store) List(usage map[string]int) ([]Meta, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read dir: %w", err)
 	}
-	out := []Meta{newMeta(DefaultTheme(), true, usage)}
+	out := make([]Meta, 0, len(builtins)+len(entries))
+	for _, fn := range builtins {
+		out = append(out, newMeta(fn(), true, usage))
+	}
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -284,7 +287,7 @@ func newMeta(t Theme, builtin bool, usage map[string]int) Meta {
 }
 
 func (s *Store) Update(t Theme) (Theme, error) {
-	if t.ID == DefaultID {
+	if IsBuiltin(t.ID) {
 		return Theme{}, ErrBuiltin
 	}
 	if !isValidID(t.ID) {
@@ -325,7 +328,7 @@ func (s *Store) Update(t Theme) (Theme, error) {
 }
 
 func (s *Store) Delete(id string) error {
-	if id == DefaultID {
+	if IsBuiltin(id) {
 		return ErrBuiltin
 	}
 	if !isValidID(id) {
@@ -346,8 +349,8 @@ func (s *Store) Delete(id string) error {
 
 // Copy duplicates a theme, assets included, into a new theme with a new ID
 // and the name "Copy of <name>". The copy owns its own asset files, so it
-// survives the original being deleted. Copying the builtin yields a regular,
-// editable theme with the default palettes and no assets.
+// survives the original being deleted. Copying a builtin yields a regular,
+// editable theme with the builtin's palettes and no assets.
 func (s *Store) Copy(id string) (Theme, error) {
 	src, err := s.Get(id)
 	if err != nil {
@@ -360,7 +363,7 @@ func (s *Store) Copy(id string) (Theme, error) {
 	if err != nil {
 		return Theme{}, err
 	}
-	if id == DefaultID {
+	if IsBuiltin(id) {
 		return created, nil
 	}
 	if err := s.copyAssets(id, created.ID); err != nil {
@@ -442,7 +445,7 @@ func (s *Store) assetPath(id, name string) (string, error) {
 }
 
 func (s *Store) SaveAsset(id, name string, data []byte) error {
-	if id == DefaultID {
+	if IsBuiltin(id) {
 		return ErrBuiltin
 	}
 	full, err := s.assetPath(id, name)
@@ -478,7 +481,7 @@ func (s *Store) GetAsset(id, name string) ([]byte, string, error) {
 }
 
 func (s *Store) DeleteAsset(id, name string) error {
-	if id == DefaultID {
+	if IsBuiltin(id) {
 		return ErrBuiltin
 	}
 	full, err := s.assetPath(id, name)
@@ -495,9 +498,9 @@ func (s *Store) DeleteAsset(id, name string) error {
 }
 
 // ListAssets returns paths relative to the theme's assets/ folder. The
-// builtin has none.
+// builtins have none.
 func (s *Store) ListAssets(id string) ([]string, error) {
-	if id == DefaultID {
+	if IsBuiltin(id) {
 		return []string{}, nil
 	}
 	if !isValidID(id) {

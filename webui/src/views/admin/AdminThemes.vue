@@ -26,8 +26,8 @@ const {
 
 const themes = computed(() => data.value ?? [])
 
-// The builtin is always listed; its palettes seed a new theme.
-const builtin = computed(() => themes.value.find(t => t.builtin) ?? null)
+// The builtins are always listed; the default one's palettes seed a new theme.
+const builtin = computed(() => themes.value.find(t => t.id === 'default') ?? null)
 
 const openEditor = (id: string) => {
     router.push({ name: 'admin-theme-edit', params: { id } })

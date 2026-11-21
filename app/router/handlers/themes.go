@@ -65,13 +65,20 @@ func (h *ThemeHandler) usageCounts() (map[string]int, error) {
 	return counts, nil
 }
 
+// themeResponse is a theme plus the read-only flag the editor needs. The flag
+// lives on the response, not on themes.Theme, so it is never persisted.
+type themeResponse struct {
+	themes.Theme
+	Builtin bool `json:"builtin,omitempty"`
+}
+
 func (h *ThemeHandler) Get(w http.ResponseWriter, r *http.Request) {
 	t, err := h.store.Get(mux.Vars(r)["id"])
 	if err != nil {
 		h.fail(w, "get theme", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, t)
+	writeJSON(w, http.StatusOK, themeResponse{Theme: t, Builtin: themes.IsBuiltin(t.ID)})
 }
 
 func (h *ThemeHandler) Create(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,110 @@
+{
+  "_comment": "This file is managed by the todo CLI. Do not edit it directly, by hand or with a script. Read it with todo: `todo next --json` (what to work on), `todo show --id <id|ref> --json` (one task), `todo list --flat` (every item as flat JSON records). Change it with todo commands (add, edit, move, status, assign, rm, ...; see `todo --help`), which keep its ids and rules valid.",
+  "version": 8,
+  "refs": {
+    "last": {
+      "DASHI": 1
+    }
+  },
+  "sprints": [],
+  "categories": [
+    {
+      "id": "twqqjfg",
+      "title": "Release"
+    },
+    {
+      "id": "qyds6ns",
+      "title": "Vuejs"
+    },
+    {
+      "id": "22nmgta",
+      "title": "Backedn"
+    },
+    {
+      "id": "xr10s6x",
+      "title": "theming"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "2jgh4y5",
+      "category": "qyds6ns",
+      "title": "autosave",
+      "status": "open"
+    },
+    {
+      "id": "dkrmvjn",
+      "category": "qyds6ns",
+      "title": "Reshape weather widget edit dialog to fit the screen",
+      "status": "open",
+      "description": "The Widget Settings dialog for the weather widget is too tall and too narrow: it scrolls vertically with Save/Cancel cut off at the bottom. Make it wider and lay settings out in columns/sections (e.g. location + display | extra info checkboxes in a grid | forecast + graph options) so it fits a typical screen without scrolling."
+    },
+    {
+      "id": "0vz7esa",
+      "category": "qyds6ns",
+      "title": "Refactor widget documentation page (/admin/docs/widgets)",
+      "status": "open",
+      "description": "Index page groups widgets by category as cards; each widget gets its own doc page with Overview (live preview + settings toggles) and Details (per-parameter reference) tabs.",
+      "subtasks": [
+        {
+          "id": "nz2e45a",
+          "title": "Index page: one section per widget category",
+          "description": "Category title uses the heading level that best fits the page hierarchy (h2/h3...); inside each category a 3-column grid of cards, each showing a simplified widget representation with its name below"
+        },
+        {
+          "id": "bkqq56j",
+          "title": "Dedicated page per widget",
+          "description": "Short description of the widget at the top, then a tab view with two tabs: Overview and Details"
+        },
+        {
+          "id": "adgky3p",
+          "title": "Overview tab: live preview + settings",
+          "description": "Left side: rendered widget representation; right side: the widget's settings toggles, changes reflected live in the preview"
+        },
+        {
+          "id": "ezvkjrt",
+          "title": "Details tab: parameter reference",
+          "description": "Specific description of each widget parameter"
+        }
+      ]
+    },
+    {
+      "id": "vp94jdt",
+      "category": "qyds6ns",
+      "title": "PNG preview for image dashboards in /admin/dashboards",
+      "status": "open",
+      "description": "The dashboards list has no way to see the rendered image of an image dashboard; even the existing Preview action does not show the image representation. Add a new column/icon, shown only for image dashboards, that opens a PNG preview.",
+      "subtasks": [
+        {
+          "id": "qecb90t",
+          "title": "Preview-as-PNG column/icon in the dashboards list",
+          "description": "Only visible for image dashboards"
+        },
+        {
+          "id": "rv8g6t7",
+          "title": "Thin Vue render-preview view with rendering parameters",
+          "description": "Lets the user pick the e-ink display type, choose between plain PNG render and e-ink simulation, and pick from common e-ink panel sizes/resolutions"
+        }
+      ]
+    },
+    {
+      "id": "tkgv9yd",
+      "category": "22nmgta",
+      "title": "review new userauth capabilites for auth, e.g. PAT",
+      "status": "open"
+    },
+    {
+      "id": "5f3ntke",
+      "category": "xr10s6x",
+      "title": "background editor",
+      "status": "open",
+      "description": "a background is a self contained unit "
+    },
+    {
+      "id": "vegbxn4",
+      "category": "xr10s6x",
+      "title": "remove background images from content",
+      "status": "open"
+    }
+  ]
+}

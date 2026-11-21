@@ -138,9 +138,9 @@ describe('AdminThemeEdit', () => {
         expect(surface.element.value).toBe('#44556680')
     })
 
-    it('keeps the builtin read-only', async () => {
-        routeParams.id = 'default'
-        theme.value = { ...theme.value!, id: 'default', name: 'Default' }
+    it.each(['default', 'ember'])('keeps the builtin %s read-only', async (id) => {
+        routeParams.id = id
+        theme.value = { ...theme.value!, id, name: id, builtin: true }
         const wrapper = mountView()
         await flushPromises()
 

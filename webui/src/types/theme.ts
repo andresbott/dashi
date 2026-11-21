@@ -59,6 +59,8 @@ export interface ThemeBackground {
 export interface Theme {
     id: string
     name: string
+    // Set by the server on read-only builtins; never sent back.
+    builtin?: boolean
     background: ThemeBackground
     colors: ThemeColors
 }
