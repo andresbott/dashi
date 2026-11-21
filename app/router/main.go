@@ -165,26 +165,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	browserAssets := browser.NewAssets(modules)
 	browserRenderer := browser.NewRenderer(registry, browserAssets.JSTypes())
 	imageRenderer := dashimage.NewRenderer()
-
-	for _, info := range widgetThemeStore.List() {
-		if info.HasIcons && info.IconType == widgetthemes.ThemeTypeFont {
-			fontData, err := widgetThemeStore.GetFontData(info.Name)
-			if err != nil {
-				continue
-			}
-			imageRenderer.RegisterFont(widgetthemes.IconFontFamily(info.Name), fontData)
-		}
-	}
-	// Register display fonts for image rendering
-	for _, info := range widgetThemeStore.List() {
-		for _, font := range info.Fonts {
-			fontData, err := widgetThemeStore.GetDisplayFontData(info.Name, font.Name)
-			if err != nil {
-				continue
-			}
-			imageRenderer.RegisterFont(font.Name, fontData)
-		}
-	}
+	syncImageFonts(widgetThemeStore, imageRenderer)
 
 	staticMid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetThemeStore)
 	promHisto := middleware.NewPromHistogram("", nil, nil)
@@ -213,6 +194,19 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 			BaseURL: cfg.ViewerPublicURL,
 		},
 	}, nil
+}
+
+// syncImageFonts registers every widget-theme font (icon fonts as
+// icon-font-{pack}, display fonts by name) with the litehtml renderer, which
+// cannot fetch fonts on demand, and keeps it in step with the store: each
+// upload or delete replaces the renderer's whole font set, so a new or
+// re-uploaded pack renders on the next PNG request and a deleted pack's
+// fonts are dropped. The browser stack needs none of this; it reads the
+// store per request.
+func syncImageFonts(store *widgetthemes.Store, renderer *dashimage.Renderer) {
+	resync := func() { renderer.SetFonts(store.AllFonts()) }
+	resync()
+	store.OnChange(resync)
 }
 
 func newAPIDeps(deps *sharedDeps, logger *slog.Logger) apiDeps {

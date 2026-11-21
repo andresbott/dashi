@@ -89,12 +89,15 @@ func newPNGContainer(w, h int) *pngContainer {
 	}
 }
 
+// registerCustomFont adds a font to a container that owns its font map.
+// RenderToImage instead hands the container the Renderer's shared, read-only
+// map, so this must not be called on such a container.
 func (c *pngContainer) registerCustomFont(family string, ttfData []byte) {
-	f, err := opentype.Parse(ttfData)
-	if err != nil {
+	key, f, ok := parseFont(family, ttfData)
+	if !ok {
 		return
 	}
-	c.customFonts[strings.ToLower(family)] = f
+	c.customFonts[key] = f
 }
 
 func (c *pngContainer) pickFont(family string, weight int, style litehtml.FontStyle) *opentype.Font {

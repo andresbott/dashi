@@ -52,6 +52,35 @@ type Store struct {
 	builtins map[string]bool // names of embedded themes that cannot be deleted
 	rootDir  string          // directory where user themes live on disk (empty = disk writes disabled)
 	fallback *theme          // the embedded default; what effective falls back to
+
+	// listenersMu guards listeners and serialises their calls; see OnChange.
+	listenersMu sync.Mutex
+	listeners   []func()
+}
+
+// OnChange registers fn to run after every successful Upload or Delete,
+// once the change is visible through the Store's getters. It lets consumers
+// that copy pack data at startup (the litehtml font registry, wired in
+// app/router) re-sync without a restart.
+//
+// Calls are serialised: a listener never runs concurrently with another
+// listener call, and a listener that reads the Store sees every change that
+// completed before it started — so the last call always reads the latest
+// state. A listener must not call OnChange.
+func (s *Store) OnChange(fn func()) {
+	s.listenersMu.Lock()
+	defer s.listenersMu.Unlock()
+	s.listeners = append(s.listeners, fn)
+}
+
+// notifyChange runs the OnChange listeners. Call it after s.mu is released:
+// listeners typically read the Store.
+func (s *Store) notifyChange() {
+	s.listenersMu.Lock()
+	defer s.listenersMu.Unlock()
+	for _, fn := range s.listeners {
+		fn()
+	}
 }
 
 func NewStore(themesDir string) *Store {
@@ -462,6 +491,7 @@ func (s *Store) Upload(zipBytes []byte) (Info, error) {
 	s.themes[m.Name] = &theme{manifest: m, dir: destDir}
 	info := s.themeInfoLocked(m.Name, s.themes[m.Name])
 	s.mu.Unlock()
+	s.notifyChange()
 	return info, nil
 }
 
@@ -513,6 +543,14 @@ func readUploadManifest(zr *zip.Reader) (themeManifest, error) {
 // Delete removes an uploaded theme by name. Builtin themes cannot be
 // deleted. Returns ErrNotFound if the theme does not exist.
 func (s *Store) Delete(name string) error {
+	if err := s.removeTheme(name); err != nil {
+		return err
+	}
+	s.notifyChange()
+	return nil
+}
+
+func (s *Store) removeTheme(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

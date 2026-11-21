@@ -54,10 +54,25 @@ path) is catalogued debt in root `TODO.md`.
 
 ## Fonts
 
-litehtml needs fonts registered up front: `newSharedDeps` iterates all widget
-themes and calls `imageRenderer.RegisterFont` for icon fonts
-(`icon-font-{name}`) and display fonts. A new widget-theme font that isn't
-registered there simply won't render in PNGs — no error.
+litehtml cannot fetch fonts, so they are registered with the renderer in
+advance. `syncImageFonts` (`app/router/main.go`) calls
+`imageRenderer.SetFonts(widgetThemeStore.AllFonts())`, which holds every
+pack's icon font (`icon-font-{name}`) and display fonts (by manifest name), at
+startup and again from `widgetThemeStore.OnChange` after every upload or delete.
+An uploaded pack therefore paints in the next PNG with no restart. `SetFonts`
+replaces the whole set, so a deleted pack's fonts are dropped and a re-upload
+(delete, then upload under the same name) takes the new bytes. A font family
+that isn't registered falls back to Inter with no error. Packs copied onto disk
+by hand (or created with `dashi widget-theme`) are only loaded by the store at
+startup, so they still need a restart.
+
+`dashimage.Renderer` is safe for concurrent use. Fonts are parsed once when
+registered and kept in a copy-on-write map, so a render already in progress
+keeps the set it started with. litehtml itself is **not** reentrant:
+litehtml-go's `goGetDefaultFontName` frees and reallocates a package-global C
+string, so overlapping documents corrupt the heap. A package-level
+`litehtmlMu` in `renderer.go` serialises document lifetimes; PNG renders run
+one at a time.
 
 ## Palette in the image stack
 

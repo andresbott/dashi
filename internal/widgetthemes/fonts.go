@@ -19,7 +19,7 @@ func (s *Store) FontFamily(themeName string) string {
 // IconFontFamily returns the CSS font-family name under which a theme's
 // icon font is registered. It matches what the widget templates emit
 // (see internal/widgets/weather/image.go) and what the litehtml renderer
-// registers at startup (app/router/main.go), so image-stack markup rendered
+// registers (AllFonts, synced by app/router/main.go), so image-stack markup rendered
 // into a browser resolves the same family.
 func IconFontFamily(themeName string) string {
 	return "icon-font-" + themeName
@@ -32,6 +32,33 @@ func IconFontFamily(themeName string) string {
 func (s *Store) IconFontFamilyFor(name string) string {
 	effName, _ := s.effective(name, hasIconFont)
 	return IconFontFamily(effName)
+}
+
+// AllFonts returns every font any widget theme ships, keyed by the CSS
+// family widget markup names it under: each pack's icon font as
+// IconFontFamily(pack), and each display font under its manifest name.
+// This is what the image (litehtml) stack registers, since it cannot fetch
+// fonts on demand. Packs are visited in name order, so when two packs
+// declare the same display-font name the later one wins, and display fonts
+// win over icon fonts. Fonts that cannot be read are skipped.
+func (s *Store) AllFonts() map[string][]byte {
+	fonts := make(map[string][]byte)
+	packs := s.List()
+	for _, info := range packs {
+		if info.HasIcons && info.IconType == ThemeTypeFont {
+			if data, err := s.GetFontData(info.Name); err == nil {
+				fonts[IconFontFamily(info.Name)] = data
+			}
+		}
+	}
+	for _, info := range packs {
+		for _, font := range info.Fonts {
+			if data, err := s.GetDisplayFontData(info.Name, font.Name); err == nil {
+				fonts[font.Name] = data
+			}
+		}
+	}
+	return fonts
 }
 
 // FontData resolves a font by the name the browser stack requests it under:
