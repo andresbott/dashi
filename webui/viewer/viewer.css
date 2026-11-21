@@ -1,8 +1,11 @@
-@import "tailwindcss";
+/* source(none) turns off Tailwind's automatic source detection. Without it,
+   Tailwind also scans the build's working directory (webui/), so class names
+   from the admin Vue SPA leak into this stylesheet. Then every admin UI change
+   makes the committed viewer.css stale, and the release job (which
+   regenerates it) fails on a dirty tree. */
+@import "tailwindcss" source(none);
 
-/* Tailwind v4 only auto-detects sources next to this stylesheet, so every
-   template tree carrying utility class names is registered explicitly.
-   Paths are relative to this file. */
+/* Only the viewer templates are scanned. Paths are relative to this file. */
 @source "../../internal/dashboard/browser/*.html";
 @source "../../internal/widgets/*/browser.html";
 
