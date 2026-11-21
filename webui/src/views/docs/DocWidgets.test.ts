@@ -86,8 +86,9 @@ describe('widget docs index', () => {
 
         expect(group('time')).toEqual(['clock'])
         expect(group('weather')).toEqual(['weather', 'weather-compact'])
-        expect(group('information')).toEqual(['image', 'markdown', 'market', 'sysinfo', 'transport', 'xkcd'])
-        expect(group('navigation')).toEqual(['battery', 'bookmark', 'page-indicator', 'search', 'stack'])
+        expect(group('information')).toEqual(['battery', 'image', 'markdown', 'market', 'sysinfo', 'transport', 'xkcd'])
+        expect(group('navigation')).toEqual(['bookmark', 'search'])
+        expect(group('layout')).toEqual(['page-indicator', 'stack'])
     })
 
     it('links each card to the widget page and shows its name under a preview', async () => {

@@ -30,7 +30,7 @@ package hosts two.
   noWidgetProp?, settingsSize?}` (the `WidgetModule` type in
   `webui/src/widgets/types.ts`), ordered by label. There is no list to edit.
   `category` is one of the ids in `webui/src/widgets/categories.ts` (Time &
-  date, Weather, Information, Navigation & layout); `getWidgetsByCategory()`
+  date, Weather, Information, Navigation, Layout); `getWidgetsByCategory()`
   groups by it, and the widget docs index uses that grouping. A widget with a
   `wide` form is shown with its settings under the preview on its docs page.
   `settingsSize: 'wide'` opens the Widget Settings dialog

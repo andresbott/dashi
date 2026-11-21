@@ -5,7 +5,8 @@ export const WIDGET_CATEGORIES = [
     { id: 'time', label: 'Time & date' },
     { id: 'weather', label: 'Weather' },
     { id: 'information', label: 'Information' },
-    { id: 'navigation', label: 'Navigation & layout' },
+    { id: 'navigation', label: 'Navigation' },
+    { id: 'layout', label: 'Layout' },
 ] as const
 
 export type WidgetCategory = (typeof WIDGET_CATEGORIES)[number]['id']

@@ -8,7 +8,7 @@ const battery: WidgetModule = {
     label: 'Battery',
     icon: 'ti-battery-2',
     description: 'Battery status from query parameter',
-    category: 'navigation',
+    category: 'information',
 }
 
 export default battery
