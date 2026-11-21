@@ -24,19 +24,30 @@ above. `todo add`, `todo done|progress|defer|reopen`, `todo edit`, `todo rm`
 and `todo list --json` cover the common actions — run `todo --help`.
 -->
 
-* migrate code as HA addon — DONE (ha-addon/, editor via ingress + viewer host port)
-* use enhanced dither — DONE (per-dashboard dither mode: plain / auto / preset)
-* rework widgets as isolated component — DONE (internal/widgets/{name} + webui/src/widgets/{name}, see docs/agents/widgets.md)
-* remove preview fetaure — DONE (preview dashboards removed, see docs/agents/features.md)
-* recreate themes — DONE (internal/themes + internal/widgetthemes)
-* make custom preview dialog for eink dispalayus — DONE ("E-ink preview" in the dashboard editor, image dashboards)
-* custom themes — DONE (themes editor, widget theme upload)
-* json not passed directly to backend
-* make sure mobile view works — DONE (viewer stacks rows below 640px; admin drawer below 768px; dialogs fit; editor grid scrolls sideways)
-* classify main sections in the admin SPA (e.g. notes/images = user content, backgrounds/themes = theming) — DONE (Theming: themes, background images, widget themes; Content: notes, images)
-* uploaded themes only become usable by widgets/renderers after a backend restart (icons/fonts registered once at startup in app/router/main.go) — DONE (upload/delete re-sync PNG fonts via widgetthemes Store.OnChange)
+# Backlog
 
-- [] LITEhtmk cannot real css vars, => explore if we watnto use a css library to transform modern css into plain css e.g. something simialr to scss
+- [x] migrate code as HA addon
+  ha-addon/, editor via ingress + viewer host port
+- [x] use enhanced dither
+  per-dashboard dither mode: plain / auto / preset
+- [x] rework widgets as isolated component
+  internal/widgets/{name} + webui/src/widgets/{name}, see docs/agents/widgets.md
+- [x] remove preview fetaure
+  preview dashboards removed, see docs/agents/features.md
+- [x] recreate themes
+  internal/themes + internal/widgetthemes
+- [x] make custom preview dialog for eink dispalayus
+  "E-ink preview" in the dashboard editor, image dashboards
+- [x] custom themes
+  themes editor, widget theme upload
+- [ ] json not passed directly to backend
+- [x] make sure mobile view works
+  viewer stacks rows below 640px; admin drawer below 768px; dialogs fit; editor grid scrolls sideways
+- [x] classify main sections in the admin SPA (e.g. notes/images = user content, backgrounds/themes = theming)
+  Theming: themes, background images, widget themes; Content: notes, images
+- [x] uploaded themes only become usable by widgets/renderers after a backend restart (icons/fonts registered once at startup in app/router/main.go)
+  upload/delete re-sync PNG fonts via widgetthemes Store.OnChange
+- [ ] LITEhtmk cannot real css vars, => explore if we watnto use a css library to transform modern css into plain css e.g. something simialr to scss
 
 # Release
 
