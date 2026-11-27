@@ -434,7 +434,13 @@ and the dormant dark data is invalid, the view says so ("Dark mode has
 invalid values; enable it to fix them") instead of failing silently. With
 dark mode on, each tab header carries a red alert icon
 (`tab-invalid-<mode>`) while that mode is invalid, so a broken field in the
-closed tab is still found. The
+closed tab is still found. Validity is split per mode into colours and
+background (`sectionValid`; a mode is valid when both are), and the Colours
+and Background Panel headers carry the same icon
+(`section-invalid-colors-<mode>`, `section-invalid-background-<mode>`)
+while that section is invalid, so a collapsed Panel still points to the
+field it hides; the Panel is not expanded for you. The Preview Panel has no
+marker. The
 components take a `disabled` prop for read-only use, though builtin themes
 currently never reach the form (the view shows a "cannot be edited" card
 for them).

@@ -95,31 +95,37 @@ const roles = PALETTE_ROLES.map(r => r.role)
 
 const nameInvalid = computed(() => !local.value?.name.trim())
 
-const lightValid = computed(() => {
-    const t = local.value
-    if (!t) return false
-    return roles.every(role => isValidRoleColor(role, t.colors.light[role])) &&
-        isValidModeBackground(t.background.light)
-})
+// Per mode and per section, so a collapsed Colours or Background Panel can
+// still point to the invalid field it hides.
+type SectionValidity = { colors: boolean; background: boolean }
 
 // Go: the dark palette is required in full only with dark mode on; with it
-// off, the roles that are set are still checked. The dark background is
-// always checked.
-const darkValid = computed(() => {
-    const t = local.value
-    if (!t) return false
+// off, the roles that are set are still checked. The light palette and both
+// backgrounds are always checked.
+const colorsValid = (t: Theme, m: Mode) => {
     const roleOk = (role: PaletteRole) =>
-        (!t.darkMode && !t.colors.dark?.[role]) || isValidRoleColor(role, t.colors.dark?.[role])
-    return roles.every(roleOk) && isValidModeBackground(t.background.dark)
+        (m === 'dark' && !t.darkMode && !t.colors.dark?.[role]) || isValidRoleColor(role, t.colors[m]?.[role])
+    return roles.every(roleOk)
+}
+
+const sectionValid = computed<Record<Mode, SectionValidity>>(() => {
+    const t = local.value
+    const of = (m: Mode): SectionValidity =>
+        t ? { colors: colorsValid(t, m), background: isValidModeBackground(t.background[m]) }
+            : { colors: false, background: false }
+    return { light: of('light'), dark: of('dark') }
 })
 
-const modeValid = computed<Record<Mode, boolean>>(() => ({ light: lightValid.value, dark: darkValid.value }))
+const modeValid = computed<Record<Mode, boolean>>(() => {
+    const ok = (m: Mode) => sectionValid.value[m].colors && sectionValid.value[m].background
+    return { light: ok('light'), dark: ok('dark') }
+})
 
-const isValid = computed(() => !!local.value && !nameInvalid.value && lightValid.value && darkValid.value)
+const isValid = computed(() => !!local.value && !nameInvalid.value && modeValid.value.light && modeValid.value.dark)
 
 // Dormant dark data that the server would reject blocks every save, yet with
 // dark mode off nothing on screen is highlighted: say where to look.
-const hiddenDarkInvalid = computed(() => !!local.value && !local.value.darkMode && !darkValid.value)
+const hiddenDarkInvalid = computed(() => !!local.value && !local.value.darkMode && !modeValid.value.dark)
 
 // ---- autosave ----
 
@@ -240,6 +246,19 @@ const goBack = async () => {
                             <TabPanels class="mode-panels">
                                 <TabPanel v-for="m in MODES" :key="m.value" :value="m.value" class="mode-sections">
                                     <Panel header="Colours" toggleable :data-testid="`section-colors-${m.value}`">
+                                        <template #header="{ id, class: titleClass }">
+                                            <span class="section-header">
+                                                <span :id="id" :class="titleClass">Colours</span>
+                                                <!-- Points to an invalid field the collapsed Panel may hide. -->
+                                                <i
+                                                    v-if="!sectionValid[m.value].colors"
+                                                    class="ti ti-alert-circle tab-invalid"
+                                                    role="img"
+                                                    aria-label="Colours has invalid values"
+                                                    :data-testid="`section-invalid-colors-${m.value}`"
+                                                />
+                                            </span>
+                                        </template>
                                         <ThemeColorsEditor
                                             v-model:palette="local.colors[m.value]"
                                             :mode="m.value"
@@ -247,6 +266,18 @@ const goBack = async () => {
                                         />
                                     </Panel>
                                     <Panel header="Background" toggleable :data-testid="`section-background-${m.value}`">
+                                        <template #header="{ id, class: titleClass }">
+                                            <span class="section-header">
+                                                <span :id="id" :class="titleClass">Background</span>
+                                                <i
+                                                    v-if="!sectionValid[m.value].background"
+                                                    class="ti ti-alert-circle tab-invalid"
+                                                    role="img"
+                                                    aria-label="Background has invalid values"
+                                                    :data-testid="`section-invalid-background-${m.value}`"
+                                                />
+                                            </span>
+                                        </template>
                                         <ThemeBackgroundEditor
                                             v-model:background="local.background[m.value]"
                                             :themeId="local.id"
@@ -264,6 +295,18 @@ const goBack = async () => {
                         </Tabs>
                         <div v-else class="mode-sections">
                             <Panel header="Colours" toggleable data-testid="section-colors-light">
+                                <template #header="{ id, class: titleClass }">
+                                    <span class="section-header">
+                                        <span :id="id" :class="titleClass">Colours</span>
+                                        <i
+                                            v-if="!sectionValid.light.colors"
+                                            class="ti ti-alert-circle tab-invalid"
+                                            role="img"
+                                            aria-label="Colours has invalid values"
+                                            data-testid="section-invalid-colors-light"
+                                        />
+                                    </span>
+                                </template>
                                 <ThemeColorsEditor
                                     v-model:palette="local.colors.light"
                                     mode="light"
@@ -271,6 +314,18 @@ const goBack = async () => {
                                 />
                             </Panel>
                             <Panel header="Background" toggleable data-testid="section-background-light">
+                                <template #header="{ id, class: titleClass }">
+                                    <span class="section-header">
+                                        <span :id="id" :class="titleClass">Background</span>
+                                        <i
+                                            v-if="!sectionValid.light.background"
+                                            class="ti ti-alert-circle tab-invalid"
+                                            role="img"
+                                            aria-label="Background has invalid values"
+                                            data-testid="section-invalid-background-light"
+                                        />
+                                    </span>
+                                </template>
                                 <ThemeBackgroundEditor
                                     v-model:background="local.background.light"
                                     :themeId="local.id"
@@ -320,6 +375,14 @@ const goBack = async () => {
     color: var(--p-red-500);
 }
 
+/* Keeps a Panel's invalid marker next to its title, not pushed to the
+   middle of the header by its space-between layout. */
+.section-header {
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Marks an invalid tab, or a Colours or Background Panel header. */
 .tab-invalid {
     margin-left: 0.35rem;
     color: var(--p-red-500);

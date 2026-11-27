@@ -376,6 +376,45 @@ describe('AdminThemeEdit', () => {
             expect(isOpen(wrapper, 'background', 'dark')).toBe(true)
             expect(isOpen(wrapper, 'preview', 'dark')).toBe(false)
         })
+
+        const marker = (wrapper: VueWrapper, section: Section, mode: string) =>
+            wrapper.find(`[data-testid="section-invalid-${section}-${mode}"]`)
+        const markers = (wrapper: VueWrapper) =>
+            wrapper.findAll('[data-testid^="section-invalid-"]').map(m => m.attributes('data-testid'))
+
+        it('marks a collapsed Colours section holding an invalid value, and clears it once fixed', async () => {
+            const wrapper = mountView()
+            await flushPromises()
+            await toggleOf(wrapper, 'colors', 'light').trigger('click')
+            expect(isOpen(wrapper, 'colors', 'light')).toBe(false)
+            expect(markers(wrapper)).toEqual([])
+
+            await wrapper.find('#color-light-text').setValue('#12')
+            expect(markers(wrapper)).toEqual(['section-invalid-colors-light'])
+            const m = marker(wrapper, 'colors', 'light')
+            // In the header, next to the title that stays.
+            expect(panel(wrapper, 'colors', 'light').find('.p-panel-header').find('[data-testid="section-invalid-colors-light"]').exists()).toBe(true)
+            expect(panel(wrapper, 'colors', 'light').find('.p-panel-header').text()).toContain('Colours')
+            expect(m.classes()).toContain('tab-invalid')
+            expect(m.attributes('aria-label')).toBe('Colours has invalid values')
+
+            await wrapper.find('#color-light-text').setValue('#123456')
+            expect(markers(wrapper)).toEqual([])
+        })
+
+        it('marks only the Background section of the mode with an invalid background', async () => {
+            const gradient = { gradient: { direction: '90deg', stops: ['#000000', '#ffffff'] } }
+            theme.value!.darkMode = true
+            theme.value!.colors.dark = { ...darkPalette }
+            theme.value!.background = { light: structuredClone(gradient), dark: structuredClone(gradient) }
+            const wrapper = mountView()
+            await flushPromises()
+            expect(markers(wrapper)).toEqual([])
+
+            await wrapper.find('[data-testid="stop-dark-0"]').setValue('#12')
+            expect(markers(wrapper)).toEqual(['section-invalid-background-dark'])
+            expect(marker(wrapper, 'background', 'dark').attributes('aria-label')).toBe('Background has invalid values')
+        })
     })
 
     describe('validity', () => {
