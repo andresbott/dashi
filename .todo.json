@@ -156,7 +156,8 @@
       "category": "qyds6ns",
       "sprint": "vs7kjg0",
       "title": "Drag and drop widgets into and out of a Stack widget",
-      "status": "ready",
+      "status": "working",
+      "plan": "/tmp/delivery-Mtft/stack-drag-and-drop.md",
       "description": "Bug: in the dashboard editor, widgets can't be dragged into or out of a Stack widget. Dragging an existing widget (e.g. Market) over a Stack doesn't drop it into the stack (the grid only shows the 12-column row placement), and a stack's children can't be dragged back out onto the row. Today children can only be added via the stack's own '+ Add' button.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete, complex. Files: DashboardRow.vue (own drag session: rowRegistry, hitRow only checks rows, emits move-widget), widgets/stack/Widget.vue (draggable group pull:false/put:false, children in config.widgets), move-widget handler in DashboardEditView.vue.\nDecided: dragging out places the child at the guide column with width 6 (or the free span from firstFreeSpan); block the drop when fitsInRow fails, like rows do.\nDecided: dropping into a stack inserts at the hovered index; the child's column is dropped (width is driven by the stack).\nDecided: a stack cannot be dropped into a stack (no nesting), consistent with exclude=['stack'] in the stack's add dialog.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: dragged-out child width = min(6, 12 - totalSpan(row)); block only when the row is full; the guide shows the shrunken span - matches cross-row move packing (insertByColumn + clampRowToLine) and addWidget shrinking.\nDecided: the stack drop zone wins only while the pointer is over the stack card's body (children area); its header and surrounding gaps keep targeting the row guide.\nDecided: a child dropped into a stack gets width = stack width and no column, mirroring addChild (stack/Widget.vue:56).\nNote: row drag session is module-level in DashboardRow.vue and never mutates lists; needs a shared drag-session lib with stack drop zones and one atomic row<->stack update in DashboardEditView."
     },
     {
@@ -164,8 +165,8 @@
       "category": "qyds6ns",
       "sprint": "vs7kjg0",
       "title": "Widget header bar: delete and duplicate buttons",
-      "status": "ready",
-      "description": "In the dashboard editor, each widget card's top bar currently only has the edit (pencil) button. Put the widget controls there.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: DashboardWidget.vue (header), WidgetSettingsDialog.vue (Delete in footer behind deletable, with confirm), DashboardRow.vue (deleteWidget).\nDecided: 'move' means delete is removed from the settings dialog footer and lives in the top bar; keep the confirm prompt.\nDecided: duplicate = structuredClone with a new uuid (and fresh ids for nested stack children), inserted right after the original via insertByColumn/firstFreeSpan; button disabled with a 'Row is full' tooltip when there is no space, like the add button.\nDecided: duplicate button only on row widget cards, not on children inside a stack.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: the copy goes right after the original in the array with column = original column + width, then clampRowToLine - always next to the original; firstFreeSpan's left-hand run is not used.\nDecided: copy width = min(original width, 12 - totalSpan); disabled only when rowFull (DashboardRow.vue:218) with the existing 'Row is full' tooltip.\nDecided: title copied as-is, no '(copy)' suffix - titles show on the live dashboard.",
+      "status": "done",
+      "description": "In the dashboard editor, each widget card's top bar currently only has the edit (pencil) button. Put the widget controls there.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: DashboardWidget.vue (header), WidgetSettingsDialog.vue (Delete in footer behind deletable, with confirm), DashboardRow.vue (deleteWidget).\nDecided: 'move' means delete is removed from the settings dialog footer and lives in the top bar; keep the confirm prompt.\nDecided: duplicate = structuredClone with a new uuid (and fresh ids for nested stack children), inserted right after the original via insertByColumn/firstFreeSpan; button disabled with a 'Row is full' tooltip when there is no space, like the add button.\nDecided: duplicate button only on row widget cards, not on children inside a stack.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: the copy goes right after the original in the array with column = original column + width, then clampRowToLine - always next to the original; firstFreeSpan's left-hand run is not used.\nDecided: copy width = min(original width, 12 - totalSpan); disabled only when rowFull (DashboardRow.vue:218) with the existing 'Row is full' tooltip.\nDecided: title copied as-is, no '(copy)' suffix - titles show on the live dashboard.\n\n[next-iteration 2026-11-27]\nBuilt: b4ab85d (delete in header), 2115c17 (duplicate, lib/duplicateWidget.ts), follow-up cfee0bf (lib/plainCopy.ts fixes a DataCloneError when opening a stack's settings after adding a child; also used in useDashboardDraft and the theme views). Reviews passed. Round-2 item closed as not needed.\nDecided: deep copy is a JSON round-trip, not structuredClone - editor state holds nested reactive proxies that structuredClone(toRaw()) cannot clone; header order duplicate, pencil, trash; header can wrap so controls stay reachable on 1-column cards.\nNote: stack children already had their own trash button; only :deletable=false was removed.",
       "subtasks": [
         {
           "id": "db3pbze",
@@ -182,7 +183,14 @@
         {
           "id": "h69yk6z",
           "title": "Follow-up: WidgetSettingsDialog structuredClone fails on reactive stack children",
+          "done": true,
           "description": "From implementer: WidgetSettingsDialog.vue ~:44 uses structuredClone(toRaw(config)); toRaw is shallow, so nested reactive proxies (e.g. a stack's config.widgets after reordering) throw DataCloneError. The duplicate feature hit the same issue and used a JSON round-trip (lib/duplicateWidget.ts), as useDashboardDraft does."
+        },
+        {
+          "id": "qf3drkg",
+          "title": "Follow-up (round 2): remaining structuredClone sites and plainCopy notes",
+          "done": true,
+          "description": "From review: views/docs/DocWidget.vue :34 and :55 still structuredClone config (same DataCloneError risk if ever reactive-nested); no cloneWidget test with a reactive stack child; plainCopy drops undefined/Date - add a 'JSON data only' note.\n\n[next-iteration 2026-11-27]\nNot needed: DocWidget clones a computed over static docs data (never proxied); the reactive-child cloneWidget test exists (duplicateWidget.test.ts:48); plainCopy's doc already says 'deep copy of JSON data'."
         }
       ]
     },
@@ -191,13 +199,20 @@
       "category": "qyds6ns",
       "sprint": "vs7kjg0",
       "title": "Preview button in the dashboard edit view",
-      "status": "ready",
-      "description": "Edit view header, left of Settings, chosen by dashboard type like the dashboards list (AdminDashboards.vue). Image dashboards: keep the existing 'E-ink preview' button (DashboardEditView.vue, already there). Interactive dashboards: add the missing button, an eye icon that opens the live viewer (dashboardViewUrl) in a new tab, as the list does.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: DashboardEditView.vue:224-237, lib/serverInfo.ts (dashboardViewUrl), AdminDashboards.vue:209-218.\nDecided: labelled 'Preview' with the eye icon, matching the labelled E-ink preview button.\nDecided: opens the dashboard root like the list does (no ?page= deep link).\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: on click open a blank window synchronously (window.open('', '_blank'), opener=null), await flush(), then set its location to dashboardViewUrl(id); navigate even if the save failed (toolbar already shows 'Save failed') - keeps the flush-before-navigate rule and avoids popup blocking; icon ti ti-eye.",
+      "status": "done",
+      "description": "Edit view header, left of Settings, chosen by dashboard type like the dashboards list (AdminDashboards.vue). Image dashboards: keep the existing 'E-ink preview' button (DashboardEditView.vue, already there). Interactive dashboards: add the missing button, an eye icon that opens the live viewer (dashboardViewUrl) in a new tab, as the list does.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: DashboardEditView.vue:224-237, lib/serverInfo.ts (dashboardViewUrl), AdminDashboards.vue:209-218.\nDecided: labelled 'Preview' with the eye icon, matching the labelled E-ink preview button.\nDecided: opens the dashboard root like the list does (no ?page= deep link).\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: on click open a blank window synchronously (window.open('', '_blank'), opener=null), await flush(), then set its location to dashboardViewUrl(id); navigate even if the save failed (toolbar already shows 'Save failed') - keeps the flush-before-navigate rule and avoids popup blocking; icon ti ti-eye.\n\n[next-iteration 2026-11-27]\nBuilt: 83eb352 (button + 3 tests), follow-up 0e4eec7 (test tidy + blocked-popup test). Reviews passed. Round-2 item closed as not needed.\nDecided: the button uses v-else against the image check, so any non-image type gets it; no try/finally since flush() never rejects.\nNoticed: the dashboards list shows the eye button for both types, the editor only for interactive (as decided).",
       "subtasks": [
         {
           "id": "cexxf4g",
           "title": "Follow-up: tidy Preview tests (rename e-ink helper, drop redundant assert, cover blocked popup)",
+          "done": true,
           "description": "From review: DashboardEditView.test.ts helper previewButton finds the e-ink button (rename to einkButton next to viewerButton); the assertion at ~line 117 duplicates the type-switch test; the blocked-popup path (window.open returns null) has no test."
+        },
+        {
+          "id": "a5t3tfp",
+          "title": "Follow-up (round 2): reset shared mocks in the first DashboardEditView describe",
+          "done": true,
+          "description": "From review: the first describe block's beforeEach does not reset saveStatus or the flush mock implementation (the second block does), so tests could leak state if order changes.\n\n[next-iteration 2026-11-27]\nNot needed: the first block never changes saveStatus or flush; vitest runs in file order with no shuffle configured, so nothing leaks."
         }
       ]
     },
@@ -206,13 +221,20 @@
       "category": "qyds6ns",
       "sprint": "vs7kjg0",
       "title": "Max Width: preset options plus manual input",
-      "status": "ready",
-      "description": "Dashboard settings > Container > Max Width is a plain text field today. Offer sensible presets (e.g. 100%, 1600px, and a few common widths) in an editable dropdown, while still allowing a custom value to be typed.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: DashboardSettingsView.vue:302. Value is a free CSS string written raw into page.html / master.html, no server validation (unchanged).\nDecided: PrimeVue AutoComplete with dropdown (or editable Select) - whichever the codebase already uses for free-text+suggestions.\nDecided: presets 100%, 1920px, 1600px, 1440px, 1280px, 1024px, 800px.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: PrimeVue Select with editable and plain string options; keep the existing placeholder - neither component is used yet, Select is already used throughout DashboardSettingsView and editable mode writes the typed string to the model. Presets stay as decided above.",
+      "status": "done",
+      "description": "Dashboard settings > Container > Max Width is a plain text field today. Offer sensible presets (e.g. 100%, 1600px, and a few common widths) in an editable dropdown, while still allowing a custom value to be typed.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: DashboardSettingsView.vue:302. Value is a free CSS string written raw into page.html / master.html, no server validation (unchanged).\nDecided: PrimeVue AutoComplete with dropdown (or editable Select) - whichever the codebase already uses for free-text+suggestions.\nDecided: presets 100%, 1920px, 1600px, 1440px, 1280px, 1024px, 800px.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: PrimeVue Select with editable and plain string options; keep the existing placeholder - neither component is used yet, Select is already used throughout DashboardSettingsView and editable mode writes the typed string to the model. Presets stay as decided above.\n\n[next-iteration 2026-11-27]\nBuilt: 68cb448 (editable Select + 3 tests), follow-up 8c6977e (non-preset values display). Reviews passed. Round-2 item closed as not needed.",
       "subtasks": [
         {
           "id": "m327rc9",
           "title": "Follow-up: test that a stored non-preset max width displays",
+          "done": true,
           "description": "From review: no test covers a saved non-preset value (e.g. 1200px or 75%) showing in the editable Select input; only a preset (1600px) is tested."
+        },
+        {
+          "id": "y8gqqcb",
+          "title": "Follow-up (round 2): test clearing the max width field",
+          "done": true,
+          "description": "From review: no test covers clearing the editable Select; unchecked whether it writes '' or null to maxWidth (typed string).\n\n[next-iteration 2026-11-27]\nNot needed: the Select has no showClear, deleting the text emits ''; even null would be skipped by json.Unmarshal for the Go string field. A test would only pin PrimeVue behaviour."
         }
       ]
     },
@@ -222,25 +244,52 @@
       "sprint": "vs7kjg0",
       "title": "Container alignment: replace dropdowns with a visual picker",
       "status": "ready",
-      "description": "Dashboard settings > Container: replace the Vertical Align and Horizontal Align dropdowns with an image-based picker, i.e. selectable options shown as icons/diagrams of the alignment (e.g. a 3x3 position grid covering both axes) instead of text lists.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete, plus a bug found. Files: DashboardSettingsView.vue:304-331; values vertical top|center|bottom, horizontal left|center|right (types/dashboard.ts, internal/dashboard/types.go) - no schema change.\nFound: internal/dashboard/browser/page.html:19 writes these values raw into align-items/justify-content, where left/right/top/bottom are invalid CSS, so only center works in the browser viewer (.dashi-row is w-full, so horizontal barely shows). The image stack maps them correctly (static/renderer.go mapHAlign/mapVAlign).\nDecided: fix the browser mapping in this task (mirror mapHAlign/mapVAlign to flex-start/center/flex-end), otherwise the picker offers choices that do nothing.\nDecided: one 3x3 grid that writes both fields.\n\n[next-iteration 2026-11-27]\nCorrection: browser/renderer.go:120-121,195-217 already maps the values. Real state: browser viewer ignores horizontal (main is mx-auto, rows w-full); image render computes HAlign/VAlign but static/master.html never uses them (container always top-left); only the editor preview (DashboardView.vue:151-153) moves the container.\nAnswer (render fix): \"Yes, fix all renders\" - saved non-center alignments will start rendering differently.\nAnswer (breaking changes): \"Allowed\".\nDecided: horizontal axis moves the container within the viewport (left -> margin-right:auto, right -> margin-left:auto, center -> both), matching the editor preview; drop the dead align-items. Vertical via a full-viewport-height flex column with justify-content in both server renders (litehtml handles flexbox per docs/agents/viewer.md). Replace duplicated mapHAlign with one helper; golden tests for left/center/right."
+      "description": "Dashboard settings > Container: replace the Vertical Align and Horizontal Align dropdowns with an image-based picker, i.e. selectable options shown as icons/diagrams of the alignment (e.g. a 3x3 position grid covering both axes) instead of text lists.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete, plus a bug found. Files: DashboardSettingsView.vue:304-331; values vertical top|center|bottom, horizontal left|center|right (types/dashboard.ts, internal/dashboard/types.go) - no schema change.\nFound: internal/dashboard/browser/page.html:19 writes these values raw into align-items/justify-content, where left/right/top/bottom are invalid CSS, so only center works in the browser viewer (.dashi-row is w-full, so horizontal barely shows). The image stack maps them correctly (static/renderer.go mapHAlign/mapVAlign).\nDecided: fix the browser mapping in this task (mirror mapHAlign/mapVAlign to flex-start/center/flex-end), otherwise the picker offers choices that do nothing.\nDecided: one 3x3 grid that writes both fields.\n\n[next-iteration 2026-11-27]\nCorrection: browser/renderer.go:120-121,195-217 already maps the values. Real state: browser viewer ignores horizontal (main is mx-auto, rows w-full); image render computes HAlign/VAlign but static/master.html never uses them (container always top-left); only the editor preview (DashboardView.vue:151-153) moves the container.\nAnswer (render fix): \"Yes, fix all renders\" - saved non-center alignments will start rendering differently.\nAnswer (breaking changes): \"Allowed\".\nDecided: horizontal axis moves the container within the viewport (left -> margin-right:auto, right -> margin-left:auto, center -> both), matching the editor preview; drop the dead align-items. Vertical via a full-viewport-height flex column with justify-content in both server renders (litehtml handles flexbox per docs/agents/viewer.md). Replace duplicated mapHAlign with one helper; golden tests for left/center/right.",
+      "subtasks": [
+        {
+          "id": "h2wdqw5",
+          "title": "Follow-up: editor preview defaults and height differ from the server renders",
+          "done": true,
+          "description": "From review: DashboardView.vue ~152-153 puts an empty horizontalAlign on the left (servers and picker centre it); the preview's vertical column is minHeight 80vh vs full viewport height in the servers, so centre/bottom sit differently."
+        },
+        {
+          "id": "6zeaves",
+          "title": "Follow-up: picker semantics as a radiogroup and stale docs wording",
+          "done": true,
+          "description": "From review: AlignmentPicker uses toggle buttons (aria-pressed) for a single choice; role=radiogroup/radio + aria-checked fits better, and the visible 'Alignment' heading is not linked to the group. DocDashboards.vue still says 'alignment of content' though it now moves the whole container."
+        },
+        {
+          "id": "234hd64",
+          "title": "Follow-up (round 2): picker arrow keys, vertical default test, hint wording",
+          "description": "From review: picker arrow keys move focus but don't select (ARIA radio pattern selects on arrow); DashboardView tests don't check the top/flex-start default for empty/unknown verticalAlign; settings hint 'Where the container sits on the screen' differs from the docs' viewport wording; picker uses hardcoded radii/sizes."
+        }
+      ]
     },
     {
       "id": "0fjzc4n",
       "category": "qyds6ns",
       "sprint": "vs7kjg0",
       "title": "Icon picker trigger doesn't look like a button",
-      "status": "ready",
-      "description": "In widget config forms (e.g. Bookmark > Icon), the icon select trigger is just the icon glyph next to its name (ti-bookmark), with no affordance. Make it clearly clickable: bordered/outlined button or input-like field with the icon, its name and a 'choose' hint.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: components/dashboards/IconSelector.vue:45-52 (text rounded Button, icon only), widgets/bookmark/WidgetConfig.vue:129-133 (separate name span; bookmark is the only user).\nDecided: input-like outlined trigger inside IconSelector showing icon + name + chevron/'Choose' hint; drop the separate name span in the bookmark form.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: empty state shows muted 'Select icon' (existing tooltip wording) + ti-chevron-down, styled like an InputText; with an icon set: icon, name without the ti- prefix, chevron.",
+      "status": "done",
+      "description": "In widget config forms (e.g. Bookmark > Icon), the icon select trigger is just the icon glyph next to its name (ti-bookmark), with no affordance. Make it clearly clickable: bordered/outlined button or input-like field with the icon, its name and a 'choose' hint.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: components/dashboards/IconSelector.vue:45-52 (text rounded Button, icon only), widgets/bookmark/WidgetConfig.vue:129-133 (separate name span; bookmark is the only user).\nDecided: input-like outlined trigger inside IconSelector showing icon + name + chevron/'Choose' hint; drop the separate name span in the bookmark form.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: empty state shows muted 'Select icon' (existing tooltip wording) + ti-chevron-down, styled like an InputText; with an icon set: icon, name without the ti- prefix, chevron.\n\n[next-iteration 2026-11-27]\nBuilt: 4c8d35a (input-like trigger, IconSelector tests), follow-up 4696cbe (first bookmark label renamed 'Icon source', trigger aria-labelledby = field label + value, search focused on open, scoped popover classes, one ti- helper). Reviews passed. Round-2 item closed as not needed.\nDecided: trigger styled with PrimeVue --p-form-field-* tokens (follows theme/dark mode); 'Select icon' tooltip dropped since the trigger says it; IconSelector labelledBy prop is required (single consumer).",
       "subtasks": [
         {
           "id": "536k1kk",
           "title": "Follow-up: label/accessibility of the bookmark Icon field",
+          "done": true,
           "description": "From review: bookmark WidgetConfig.vue has two labels both reading 'Icon' (~lines 119 and 130, pre-existing); the label is not tied to the trigger button (for/id); the trigger's aria-label replaces the field label for screen readers."
         },
         {
           "id": "bpj191h",
           "title": "Follow-up: icon popover keyboard focus",
+          "done": true,
           "description": "From review (pre-existing): opening the icon popover does not move keyboard focus into its search field; popover uses inline style for width/max-height; the ti- strip is duplicated in the tooltip."
+        },
+        {
+          "id": "664n8kx",
+          "title": "Follow-up (round 2): remaining icon field accessibility",
+          "done": true,
+          "description": "From review: the popover search InputText has no aria-label (placeholder only); the 'Icon source' label (and other WidgetConfig labels, pre-existing) are not associated with their Select; focus test uses a synchronous Popover stub, not the real @show timing; placeholder 'Search 5000+ icons...' is hardcoded.\n\n[next-iteration 2026-11-27]\nNot needed: placeholder is the accessible-name fallback and the search field is outside the trigger asked for; the WidgetConfig label association predates the task (raise separately if wanted); the stub follows the real show contract and onShow waits nextTick; the '5000+' text is cosmetic."
         }
       ]
     },
@@ -256,14 +305,27 @@
       "sprint": "vs7kjg0",
       "title": "Implement the Search widget",
       "status": "working",
-      "description": "Search widget doesn't work. Backend renderer (internal/widgets/search/module.go) only emits an empty placeholder div, so the server-rendered viewer shows nothing; only an editor-side Vue component exists (webui/src/widgets/search). Implement real rendering: a search input that submits to the configured search engine in interactive dashboards; decide what image dashboards show.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: internal/widgets/search/module.go (NoopModule) -> add browser.go/browser.html, run make viewer-css; editor side webui/src/widgets/search/{Widget.vue,types.ts,docs.ts}. Config {engine: google|duckduckgo|bing, placeholder}.\nDecided: plain GET <form> with input name=q, no JS.\nDecided: opens results in a new tab (matches the Vue component and docs).\nDecided: engine allowlisted in Go, unknown values fall back to google - the form never posts to an arbitrary URL.\nDecided: image dashboards draw a static search bar with the placeholder text, matching the editor preview.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: both renders show the engine label small and right-aligned under the bar, as webui/src/widgets/search/Widget.vue:50; label derived from the same allowlist map as the URL so they cannot drift."
+      "description": "Search widget doesn't work. Backend renderer (internal/widgets/search/module.go) only emits an empty placeholder div, so the server-rendered viewer shows nothing; only an editor-side Vue component exists (webui/src/widgets/search). Implement real rendering: a search input that submits to the configured search engine in interactive dashboards; decide what image dashboards show.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: internal/widgets/search/module.go (NoopModule) -> add browser.go/browser.html, run make viewer-css; editor side webui/src/widgets/search/{Widget.vue,types.ts,docs.ts}. Config {engine: google|duckduckgo|bing, placeholder}.\nDecided: plain GET <form> with input name=q, no JS.\nDecided: opens results in a new tab (matches the Vue component and docs).\nDecided: engine allowlisted in Go, unknown values fall back to google - the form never posts to an arbitrary URL.\nDecided: image dashboards draw a static search bar with the placeholder text, matching the editor preview.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: both renders show the engine label small and right-aligned under the bar, as webui/src/widgets/search/Widget.vue:50; label derived from the same allowlist map as the URL so they cannot drift.",
+      "subtasks": [
+        {
+          "id": "nd3hjr2",
+          "title": "Follow-up: end-to-end test of the search widget through the viewer render",
+          "description": "From review: browser rendering is only tested at module level; no test renders a dashboard containing a search widget through the real registry + browser renderer (page.html), so a registration or template-wiring regression would go unnoticed."
+        },
+        {
+          "id": "egd115z",
+          "title": "Follow-up: check that viewer.css is regenerated",
+          "description": "From review: nothing guards against a template using Tailwind utilities that are missing from the committed internal/dashboard/browser/assets/viewer.css (e.g. focus-within:, placeholder: in the new search template); a check (make target or test) that make viewer-css produces no diff would catch it.\n\n[next-iteration 2026-11-27]\nExpert: all classes in search/browser.html are present in the committed viewer.css today; release.yml (lines 59, 150) already runs make viewer-css before building, so drift only affects make run (dev) and the committed file.\nNeeds you: add a drift guard (make viewer-css + git diff --exit-code) to make verify or the push/PR CI? It changes the project's gates and needs npm/Tailwind there. Options: (a) add it to make verify, (b) add it only to CI, (c) not needed since releases regenerate."
+        }
+      ]
     },
     {
       "id": "r7jg2sm",
       "category": "22nmgta",
       "sprint": "vs7kjg0",
       "title": "Dashboard setting: show an Edit button on the rendered dashboard",
-      "status": "ready",
+      "status": "working",
+      "plan": "/tmp/delivery-Mtft/viewer-edit-button.md",
       "description": "New per-dashboard setting (off by default). When on, the rendered dashboard in the viewer shows an Edit button that opens this dashboard in the editor (/dashboards/<id>/edit), so entries can be changed from where you are looking at it. Needs: the setting in the dashboard model and settings view, the button in the viewer render (interactive dashboards only; not drawn on image/PNG output), and an editor URL that works when the viewer and editor are on different origins (HA add-on: viewer on host port, editor via ingress).\n\n[next-iteration 2026-11-27]\nReadiness audit: complex; deployment questions settled by an architect subagent. Files: internal/dashboard/types.go (ShowEditButton bool, omitempty - additive, carried by zip export/import), types/dashboard.ts, DashboardSettingsView.vue (General), app/cmd/config.go, app/router/handlers/info.go, app/router/main.go, app/router/middleware_static.go (browser.RenderData), internal/dashboard/browser/page.html, ha-addon/{run.sh,config.yaml,DOCS.md}.\nDecided: editor URL comes only from explicit config - new server.editor.publicUrl (env DASHI_SERVER_EDITOR_PUBLICURL) + HA add-on option editor_public_url, validated with normalizeBaseURL; link = base + /dashboards/<PathEscape(id)>/edit. No derivation from request host: in the add-on the editor port 8099 is not host-mapped (dead link), and it would advertise the admin port on a public viewer.\nDecided: no URL configured, or editor disabled -> button hidden. GET /api/v0/info exposes editor.url; the settings toggle stays usable and shows a hint to set server.editor.publicUrl / editor_public_url.\nDecided: HA deep-link form <HA URL>/hassio/ingress/<slug> documented in ha-addon/DOCS.md; run.sh logs the hint with the real slug from Supervisor /addons/self/info (third-party repos prefix the slug).\nDecided: small fixed bottom-right icon link with aria-label, low opacity until hover/focus, hidden in @media print, same tab (kiosks/tablets block pop-ups; back returns to the dashboard). Only in the browser render, and only for interactive dashboards (explicit dash.Type check - image dashboards viewed in a browser use the same renderer).\nDecided: no extra gate beyond operator URL + per-dashboard toggle; DOCS warn to set publicUrl only when the editor is behind auth (auth.enabled defaults to false; HA ingress already is).\nNeeds you: verify on a live HA instance that subpaths under /hassio/ingress/<slug>/... are passed through to the ingress iframe (dashboards/<id>/edit deep link). Unverified - from memory only. If not, the docs should say the link opens the panel root.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: ShowEditButton lives on Dashboard (next to ThemeID/ColorMode), not Container - viewer behaviour, not layout geometry.\nDecided: toggle in the General section, shown only for interactive dashboards (v-if, like the image-only fields at DashboardSettingsView.vue:223); stored value kept on type change; server render also skips it for image dashboards.\nDecided: normalize base URLs once in config loading (getAppCfg, app/cmd/config.go) for both server.viewer.publicUrl and server.editor.publicUrl, storing the normalized value; normalizeBaseURL moves out of handlers; invalid values dropped with a warning (keeps today's silent-drop behaviour for the viewer key)."
     },
     {
