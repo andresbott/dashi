@@ -295,6 +295,21 @@ describe('AdminThemeEdit', () => {
             expect(dark).toContain('#00bb00')
             expect(dark).not.toContain('#aa0000')
         })
+
+        it('shows the background image layer over the gradient, in its own mode only', async () => {
+            const image = { ref: 'asset:sky.jpg', fit: 'cover' as const, position: 'center' as const, repeat: 'no-repeat' as const }
+            theme.value!.darkMode = true
+            theme.value!.colors.dark = { ...darkPalette }
+            theme.value!.background = { light: { ...gradientBg('#aa0000'), image }, dark: gradientBg('#00bb00') }
+            const wrapper = mountView()
+            await flushPromises()
+
+            // The exact layer string is pinned in themeCss.test.ts.
+            const light = previewOf(wrapper, 'light').attributes('style')
+            expect(light).toContain('/api/v0/themes/abc123/assets/sky.jpg')
+            expect(light).toContain('#aa0000')
+            expect(previewOf(wrapper, 'dark').attributes('style')).not.toContain('sky.jpg')
+        })
     })
 
     describe('collapsible sections', () => {
