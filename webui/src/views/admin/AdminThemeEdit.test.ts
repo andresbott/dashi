@@ -430,6 +430,41 @@ describe('AdminThemeEdit', () => {
             expect(markers(wrapper)).toEqual(['section-invalid-background-dark'])
             expect(marker(wrapper, 'background', 'dark').attributes('aria-label')).toBe('Background has invalid values')
         })
+
+        it('marks only the light Background section for an invalid light stop in light-only mode', async () => {
+            theme.value!.background = { light: { gradient: { direction: '90deg', stops: ['#000000', '#ffffff'] } }, dark: {} }
+            const wrapper = mountView()
+            await flushPromises()
+            expect(markers(wrapper)).toEqual([])
+
+            await wrapper.find('[data-testid="stop-light-0"]').setValue('#12')
+            expect(markers(wrapper)).toEqual(['section-invalid-background-light'])
+            expect(marker(wrapper, 'background', 'light').attributes('aria-label')).toBe('Background has invalid values')
+        })
+
+        it('marks only the dark Colours section for an invalid dark colour', async () => {
+            theme.value!.darkMode = true
+            theme.value!.colors.dark = { ...darkPalette }
+            const wrapper = mountView()
+            await flushPromises()
+            expect(markers(wrapper)).toEqual([])
+
+            await wrapper.find('#color-dark-text').setValue('#12')
+            expect(markers(wrapper)).toEqual(['section-invalid-colors-dark'])
+            expect(marker(wrapper, 'colors', 'dark').attributes('aria-label')).toBe('Colours has invalid values')
+        })
+
+        it('labels the section content by the header title', async () => {
+            const wrapper = mountView()
+            await flushPromises()
+
+            const p = panel(wrapper, 'colors', 'light')
+            const title = p.find('.p-panel-header').findAll('span[id]').find(s => s.text() === 'Colours')
+            expect(title, 'title span with an id').toBeTruthy()
+            const labelledBy = p.find('[role="region"]').attributes('aria-labelledby')
+            expect(labelledBy).toBeTruthy()
+            expect(labelledBy).toBe(title!.attributes('id'))
+        })
     })
 
     describe('validity', () => {
