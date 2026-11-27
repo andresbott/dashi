@@ -15,6 +15,7 @@ Statuses verified against the code on 2026-07-22.
 | Asset upload/list/delete | Implemented | store asset methods; 10MB cap, extension allowlist incl. `.md` |
 | Custom CSS sidecar | Implemented | `Store.GetCustomCSS` (`custom.css` per dashboard) |
 | Multi-page + tab navigation | Implemented | `Page` type; `?page=N` for image mode |
+| Editor widget drag and drop (rows + stacks) | Implemented (2026-11-27; stacks before that only reordered their own children) | Grip-drag a widget within a row, to another row, into a stack, out of a stack onto any row, or between stacks. Session `webui/src/lib/widgetDrag.ts`, hit testing `lib/widgetDragHit.ts`, every drop applied by `applyWidgetMove` (`lib/widgetMove.ts`) through the `WIDGET_MOVE` injection that `DashboardEditView.vue` provides. Keyboard: arrow keys nudge a row widget by one column only — no keyboard path across rows or into/out of a stack (see Not implemented / partial). Rules: [widgets.md](widgets.md#row-placement) |
 | Edit button on the rendered dashboard | Implemented (2026-11-27) | `Dashboard.ShowEditButton` (`showEditButton`, off by default); the "Show Edit button" toggle has shipped in the General section of dashboard settings (`DashboardSettingsView.vue`), interactive dashboards only. Needs `Server.Editor.PublicUrl` (HA add-on: `editor_public_url`) — never derived, so no URL means no button. Link built in `editLink` (`app/router/middleware_static.go`), drawn by `page.html`; never on image dashboards or PNG output. Whether HA ingress forwards the `/dashboards/<id>/edit` sub-path is unverified (else it lands on the editor home). See [viewer.md](viewer.md#edit-button) |
 
 ## Widgets
@@ -71,6 +72,12 @@ fall back to `default`. Details: [viewer.md](viewer.md#theming-two-entities-css-
   allowlist) and **stack** (delegates to its children) declare rules. Other
   widgets stay pass-through; add a validator when a widget puts config into a
   dangerous sink. See [architecture.md](architecture.md#security-model--know-the-boundaries).
+- **Keyboard moves into or out of a stack** (known debt, deferred
+  2026-11-27): only the pointer can drag a widget into a stack, out of one,
+  or between stacks; a stack child's grip has no arrow-key handling. Rows
+  have no keyboard cross-row move either, so both are left for one keyboard
+  design (e.g. a "Move to…" menu on the grip) that drives the same
+  `WIDGET_MOVE` / `applyWidgetMove` path.
 - **Market widget config UI exists** (`MarketWidgetConfig.vue`) — older
   autodoc saying "Not implemented" is stale.
 - Root `TODO.md` backlog: HA addon, isolated widget components, remove

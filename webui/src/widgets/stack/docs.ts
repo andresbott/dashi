@@ -11,7 +11,9 @@ const docs: WidgetDocs = {
             list: [
                 'Child widgets are arranged top to bottom.',
                 'Each child widget can be any type except another stack.',
-                'In the editor, children can be added, removed, reordered via drag-and-drop, and individually configured.',
+                'In the editor, children can be added, removed and individually configured, and reordered by dragging their grip.',
+                'Drag any widget (except a stack) from a row into the stack body to add it at that position; it takes the stack\'s width.',
+                'Drag a child out onto a row to take it out of the stack; it lands half the grid wide (6 columns), or narrower when the row has less room, and a full row refuses it.',
             ],
         },
     ],

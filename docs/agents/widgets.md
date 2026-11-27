@@ -137,12 +137,36 @@ The editor additionally treats a row as **one 12-column line** (decided
 `rowLayout.ts` keep every edit (add, resize, in-row move, cross-row drop) from
 pushing a widget past column 12, and a drop that does not fit is refused with a
 blocked guide. Go's `PlaceRow` is unchanged: a stored row that already
-overflows still wraps in the viewer; the editor just never creates one. Widget
-drag and drop lives in `webui/src/components/dashboards/DashboardRow.vue`: a
-module-scoped drag session hit-tests the pointer against every registered row
-card (toolbar included, with a small snap margin between rows), publishes one
-target row + column, and the source row commits on release. SortableJS only
-detects the drag and paints the floating clone.
+overflows still wraps in the viewer; the editor just never creates one.
+
+Widget drag and drop (rows and stacks, decided 2026-11-27) has three layers:
+
+- **Session** — `webui/src/lib/widgetDrag.ts`, module scope (one drag at a
+  time). `DashboardRow.vue` registers each row card (toolbar included) and
+  the stack widget (`widgets/stack/Widget.vue`, edit mode only) registers its
+  drop zone; the component that started the drag calls `startWidgetDrag` and,
+  on release, `endWidgetDrag`, which returns the move or null (Escape, no
+  target, blocked row). It publishes one target in `dragState` for the row
+  guides and the stack's insert marker.
+- **Hit testing** — `lib/widgetDragHit.ts`, pure numbers. A stack's zone is
+  its card's whole `.widget-body` and **wins over the row while the pointer
+  is inside it**; the card header and the gaps around it target the row.
+  Otherwise the nearest row is targeted, with a small snap margin between
+  rows. A dragged stack ignores every zone (no stack in a stack).
+- **Commit** — every drop, same row included, goes through `applyWidgetMove`
+  (`lib/widgetMove.ts`) via the `WIDGET_MOVE` injection, which only
+  `DashboardEditView.vue` provides: it assigns the page's rows once per drop
+  (one autosave). Without a provider a drop does nothing.
+
+Placement rules: a row widget keeps its width (refused unless it fits); a
+widget dropped into a stack is inserted at the hovered index with the stack's
+width and no column; a child dragged out onto **any** row (its stack's own
+row included) gets `min(6, 12 − used columns)` and is blocked only when the
+row is full — the guide shows that shrunken span. A child's stored width is
+never trusted (children always render at their stack's width). SortableJS
+only detects the drag and paints the floating clone; both lists are passive
+(`:sort="false"`, `:move="() => false"`). Keyboard moves across rows or into
+and out of stacks are not built (see [features.md](features.md)).
 
 ## Current matrix (verified 2026-07-22)
 
