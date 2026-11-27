@@ -51,8 +51,12 @@ coverage-report: ## generate a coverage report
 #==========================================================================================
 ##@ Running
 #==========================================================================================
+# Editor URL for the viewer's Edit button in local dev (default editor port);
+# an existing environment value or `make run DASHI_SERVER_EDITOR_PUBLICURL=...` wins.
+DASHI_SERVER_EDITOR_PUBLICURL ?= http://localhost:8088
+
 run: ## start the GO service (uses built-in defaults; optional -c config.yaml)
-	@APP_LOG_LEVEL="debug" go run main.go start
+	@APP_LOG_LEVEL="debug" DASHI_SERVER_EDITOR_PUBLICURL="$(DASHI_SERVER_EDITOR_PUBLICURL)" go run main.go start
 
 run-ui: package-ui viewer-css run## build the UI and start the GO service
 

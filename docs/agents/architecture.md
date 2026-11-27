@@ -99,7 +99,8 @@ for the viewer's Edit button — see [viewer.md](viewer.md#edit-button).
   which the handlers turn into a **400**; the editor's save toast shows the
   reason. The store stays decoupled: it only knows the small `WidgetValidator`
   interface. Types without a validator, and unknown types, pass through. Only
-  `bookmark` and `stack` (validates children, recursively) have rules today.
+  `bookmark`, `bookmarkgroup` (the same URL rule, per item) and `stack`
+  (validates children, recursively) have rules today.
   This is defence in depth, three layers for bookmark URLs:
   1. **Save**: `bookmark.validateURL` — allowed are empty, `http://`,
      `https://` (case-insensitive) or a single-`/` path; rejected are every

@@ -4,7 +4,7 @@
         <p>Dashi supports customizing the look and feel of dashboards through themes, custom assets, and CSS overrides.</p>
 
         <h3 id="theme-themes">Themes</h3>
-        <p>A theme controls the colours and the page background of a dashboard. Each dashboard selects one through its <code>themeId</code> property. Themes are stored under <code>&lt;dataDir&gt;/data/themes/</code> and managed in the editor under <strong>Themes</strong>.</p>
+        <p>A theme controls the colours and the page background of a dashboard. Each dashboard selects one through its <code>themeId</code> property. Themes are stored under <code>&lt;dataDir&gt;/themes/</code> and managed in the editor under <strong>Themes</strong>.</p>
 
         <h4>Theme contents</h4>
         <ul>
@@ -80,7 +80,7 @@
                 <tr><td><code>--config, -c</code></td><td><code>./config.yaml</code></td><td>Path to the app config file (used to locate the data directory).</td></tr>
             </tbody>
         </table>
-        <p>The widget theme is created under <code>&lt;dataDir&gt;/data/widget_themes/&lt;name&gt;/</code>. For image themes, replace the generated SVGs in <code>widgets/weather/icons/</code> with your own. For font themes, edit <code>widget_theme.yaml</code> to set the CSS prefix, font file, and icon mappings.</p>
+        <p>The widget theme is created under <code>&lt;dataDir&gt;/widget_themes/&lt;name&gt;/</code>. For image themes, replace the generated SVGs in <code>widgets/weather/icons/</code> with your own. For font themes, edit <code>widget_theme.yaml</code> to set the CSS prefix, font file, and icon mappings.</p>
 
         <h4>Upload and download</h4>
         <p>Under <strong>Widget themes</strong> in the editor you can upload a widget theme as a zip archive, download an existing one as a zip, or delete it. The archive must contain a <code>widget_theme.yaml</code> manifest; packs from older versions that use <code>theme.yaml</code> are rejected. The built-in default cannot be deleted.</p>

@@ -38,7 +38,7 @@ describe('AdminLayout sidebar', () => {
         expect(groups).toEqual([
             { label: 'Dashboards', items: ['Dashboards'] },
             { label: 'Theming', items: ['Themes', 'Widget themes'] },
-            { label: 'Content', items: ['Notes', 'Images'] },
+            { label: 'Content', items: ['Notes', 'Images', 'Bookmarks'] },
             { label: 'Documentation', items: ['Dashboards', 'Widgets', 'Theming'] },
         ])
     })

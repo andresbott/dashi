@@ -61,6 +61,22 @@ func ImageCSS(t Theme, colorMode string) (css string, imageRef string) {
 	return v.baseValue, ""
 }
 
+// BackgroundImageURL returns the URL of colorMode's background image, as
+// BrowserCSS references it, or "" when that mode has no image (or one
+// BrowserCSS would not emit). The browser page preloads it, so the image
+// starts downloading with the HTML instead of after the theme stylesheet.
+func BackgroundImageURL(t Theme, colorMode string) string {
+	img := resolve(t.bgFor(colorMode), nil).image
+	if img == nil || validateImageEnums(img) != nil {
+		return ""
+	}
+	u, ok := RefURL(t.ID, img.Ref)
+	if !ok {
+		return ""
+	}
+	return u
+}
+
 // RefURL maps an image reference onto the HTTP route that serves it.
 func RefURL(themeID, ref string) (string, bool) {
 	scheme, path, ok := strings.Cut(ref, ":")

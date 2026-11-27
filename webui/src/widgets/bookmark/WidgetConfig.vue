@@ -1,14 +1,9 @@
 <script setup lang="ts">
-import { ref, watch, inject, computed, useId } from 'vue'
-import { DASHBOARD_ID } from '@/lib/injectionKeys'
+import { ref, watch, computed } from 'vue'
 import InputText from 'primevue/inputtext'
 import Checkbox from 'primevue/checkbox'
-import Select from 'primevue/select'
-import IconSelector from '@/components/dashboards/IconSelector.vue'
+import BookmarkIconField from './BookmarkIconField.vue'
 import type { BookmarkWidgetConfig } from './types'
-import { parseIcon, getSelfhstIconUrl, getDashboardIconUrl } from '@/lib/iconUtils'
-import type { IconType } from '@/lib/iconUtils'
-import { useDashboardAssets } from '@/composables/useDashboards'
 import { isSafeBookmarkUrl, BOOKMARK_URL_ERROR } from './url'
 
 const props = defineProps<{
@@ -19,68 +14,12 @@ const emit = defineEmits<{
     'update:config': [config: BookmarkWidgetConfig]
 }>()
 
-const dashboardId = inject(DASHBOARD_ID, ref(''))
-const iconLabelId = useId()
-
 const editUrl = ref(props.config?.url ?? '')
 const editIcon = ref(props.config?.icon ?? 'ti-bookmark')
 const editTitle = ref(props.config?.title ?? '')
 const editSubtitle = ref(props.config?.subtitle ?? '')
 const editTextBelow = ref(props.config?.textBelow ?? false)
 const editNewTab = ref(props.config?.newTab ?? false)
-
-const iconTypeOptions = [
-    { label: 'Tabler', value: 'tabler' },
-    { label: 'selfh.st', value: 'selfhst' },
-    { label: 'Dashboard asset', value: 'dashboard' },
-]
-
-const parsed = computed(() => parseIcon(editIcon.value))
-
-const iconType = computed({
-    get: () => parsed.value.type,
-    set: (v: IconType) => {
-        if (v === 'tabler') editIcon.value = 'ti-bookmark'
-        else if (v === 'selfhst') editIcon.value = 'selfhst:'
-        else if (v === 'dashboard') {
-            editIcon.value = 'dashboard:'
-        }
-        emitUpdate()
-    },
-})
-
-const selfhstFilename = computed({
-    get: () => parsed.value.type === 'selfhst' ? parsed.value.value : '',
-    set: (v: string) => {
-        editIcon.value = 'selfhst:' + v
-        emitUpdate()
-    },
-})
-
-const dashboardFilename = computed({
-    get: () => parsed.value.type === 'dashboard' ? parsed.value.value : '',
-    set: (v: string) => {
-        editIcon.value = 'dashboard:' + v
-        emitUpdate()
-    },
-})
-
-const { data: dashboardAssetsData } = useDashboardAssets(() => dashboardId.value)
-const imageExtensions = /\.(png|webp|svg|jpg|jpeg|ico|gif)$/i
-
-const dashboardAssetOptions = computed(() =>
-    (dashboardAssetsData.value ?? []).filter(a => imageExtensions.test(a)).map(a => ({ label: a, value: a }))
-)
-
-const iconPreviewSrc = computed(() => {
-    if (parsed.value.type === 'selfhst' && parsed.value.value) {
-        return getSelfhstIconUrl(parsed.value.value)
-    }
-    if (parsed.value.type === 'dashboard' && parsed.value.value && dashboardId.value) {
-        return getDashboardIconUrl(dashboardId.value, parsed.value.value)
-    }
-    return null
-})
 
 watch(() => props.config, (val) => {
     if (val) {
@@ -109,65 +48,15 @@ const emitUpdate = () => {
     })
 }
 
-const onTablerSelect = (icon: string) => {
+const onIconChange = (icon: string) => {
     editIcon.value = icon
     emitUpdate()
 }
-
-// Assets are fetched reactively via useDashboardAssets query
 </script>
 
 <template>
     <div class="flex flex-column gap-3">
-        <div class="flex flex-column gap-1">
-            <label class="text-sm font-semibold">Icon source</label>
-            <Select
-                :modelValue="iconType"
-                @update:modelValue="(v: IconType | undefined) => { if (v) iconType = v }"
-                :options="iconTypeOptions"
-                optionLabel="label"
-                optionValue="value"
-                class="w-full"
-            />
-        </div>
-        <div v-if="iconType === 'tabler'" class="flex flex-column gap-1">
-            <label :id="iconLabelId" class="text-sm font-semibold">Icon</label>
-            <IconSelector :modelValue="editIcon" :labelledBy="iconLabelId" @update:modelValue="onTablerSelect" />
-        </div>
-        <div v-if="iconType === 'selfhst'" class="flex flex-column gap-1">
-            <label class="text-sm font-semibold">Filename</label>
-            <div class="text-xs text-color-secondary mb-1">
-                Enter a filename from <a href="https://selfh.st/icons/" target="_blank">selfh.st/icons</a>,
-                e.g. <code>2fauth-light.webp</code> or <code>sonarr.png</code>
-            </div>
-            <InputText v-model="selfhstFilename" placeholder="filename.webp" @input="emitUpdate" />
-            <img
-                v-if="iconPreviewSrc"
-                :src="iconPreviewSrc"
-                class="icon-preview"
-            />
-        </div>
-        <div v-if="iconType === 'dashboard'" class="flex flex-column gap-1">
-            <label class="text-sm font-semibold">Asset</label>
-            <Select
-                v-if="dashboardAssetOptions.length > 0"
-                :modelValue="dashboardFilename"
-                @update:modelValue="(v: string | undefined) => { if (v !== undefined) dashboardFilename = v }"
-                :options="dashboardAssetOptions"
-                optionLabel="label"
-                optionValue="value"
-                placeholder="Select an image..."
-                class="w-full"
-            />
-            <div v-else class="text-xs text-color-secondary">
-                No image files found in this dashboard's assets folder.
-            </div>
-            <img
-                v-if="iconPreviewSrc"
-                :src="iconPreviewSrc"
-                class="icon-preview"
-            />
-        </div>
+        <BookmarkIconField :modelValue="editIcon" @update:modelValue="onIconChange" />
         <div class="flex flex-column gap-1">
             <label class="text-sm font-semibold">Title</label>
             <InputText v-model="editTitle" placeholder="Bookmark title" @input="emitUpdate" />
@@ -191,12 +80,3 @@ const onTablerSelect = (icon: string) => {
         </div>
     </div>
 </template>
-
-<style scoped>
-.icon-preview {
-    width: 2rem;
-    height: 2rem;
-    object-fit: contain;
-    margin-top: 0.25rem;
-}
-</style>

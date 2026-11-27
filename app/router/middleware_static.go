@@ -112,6 +112,8 @@ func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboar
 		PageNames:   pageNames,
 		Palette:     theme.Palette(colorMode),
 		EditURL:     editURL,
+
+		BackgroundURL: themes.BackgroundImageURL(theme, colorMode),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

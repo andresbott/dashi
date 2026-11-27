@@ -6,6 +6,7 @@ import {
     createDashboard,
     updateDashboard,
     deleteDashboard,
+    duplicateDashboard,
     setDefaultDashboard,
     getDashboardAssets,
     uploadDashboardZip,
@@ -37,6 +38,11 @@ export function useListDashboards() {
         onSuccess: doInvalidate
     })
 
+    const duplicateMutation = useMutation({
+        mutationFn: (id: string) => duplicateDashboard(id),
+        onSuccess: doInvalidate
+    })
+
     const uploadZipMutation = useMutation({
         mutationFn: (data: ArrayBuffer) => uploadDashboardZip(data),
         onSuccess: doInvalidate
@@ -63,6 +69,9 @@ export function useListDashboards() {
 
         deleteDashboard: deleteMutation.mutateAsync,
         isDeleting: deleteMutation.isPending,
+
+        duplicateDashboard: duplicateMutation.mutateAsync,
+        isDuplicating: duplicateMutation.isPending,
 
         uploadZip: uploadZipMutation.mutateAsync,
         isUploadingZip: uploadZipMutation.isPending,

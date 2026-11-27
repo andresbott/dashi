@@ -149,6 +149,24 @@ func (h *DashboardHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(created)
 }
 
+// Duplicate copies a dashboard (assets included, auth excluded) into a new one.
+func (h *DashboardHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+	created, err := h.store.Duplicate(id)
+	if err != nil {
+		if errors.Is(err, dashboard.ErrNotFound) || errors.Is(err, dashboard.ErrInvalidID) {
+			ErrorJSON(w, "not found", http.StatusNotFound)
+		} else {
+			h.logger.Error("duplicate dashboard", slog.String("error", err.Error()))
+			ErrorJSON(w, "internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(created)
+}
+
 func (h *DashboardHandler) ListAssets(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	assets, err := h.store.ListAssets(id)

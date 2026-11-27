@@ -376,3 +376,29 @@ func TestBrowserCSSMatchesFixture(t *testing.T) {
 		})
 	}
 }
+
+func TestBackgroundImageURL(t *testing.T) {
+	th := testTheme("BG")
+	th.ID = "abc123"
+	th.Background.Light = ModeBackground{
+		Image: &Image{Ref: "asset:bg-1.jpg", Fit: "cover", Position: "center", Repeat: "no-repeat"},
+	}
+	th.Background.Dark = ModeBackground{
+		Gradient: &Gradient{Direction: "to bottom", Stops: []string{"#000000", "#ffffff"}},
+	}
+	if got := BackgroundImageURL(th, "light"); got != "/api/v0/themes/abc123/assets/bg-1.jpg" {
+		t.Errorf("light = %q", got)
+	}
+	if got := BackgroundImageURL(th, "dark"); got != "" {
+		t.Errorf("a gradient-only mode has no image, got %q", got)
+	}
+	// BrowserCSS drops an image with a bad enum; nothing is preloaded either.
+	th.Background.Light.Image.Fit = "sideways"
+	if got := BackgroundImageURL(th, "light"); got != "" {
+		t.Errorf("invalid image must not be preloaded, got %q", got)
+	}
+	th.Background.Light.Image = &Image{Ref: "https://evil.example/x.jpg", Fit: "cover", Position: "center", Repeat: "no-repeat"}
+	if got := BackgroundImageURL(th, "light"); got != "" {
+		t.Errorf("non-asset ref must not be preloaded, got %q", got)
+	}
+}

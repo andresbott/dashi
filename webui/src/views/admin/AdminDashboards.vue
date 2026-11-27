@@ -19,6 +19,7 @@ const {
     isLoading,
     createDashboard,
     deleteDashboard,
+    duplicateDashboard,
     uploadZip,
     isUploadingZip,
     setDefaultDashboard,
@@ -112,6 +113,22 @@ const openEinkPreview = (d) => {
     router.push({ name: 'dashboard-eink-preview', params: { id: d.id }, query: { from: 'list' } })
 }
 
+// Stays on the list: the copy shows up as "<name> (copy)" and can be renamed
+// from its settings.
+const pendingDuplicateId = ref(null)
+
+const handleDuplicate = async (dashboard) => {
+    pendingDuplicateId.value = dashboard.id
+    try {
+        const created = await duplicateDashboard(dashboard.id)
+        toast.add({ severity: 'success', summary: 'Duplicated', detail: `Created "${created.name}"`, life: 3000 })
+    } catch {
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to duplicate dashboard', life: 5000 })
+    } finally {
+        pendingDuplicateId.value = null
+    }
+}
+
 const handleDownload = async (id) => {
     try {
         await downloadDashboard(id)
@@ -179,21 +196,13 @@ const handleDownload = async (id) => {
                             </span>
                         </template>
                     </Column>
-                    <Column header="Actions" style="width: 260px">
+                    <Column header="Actions" style="width: 360px">
                         <template #body="{ data }">
-                            <div class="flex flex-wrap md:flex-nowrap gap-1 justify-content-end">
-                                <!-- Leftmost, so the buttons after it line up across image and interactive rows. -->
-                                <Button
-                                    v-if="data.type === 'image'"
-                                    v-tooltip.top="'E-ink preview (PNG)'"
-                                    aria-label="E-ink preview (PNG)"
-                                    icon="ti ti-device-tablet"
-                                    text
-                                    rounded
-                                    class="p-1"
-                                    data-testid="eink-preview-button"
-                                    @click="openEinkPreview(data)"
-                                />
+                            <!--
+                                Grouped left to right: default flag | open / preview / edit |
+                                settings / duplicate / export | delete (destructive, kept last).
+                            -->
+                            <div class="flex flex-wrap md:flex-nowrap gap-1 justify-content-end align-items-center">
                                 <Button
                                     v-tooltip.top="data.default ? 'Default dashboard' : 'Make default dashboard'"
                                     :aria-label="data.default ? 'Default dashboard' : 'Make default dashboard'"
@@ -206,7 +215,12 @@ const handleDownload = async (id) => {
                                     class="p-1"
                                     @click="handleSetDefault(data)"
                                 />
+
+                                <span class="action-divider" aria-hidden="true" />
+
                                 <Button
+                                    v-tooltip.top="'Open dashboard in a new tab'"
+                                    aria-label="Open dashboard in a new tab"
                                     as="a"
                                     :href="dashboardViewUrl(data.id)"
                                     target="_blank"
@@ -215,36 +229,88 @@ const handleDownload = async (id) => {
                                     text
                                     rounded
                                     class="p-1 action-link"
+                                    data-testid="view-button"
                                 />
                                 <Button
-                                    icon="ti ti-download"
+                                    v-if="data.type === 'image'"
+                                    v-tooltip.top="'E-ink preview (PNG)'"
+                                    aria-label="E-ink preview (PNG)"
+                                    icon="ti ti-device-tablet"
                                     text
                                     rounded
                                     class="p-1"
-                                    @click="handleDownload(data.id)"
+                                    data-testid="eink-preview-button"
+                                    @click="openEinkPreview(data)"
+                                />
+                                <!-- Invisible stand-in so the columns line up across image and interactive rows. -->
+                                <Button
+                                    v-else
+                                    icon="ti ti-device-tablet"
+                                    text
+                                    rounded
+                                    class="p-1 action-placeholder"
+                                    tabindex="-1"
+                                    aria-hidden="true"
+                                    disabled
                                 />
                                 <Button
+                                    v-tooltip.top="'Edit layout and widgets'"
+                                    aria-label="Edit layout and widgets"
                                     as="a"
                                     :href="router.resolve({ name: 'dashboard-edit', params: { id: data.id } }).href"
                                     icon="ti ti-pencil"
                                     text
                                     rounded
                                     class="p-1 action-link"
+                                    data-testid="edit-button"
                                 />
+
+                                <span class="action-divider" aria-hidden="true" />
+
                                 <Button
+                                    v-tooltip.top="'Dashboard settings'"
+                                    aria-label="Dashboard settings"
                                     as="a"
                                     :href="router.resolve({ name: 'dashboard-settings', params: { id: data.id } }).href"
                                     icon="ti ti-settings"
                                     text
                                     rounded
                                     class="p-1 action-link"
+                                    data-testid="settings-button"
                                 />
                                 <Button
+                                    v-tooltip.top="'Duplicate dashboard'"
+                                    aria-label="Duplicate dashboard"
+                                    icon="ti ti-copy"
+                                    text
+                                    rounded
+                                    class="p-1"
+                                    :loading="pendingDuplicateId === data.id"
+                                    data-testid="duplicate-button"
+                                    @click="handleDuplicate(data)"
+                                />
+                                <Button
+                                    v-tooltip.top="'Export as ZIP'"
+                                    aria-label="Export as ZIP"
+                                    icon="ti ti-download"
+                                    text
+                                    rounded
+                                    class="p-1"
+                                    data-testid="export-button"
+                                    @click="handleDownload(data.id)"
+                                />
+
+                                <span class="action-divider" aria-hidden="true" />
+
+                                <Button
+                                    v-tooltip.top="'Delete dashboard'"
+                                    aria-label="Delete dashboard"
                                     icon="ti ti-trash"
                                     text
                                     rounded
                                     severity="danger"
                                     class="p-1"
+                                    data-testid="delete-button"
                                     @click="showDeleteDialog(data)"
                                 />
                             </div>
@@ -274,6 +340,17 @@ const handleDownload = async (id) => {
 /* .admin-section* and .info-message are shared: see assets/style.scss. */
 .action-link {
     text-decoration: none;
+}
+
+.action-divider {
+    width: 1px;
+    height: 1.25rem;
+    margin: 0 0.25rem;
+    background: var(--p-content-border-color);
+}
+
+.action-placeholder {
+    visibility: hidden;
 }
 
 .dashboard-type-icon {

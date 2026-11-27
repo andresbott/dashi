@@ -18,6 +18,8 @@ import (
 //go:embed browser.html
 var browserHTML string
 
+// browserTmpl holds the "link" template (one bookmark) and the "group"
+// template (the bookmarkgroup widget, a list of links).
 var browserTmpl = template.Must(template.New("bookmark-browser").Parse(browserHTML))
 
 // browserIcon is the resolved config.icon. At most one of Glyph and Src is
@@ -35,6 +37,9 @@ type browserData struct {
 	TextBelow bool
 	NewTab    bool
 	Icon      browserIcon
+	// InGroup drops the link's own negative margin: the group container
+	// carries it once, so the links' gaps stay even.
+	InGroup bool
 }
 
 // RenderBrowser renders the bookmark for the browser stack: one link
@@ -58,7 +63,7 @@ func (m *Module) RenderBrowser(config json.RawMessage, ctx widgets.RenderContext
 	}
 
 	var buf bytes.Buffer
-	if err := browserTmpl.Execute(&buf, data); err != nil {
+	if err := browserTmpl.ExecuteTemplate(&buf, "link", data); err != nil {
 		return "", fmt.Errorf("bookmark browser render: %w", err)
 	}
 	return template.HTML(buf.String()), nil

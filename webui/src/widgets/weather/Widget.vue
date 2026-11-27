@@ -17,6 +17,10 @@ const config = computed<WeatherWidgetConfig | null>(() => {
     return c
 })
 
+// The stored city up to its first comma ("Basel, Switzerland" → "Basel"),
+// as the server renders it (internal/widgets/weather/image.go cityName).
+const cityName = computed(() => (config.value?.city ?? '').split(',')[0].trim())
+
 const showCurrent = computed(() => config.value?.showCurrent ?? true)
 const showDetails = computed(() => config.value?.showDetails ?? true)
 const showForecast = computed(() => config.value?.showForecast ?? true)
@@ -166,7 +170,7 @@ const hourlySlice = computed(() => {
                         </span>
                         <span class="weather-temp">{{ formatTemp(weather.current.temperature) }}</span>
                     </div>
-                    <div class="weather-city">{{ config.city }}</div>
+                    <div class="weather-city">{{ cityName }}</div>
                     <div class="weather-desc">{{ weather.current.description }}</div>
                     <div v-if="showDetails" class="weather-details">
                         <span>Feels like {{ formatTemp(weather.current.feelsLike) }}</span>

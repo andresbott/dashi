@@ -159,7 +159,8 @@ Editor forms stay in `webui/src/widgets/{name}/`; see
 Ported widgets: **clock** (no CSS), **sysinfo** (ships `sysinfo.css`),
 **search** (no CSS, no JS: a plain GET form), **market** (inline SVG area
 chart, no CSS/JS), **weather** and **weather-compact** (no CSS/JS),
-**xkcd**, **bookmark** and **stack** (none ship CSS or JS). Battery,
+**xkcd**, **bookmark**, **bookmarkgroup** and **stack** (none ship CSS or
+JS). Battery,
 page-indicator, image, markdown and transport have not been ported and
 render through their image renderers in the browser (expected transition
 state, not a defect). Which of them still need a port is an
@@ -248,8 +249,8 @@ values through inline `style` attributes or CSS variables instead. Example:
 
 A dashboard references two independent entities: `themeId` (a **theme**:
 a palette and a page background per colour mode, `internal/themes`, stored in
-`{dataDir}/data/themes/`) and `widgetTheme` (a **widget theme**: fonts + icons,
-`internal/widgetthemes`, stored in `{dataDir}/data/widget_themes/`). Unknown,
+`{dataDir}/themes/`) and `widgetTheme` (a **widget theme**: fonts + icons,
+`internal/widgetthemes`, stored in `{dataDir}/widget_themes/`). Unknown,
 empty or dangling references fall back to `default` for both; they never error.
 
 A theme carries eleven **palette roles** for each colour mode, with CSS

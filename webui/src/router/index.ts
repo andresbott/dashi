@@ -17,6 +17,7 @@ const router = createRouter({
                 { path: '', redirect: { name: 'admin-dashboards' } },
                 { path: 'dashboards', name: 'admin-dashboards', component: () => import('@/views/admin/AdminDashboards.vue') },
                 { path: 'notes', name: 'admin-notes', component: () => import('@/views/admin/AdminNotes.vue') },
+                { path: 'bookmarks', name: 'admin-bookmarks', component: () => import('@/views/admin/AdminBookmarks.vue') },
                 { path: 'images', name: 'admin-images', component: () => import('@/views/admin/AdminImages.vue') },
                 { path: 'themes', name: 'admin-themes', component: () => import('@/views/admin/AdminThemes.vue') },
                 { path: 'themes/:id', name: 'admin-theme-edit', component: () => import('@/views/admin/AdminThemeEdit.vue') },

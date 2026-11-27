@@ -567,6 +567,26 @@ func (s *Store) ListAssets(id string) ([]string, error) {
 // ImportZip reads a zip archive containing a dashboard (dashboard.json + assets),
 // assigns a new random ID, and creates the dashboard on disk.
 func (s *Store) ImportZip(data []byte) (Dashboard, error) {
+	return s.importZip(data, nil)
+}
+
+// Duplicate copies a dashboard, assets included, into a new one named
+// "<name> (copy)". It goes through the same export/import path as a
+// download-then-upload, so the copy gets a fresh ID, is never the default,
+// and does not inherit the auth.json sidecar.
+func (s *Store) Duplicate(id string) (Dashboard, error) {
+	var buf bytes.Buffer
+	if err := s.ExportZip(id, &buf); err != nil {
+		return Dashboard{}, err
+	}
+	return s.importZip(buf.Bytes(), func(d *Dashboard) {
+		d.Name += " (copy)"
+	})
+}
+
+// importZip is ImportZip with an optional hook that adjusts the parsed
+// dashboard before it is validated and written.
+func (s *Store) importZip(data []byte, adjust func(*Dashboard)) (Dashboard, error) {
 	if err := s.ensureDir(); err != nil {
 		return Dashboard{}, fmt.Errorf("ensure dir: %w", err)
 	}
@@ -598,6 +618,9 @@ func (s *Store) ImportZip(data []byte) (Dashboard, error) {
 		return Dashboard{}, fmt.Errorf("zip does not contain %s", dashboardFile)
 	}
 
+	if adjust != nil {
+		adjust(&d)
+	}
 	if d.Name == "" {
 		return Dashboard{}, fmt.Errorf("dashboard name is required")
 	}

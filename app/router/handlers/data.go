@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/andresbott/dashi/internal/data"
+	bookmarkfiles "github.com/andresbott/dashi/internal/data/bookmarks"
 	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/data/notes"
 	"github.com/gorilla/mux"
@@ -15,16 +16,17 @@ import (
 
 const maxDataUpload = 10 << 20 // 10 MB
 
-// DataHandler exposes /api/v0/data/{notes,images} for the shared
+// DataHandler exposes /api/v0/data/{notes,images,bookmarks} for the shared
 // cross-dashboard user-data layer.
 type DataHandler struct {
-	notes  *notes.Store
-	images *images.Store
-	logger *slog.Logger
+	notes     *notes.Store
+	images    *images.Store
+	bookmarks *bookmarkfiles.Store
+	logger    *slog.Logger
 }
 
-func NewDataHandler(n *notes.Store, i *images.Store, logger *slog.Logger) *DataHandler {
-	return &DataHandler{notes: n, images: i, logger: logger}
+func NewDataHandler(n *notes.Store, i *images.Store, b *bookmarkfiles.Store, logger *slog.Logger) *DataHandler {
+	return &DataHandler{notes: n, images: i, bookmarks: b, logger: logger}
 }
 
 // RegisterRead mounts the GET endpoints on r. Intended for
@@ -36,6 +38,10 @@ func (h *DataHandler) RegisterRead(r *mux.Router) {
 
 	r.Path("/data/images").Methods(http.MethodGet).HandlerFunc(h.listImages)
 	r.Path("/data/images/{name}").Methods(http.MethodGet).HandlerFunc(h.getImage)
+
+	r.Path("/data/bookmarks").Methods(http.MethodGet).HandlerFunc(h.listBookmarkFiles)
+	r.Path("/data/bookmarks/{name}").Methods(http.MethodGet).HandlerFunc(h.getBookmarkFile)
+	r.Path("/data/bookmarks/{name}/raw").Methods(http.MethodGet).HandlerFunc(h.getBookmarkFileRaw)
 }
 
 // RegisterWrite mounts the POST/DELETE endpoints on r. Intended for
@@ -46,6 +52,10 @@ func (h *DataHandler) RegisterWrite(r *mux.Router) {
 
 	r.Path("/data/images/{name}").Methods(http.MethodPost).HandlerFunc(h.saveImage)
 	r.Path("/data/images/{name}").Methods(http.MethodDelete).HandlerFunc(h.deleteImage)
+
+	r.Path("/data/bookmarks/{name}").Methods(http.MethodPost).HandlerFunc(h.saveBookmarkFile)
+	r.Path("/data/bookmarks/{name}").Methods(http.MethodPut).HandlerFunc(h.putBookmarkFile)
+	r.Path("/data/bookmarks/{name}").Methods(http.MethodDelete).HandlerFunc(h.deleteBookmarkFile)
 }
 
 // ----- notes -----
@@ -151,6 +161,83 @@ func (h *DataHandler) deleteImage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ----- bookmark files -----
+
+func (h *DataHandler) listBookmarkFiles(w http.ResponseWriter, r *http.Request) {
+	items, err := h.bookmarks.List()
+	if err != nil {
+		h.internalErr(w, "list bookmark files", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
+// getBookmarkFile returns the parsed file, read fresh from disk so the
+// editor never works on a stale copy.
+func (h *DataHandler) getBookmarkFile(w http.ResponseWriter, r *http.Request) {
+	name := mux.Vars(r)["name"]
+	items, err := h.bookmarks.Read(name)
+	if err != nil {
+		h.dataErr(w, "get bookmark file", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"bookmarks": items})
+}
+
+func (h *DataHandler) getBookmarkFileRaw(w http.ResponseWriter, r *http.Request) {
+	name := mux.Vars(r)["name"]
+	raw, err := h.bookmarks.Get(name)
+	if err != nil {
+		h.dataErr(w, "get bookmark file raw", err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte(raw)) //nolint:gosec // G705: served as text/plain, not HTML; no XSS risk
+}
+
+func (h *DataHandler) saveBookmarkFile(w http.ResponseWriter, r *http.Request) {
+	name := mux.Vars(r)["name"]
+	r.Body = http.MaxBytesReader(w, r.Body, maxDataUpload)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		ErrorJSON(w, "failed to read body", http.StatusBadRequest)
+		return
+	}
+	if err := h.bookmarks.Save(name, string(body)); err != nil {
+		h.dataErr(w, "save bookmark file", err)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+}
+
+// putBookmarkFile saves a file from the editor's JSON form,
+// {"bookmarks": [...]}; the store writes it as YAML.
+func (h *DataHandler) putBookmarkFile(w http.ResponseWriter, r *http.Request) {
+	name := mux.Vars(r)["name"]
+	r.Body = http.MaxBytesReader(w, r.Body, maxDataUpload)
+	var body struct {
+		Bookmarks []bookmarkfiles.Item `json:"bookmarks"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		ErrorJSON(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	if err := h.bookmarks.SaveItems(name, body.Bookmarks); err != nil {
+		h.dataErr(w, "save bookmark file", err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *DataHandler) deleteBookmarkFile(w http.ResponseWriter, r *http.Request) {
+	name := mux.Vars(r)["name"]
+	if err := h.bookmarks.Delete(name); err != nil {
+		h.dataErr(w, "delete bookmark file", err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // ----- helpers -----
 
 // dataErr maps sentinel errors to HTTP status codes.
@@ -158,7 +245,7 @@ func (h *DataHandler) dataErr(w http.ResponseWriter, op string, err error) {
 	switch {
 	case errors.Is(err, data.ErrNotFound):
 		ErrorJSON(w, "not found", http.StatusNotFound)
-	case errors.Is(err, data.ErrInvalidName), errors.Is(err, data.ErrExtNotAllowed):
+	case errors.Is(err, data.ErrInvalidName), errors.Is(err, data.ErrExtNotAllowed), errors.Is(err, bookmarkfiles.ErrInvalidFile):
 		ErrorJSON(w, err.Error(), http.StatusBadRequest)
 	default:
 		h.internalErr(w, op, err)

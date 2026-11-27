@@ -25,6 +25,8 @@ func TestEditorRejectsUnsafeBookmarkURL(t *testing.T) {
 	bookmark := `{"id":"b1","type":"bookmark","width":3,"config":{"url":"javascript:alert(1)","title":"x"}}`
 	stacked := `{"id":"s1","type":"stack","width":3,"config":{"widgets":[` +
 		`{"id":"b2","type":"bookmark","config":{"url":"//evil.example","title":"x"}}]}}`
+	group := `{"id":"g1","type":"bookmarkgroup","width":6,"config":{"bookmarks":[` +
+		`{"url":"https://ok.example","title":"ok"},{"url":"javascript:alert(1)","title":"x"}]}}`
 	dashJSON := func(widget string) string {
 		return `{"name":"XSS","pages":[{"name":"Main","rows":[{"id":"r1","widgets":[` + widget + `]}]}]}`
 	}
@@ -46,6 +48,11 @@ func TestEditorRejectsUnsafeBookmarkURL(t *testing.T) {
 			name: "create with stacked bookmark", method: http.MethodPost, path: "/api/v0/dashboards",
 			body: []byte(dashJSON(stacked)), ctype: "application/json",
 			wantMsg: `stack child "b2" (bookmark)`,
+		},
+		{
+			name: "create with bookmark group", method: http.MethodPost, path: "/api/v0/dashboards",
+			body: []byte(dashJSON(group)), ctype: "application/json",
+			wantMsg: `bookmarkgroup widget "g1"`,
 		},
 		{
 			name: "update", method: http.MethodPut, path: "/api/v0/dashboards/" + ids["plain"],
