@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
+import AlignmentPicker from '@/components/dashboards/AlignmentPicker.vue'
 
 import { useDashboardAuth } from '@/composables/useDashboards'
 import { useDashboardDraft } from '@/composables/useDashboardDraft'
@@ -313,32 +314,12 @@ const activeSection = ref('general')
                         />
                     </div>
                     <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Vertical Align</label>
-                        <Select
-                            v-model="localDashboard.container.verticalAlign"
-                            :options="[
-                                { label: 'Top', value: 'top' },
-                                { label: 'Center', value: 'center' },
-                                { label: 'Bottom', value: 'bottom' },
-                            ]"
-                            optionLabel="label"
-                            optionValue="value"
-                            class="w-full"
+                        <span class="font-semibold text-sm">Alignment</span>
+                        <AlignmentPicker
+                            v-model:vertical="localDashboard.container.verticalAlign"
+                            v-model:horizontal="localDashboard.container.horizontalAlign"
                         />
-                    </div>
-                    <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Horizontal Align</label>
-                        <Select
-                            v-model="localDashboard.container.horizontalAlign"
-                            :options="[
-                                { label: 'Left', value: 'left' },
-                                { label: 'Center', value: 'center' },
-                                { label: 'Right', value: 'right' },
-                            ]"
-                            optionLabel="label"
-                            optionValue="value"
-                            class="w-full"
-                        />
+                        <small class="settings-hint">Where the container sits on the screen.</small>
                     </div>
 
                 </div>

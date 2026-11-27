@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import PrimeVue from 'primevue/config'
 import Select from 'primevue/select'
 import DashboardSettingsView from './DashboardSettingsView.vue'
+import AlignmentPicker from '@/components/dashboards/AlignmentPicker.vue'
 import type { Dashboard } from '@/types/dashboard'
 import type { Palette, ThemeMeta } from '@/types/theme'
 
@@ -174,6 +175,24 @@ describe('DashboardSettingsView', () => {
             await input.setValue('75%')
             await flushPromises()
             expect(draft.value!.container.maxWidth).toBe('75%')
+        })
+    })
+
+    describe('alignment', () => {
+        it('replaces the two dropdowns with one picker writing both axes', async () => {
+            draft.value!.container.verticalAlign = 'bottom'
+            draft.value!.container.horizontalAlign = 'left'
+            const wrapper = await mountAppearance()
+            // Only theme, widget theme, colour mode and max width remain Selects.
+            expect(selects(wrapper)).toHaveLength(4)
+
+            const picker = wrapper.findComponent(AlignmentPicker)
+            expect(picker.props('vertical')).toBe('bottom')
+            expect(picker.props('horizontal')).toBe('left')
+
+            await wrapper.find('[aria-label="Top right"]').trigger('click')
+            expect(draft.value!.container.verticalAlign).toBe('top')
+            expect(draft.value!.container.horizontalAlign).toBe('right')
         })
     })
 
