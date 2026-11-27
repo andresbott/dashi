@@ -74,6 +74,7 @@ type pageData struct {
 	Rows        []rowData
 	Pages       []pageLink
 	WidgetTypes []string
+	EditURL     string // html/template escapes it and neutralises unsafe schemes
 }
 
 // pageLink is one entry in the page navigation. It is only populated for
@@ -126,6 +127,7 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 		WidgetTheme: url.PathEscape(widgetTheme),
 		CustomCSS:   template.CSS(dashboard.SanitizeCustomCSS(data.CustomCSS)), //nolint:gosec // G203: owner-uploaded stylesheet, </style> breakout neutralised
 		Pages:       buildPageLinks(data.PageIndex, data.TotalPages, data.PageNames),
+		EditURL:     data.EditURL,
 	}
 
 	present := make(map[string]bool)

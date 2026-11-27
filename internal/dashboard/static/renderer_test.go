@@ -531,6 +531,37 @@ func TestMasterTemplateHasNoWidgetSpecificCSS(t *testing.T) {
 	}
 }
 
+func TestRenderer_Render_NeverDrawsEditButton(t *testing.T) {
+	// The viewer's Edit button belongs to the interactive browser stack only;
+	// a PNG for an e-ink panel has nothing to click.
+	reg := widgets.NewRegistry()
+	reg.Register("test", func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+		return template.HTML("<p>w</p>"), nil
+	})
+	data := RenderData{
+		Name:        "Dash",
+		DashboardID: "abc123",
+		Rows: []dashboard.Row{{
+			ID:      "r1",
+			Widgets: []dashboard.Widget{{ID: "w1", Type: "test", Width: 12}},
+		}},
+		TotalPages: 1,
+	}
+	var buf bytes.Buffer
+	if err := NewRenderer(reg).Render(&buf, data); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	out := buf.String()
+	for _, banned := range []string{"Edit dashboard", "/edit", "<a "} {
+		if strings.Contains(out, banned) {
+			t.Errorf("static render must not contain %q:\n%s", banned, out)
+		}
+	}
+	if strings.Contains(masterHTML, "Edit dashboard") || strings.Contains(masterHTML, "EditURL") {
+		t.Error("master.html must not carry the viewer's edit button")
+	}
+}
+
 func TestRenderer_Render_CustomCSSComesAfterWidgetContent(t *testing.T) {
 	// litehtml collects <style> elements in document order and breaks
 	// equal-specificity ties by insertion order. Widget CSS now ships inside

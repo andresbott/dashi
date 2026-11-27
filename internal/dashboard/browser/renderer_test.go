@@ -156,6 +156,60 @@ func TestRenderAlignmentPlacesContainer(t *testing.T) {
 	}
 }
 
+func TestRenderEditButton(t *testing.T) {
+	t.Run("drawn only with an edit url", func(t *testing.T) {
+		out := render(t, NewRenderer(testRegistry(), nil), baseData())
+		if strings.Contains(out, "Edit dashboard") {
+			t.Errorf("no EditURL must draw no edit button:\n%s", out)
+		}
+	})
+
+	t.Run("links to the edit url in the same tab", func(t *testing.T) {
+		data := baseData()
+		data.EditURL = "https://editor.example/dashboards/abc123/edit"
+		out := render(t, NewRenderer(testRegistry(), nil), data)
+		for _, want := range []string{
+			`href="https://editor.example/dashboards/abc123/edit"`,
+			`aria-label="Edit dashboard"`,
+			`title="Edit dashboard"`,
+			`<svg`,
+			"print:hidden",
+		} {
+			if !strings.Contains(out, want) {
+				t.Errorf("edit button missing %q:\n%s", want, out)
+			}
+		}
+		if strings.Contains(out, "target=") {
+			t.Errorf("edit button must open in the same tab:\n%s", out)
+		}
+	})
+
+	t.Run("escapes the url", func(t *testing.T) {
+		data := baseData()
+		data.EditURL = `https://editor.example/a"onmouseover="x`
+		out := render(t, NewRenderer(testRegistry(), nil), data)
+		if strings.Contains(out, `"onmouseover="`) {
+			t.Errorf("edit url must be attribute-escaped:\n%s", out)
+		}
+	})
+
+	t.Run("rejects an unsafe scheme", func(t *testing.T) {
+		data := baseData()
+		data.EditURL = "javascript:alert(1)"
+		out := render(t, NewRenderer(testRegistry(), nil), data)
+		if strings.Contains(out, "javascript:") {
+			t.Errorf("unsafe edit url must be neutralised:\n%s", out)
+		}
+	})
+}
+
+func TestViewerCSSHidesEditButtonInPrint(t *testing.T) {
+	want := "@media print{.print\\:hidden{display:none}}"
+	if !strings.Contains(string(viewerCSS), want) {
+		t.Errorf("viewer.css missing %q; run make viewer-css", want)
+	}
+}
+
 func TestViewerCSSPlacesContainerByMargins(t *testing.T) {
 	want := ".dashi-container{margin-left:var(--dashi-container-left-margin,auto);margin-right:var(--dashi-container-right-margin,auto)}"
 	if !strings.Contains(string(viewerCSS), want) {

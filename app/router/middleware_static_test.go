@@ -212,6 +212,24 @@ func TestEditLink(t *testing.T) {
 	}
 }
 
+func TestInteractiveDashboard_EditButton(t *testing.T) {
+	dash := imageDashboard("test")
+	dash.Type = "interactive"
+	dash.ShowEditButton = true
+	handler := newTestMiddlewareWithEditor(t, "https://editor.example", dash)
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if want := `href="https://editor.example/dashboards/test/edit"`; !strings.Contains(rec.Body.String(), want) {
+		t.Errorf("expected edit button %s, body: %s", want, rec.Body.String())
+	}
+}
+
 func TestImageDashboard_BrowserPreviewHasNoEditButton(t *testing.T) {
 	dash := imageDashboard("test")
 	dash.ShowEditButton = true

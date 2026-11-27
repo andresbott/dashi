@@ -45,6 +45,17 @@
         {{- end}}
     </nav>
     {{- end}}
+    {{- /* Edit button: opens this dashboard in the editor, same tab. The
+           server only sets EditURL for interactive dashboards with the
+           setting on and an editor public URL (router.editLink). The viewer
+           loads no icon font, so the pencil is inline SVG; print:hidden keeps
+           it off paper. The image/PNG stack (static/master.html) never draws it. */}}
+    {{- if .EditURL}}
+    <a href="{{.EditURL}}" aria-label="Edit dashboard" title="Edit dashboard"
+       class="fixed right-3 bottom-3 z-50 rounded-full border border-[var(--dashi-border)] bg-[var(--dashi-surface)] p-2 text-[var(--dashi-text)] opacity-40 hover:opacity-100 focus-visible:opacity-100 print:hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    </a>
+    {{- end}}
     {{range .WidgetTypes}}
     <script type="module" src="/_dashi/widgets/{{.}}.js"></script>
     {{- end}}
