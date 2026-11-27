@@ -31,6 +31,11 @@ dist/
 
 # Node modules
 webui/node_modules/
+# Vitest cache, written when tests run from the repo root
+/node_modules/
+
+# TypeScript incremental-build cache (the project only type-checks with --noEmit)
+*.tsbuildinfo
 
 # Vite dependency cache
 webui/.vite/
