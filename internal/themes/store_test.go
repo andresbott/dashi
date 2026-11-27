@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -416,6 +417,51 @@ func TestGetMalformedThemeFails(t *testing.T) {
 	s := writeRawTheme(t, "bad", `{"id":"bad123","name":"Bad","colors":`)
 	if _, err := s.Get("bad123"); err == nil {
 		t.Fatal("expected an error for a malformed theme.json")
+	}
+}
+
+func TestListSkipsMalformedTheme(t *testing.T) {
+	s := writeRawTheme(t, "bad", `{"id":"bad123","name":"Bad","colors":`)
+	metas, err := s.List(nil)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	for _, m := range metas {
+		if m.ID == "bad123" {
+			t.Fatal("List must skip a malformed theme.json")
+		}
+	}
+}
+
+// The Banana case: a theme saved before per-mode backgrounds and the darkMode
+// flag, with only a light image.
+func TestLegacyThemeLoadsWithLightBackgroundCopiedToDark(t *testing.T) {
+	raw := `{"id":"banana1","name":"Banana","background":{"image":{"light":"asset:banana.png",` +
+		`"fit":"cover","position":"center","repeat":"no-repeat"}},"colors":{}}`
+	s := writeRawTheme(t, "banana", raw)
+	want := ModeBackground{Image: &Image{Ref: "asset:banana.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}}
+
+	got, err := s.Get("banana1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !got.DarkMode {
+		t.Error("Get: a legacy theme must load with dark mode on")
+	}
+	if !reflect.DeepEqual(got.Background.Light, want) || !reflect.DeepEqual(got.Background.Dark, want) {
+		t.Errorf("Get: want the light image in both modes, got %s", fmtBackground(got.Background))
+	}
+
+	metas, err := s.List(nil)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	m := findMeta(t, metas, "banana1")
+	if !m.DarkMode {
+		t.Error("List: a legacy theme must load with dark mode on")
+	}
+	if !strings.Contains(m.PreviewCSS, "banana.png") {
+		t.Errorf("List: preview must carry the migrated image, got %q", m.PreviewCSS)
 	}
 }
 
