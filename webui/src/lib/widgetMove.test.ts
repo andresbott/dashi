@@ -218,6 +218,34 @@ describe('applyWidgetMove', () => {
         })
     }
 
+    const noOps: { name: string; move: WidgetMove }[] = [
+        {
+            name: 'a stack child dropped back at its own index',
+            move: { source: { kind: 'stack', stackId: 's1', widgetId: 'c2' }, target: { kind: 'stack', stackId: 's1', index: 1 } },
+        },
+        {
+            name: 'a row widget dropped back at its own column',
+            move: { source: { kind: 'row', rowId: 'r1', widgetId: 's1' }, target: { kind: 'row', rowId: 'r1', column: 5 } },
+        },
+    ]
+
+    for (const c of noOps) {
+        it(`has nothing to do for ${c.name}`, () => {
+            expect(applyWidgetMove(withSecondStack(), c.move)).toBeNull()
+        })
+    }
+
+    it('still applies a same-column drop that clamps a legacy overflow row', () => {
+        // y overflows the line (columns 9..14); the drop pulls it back to 7.
+        const rows = [row('r1', [w('x', 6, 1), w('y', 6, 9)])]
+        const out = applyWidgetMove(rows, {
+            source: { kind: 'row', rowId: 'r1', widgetId: 'x' },
+            target: { kind: 'row', rowId: 'r1', column: 1 },
+        })
+        expect(out).not.toBeNull()
+        expect(out![0].widgets).toEqual([w('x', 6, 1), w('y', 6, 7)])
+    })
+
     it('never mutates its input', () => {
         const moves: WidgetMove[] = [
             ...cases.map((c) => c.move),

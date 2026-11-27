@@ -92,6 +92,15 @@ function insertIntoStack(rows: Row[], stackId: string, index: number, widget: Wi
     return replaceRow(rows, at.rowIndex, widgets)
 }
 
+// sameLayout reports whether two versions of a row hold the same widgets in
+// the same order, with the same widths and columns.
+function sameLayout(a: Widget[], b: Widget[]): boolean {
+    return (
+        a.length === b.length &&
+        a.every((w, i) => w.id === b[i].id && w.width === b[i].width && w.column === b[i].column)
+    )
+}
+
 function moveFromRow(rows: Row[], source: Extract<DragSource, { kind: 'row' }>, target: DropTarget): Row[] | null {
     const fromIndex = rows.findIndex((r) => r.id === source.rowId)
     if (fromIndex < 0) return null
@@ -101,7 +110,8 @@ function moveFromRow(rows: Row[], source: Extract<DragSource, { kind: 'row' }>, 
     const widget = fromRow.widgets[widgetIndex]
 
     if (target.kind === 'row' && target.rowId === source.rowId) {
-        return replaceRow(rows, fromIndex, clampRowToLine(moveWidgetToColumn(fromRow.widgets, widgetIndex, target.column)))
+        const widgets = clampRowToLine(moveWidgetToColumn(fromRow.widgets, widgetIndex, target.column))
+        return sameLayout(fromRow.widgets, widgets) ? null : replaceRow(rows, fromIndex, widgets)
     }
 
     if (target.kind === 'stack' && widget.type === 'stack') return null // no stack in a stack
@@ -125,6 +135,7 @@ function moveFromStack(rows: Row[], source: Extract<DragSource, { kind: 'stack' 
     const childIndex = list.findIndex((c) => c.id === source.widgetId)
     if (childIndex < 0) return null
     const child = list[childIndex]
+    if (target.kind === 'stack' && target.stackId === source.stackId && target.index === childIndex) return null
 
     const rowWidgets = [...rows[at.rowIndex].widgets]
     rowWidgets[at.widgetIndex] = withChildren(stack, list.filter((_, i) => i !== childIndex))
@@ -143,7 +154,11 @@ function moveFromStack(rows: Row[], source: Extract<DragSource, { kind: 'stack' 
 
 // applyWidgetMove returns the page's rows with the move applied, or null when
 // the move is refused (unknown ids, a stack dropped into a stack, no room in
-// the target row). It never mutates rows and accepts reactive input: rows,
+// the target row) or there is nothing to do (a child dropped back at its own
+// index, a same-row drop that leaves order, widths and columns as they were;
+// a legacy overflow row that gets clamped is a real change). Callers skip
+// the assignment on null, so a click-and-release never autosaves. It never
+// mutates rows and accepts reactive input: rows,
 // widgets and stack configs on the moved path are rebuilt, untouched rows keep
 // their identity.
 //

@@ -112,6 +112,18 @@ describe('DashboardEditView widget moves', () => {
         expect(rowsOf()[1].widgets).toEqual([w('b', 3, 4)])
     })
 
+    it('does not reassign the draft for a release that changes nothing', async () => {
+        await mountView()
+        const rows = rowsOf()
+        const changes = countChanges()
+        // A click-and-release on the handle: same row, same column.
+        moveWidget!({ source: { kind: 'row', rowId: 'r2', widgetId: 'b' }, target: { kind: 'row', rowId: 'r2', column: 1 } })
+        // A stack child dropped back at its own index.
+        moveWidget!({ source: { kind: 'stack', stackId: 's1', widgetId: 'c1' }, target: { kind: 'stack', stackId: 's1', index: 0 } })
+        expect(changes()).toBe(0)
+        expect(rowsOf()).toBe(rows)
+    })
+
     it('drops a row widget into a stack with one draft assignment', async () => {
         await mountView()
         const changes = countChanges()
