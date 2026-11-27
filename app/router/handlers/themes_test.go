@@ -80,6 +80,50 @@ func TestThemeWritesRequireDarkModeKey(t *testing.T) {
 	}
 }
 
+func TestThemeUpdateRejectsLegacyBackground(t *testing.T) {
+	r, themeStore, _ := newThemeTestRouter(t)
+	stored := mustCreateTheme(t, themeStore, "Stored")
+	rec := doJSON(t, r, http.MethodPut, "/themes/"+stored.ID, map[string]any{
+		"name":       "Legacy",
+		"darkMode":   true,
+		"colors":     themes.DefaultTheme().Colors,
+		"background": map[string]any{"gradient": map[string]any{"direction": "to bottom", "light": []string{"#fff", "#eee"}}},
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body %s", rec.Code, rec.Body)
+	}
+	if !strings.Contains(rec.Body.String(), "background") {
+		t.Errorf("expected the error to name the background, got %s", rec.Body)
+	}
+	got, err := themeStore.Get(stored.ID)
+	if err != nil || got.Name != "Stored" {
+		t.Fatalf("a rejected PUT must not change the theme, got %+v %v", got, err)
+	}
+}
+
+func TestThemeWritesRejectOversizedBody(t *testing.T) {
+	r, themeStore, _ := newThemeTestRouter(t)
+	stored := mustCreateTheme(t, themeStore, "Stored")
+	// A valid theme padded with trailing JSON whitespace past the cap, so only
+	// the size limit can reject it.
+	raw, err := json.Marshal(validTheme("Big"))
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	body := string(raw) + strings.Repeat(" ", maxThemeBody)
+	for _, c := range []struct{ method, path string }{
+		{http.MethodPost, "/themes"},
+		{http.MethodPut, "/themes/" + stored.ID},
+	} {
+		req := httptest.NewRequest(c.method, c.path, strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s %s oversized: expected 400, got %d", c.method, c.path, rec.Code)
+		}
+	}
+}
+
 func TestThemeUpdateStoresDarkModeOff(t *testing.T) {
 	r, themeStore, _ := newThemeTestRouter(t)
 	th := mustCreateTheme(t, themeStore, "Light")

@@ -1,6 +1,7 @@
 package themes
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -91,6 +92,59 @@ func TestDecodeThemeLegacyDarkCopyIsNotAliased(t *testing.T) {
 	bg.Dark.Gradient.Stops[0] = "#000"
 	if bg.Light.Gradient.Stops[0] != "#fff" {
 		t.Error("dark stops must not alias the light stops")
+	}
+}
+
+func TestDecodeRequestBackgroundShape(t *testing.T) {
+	tcs := []struct {
+		name    string
+		raw     string
+		wantErr bool
+		want    Background
+	}{
+		{
+			name:    "legacy gradient is rejected",
+			raw:     `{"darkMode":true,"background":{"gradient":{"direction":"to bottom","light":["#fff","#eee"]}}}`,
+			wantErr: true,
+		},
+		{
+			name:    "legacy image is rejected",
+			raw:     `{"darkMode":true,"background":{"image":{"light":"asset:a.png","fit":"cover"}}}`,
+			wantErr: true,
+		},
+		{
+			name:    "legacy keys next to the new shape are rejected",
+			raw:     `{"darkMode":true,"background":{"light":{},"dark":{},"image":{"light":"asset:a.png"}}}`,
+			wantErr: true,
+		},
+		{
+			name: "new shape decodes",
+			raw:  `{"darkMode":true,"background":{"light":{"image":{"ref":"asset:a.png","fit":"cover","position":"center","repeat":"no-repeat"}},"dark":{}}}`,
+			want: Background{
+				Light: ModeBackground{Image: &Image{Ref: "asset:a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}},
+			},
+		},
+		{
+			name: "no background decodes",
+			raw:  `{"darkMode":false}`,
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := DecodeRequest([]byte(tc.raw))
+			if tc.wantErr {
+				if !errors.Is(err, ErrInvalidConfig) {
+					t.Fatalf("expected ErrInvalidConfig, got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if !reflect.DeepEqual(got.Background, tc.want) {
+				t.Errorf("background:\n got %s\nwant %s", fmtBackground(got.Background), fmtBackground(tc.want))
+			}
+		})
 	}
 }
 

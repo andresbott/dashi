@@ -11,7 +11,10 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const maxThemeAssetUpload = 10 << 20 // 10 MB, same cap as other uploads
+const (
+	maxThemeAssetUpload = 10 << 20 // 10 MB, same cap as other uploads
+	maxThemeBody        = 10 << 20 // 10 MB, same cap for the theme JSON on POST/PUT
+)
 
 // ThemeHandler serves the theme entity and its assets. It holds the
 // dashboard store only to count references for the listing — the shared
@@ -83,9 +86,10 @@ func (h *ThemeHandler) Get(w http.ResponseWriter, r *http.Request) {
 // decodeThemeBody reads a POST/PUT body. It must carry the darkMode key
 // (themes.DecodeRequest), which turns away a stale SPA tab still sending the
 // pre-flag shape. Unknown keys stay allowed: the editor PUTs back the
-// builtin flag it got from GET. It answers 400 itself and reports false on
-// failure.
+// builtin flag it got from GET. A body over maxThemeBody fails the read. It
+// answers 400 itself and reports false on failure.
 func decodeThemeBody(w http.ResponseWriter, r *http.Request) (themes.Theme, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxThemeBody)
 	raw, err := io.ReadAll(r.Body)
 	if err != nil {
 		ErrorJSON(w, "failed to read body", http.StatusBadRequest)

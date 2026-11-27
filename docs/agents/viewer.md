@@ -259,7 +259,9 @@ loses nothing; `Validate` then checks only the dark roles that are set. A
 `theme.json` without the key loads with `darkMode` on (`decodeTheme` in
 `internal/themes/legacy.go`, shared by `Store.Get` and `List`). The
 `POST`/`PUT /themes` bodies must carry the key (`themes.DecodeRequest`), else
-400, which turns away stale SPA tabs sending the old shape.
+400, which turns away stale SPA tabs sending the old shape. Those bodies are
+capped at 10 MB (`maxThemeBody` in `app/router/handlers/themes.go`); a larger
+one is a 400.
 
 The background mirrors the palettes: `background.light` and `background.dark`
 are each a `ModeBackground` (optional `gradient{direction, stops}` and
@@ -279,7 +281,9 @@ direction/fit/position/repeat, and dark is a deep copy of light with the
 legacy dark stops and dark image applied on top, so the theme renders as it
 did. Nothing is written on load; the file takes the new shape on its next
 save. The migration lives only in the stored-file decoder: request bodies
-(`DecodeRequest`) must already use the new shape.
+must already use the new shape, and `DecodeRequest` answers a body with a
+legacy `background.gradient` or `background.image` key with
+`ErrInvalidConfig` (400) rather than silently dropping it.
 
 The browser stack gets the variables from `themes.BrowserCSS`, served at
 `/_dashi/theme/{id}.css` for `:root` and `:root[data-color-mode="dark"]`.

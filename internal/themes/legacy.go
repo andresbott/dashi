@@ -91,8 +91,10 @@ func (lw legacyWire) background() Background {
 // DecodeRequest decodes a theme sent by a client to create or replace one.
 // Unlike a stored file, the body must carry the darkMode key: a client that
 // omits it predates the flag and would send the old shape, so it is refused
-// with ErrInvalidConfig rather than guessed. Malformed JSON returns the
-// decoder's error unwrapped.
+// with ErrInvalidConfig rather than guessed. A background in the legacy
+// gradient/image shape is refused the same way: migration is a load-time path
+// for stored files, and decoding it as the new shape would silently drop it.
+// Malformed JSON returns the decoder's error unwrapped.
 func DecodeRequest(raw []byte) (Theme, error) {
 	t, darkMode, err := decodeWire(raw)
 	if err != nil {
@@ -100,6 +102,13 @@ func DecodeRequest(raw []byte) (Theme, error) {
 	}
 	if darkMode == nil {
 		return Theme{}, fmt.Errorf("%w: darkMode is required", ErrInvalidConfig)
+	}
+	var lw legacyWire
+	if err := json.Unmarshal(raw, &lw); err != nil {
+		return Theme{}, err
+	}
+	if lw.Background.Gradient != nil || lw.Background.Image != nil {
+		return Theme{}, fmt.Errorf("%w: background must use the light/dark shape, not gradient/image", ErrInvalidConfig)
 	}
 	t.DarkMode = *darkMode
 	return t, nil
