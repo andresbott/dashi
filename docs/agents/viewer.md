@@ -270,6 +270,17 @@ dark palette, and each mode uses its own direction, fit, position and repeat.
 Both modes may reference the same image file. `Validate` always checks both
 backgrounds, whatever `darkMode` says.
 
+Files saved before per-mode backgrounds carry the **legacy shape**
+(`background.gradient{direction, light[], dark[]}` and
+`background.image{light, dark, fit, position, repeat}`). When both new modes
+are empty, `decodeTheme` converts it in memory (`legacyWire` in
+`internal/themes/legacy.go`): light takes the light values plus the shared
+direction/fit/position/repeat, and dark is a deep copy of light with the
+legacy dark stops and dark image applied on top, so the theme renders as it
+did. Nothing is written on load; the file takes the new shape on its next
+save. The migration lives only in the stored-file decoder: request bodies
+(`DecodeRequest`) must already use the new shape.
+
 The browser stack gets the variables from `themes.BrowserCSS`, served at
 `/_dashi/theme/{id}.css` for `:root` and `:root[data-color-mode="dark"]`.
 Templates write `text-[color:var(--dashi-text)]` or
@@ -312,8 +323,9 @@ carries whole background values - `linear-gradient(...)`, `url(...)
 center/cover no-repeat` - which are invalid as a colour and are dropped
 silently. When changing this, check *what* the generated CSS says, not merely
 that CSS was generated (`TestBodyBackgroundUsesTheShorthandNotAColorUtility`
-pins it). A theme without a gradient or image has no `--dashi-page-bg`, so the
-page is simply `--dashi-bg`.
+pins it). Each colour-mode rule gets its own `--dashi-page-bg` from that
+mode's background; a mode without a gradient or image has none, so its page
+is simply `--dashi-bg`.
 
 Image backgrounds reach the browser as a **URL**, not inlined bytes:
 `themes.RefURL` maps `asset:<path>` (a file in the theme's own `assets/`) to
