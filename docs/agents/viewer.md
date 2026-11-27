@@ -363,48 +363,64 @@ browser and render caches.
 
 A background is part of its theme, not an entity of its own: there is no
 background store, list or ID, and none should be reintroduced. The theme
-editor (`webui/src/views/admin/AdminThemeEdit.vue`) delegates the whole
-background to `webui/src/components/admin/ThemeBackgroundEditor.vue` via
-`v-model:background`; the component edits it in place, so the view's
-`useAutosave` (deep watch) persists it with the rest of the theme.
+editor (`webui/src/views/admin/AdminThemeEdit.vue`) edits a local copy of
+the theme; its `useAutosave` (deep watch) persists the whole theme.
 
-The component still edits the older single-background shape (dark stops and
-dark image as optional overrides; direction, fit, position and repeat shared).
-`webui/src/lib/themeBackgroundDraft.ts` is a **temporary adapter**: the view
-seeds a draft with `toDraft(theme.background)` (light values, dark attached
-only where it differs) and, on each edit, writes `fromDraft(draft)` back
-(dark = copy of light plus the overrides). Opening a theme does not write the
-draft back, so it saves nothing. The mapping is lossy for what the old shape
-cannot express (dark-only gradient, plain dark over a light image, per-mode
-direction or fit). What the component offers is bounded by that shape:
+Layout: Name, an **Enable dark mode** checkbox bound to `darkMode`, then the
+per-mode sections. Unticked, one light set (Colours + Background) and no
+tabs; ticked, PrimeVue `Tabs` (non-lazy) with a Light and a Dark panel, each
+holding its own set. The first tick runs `seedDark`
+(`webui/src/lib/themeEditor.ts`): empty dark roles take the light value, and
+a dark background with neither gradient nor image gets a copy of the light
+gradient - never the image, so the modes never share a ref by accident.
+Unticking only hides the Dark tab; the dormant dark data stays and is saved.
+The editor always opens on Light; the right-hand preview follows the tab.
+A new theme (`AdminThemes.vue`) starts with `darkMode` false, the builtin's
+light palette and an all-empty dark palette (`emptyPalette`).
 
-- **Base**: palette `bg` or a linear gradient. Direction is edited as an angle
-  (keyword directions display as their angle and are only rewritten when the
-  slider moves). Stops are colours only, spread evenly - there are no stop
-  positions and no radial gradients in the model. Stops can be added (copy of
-  the last), removed (never below two), reordered, typed as hex or picked
-  (the picker keeps a stop's alpha); optional separate dark stops.
-- **Image**: a thumbnail grid of this theme's own assets (`asset:`),
-  filtered to the extensions `ValidateRef` accepts. The editor is the only
-  place theme images are managed: **Upload goes into the theme's own assets**
-  (copied with the theme) and selects the file; each tile has a delete button
-  (confirmation warns when the background uses the image). A deleted image
-  still referenced is flagged in the picker. Files the background does not
-  reference are pruned on a later save (see the rule above), so the grid is
-  not a long-term library. Optional separate dark image;
-  fit/position/repeat are shared by both modes.
-- **Preview**: light and dark tiles built with `previewStyle` from
-  `webui/src/lib/themeCss.ts` (the TS mirror of `BrowserCSS`), compositing
+Each mode set is two components, scoped by a `mode` prop (test ids and field
+ids carry it):
+
+- `webui/src/components/admin/ThemeColorsEditor.vue` - `v-model:palette`, a
+  picker and a hex field per role; emits a new palette, never mutates.
+- `webui/src/components/admin/ThemeBackgroundEditor.vue` - one mode's
+  `v-model:background` (`ModeBackground`), edited in place. It gets
+  `previewStyle` (from `previewStyle(theme, mode)` in
+  `webui/src/lib/themeCss.ts`, the TS mirror of `BrowserCSS`, compositing
   `--dashi-page-bg` over `--dashi-bg` the way `<body>` over `<html>` does in
-  the viewer.
+  the viewer), the parent's autosave `flush`, and emits `uploading`.
+  - **Base**: palette `bg` or a linear gradient. Direction is edited as an
+    angle (keyword directions display as their angle and are only rewritten
+    when the slider moves). Stops are colours only, spread evenly - no stop
+    positions and no radial gradients in the model. Stops can be added (copy
+    of the last), removed (never below two), reordered, typed as hex or
+    picked (the picker keeps a stop's alpha).
+  - **Image**: one slot - a thumbnail of the current `asset:` file,
+    Upload/Replace and Remove, plus this mode's fit/position/repeat (first
+    upload defaults to cover/center/no-repeat; Replace keeps them). A ref to
+    a file the theme lacks is flagged. **Remove** (ConfirmDialog) only clears
+    this mode's ref and deletes nothing: the other mode may share the file,
+    and pruning on save removes it once unreferenced. Replace swaps the ref,
+    so the old file is pruned the same way. There is no asset grid.
+  - **Upload order** (pairs with `pruneAssets` and its grace window): name
+    the file `uniqueAssetName` (`<base>-<Date.now() base36>.<ext>`, so modes
+    never overwrite each other's file and caches never go stale); `await
+    flush()`; emit `uploading(true)`; upload; emit `uploading(false)` -
+    reopening autosave **before** the ref is set; set the ref; `await
+    flush()`. A failed upload sets nothing. While `uploading` is true the
+    parent disables the **whole form** (Name, checkbox, both modes) and
+    autosave: `useAutosave` drops edits made while it is disabled, so an
+    edit typed during the upload would otherwise be lost.
 
-Client-side validity is `isValidBackground` (`themeCss.ts`), mirroring
-`validateModeBackground` on both modes for what the controls can break; the
-view also mirrors the `darkMode` palette rule (with it off only the set dark
-roles are checked); autosave
-holds while it fails. The component takes a `disabled` prop for read-only use,
-though builtin themes currently never reach the form (the view shows a
-"cannot be edited" card for them).
+Client-side validity mirrors `Theme.Validate`: the light palette in full,
+the dark palette in full only with `darkMode` on (with it off, only the set
+dark roles), and `isValidModeBackground` (`themeCss.ts`) on both modes,
+dormant dark included; autosave holds while it fails. When dark mode is off
+and the dormant dark data is invalid, the view says so ("Dark mode has
+invalid values; enable it to fix them") instead of failing silently. The
+components take a `disabled` prop for read-only use, though builtin themes
+currently never reach the form (the view shows a "cannot be edited" card
+for them).
 
 ## Responsive layout (mobile)
 
