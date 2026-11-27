@@ -5,6 +5,7 @@ import Button from 'primevue/button'
 import Card from 'primevue/card'
 import Checkbox from 'primevue/checkbox'
 import InputText from 'primevue/inputtext'
+import Panel from 'primevue/panel'
 import SelectButton from 'primevue/selectbutton'
 import Tabs from 'primevue/tabs'
 import TabList from 'primevue/tablist'
@@ -224,7 +225,9 @@ const goBack = async () => {
 
                             <!-- One set of sections per colour mode: Light and Dark tabs
                                  with dark mode on, the light set alone with it off.
-                                 Not lazy, so switching tabs keeps each mode's state. -->
+                                 Not lazy, so switching tabs keeps each mode's state,
+                                 including which of its Panels are collapsed (each
+                                 Panel keeps that itself; open at first, never saved). -->
                             <Tabs v-if="darkMode" :value="mode" @update:value="setMode">
                                 <TabList>
                                     <Tab v-for="m in MODES" :key="m.value" :value="m.value">
@@ -241,42 +244,46 @@ const goBack = async () => {
                                 </TabList>
                                 <TabPanels class="mode-panels">
                                     <TabPanel v-for="m in MODES" :key="m.value" :value="m.value" class="mode-sections">
-                                        <label class="edit-subsection">Colours</label>
-                                        <ThemeColorsEditor
-                                            v-model:palette="local.colors[m.value]"
-                                            :mode="m.value"
-                                            :disabled="editorDisabled"
-                                        />
-                                        <label class="edit-subsection">Background</label>
-                                        <ThemeBackgroundEditor
-                                            v-model:background="local.background[m.value]"
-                                            :themeId="local.id"
-                                            :mode="m.value"
-                                            :flush="flush"
-                                            :previewStyle="modePreviewStyle(m.value)"
-                                            :disabled="editorDisabled"
-                                            @uploading="(v: boolean) => (uploading = v)"
-                                        />
+                                        <Panel header="Colours" toggleable :data-testid="`section-colors-${m.value}`">
+                                            <ThemeColorsEditor
+                                                v-model:palette="local.colors[m.value]"
+                                                :mode="m.value"
+                                                :disabled="editorDisabled"
+                                            />
+                                        </Panel>
+                                        <Panel header="Background" toggleable :data-testid="`section-background-${m.value}`">
+                                            <ThemeBackgroundEditor
+                                                v-model:background="local.background[m.value]"
+                                                :themeId="local.id"
+                                                :mode="m.value"
+                                                :flush="flush"
+                                                :previewStyle="modePreviewStyle(m.value)"
+                                                :disabled="editorDisabled"
+                                                @uploading="(v: boolean) => (uploading = v)"
+                                            />
+                                        </Panel>
                                     </TabPanel>
                                 </TabPanels>
                             </Tabs>
                             <div v-else class="mode-sections">
-                                <label class="edit-subsection">Colours</label>
-                                <ThemeColorsEditor
-                                    v-model:palette="local.colors.light"
-                                    mode="light"
-                                    :disabled="editorDisabled"
-                                />
-                                <label class="edit-subsection">Background</label>
-                                <ThemeBackgroundEditor
-                                    v-model:background="local.background.light"
-                                    :themeId="local.id"
-                                    mode="light"
-                                    :flush="flush"
-                                    :previewStyle="modePreviewStyle('light')"
-                                    :disabled="editorDisabled"
-                                    @uploading="(v: boolean) => (uploading = v)"
-                                />
+                                <Panel header="Colours" toggleable data-testid="section-colors-light">
+                                    <ThemeColorsEditor
+                                        v-model:palette="local.colors.light"
+                                        mode="light"
+                                        :disabled="editorDisabled"
+                                    />
+                                </Panel>
+                                <Panel header="Background" toggleable data-testid="section-background-light">
+                                    <ThemeBackgroundEditor
+                                        v-model:background="local.background.light"
+                                        :themeId="local.id"
+                                        mode="light"
+                                        :flush="flush"
+                                        :previewStyle="modePreviewStyle('light')"
+                                        :disabled="editorDisabled"
+                                        @uploading="(v: boolean) => (uploading = v)"
+                                    />
+                                </Panel>
                             </div>
                         </div>
 
@@ -419,15 +426,6 @@ const goBack = async () => {
 
 .preview-chip-primary {
     color: var(--dashi-on-primary);
-}
-
-.edit-subsection {
-    margin-top: 0.5rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--p-text-muted-color);
 }
 
 .edit-hint {

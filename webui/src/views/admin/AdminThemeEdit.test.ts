@@ -238,6 +238,76 @@ describe('AdminThemeEdit', () => {
         })
     })
 
+    describe('collapsible sections', () => {
+        const SECTIONS = ['colors', 'background'] as const
+        type Section = (typeof SECTIONS)[number]
+
+        const panel = (wrapper: VueWrapper, section: Section, mode: string) =>
+            wrapper.find(`[data-testid="section-${section}-${mode}"]`)
+        const toggleOf = (wrapper: VueWrapper, section: Section, mode: string) =>
+            panel(wrapper, section, mode).find('button[aria-expanded]')
+        const expanded = (wrapper: VueWrapper, section: Section, mode: string) =>
+            toggleOf(wrapper, section, mode).attributes('aria-expanded') === 'true'
+        // For a section on screen: the toggle state and the content's
+        // visibility must agree.
+        const isOpen = (wrapper: VueWrapper, section: Section, mode: string) => {
+            const open = expanded(wrapper, section, mode)
+            expect(panel(wrapper, section, mode).find('[role="region"]').isVisible()).toBe(open)
+            return open
+        }
+
+        it('starts with both sections open and toggles each on its own in light-only mode', async () => {
+            const wrapper = mountView()
+            await flushPromises()
+            expect(panel(wrapper, 'colors', 'light').text()).toContain('Colours')
+            expect(panel(wrapper, 'background', 'light').text()).toContain('Background')
+            for (const s of SECTIONS) expect(isOpen(wrapper, s, 'light'), s).toBe(true)
+
+            await toggleOf(wrapper, 'colors', 'light').trigger('click')
+            expect(isOpen(wrapper, 'colors', 'light')).toBe(false)
+            expect(isOpen(wrapper, 'background', 'light')).toBe(true)
+
+            await toggleOf(wrapper, 'background', 'light').trigger('click')
+            await toggleOf(wrapper, 'colors', 'light').trigger('click')
+            expect(isOpen(wrapper, 'colors', 'light')).toBe(true)
+            expect(isOpen(wrapper, 'background', 'light')).toBe(false)
+        })
+
+        it('gives each tab its own sections, open at first, and keeps them across tab switches', async () => {
+            theme.value!.darkMode = true
+            theme.value!.colors.dark = { ...darkPalette }
+            const wrapper = mountView()
+            await flushPromises()
+            for (const s of SECTIONS) {
+                expect(isOpen(wrapper, s, 'light'), s).toBe(true)
+                expect(expanded(wrapper, s, 'dark'), s).toBe(true)
+            }
+
+            // Light tab: collapse Background only.
+            await toggleOf(wrapper, 'background', 'light').trigger('click')
+            expect(isOpen(wrapper, 'colors', 'light')).toBe(true)
+            expect(isOpen(wrapper, 'background', 'light')).toBe(false)
+            // The Dark tab's sections are untouched.
+            expect(expanded(wrapper, 'colors', 'dark')).toBe(true)
+            expect(expanded(wrapper, 'background', 'dark')).toBe(true)
+
+            // Dark tab: collapse Colours only.
+            const tabs = wrapper.findAll('[role="tab"]')
+            await tabs[1].trigger('click')
+            await toggleOf(wrapper, 'colors', 'dark').trigger('click')
+            expect(isOpen(wrapper, 'colors', 'dark')).toBe(false)
+            expect(isOpen(wrapper, 'background', 'dark')).toBe(true)
+
+            // Back and forth: each tab keeps its own state.
+            await tabs[0].trigger('click')
+            expect(isOpen(wrapper, 'colors', 'light')).toBe(true)
+            expect(isOpen(wrapper, 'background', 'light')).toBe(false)
+            await tabs[1].trigger('click')
+            expect(isOpen(wrapper, 'colors', 'dark')).toBe(false)
+            expect(isOpen(wrapper, 'background', 'dark')).toBe(true)
+        })
+    })
+
     describe('validity', () => {
         it('does not save while a role colour is half-typed, then saves once valid', async () => {
             const wrapper = mountView()

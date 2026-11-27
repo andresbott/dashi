@@ -369,7 +369,11 @@ the theme; its `useAutosave` (deep watch) persists the whole theme.
 Layout: Name, an **Enable dark mode** checkbox bound to `darkMode`, then the
 per-mode sections. Unticked, one light set (Colours + Background) and no
 tabs; ticked, PrimeVue `Tabs` (non-lazy) with a Light and a Dark panel, each
-holding its own set. The first tick runs `seedDark`
+holding its own set. Colours and Background are each a toggleable PrimeVue
+`Panel` (`section-colors-<mode>`, `section-background-<mode>`): open on
+load, collapse state kept by each Panel instance (so per tab, and kept
+across tab switches since the tabs are not lazy), never persisted. The
+first tick runs `seedDark`
 (`webui/src/lib/themeEditor.ts`): empty dark roles take the light value, and
 a dark background with neither gradient nor image gets a copy of the light
 gradient - never the image, so the modes never share a ref by accident.
