@@ -9,20 +9,25 @@ const mountPicker = (vertical?: string, horizontal?: string) =>
         props: {
             vertical: vertical as Container['verticalAlign'] | undefined,
             horizontal: horizontal as Container['horizontalAlign'] | undefined,
+            labelledBy: 'alignment-heading',
         },
         attachTo: document.body,
     })
 
 const options = (wrapper: ReturnType<typeof mountPicker>) => wrapper.findAll('[data-testid="alignment-option"]')
-const pressed = (wrapper: ReturnType<typeof mountPicker>) =>
-    options(wrapper).filter(o => o.attributes('aria-pressed') === 'true')
+const checked = (wrapper: ReturnType<typeof mountPicker>) =>
+    options(wrapper).filter(o => o.attributes('aria-checked') === 'true')
 
 describe('AlignmentPicker', () => {
-    it('shows a labelled 3x3 grid of buttons in reading order', () => {
+    it('shows a 3x3 radio group, named by the visible heading, in reading order', () => {
         const wrapper = mountPicker('top', 'left')
-        expect(wrapper.find('[role="group"]').attributes('aria-label')).toBe('Container alignment')
+        const group = wrapper.find('[role="radiogroup"]')
+        expect(group.attributes('aria-labelledby')).toBe('alignment-heading')
+        expect(group.attributes('aria-label')).toBeUndefined()
         const buttons = options(wrapper)
         expect(buttons.map(b => b.element.tagName)).toEqual(Array(9).fill('BUTTON'))
+        expect(buttons.every(b => b.attributes('role') === 'radio')).toBe(true)
+        expect(buttons.every(b => b.attributes('aria-pressed') === undefined)).toBe(true)
         expect(buttons.every(b => b.attributes('type') === 'button')).toBe(true)
         expect(buttons.map(b => b.attributes('aria-label'))).toEqual([
             'Top left', 'Top center', 'Top right',
@@ -31,14 +36,15 @@ describe('AlignmentPicker', () => {
         ])
     })
 
-    it('marks only the stored combination as pressed', () => {
+    it('marks only the stored combination as checked', () => {
         const wrapper = mountPicker('bottom', 'right')
-        expect(pressed(wrapper).map(o => o.attributes('aria-label'))).toEqual(['Bottom right'])
+        expect(options(wrapper).map(o => o.attributes('aria-checked')).filter(v => v === 'false')).toHaveLength(8)
+        expect(checked(wrapper).map(o => o.attributes('aria-label'))).toEqual(['Bottom right'])
     })
 
     it('shows the server defaults (top, centered) for missing or unknown values', () => {
-        expect(pressed(mountPicker(undefined, undefined)).map(o => o.attributes('aria-label'))).toEqual(['Top center'])
-        expect(pressed(mountPicker('middle', 'sideways')).map(o => o.attributes('aria-label'))).toEqual(['Top center'])
+        expect(checked(mountPicker(undefined, undefined)).map(o => o.attributes('aria-label'))).toEqual(['Top center'])
+        expect(checked(mountPicker('middle', 'sideways')).map(o => o.attributes('aria-label'))).toEqual(['Top center'])
     })
 
     it('writes both axes when a cell is picked', async () => {

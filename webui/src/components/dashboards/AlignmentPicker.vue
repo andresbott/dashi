@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// A 3x3 position grid that sets both container alignment axes at once. Each
-// cell is a toggle button drawn as a tiny diagram of where the container
+// A 3x3 position grid that sets both container alignment axes at once: a
+// radio group whose cells are drawn as tiny diagrams of where the container
 // lands. One tab stop (the current cell); arrow keys move focus between
-// cells and Enter/Space picks one, as for any button.
+// cells and Enter/Space picks one.
 import { computed } from 'vue'
 import type { Container } from '@/types/dashboard'
 
@@ -11,6 +11,11 @@ type Horizontal = Container['horizontalAlign']
 
 const vertical = defineModel<Vertical>('vertical')
 const horizontal = defineModel<Horizontal>('horizontal')
+
+defineProps<{
+    // id of the visible heading that names the group.
+    labelledBy: string
+}>()
 
 const VERTICAL: Vertical[] = ['top', 'center', 'bottom']
 const HORIZONTAL: Horizontal[] = ['left', 'center', 'right']
@@ -65,16 +70,17 @@ const onKeydown = (event: KeyboardEvent, index: number) => {
 
 <template>
     <div class="alignment-picker">
-        <div role="group" aria-label="Container alignment" class="alignment-grid">
+        <div role="radiogroup" :aria-labelledby="labelledBy" class="alignment-grid">
             <button
                 v-for="(cell, index) in cells"
                 :key="cell.label"
                 :ref="setButton(index)"
                 type="button"
+                role="radio"
                 class="alignment-option"
                 :class="{ selected: index === currentIndex }"
                 :aria-label="cell.label"
-                :aria-pressed="index === currentIndex ? 'true' : 'false'"
+                :aria-checked="index === currentIndex ? 'true' : 'false'"
                 :tabindex="index === currentIndex ? 0 : -1"
                 :title="cell.label"
                 data-testid="alignment-option"

@@ -81,12 +81,12 @@
                 <tr>
                     <td><code>verticalAlign</code></td>
                     <td><code>top</code> | <code>center</code> | <code>bottom</code></td>
-                    <td>Vertical alignment of content.</td>
+                    <td>Where the container sits vertically in the viewport. Missing means <code>top</code>.</td>
                 </tr>
                 <tr>
                     <td><code>horizontalAlign</code></td>
                     <td><code>left</code> | <code>center</code> | <code>right</code></td>
-                    <td>Horizontal alignment of content.</td>
+                    <td>Where the container sits horizontally in the viewport. Missing means <code>center</code>.</td>
                 </tr>
                 <tr>
                     <td><code>showBoxes</code></td>

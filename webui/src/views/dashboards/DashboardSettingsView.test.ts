@@ -201,6 +201,13 @@ describe('DashboardSettingsView', () => {
             expect(draft.value!.container.verticalAlign).toBe('top')
             expect(draft.value!.container.horizontalAlign).toBe('right')
         })
+
+        it('names the picker by its visible Alignment heading', async () => {
+            const wrapper = await mountAppearance()
+            const heading = wrapper.findAll('span').find(s => s.text() === 'Alignment')!
+            expect(heading.attributes('id')).toBeTruthy()
+            expect(wrapper.find('[role="radiogroup"]').attributes('aria-labelledby')).toBe(heading.attributes('id'))
+        })
     })
 
     it('shows a known theme and widget theme as stored', async () => {

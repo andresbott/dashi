@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, useId } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
@@ -25,6 +25,8 @@ const { draft: localDashboard, isLoading, isError, saveStatus, hasUnsaved, flush
 const { themes: themeList } = useListThemes()
 const { data: widgetThemeList } = useWidgetThemes()
 const { auth: dashAuth, isLoadingAuth, setAuth, isSettingAuth, deleteAuth, isDeletingAuth } = useDashboardAuth(() => id.value)
+
+const alignmentLabelId = useId()
 
 const authUsername = ref('')
 const authPassword = ref('')
@@ -314,8 +316,9 @@ const activeSection = ref('general')
                         />
                     </div>
                     <div class="flex flex-column gap-1">
-                        <span class="font-semibold text-sm">Alignment</span>
+                        <span :id="alignmentLabelId" class="font-semibold text-sm">Alignment</span>
                         <AlignmentPicker
+                            :labelledBy="alignmentLabelId"
                             v-model:vertical="localDashboard.container.verticalAlign"
                             v-model:horizontal="localDashboard.container.horizontalAlign"
                         />
