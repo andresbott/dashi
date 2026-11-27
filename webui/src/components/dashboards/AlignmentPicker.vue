@@ -1,9 +1,10 @@
 <script setup lang="ts">
 // A 3x3 position grid that sets both container alignment axes at once: a
 // radio group whose cells are drawn as tiny diagrams of where the container
-// lands. One tab stop (the current cell); arrow keys move focus between
-// cells and Enter/Space picks one.
-import { computed } from 'vue'
+// lands. One tab stop (the current cell); per the ARIA radio-group pattern,
+// arrow keys move focus and select the cell they land on, and Enter/Space or
+// a click picks one.
+import { computed, nextTick } from 'vue'
 import type { Container } from '@/types/dashboard'
 
 type Vertical = Container['verticalAlign']
@@ -58,13 +59,17 @@ const MOVES: Record<string, [number, number]> = {
     ArrowRight: [0, 1],
 }
 
-const onKeydown = (event: KeyboardEvent, index: number) => {
+const onKeydown = async (event: KeyboardEvent, index: number) => {
     const move = MOVES[event.key]
     if (!move) return
     event.preventDefault()
     const row = Math.min(2, Math.max(0, Math.floor(index / 3) + move[0]))
     const col = Math.min(2, Math.max(0, (index % 3) + move[1]))
-    buttons[row * 3 + col]?.focus()
+    const target = row * 3 + col
+    pick(cells[target])
+    // Focus once the re-render has made the target the tab stop.
+    await nextTick()
+    buttons[target]?.focus()
 }
 </script>
 

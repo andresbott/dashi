@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import AlignmentPicker from './AlignmentPicker.vue'
 import type { Container } from '@/types/dashboard'
 
@@ -81,8 +81,24 @@ describe('AlignmentPicker', () => {
         await buttons[2].trigger('keydown', { key: 'ArrowDown' })
         await buttons[5].trigger('keydown', { key: 'ArrowLeft' })
         expect(focused()).toBe('Center')
-        // Moving focus alone does not change the value.
-        expect(wrapper.emitted('update:vertical')).toBeUndefined()
+        // Non-arrow keys do nothing.
+        await buttons[4].trigger('keydown', { key: 'a' })
+        expect(focused()).toBe('Center')
+        wrapper.unmount()
+    })
+
+    it('selects the cell an arrow key moves to and makes it the focused tab stop', async () => {
+        const wrapper = mountPicker('top', 'center')
+        await options(wrapper)[1].trigger('keydown', { key: 'ArrowRight' })
+        expect(wrapper.emitted('update:horizontal')).toEqual([['right']])
+        expect(wrapper.emitted('update:vertical')).toBeUndefined() // unchanged axis
+
+        await wrapper.setProps({ vertical: 'top', horizontal: 'right' })
+        await flushPromises()
+        const buttons = options(wrapper)
+        expect(document.activeElement?.getAttribute('aria-label')).toBe('Top right')
+        expect(checked(wrapper).map(o => o.attributes('aria-label'))).toEqual(['Top right'])
+        expect(buttons.map(b => b.attributes('tabindex'))).toEqual(['-1', '-1', '0', '-1', '-1', '-1', '-1', '-1', '-1'])
         wrapper.unmount()
     })
 })
