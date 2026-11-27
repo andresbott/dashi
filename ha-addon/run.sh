@@ -15,6 +15,13 @@ export DASHI_SERVER_VIEWER_PORT="$(bashio::config 'viewer_port')"
 if bashio::config.has_value 'viewer_public_url'; then
     export DASHI_SERVER_VIEWER_PUBLICURL="$(bashio::config 'viewer_public_url')"
 fi
+# The editor sits behind ingress, so its browser URL cannot be derived; the
+# viewer's per-dashboard Edit button only appears once it is set.
+if bashio::config.has_value 'editor_public_url'; then
+    export DASHI_SERVER_EDITOR_PUBLICURL="$(bashio::config 'editor_public_url')"
+else
+    bashio::log.info "Edit buttons on viewer dashboards are off: set editor_public_url, e.g. <HA URL>/hassio/ingress/$(bashio::addon.slug)"
+fi
 
 bashio::log.info "Starting Dashi: editor via ingress (:8099), viewer on :${DASHI_SERVER_VIEWER_PORT}"
 exec /usr/bin/dashi start

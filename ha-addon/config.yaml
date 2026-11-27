@@ -19,7 +19,9 @@ options:
   log_level: info
   viewer_port: 8087
   viewer_public_url: ""
+  editor_public_url: ""
 schema:
   log_level: list(trace|debug|info|notice|warning|error|fatal)
   viewer_port: port
   viewer_public_url: str?
+  editor_public_url: str?
