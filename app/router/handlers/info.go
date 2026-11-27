@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 )
@@ -14,7 +13,10 @@ import (
 type PublicViewer struct {
 	Enabled bool
 	Port    int
-	BaseURL string // explicit public URL; wins over deriving one from the request
+	// BaseURL is the explicit public URL, already normalized at config load
+	// (http/https only, no trailing slash); it is used verbatim and wins over
+	// deriving one from the request.
+	BaseURL string
 }
 
 // InfoHandler serves the runtime facts the admin SPA needs at init time. The
@@ -53,7 +55,7 @@ func (h *InfoHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 // viewerURL returns the browser-reachable base URL of the viewer server,
-// without a trailing slash. An explicit BaseURL wins; otherwise the URL is
+// without a trailing slash. An explicit BaseURL wins verbatim; otherwise the URL is
 // derived from the request host with the viewer port swapped in — which is
 // what makes both `vite dev` (same host, /api proxied to the editor) and a
 // plain two-port deployment work with no configuration at all.
@@ -64,27 +66,13 @@ func (h *InfoHandler) viewerURL(r *http.Request) string {
 		return ""
 	}
 	if h.viewer.BaseURL != "" {
-		return normalizeBaseURL(h.viewer.BaseURL)
+		return h.viewer.BaseURL
 	}
 	host := requestHost(r)
 	if host == "" || h.viewer.Port <= 0 {
 		return ""
 	}
 	return requestScheme(r) + "://" + net.JoinHostPort(host, strconv.Itoa(h.viewer.Port))
-}
-
-// normalizeBaseURL validates a configured public URL and strips its trailing
-// slash. Anything that is not an absolute http/https URL is dropped rather
-// than handed to the SPA.
-func normalizeBaseURL(raw string) string {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || u.Host == "" {
-		return ""
-	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return ""
-	}
-	return strings.TrimSuffix(u.Scheme+"://"+u.Host+u.Path, "/")
 }
 
 // requestHost returns the hostname the client used, without a port.

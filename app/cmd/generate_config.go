@@ -47,6 +47,11 @@ Server:
     BindIp: ""
     # Port to listen on.
     Port: 8088
+    # URL browsers use to reach the editor, e.g. "https://edit.example.com" or,
+    # behind Home Assistant ingress, "<HA URL>/hassio/ingress/<addon slug>".
+    # Never derived: leave empty and the viewer shows no Edit button, even on
+    # dashboards that enable it.
+    PublicUrl: ""
 
 # -----------------------------------------------------------------------------
 # Observability — metrics / health-check HTTP server

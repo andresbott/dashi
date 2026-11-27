@@ -39,18 +39,19 @@ func TestInfoHandlerViewerURL(t *testing.T) {
 			wantURL: "http://[::1]:8087",
 		},
 		{
-			name:    "explicit public url wins and loses trailing slash",
-			viewer:  PublicViewer{Enabled: true, Port: 8087, BaseURL: "https://dash.example.com/"},
+			name:    "explicit public url wins",
+			viewer:  PublicViewer{Enabled: true, Port: 8087, BaseURL: "https://dash.example.com"},
 			host:    "localhost:8088",
 			wantOn:  true,
 			wantURL: "https://dash.example.com",
 		},
 		{
-			name:    "non http public url is dropped",
-			viewer:  PublicViewer{Enabled: true, Port: 8087, BaseURL: "javascript:alert(1)"},
+			// Normalization happens once at config load (app/cmd/config.go).
+			name:    "explicit public url used verbatim",
+			viewer:  PublicViewer{Enabled: true, Port: 8087, BaseURL: "https://ha.example.com/dash/"},
 			host:    "localhost:8088",
 			wantOn:  true,
-			wantURL: "",
+			wantURL: "https://ha.example.com/dash/",
 		},
 		{
 			name:    "forwarded proto and host",
