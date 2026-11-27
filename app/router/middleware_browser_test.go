@@ -26,10 +26,11 @@ var (
 	sharedTestDeps *sharedDeps
 )
 
-// newTestViewerWithDashboards returns a viewer handler with two dashboards
-// (one plain, one image). The handler and dashboards are built once per test
-// binary and reused across all tests to avoid prometheus metrics collision.
-// All four tests using this helper are read-only GETs, so sharing is safe.
+// newTestViewerWithDashboards returns a viewer handler with a set of fixture
+// dashboards (plain, image, themed, multi-page, search, ...) keyed by name in
+// the returned map. The handler and dashboards are built once per test binary
+// and reused across all tests to avoid prometheus metrics collision. Every
+// test using this helper only issues read-only GETs, so sharing is safe.
 func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string) {
 	t.Helper()
 
@@ -439,8 +440,11 @@ func TestBrowserSearchWidgetRendersAForm(t *testing.T) {
 			t.Errorf("search widget missing %q:\n%s", want, truncate(body))
 		}
 	}
-	if strings.Contains(body, "widget-search-placeholder") {
-		t.Errorf("search widget still renders the empty placeholder:\n%s", truncate(body))
+	// "search-placeholder" matches both the image stack's fake input
+	// (image.html) and the old empty <div class="widget-search-placeholder">,
+	// so it fails if the browser path falls back to either.
+	if strings.Contains(body, "search-placeholder") {
+		t.Errorf("search widget renders the image-stack placeholder, not the browser form:\n%s", truncate(body))
 	}
 }
 
