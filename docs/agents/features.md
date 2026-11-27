@@ -15,6 +15,7 @@ Statuses verified against the code on 2026-07-22.
 | Asset upload/list/delete | Implemented | store asset methods; 10MB cap, extension allowlist incl. `.md` |
 | Custom CSS sidecar | Implemented | `Store.GetCustomCSS` (`custom.css` per dashboard) |
 | Multi-page + tab navigation | Implemented | `Page` type; `?page=N` for image mode |
+| Edit button on the rendered dashboard | Implemented (2026-11-27; SPA toggle landing separately) | `Dashboard.ShowEditButton` (`showEditButton`, off by default); General-section toggle in `DashboardSettingsView.vue`, interactive dashboards only. Needs `Server.Editor.PublicUrl` (HA add-on: `editor_public_url`) — never derived, so no URL means no button. Link built in `editLink` (`app/router/middleware_static.go`), drawn by `page.html`; never on image dashboards or PNG output. Whether HA ingress forwards the `/dashboards/<id>/edit` sub-path is unverified (else it lands on the editor home). See [viewer.md](viewer.md#edit-button) |
 
 ## Widgets
 

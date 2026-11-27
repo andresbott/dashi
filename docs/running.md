@@ -41,6 +41,24 @@ dashi config
 Behind a reverse proxy, set `Server.Viewer.PublicUrl` so the editor links to
 the right viewer URL.
 
+`Server.Editor.PublicUrl` (`DASHI_SERVER_EDITOR_PUBLICURL`) is the URL
+browsers use to reach the editor, e.g. `https://edit.example.com`. It is never
+guessed, and it is needed for the **Edit** button: a dashboard with the Edit
+button setting turned on (dashboard settings, General section; interactive
+dashboards only)
+shows the button in the viewer, linking to
+`<Server.Editor.PublicUrl>/dashboards/<id>/edit`. Left empty, or with the
+editor disabled, no button is drawn. Image dashboards never get one, and it
+never appears in PNG output.
+
+Both public URLs must be absolute `http://` or `https://` URLs; a trailing
+slash is removed, and any other value is ignored with a warning at startup.
+
+The editor has no login of its own. Set `Server.Editor.PublicUrl` only when
+the editor is behind something that authenticates users (a reverse proxy with
+auth, Home Assistant ingress): the button hands its address to everyone who
+can open the dashboard.
+
 ## Running as a systemd user service
 
 Run Dashi as a systemd user service so it starts automatically at login.

@@ -58,8 +58,33 @@ image renderer when viewed in a browser (see Registry section below).
 - Rows and cells using Tailwind flex/grid with `data-color-mode` on `<html>`.
   Row height and cell width/offset are handed over as CSS variables, not
   inline declarations (see [Responsive layout](#responsive-layout-mobile))
+- the optional Edit button (see [Edit button](#edit-button)), just before the
+  scripts
 - `<script type="module" src="/_dashi/widgets/{type}.js">` once per widget type
   present on the page that ships JS
+
+### Edit button
+
+A dashboard with `ShowEditButton` (`showEditButton` in `dashboard.json`,
+omitted when false; the SPA's General-section toggle, shown for interactive
+dashboards only) gets a fixed bottom-right `<a>` that opens it in the editor.
+The link is built **server-side**: `editLink` in
+`app/router/middleware_static.go` returns
+`<Server.Editor.PublicUrl>/dashboards/<url.PathEscape(id)>/edit`, or `""` when
+the dashboard is `Type == "image"` (empty/legacy type counts as interactive),
+the flag is off, or there is no editor public URL (unset, or editor disabled).
+It reaches the template as `RenderData.EditURL`; `page.html` draws the button
+only when that is non-empty.
+
+- Same tab, `aria-label`/`title` "Edit dashboard", inline SVG pencil (the
+  viewer loads no icon font), dimmed until hover/focus, `print:hidden`.
+- Drawn on both servers' renders (the editor serves the same middleware); the
+  link points at the editor public URL either way.
+- The image/PNG stack (`internal/dashboard/static/master.html`) never draws it,
+  and an image dashboard opened in a browser gets none either (tests in
+  `app/router/middleware_static_test.go`, `browser/renderer_test.go`,
+  `static/renderer_test.go`).
+- After touching the button's classes run `make viewer-css`.
 
 Widget HTML is rendered server-side by Go with **values already filled in from
 the warm client cache** at page-load time. JavaScript only keeps those values
