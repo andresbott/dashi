@@ -26,7 +26,6 @@ vi.mock('@/composables/useThemes', () => ({
     useThemeAssets: () => ({
         assets: ref(['sky.png']),
         uploadAsset,
-        deleteAsset: vi.fn(),
         isUploadingAsset: ref(false),
     }),
 }))
@@ -196,6 +195,26 @@ describe('AdminThemeEdit', () => {
             expect(wrapper.find('[data-testid="image-dark-thumb"]').exists()).toBe(false)
         })
 
+        it('marks the tab of an invalid mode, and clears it once fixed', async () => {
+            theme.value!.darkMode = true
+            theme.value!.colors.dark = { ...darkPalette }
+            const wrapper = mountView()
+            await flushPromises()
+            expect(wrapper.findAll('[role="tab"]')[0].attributes('aria-selected')).toBe('true')
+            expect(wrapper.find('[data-testid="tab-invalid-light"]').exists()).toBe(false)
+            expect(wrapper.find('[data-testid="tab-invalid-dark"]').exists()).toBe(false)
+
+            await wrapper.find('#color-dark-text').setValue('#12')
+            const marker = wrapper.find('[data-testid="tab-invalid-dark"]')
+            expect(marker.exists()).toBe(true)
+            expect(marker.attributes('aria-label')).toBeTruthy()
+            expect(wrapper.findAll('[role="tab"]')[1].find('[data-testid="tab-invalid-dark"]').exists()).toBe(true)
+            expect(wrapper.find('[data-testid="tab-invalid-light"]').exists()).toBe(false)
+
+            await wrapper.find('#color-dark-text').setValue('#123456')
+            expect(wrapper.find('[data-testid="tab-invalid-dark"]').exists()).toBe(false)
+        })
+
         it('flags invalid dormant dark values while dark mode is off', async () => {
             theme.value!.colors.dark = { primary: 'red' } as Palette
             const wrapper = mountView()
@@ -301,10 +320,9 @@ describe('AdminThemeEdit', () => {
             await surface.setValue('#ffffff80')
 
             const pickers = wrapper.findAllComponents(ColorPicker)
-            // Separate ticks, as real picker events are: ThemeColorsEditor
-            // emits a whole palette built from its current prop.
+            // Same tick: ThemeColorsEditor writes each role into the bound
+            // palette, so neither edit overwrites the other.
             pickers[0].vm.$emit('update:modelValue', '112233') // bg
-            await flushPromises()
             pickers[1].vm.$emit('update:modelValue', '445566') // surface
             await flushPromises()
             expect(bg.element.value).toBe('#112233')

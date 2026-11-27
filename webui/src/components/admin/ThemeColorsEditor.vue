@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // ThemeColorsEditor edits one colour mode's palette: a picker and a hex field
-// per role. It emits a new palette on each edit (v-model:palette) and never
-// mutates the one it was given.
+// per role. Edits write into the bound palette in place (v-model:palette), as
+// ThemeBackgroundEditor does with its background, so several edits in one
+// tick all land: bind a reactive palette.
 import InputText from 'primevue/inputtext'
 import ColorPicker from 'primevue/colorpicker'
 
@@ -41,7 +42,7 @@ const fieldId = (role: PaletteRole) => `color-${props.mode}-${role}`
 
 const setRole = (role: PaletteRole, value: string) => {
     if (props.disabled) return
-    palette.value = { ...palette.value, [role]: value }
+    palette.value[role] = value
 }
 
 // ColorPicker understands only six-digit hex: expand #rgb and drop the alpha

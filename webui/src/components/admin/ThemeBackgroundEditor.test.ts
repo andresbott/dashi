@@ -9,11 +9,10 @@ import type { ModeBackground } from '@/types/theme'
 
 const assets = ref<string[] | undefined>([])
 const uploadAsset = vi.fn()
-const deleteAsset = vi.fn()
 const toastAdd = vi.fn()
 
 vi.mock('@/composables/useThemes', () => ({
-    useThemeAssets: () => ({ assets, uploadAsset, deleteAsset, isUploadingAsset: ref(false) }),
+    useThemeAssets: () => ({ assets, uploadAsset, isUploadingAsset: ref(false) }),
 }))
 vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: toastAdd }) }))
 
@@ -231,7 +230,7 @@ describe('ThemeBackgroundEditor', () => {
             expect(bg.image).toEqual({ ref: `asset:sky-${STAMP}.jpg`, fit: 'contain', position: 'top', repeat: 'repeat' })
         })
 
-        it('Remove asks first, then clears only the image and deletes no file', async () => {
+        it('Remove asks first, then clears only the image', async () => {
             const { wrapper, bg } = mountEditor({ ...gradient(), ...image('asset:sky.jpg') })
             await wrapper.find('[data-testid="image-light-remove"]').trigger('click')
             const dialog = wrapper.findComponent(ConfirmDialog)
@@ -242,7 +241,6 @@ describe('ThemeBackgroundEditor', () => {
             await flushPromises()
             expect(bg.image).toBeUndefined()
             expect(bg.gradient?.stops).toHaveLength(3)
-            expect(deleteAsset).not.toHaveBeenCalled()
         })
 
         it('calls out an image file that no longer exists', () => {

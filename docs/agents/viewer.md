@@ -382,7 +382,8 @@ Each mode set is two components, scoped by a `mode` prop (test ids and field
 ids carry it):
 
 - `webui/src/components/admin/ThemeColorsEditor.vue` - `v-model:palette`, a
-  picker and a hex field per role; emits a new palette, never mutates.
+  picker and a hex field per role; writes each role into the bound palette
+  in place (so several edits in one tick all land).
 - `webui/src/components/admin/ThemeBackgroundEditor.vue` - one mode's
   `v-model:background` (`ModeBackground`), edited in place. It gets
   `previewStyle` (from `previewStyle(theme, mode)` in
@@ -417,7 +418,10 @@ the dark palette in full only with `darkMode` on (with it off, only the set
 dark roles), and `isValidModeBackground` (`themeCss.ts`) on both modes,
 dormant dark included; autosave holds while it fails. When dark mode is off
 and the dormant dark data is invalid, the view says so ("Dark mode has
-invalid values; enable it to fix them") instead of failing silently. The
+invalid values; enable it to fix them") instead of failing silently. With
+dark mode on, each tab header carries a red alert icon
+(`tab-invalid-<mode>`) while that mode is invalid, so a broken field in the
+closed tab is still found. The
 components take a `disabled` prop for read-only use, though builtin themes
 currently never reach the form (the view shows a "cannot be edited" card
 for them).

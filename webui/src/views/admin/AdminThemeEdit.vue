@@ -128,6 +128,8 @@ const darkValid = computed(() => {
     return roles.every(roleOk) && isValidModeBackground(t.background.dark)
 })
 
+const modeValid = computed<Record<Mode, boolean>>(() => ({ light: lightValid.value, dark: darkValid.value }))
+
 const isValid = computed(() => !!local.value && !nameInvalid.value && lightValid.value && darkValid.value)
 
 // Dormant dark data that the server would reject blocks every save, yet with
@@ -225,7 +227,17 @@ const goBack = async () => {
                                  Not lazy, so switching tabs keeps each mode's state. -->
                             <Tabs v-if="darkMode" :value="mode" @update:value="setMode">
                                 <TabList>
-                                    <Tab v-for="m in MODES" :key="m.value" :value="m.value">{{ m.label }}</Tab>
+                                    <Tab v-for="m in MODES" :key="m.value" :value="m.value">
+                                        {{ m.label }}
+                                        <!-- Points to the tab to fix while another one is open. -->
+                                        <i
+                                            v-if="!modeValid[m.value]"
+                                            class="ti ti-alert-circle tab-invalid"
+                                            role="img"
+                                            :aria-label="`${m.label} has invalid values`"
+                                            :data-testid="`tab-invalid-${m.value}`"
+                                        />
+                                    </Tab>
                                 </TabList>
                                 <TabPanels class="mode-panels">
                                     <TabPanel v-for="m in MODES" :key="m.value" :value="m.value" class="mode-sections">
@@ -423,6 +435,11 @@ const goBack = async () => {
 }
 
 .edit-warning {
+    color: var(--p-red-500);
+}
+
+.tab-invalid {
+    margin-left: 0.35rem;
     color: var(--p-red-500);
 }
 </style>
