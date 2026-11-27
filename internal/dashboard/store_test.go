@@ -779,6 +779,76 @@ func TestStore_ExportZip_NotFound(t *testing.T) {
 	}
 }
 
+func TestStore_Duplicate(t *testing.T) {
+	dir := t.TempDir()
+	store := NewStore(dir)
+
+	original, err := store.Create(Dashboard{
+		ID:        "dup00001",
+		Name:      "Kitchen",
+		Icon:      "ti-home",
+		Default:   true,
+		Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"},
+		Pages:     []Page{{Name: "main", Rows: []Row{}}},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := store.SaveAsset(original.ID, "bg.jpg", []byte("jpegdata")); err != nil {
+		t.Fatalf("save asset: %v", err)
+	}
+	if err := store.SetAuth(original.ID, "viewer", "$2a$10$fakehash"); err != nil {
+		t.Fatalf("set auth: %v", err)
+	}
+
+	dup, err := store.Duplicate(original.ID)
+	if err != nil {
+		t.Fatalf("duplicate: %v", err)
+	}
+	if dup.ID == original.ID {
+		t.Fatal("expected duplicate to get a new ID")
+	}
+	if dup.Name != "Kitchen (copy)" {
+		t.Errorf("name = %q, want %q", dup.Name, "Kitchen (copy)")
+	}
+	if dup.Default {
+		t.Error("duplicate must not be the default dashboard")
+	}
+	if len(dup.Pages) != 1 || dup.Pages[0].Name != "main" {
+		t.Errorf("pages not copied: %+v", dup.Pages)
+	}
+
+	assets, err := store.ListAssets(dup.ID)
+	if err != nil {
+		t.Fatalf("list assets: %v", err)
+	}
+	if len(assets) != 1 || assets[0] != "bg.jpg" {
+		t.Errorf("assets = %v, want [bg.jpg]", assets)
+	}
+	auth, err := store.GetAuth(dup.ID)
+	if err != nil {
+		t.Fatalf("get auth: %v", err)
+	}
+	if auth != nil {
+		t.Error("duplicate must not inherit auth")
+	}
+
+	got, err := store.Get(original.ID)
+	if err != nil {
+		t.Fatalf("get original: %v", err)
+	}
+	if got.Name != "Kitchen" || !got.Default {
+		t.Errorf("original changed: name=%q default=%v", got.Name, got.Default)
+	}
+}
+
+func TestStore_Duplicate_NotFound(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if _, err := store.Duplicate("missing01"); err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
 // zipEntries reads every file of a zip archive into a name -> content map.
 func zipEntries(t *testing.T, data []byte) map[string]string {
 	t.Helper()

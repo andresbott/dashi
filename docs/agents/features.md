@@ -9,6 +9,7 @@ Statuses verified against the code on 2026-07-22.
 |---|---|---|
 | CRUD + list | Implemented | `app/router/handlers/dashboards.go`, `internal/dashboard/store.go`; widget configs are checked on save (bookmark URLs, see Not implemented / partial) |
 | Zip export/import | Implemented | `Store.ExportZip`/`Store.ImportZip`; routes in `app/router/api_v0.go` |
+| Duplicate dashboard | Implemented | `Store.Duplicate` (export → import, named "<name> (copy)", assets copied, auth and default flag dropped); `POST /api/v0/dashboards/{id}/duplicate`; action in the admin dashboard list |
 | Default dashboard flag | Implemented | `Dashboard.Default`; viewer resolves root `/` server-side and redirects (`app/router/main.go:246-260`), falling back to first by name when none marked default |
 | Preview dashboards (`-prev` suffix) | **Removed** (earlier on this branch) | Feature and all related symbols (`DeletePreviews`, `previewSuffix`, `isPreviewID`) deleted — historical record only |
 | Per-dashboard basic auth | Implemented (viewer only) | `middleware_auth.go`; auth CRUD on editor API; settings UI `DashboardSettingsView.vue` |
@@ -22,8 +23,12 @@ Statuses verified against the code on 2026-07-22.
 
 Full matrix and how to add one: [widgets.md](widgets.md). Registered types
 (backend `app/router/main.go` + frontend `webui/src/lib/widgetRegistry.ts`):
-weather, weather-compact, bookmark, clock, battery, page-indicator, market,
-xkcd, transport (Swiss transport), sysinfo, stack, markdown, image, search.
+weather, weather-compact, bookmark, bookmarkgroup, clock, battery,
+page-indicator, market, xkcd, transport (Swiss transport), sysinfo, stack,
+markdown, image, search.
+**bookmarkgroup** holds any number of bookmarks with one shared `textBelow`,
+`newTab` and `direction` (wrapping row or column); the editor form adds,
+removes and reorders them (up/down buttons, no drag).
 **search** is a plain GET form in the browser viewer (no JS, new tab) and a
 static picture of the bar in PNGs.
 
@@ -39,14 +44,17 @@ static picture of the bar in PNGs.
 | E-ink preview page (editor + dashboards list) | Implemented (2026-11-21; the first version was a dialog, replaced by this page) | SPA route `/dashboards/:id/eink-preview` (`views/dashboards/DashboardEinkPreviewView.vue`): image left/centre, controls panel on the right (stacked below md) — device preset or custom W×H, format (`png-bw`/`png-spectra6`/`png`), rotation, page, Actual pixels, Refresh. All settings live in the query string (`preset`, `width`/`height` for custom, `format`, `rotation`, `page` 0-based, `actual=1`, `from=edit\|list`; `router.replace`, invalid values fall back to defaults), so reload/bookmark keep them; Back returns via history or to the `from` entry point. 90°/180°/270° renders are shown turned upright with a caption; the panel's PNG is unchanged. Entry points, image dashboards only: the "E-ink preview" button in `DashboardEditView.vue` (flushes pending autosave, opens on the active page) and a tablet icon in each image row of `/admin/dashboards`; an interactive dashboard opened by URL shows a message. Fetches the server PNG from the **editor's own** `GET /{id}?format=…` (no new server route, no viewer auth); nothing saved. Presets and query/rotation helpers in `webui/src/lib/einkPreview.ts`. See [rendering.md](rendering.md#viewer-and-editor-notes) |
 | Swipe navigation for displays | Implemented | `X-Action: swipe_left/right` → redirect with new `?page=` |
 | Image dashboards viewed in browser | Implemented | Image-type dashboards with no display headers render through the browser stack (see [viewer.md](viewer.md)); `serveImageHTMLPreview` was removed |
-| Themes (light/dark palette + per-mode background) | Implemented | `internal/themes`; `{dataDir}/data/themes/{name}/theme.json` + `assets/`; independent `background.light`/`background.dark` (no dark-to-light fallback) and a `darkMode` flag (off: both modes render light; files without the key load on); legacy single-background files are converted on load and rewritten on next save (see [viewer.md](viewer.md#theming-two-entities-css-variables-and-concrete-values)); builtin read-only `default` and `ember` (registry in `internal/themes/builtin.go`; `GET /themes/{id}` flags them `builtin`); copy (`POST /themes/{id}/copy`); dashboards select via `themeId`; editor `AdminThemeEdit.vue` (Enable dark mode checkbox; Light/Dark tabs only when on, each with per-mode `webui/src/components/admin/ThemeColorsEditor.vue` and single-mode `ThemeBackgroundEditor.vue`, one image slot per mode; see [viewer.md](viewer.md#editing-a-background)) |
+| Themes (light/dark palette + per-mode background) | Implemented | `internal/themes`; `{dataDir}/themes/{name}/theme.json` + `assets/`; independent `background.light`/`background.dark` (no dark-to-light fallback) and a `darkMode` flag (off: both modes render light; files without the key load on); legacy single-background files are converted on load and rewritten on next save (see [viewer.md](viewer.md#theming-two-entities-css-variables-and-concrete-values)); builtin read-only `default` and `ember` (registry in `internal/themes/builtin.go`; `GET /themes/{id}` flags them `builtin`); copy (`POST /themes/{id}/copy`); dashboards select via `themeId`; editor `AdminThemeEdit.vue` (Enable dark mode checkbox; Light/Dark tabs only when on, each with per-mode `webui/src/components/admin/ThemeColorsEditor.vue` and single-mode `ThemeBackgroundEditor.vue`, one image slot per mode; see [viewer.md](viewer.md#editing-a-background)) |
 | Mobile layout (~375px phones) | Implemented (2026-11-21) | Viewer: below 640px every row stacks into one full-width column (CSS variables in `page.html` + rules in `webui/viewer/viewer.css`). Editor SPA: below 768px the admin sidebar is a hamburger drawer, dialogs are capped to the viewport, list tables drop secondary columns, the drag grid keeps 12 columns and scrolls sideways. Breakpoints and details: [viewer.md](viewer.md#responsive-layout-mobile) |
 | Admin sidebar grouping | Implemented | `AdminLayout.vue`: **Theming** = Themes, Widget themes; **Content** = user data widgets show (Notes, Images). There is no background-images section: each theme holds its own images, managed in the theme editor |
-| Widget themes (fonts + icons) | Implemented | `internal/widgetthemes`; embedded default (Inter + Tabler); user packs `{dataDir}/data/widget_themes/{name}/widget_theme.yaml`; zip upload/download; uploads and deletes take effect without a restart in both stacks (PNG fonts re-synced via `Store.OnChange`, see [rendering.md](rendering.md#fonts)); hand-placed or CLI-created packs still need a restart; dashboards select via `widgetTheme`; old `theme.yaml` packs are rejected on upload |
+| Widget themes (fonts + icons) | Implemented | `internal/widgetthemes`; embedded default (Inter + Tabler); user packs `{dataDir}/widget_themes/{name}/widget_theme.yaml`; zip upload/download; uploads and deletes take effect without a restart in both stacks (PNG fonts re-synced via `Store.OnChange`, see [rendering.md](rendering.md#fonts)); hand-placed or CLI-created packs still need a restart; dashboards select via `widgetTheme`; old `theme.yaml` packs are rejected on upload |
 | Widget theme bootstrap CLI | Implemented | `dashi widget-theme create [name] --type image|font` (`app/cmd/widget_theme.go`) |
 
 No migration (apart from the legacy theme background shape above): old `data/backgrounds`, `data/shared-background-images`,
-`{dataDir}/themes` packs, theme image refs using the removed `shared:` scheme
+themes and widget themes left at their former `{dataDir}/data/themes` and
+`{dataDir}/data/widget_themes` paths (move them by hand to `{dataDir}/themes` and
+`{dataDir}/widget_themes`), legacy `theme.yaml` packs in `{dataDir}/themes` (skipped:
+no `theme.json`), theme image refs using the removed `shared:` scheme
 and the dashboard keys `theme`, `backgroundId`, `accentColor` are ignored; dangling references
 fall back to `default`. Details: [viewer.md](viewer.md#theming-two-entities-css-variables-and-concrete-values).
 
@@ -69,8 +77,8 @@ fall back to `default`. Details: [viewer.md](viewer.md#theming-two-entities-css-
   it. Per-dashboard basic auth is the only working auth.
 - **Widget config validation**: partial by design. The mechanism is in place
   (optional `widgets.ConfigValidator`, run by the dashboard store on create,
-  update and zip import; a rejection answers 400), but only **bookmark** (URL
-  allowlist) and **stack** (delegates to its children) declare rules. Other
+  update and zip import; a rejection answers 400), but only **bookmark** and
+  **bookmarkgroup** (URL allowlist, per item) and **stack** (delegates to its children) declare rules. Other
   widgets stay pass-through; add a validator when a widget puts config into a
   dangerous sink. See [architecture.md](architecture.md#security-model--know-the-boundaries).
 - **Keyboard moves into or out of a stack** (known debt, deferred

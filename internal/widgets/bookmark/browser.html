@@ -1,4 +1,5 @@
-<a href="{{.URL}}" class="dashi-bookmark flex min-w-0 text-[var(--dashi-text)] -mx-2 rounded-lg px-2 py-1.5 no-underline transition-colors hover:bg-[var(--dashi-text)]/10 focus-visible:bg-[var(--dashi-text)]/10 focus-visible:outline-2 focus-visible:outline-[var(--dashi-text)]/40 {{if .TextBelow}}flex-col items-center gap-2 text-center{{else}}flex-row items-center gap-3{{end}}"{{if .TextBelow}} data-text-below{{end}}{{if .NewTab}} target="_blank" rel="noopener noreferrer"{{end}}>
+{{- define "link" -}}
+<a href="{{.URL}}" class="dashi-bookmark flex min-w-0 text-[var(--dashi-text)] {{if not .InGroup}}-mx-2 {{end}}rounded-lg px-2 py-1.5 no-underline transition-colors hover:bg-[var(--dashi-text)]/10 focus-visible:bg-[var(--dashi-text)]/10 focus-visible:outline-2 focus-visible:outline-[var(--dashi-text)]/40 {{if .TextBelow}}flex-col items-center gap-2 text-center{{else}}flex-row items-center gap-3{{end}}{{if .Tile}} w-24{{end}}"{{if .TextBelow}} data-text-below{{end}}{{if .NewTab}} target="_blank" rel="noopener noreferrer"{{end}}>
     {{- with .Icon}}
     {{- if .Glyph}}
     <span class="dashi-bookmark__icon shrink-0 text-[2rem] leading-none text-[var(--dashi-text)]" style="font-family: '{{.FontFamily}}';" aria-hidden="true">{{.Glyph}}</span>
@@ -13,3 +14,12 @@
         {{- end}}
     </span>
 </a>
+{{- end -}}
+
+{{- define "group" -}}
+<div class="dashi-bookmarkgroup -mx-2 flex min-w-0 {{if .Vertical}}flex-col gap-1{{else}}flex-row flex-wrap gap-2{{end}}" data-direction="{{if .Vertical}}vertical{{else}}horizontal{{end}}">
+    {{- range .Links}}
+    {{template "link" .}}
+    {{- end}}
+</div>
+{{- end -}}

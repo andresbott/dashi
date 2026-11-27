@@ -5,6 +5,8 @@ import PrimeVue from 'primevue/config'
 import AdminDashboards from './AdminDashboards.vue'
 
 const setDefaultDashboard = vi.fn()
+const duplicateDashboard = vi.fn()
+const toastAdd = vi.fn()
 const push = vi.fn()
 const dashboards = ref<{ id: string; name: string; type?: string; default?: boolean }[]>([])
 
@@ -14,6 +16,7 @@ vi.mock('@/composables/useDashboards', () => ({
         isLoading: ref(false),
         createDashboard: vi.fn(),
         deleteDashboard: vi.fn(),
+        duplicateDashboard,
         uploadZip: vi.fn(),
         isUploadingZip: ref(false),
         setDefaultDashboard,
@@ -25,7 +28,7 @@ vi.mock('@/lib/serverInfo', () => ({ dashboardViewUrl: (id: string) => `http://v
 vi.mock('vue-router', () => ({
     useRouter: () => ({ push, resolve: () => ({ href: '/somewhere' }) }),
 }))
-vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: vi.fn() }) }))
+vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: toastAdd }) }))
 
 function mountView() {
     return mount(AdminDashboards, {
@@ -98,6 +101,72 @@ describe('AdminDashboards type icon', () => {
         expect(typeIcon(wrapper, 1).classes()).toContain('ti-photo')
         expect(typeIcon(wrapper, 1).attributes('aria-label')).toBe('Image dashboard')
         expect(typeIcon(wrapper, 2).classes()).toContain('ti-device-desktop')
+    })
+})
+
+describe('AdminDashboards action buttons', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        dashboards.value = [
+            { id: 'aaa111', name: 'Alpha', type: 'interactive' },
+            { id: 'bbb222', name: 'Bravo', type: 'image' },
+        ]
+    })
+
+    function rowButtonLabels(wrapper: ReturnType<typeof mountView>, rowIndex: number) {
+        return wrapper
+            .findAll('tbody tr')[rowIndex]
+            .findAll('button, a')
+            .filter((el) => el.attributes('aria-hidden') !== 'true')
+            .map((el) => el.attributes('aria-label'))
+    }
+
+    it('labels every action and keeps them in a stable order, delete last', () => {
+        const wrapper = mountView()
+        expect(rowButtonLabels(wrapper, 0)).toEqual([
+            'Make default dashboard',
+            'Open dashboard in a new tab',
+            'Edit layout and widgets',
+            'Dashboard settings',
+            'Duplicate dashboard',
+            'Export as ZIP',
+            'Delete dashboard',
+        ])
+        expect(rowButtonLabels(wrapper, 1)).toEqual([
+            'Make default dashboard',
+            'Open dashboard in a new tab',
+            'E-ink preview (PNG)',
+            'Edit layout and widgets',
+            'Dashboard settings',
+            'Duplicate dashboard',
+            'Export as ZIP',
+            'Delete dashboard',
+        ])
+    })
+
+    it('keeps the same number of slots on interactive and image rows so columns line up', () => {
+        const wrapper = mountView()
+        const rows = wrapper.findAll('tbody tr')
+        expect(rows[0].findAll('button, a').length).toBe(rows[1].findAll('button, a').length)
+    })
+
+    it('duplicates the clicked dashboard', async () => {
+        duplicateDashboard.mockResolvedValue({ id: 'new001', name: 'Bravo (copy)' })
+        const wrapper = mountView()
+        await wrapper.findAll('tbody tr')[1].find('[data-testid="duplicate-button"]').trigger('click')
+        await flushPromises()
+
+        expect(duplicateDashboard).toHaveBeenCalledWith('bbb222')
+        expect(toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'success' }))
+    })
+
+    it('reports a failed duplicate', async () => {
+        duplicateDashboard.mockRejectedValue(new Error('boom'))
+        const wrapper = mountView()
+        await wrapper.findAll('tbody tr')[0].find('[data-testid="duplicate-button"]').trigger('click')
+        await flushPromises()
+
+        expect(toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }))
     })
 })
 

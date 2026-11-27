@@ -87,7 +87,7 @@ describe('widget docs index', () => {
         expect(group('time')).toEqual(['clock'])
         expect(group('weather')).toEqual(['weather', 'weather-compact'])
         expect(group('information')).toEqual(['battery', 'image', 'markdown', 'market', 'sysinfo', 'transport', 'xkcd'])
-        expect(group('navigation')).toEqual(['bookmark', 'search'])
+        expect(group('navigation')).toEqual(['bookmark', 'bookmarkgroup', 'search'])
         expect(group('layout')).toEqual(['page-indicator', 'stack'])
     })
 

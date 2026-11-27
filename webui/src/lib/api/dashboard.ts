@@ -27,6 +27,13 @@ export const deleteDashboard = async (id: string): Promise<void> => {
     await apiClient.delete(`${DASHBOARD_PATH}/${id}`)
 }
 
+// duplicateDashboard copies a dashboard (assets included, auth excluded) into a
+// new one named "<name> (copy)" and returns it.
+export const duplicateDashboard = async (id: string): Promise<Dashboard> => {
+    const { data } = await apiClient.post<Dashboard>(`${DASHBOARD_PATH}/${id}/duplicate`)
+    return data
+}
+
 // setDefaultDashboard marks a dashboard as the default one. There is no
 // dedicated endpoint, so the full dashboard is read and written back; the
 // backend clears the flag on every other dashboard.

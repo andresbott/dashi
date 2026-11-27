@@ -45,7 +45,7 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 
 		// Create theme entities using the themes Store so they are properly
 		// indexed and persisted where newSharedDeps will look for them.
-		tempThemeStore := themes.NewStore(filepath.Join(dir, "data", "themes"))
+		tempThemeStore := themes.NewStore(filepath.Join(dir, "themes"))
 
 		themeImageBG, err := tempThemeStore.Create(themes.Theme{
 			Name:   "Theme Image",

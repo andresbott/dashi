@@ -1,0 +1,13 @@
+<style>
+    .widget-bookmarkgroup .bookmark-link { text-decoration: none; color: inherit; display: block; margin: 0 16px 8px 0; }
+    .widget-bookmarkgroup .bookmark-title { font-weight: 600; display: block; }
+    .widget-bookmarkgroup .bookmark-subtitle { font-size: 0.85em; color: {{.Palette.TextMuted}}; display: block; margin-top: 2px; }
+</style>
+<div class="widget-bookmarkgroup" style="display: flex; {{if .Vertical}}flex-direction: column;{{else}}flex-direction: row; flex-wrap: wrap;{{end}}">
+    {{- range .Links}}
+    <a href="{{.URL}}" class="bookmark-link">
+        <span class="bookmark-title">{{.Title}}</span>
+        {{- if .Subtitle}}<span class="bookmark-subtitle">{{.Subtitle}}</span>{{end}}
+    </a>
+    {{- end}}
+</div>

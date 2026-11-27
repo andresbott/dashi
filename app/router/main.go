@@ -123,7 +123,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	marketClient := market.NewClient(nil)
 	xkcdClient := xkcd.NewClient(filepath.Join(cfg.DataDir, "cache", "xkcd"))
 	transportClient := swisstransport.NewClient(nil)
-	widgetThemeStore := widgetthemes.NewStore(filepath.Join(cfg.DataDir, "data", "widget_themes"))
+	widgetThemeStore := widgetthemes.NewStore(filepath.Join(cfg.DataDir, "widget_themes"))
 	notesStore, err := notes.NewStore(filepath.Join(cfg.DataDir, "data", "notes"))
 	if err != nil {
 		return nil, fmt.Errorf("create notes store: %w", err)
@@ -132,7 +132,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create images store: %w", err)
 	}
-	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "data", "themes"))
+	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "themes"))
 
 	// Static dashboard rendering
 	registry := widgets.NewRegistry()
@@ -141,6 +141,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		weatherwidget.NewModule(weatherClient, widgetThemeStore, cfg.Logger),
 		weatherwidget.NewCompactModule(weatherClient, widgetThemeStore, cfg.Logger),
 		bookmarkwidget.NewModule(widgetThemeStore),
+		bookmarkwidget.NewGroupModule(widgetThemeStore),
 		clockwidget.NewModule(),
 		batterywidget.NewModule(),
 		pageindicatorwidget.NewModule(),

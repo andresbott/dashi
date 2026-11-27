@@ -1,11 +1,12 @@
 {
   "types": [
-    "battery", "bookmark", "clock", "image", "markdown", "market",
+    "battery", "bookmark", "bookmarkgroup", "clock", "image", "markdown", "market",
     "page-indicator", "search", "stack", "sysinfo", "transport",
     "weather", "weather-compact", "xkcd"
   ],
   "configs": {
     "bookmark": { "fields": ["icon", "newTab", "subtitle", "textBelow", "title", "url"] },
+    "bookmarkgroup": { "fields": ["bookmarks", "direction", "newTab", "textBelow"] },
     "clock": { "fields": ["font", "hour12", "showDate", "showSeconds"] },
     "image": { "fields": ["fit", "image"] },
     "market": { "fields": ["range", "showChange", "showChart", "symbol"] },

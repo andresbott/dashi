@@ -78,6 +78,7 @@ func attachWriteAPIs(r *mux.Router, deps apiDeps) {
 
 	r.Path("/dashboards").Methods(http.MethodPost).HandlerFunc(dh.Create)
 	r.Path("/dashboards/upload").Methods(http.MethodPost).HandlerFunc(dh.Upload)
+	r.Path("/dashboards/{id}/duplicate").Methods(http.MethodPost).HandlerFunc(dh.Duplicate)
 	r.Path("/dashboards/{id}").Methods(http.MethodPut).HandlerFunc(dh.Update)
 	r.Path("/dashboards/{id}").Methods(http.MethodDelete).HandlerFunc(dh.Delete)
 	r.Path("/dashboards/{id}/assets/{path:.*}").Methods(http.MethodDelete).HandlerFunc(dh.DeleteAsset)

@@ -99,7 +99,8 @@ widget and the reason (details in
   registry, so nesting a widget cannot skip its rule.
 
 Current validators: `bookmark` (URL allowlist: empty, `http://`, `https://` or
-a single-`/` path) and `stack`.
+a single-`/` path), `bookmarkgroup` (the same rule for each item; the error
+names the item, numbered from 1) and `stack`.
 
 ### Sink audit (2026-11-21)
 
@@ -174,6 +175,7 @@ and out of stacks are not built (see [features.md](features.md)).
 |---|---|---|---|---|
 | weather / weather-compact | yes | yes | yes | shares `weather` package; two renderers |
 | bookmark | yes | yes | yes | URL allowlist enforced on save, render and in the form — see [Config validation](#config-validation) |
+| bookmarkgroup | yes | yes | yes | second module in the `bookmark` package (`GroupModule`): reuses its URL rule, icon resolution and the `link` sub-template of `browser.html` (which also holds the `group` template, since the viewer's Tailwind scan only reads `browser.html`). Editor reuses `bookmark/BookmarkIconField.vue` and `BookmarkLink.vue`. Type has no hyphen because the Go contract test derives the key from the `<key>Config` struct name |
 | clock | yes | yes | yes | |
 | battery | yes | yes | no | reads `%` from query param |
 | page-indicator | yes | yes | no | `noWidgetProp: true` on frontend |

@@ -74,7 +74,7 @@ func TestCreateWidgetTheme(t *testing.T) {
 	if err := createWidgetTheme(dataDir, "mono", "font"); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	path := filepath.Join(dataDir, "data", "widget_themes", "mono", "widget_theme.yaml")
+	path := filepath.Join(dataDir, "widget_themes", "mono", "widget_theme.yaml")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("manifest not at %s: %v", path, err)

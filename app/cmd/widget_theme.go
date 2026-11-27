@@ -83,13 +83,13 @@ func widgetThemeCreateCmd() *cobra.Command {
 	return cmd
 }
 
-// createWidgetTheme bootstraps {dataDir}/data/widget_themes/<name>, the
+// createWidgetTheme bootstraps {dataDir}/widget_themes/<name>, the
 // directory the server loads widget themes from.
 func createWidgetTheme(dataDir, name, themeType string) error {
 	if themeType != "image" && themeType != "font" {
 		return fmt.Errorf("--type must be \"image\" or \"font\", got %q", themeType)
 	}
-	themeDir := filepath.Join(dataDir, "data", "widget_themes", name)
+	themeDir := filepath.Join(dataDir, "widget_themes", name)
 	if _, err := os.Stat(themeDir); err == nil {
 		return fmt.Errorf("widget theme directory %s already exists", themeDir)
 	}
