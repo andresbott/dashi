@@ -144,6 +144,23 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 			panic("create dangling dashboard: " + err.Error())
 		}
 
+		search, err := store.Create(dashboard.Dashboard{
+			Name: "Search",
+			Pages: []dashboard.Page{{
+				Name: "Main",
+				Rows: []dashboard.Row{{
+					ID: "r1",
+					Widgets: []dashboard.Widget{{
+						ID: "w1", Type: "search", Width: 12,
+						Config: json.RawMessage(`{"engine":"duckduckgo","placeholder":"Find"}`),
+					}},
+				}},
+			}},
+		})
+		if err != nil {
+			panic("create search dashboard: " + err.Error())
+		}
+
 		cfg := Cfg{DataDir: dir, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 		deps, err := newSharedDeps(cfg)
 		if err != nil {
@@ -165,6 +182,7 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 			"multi":      multi.ID,
 			"themed":     themed.ID,
 			"dangling":   dangling.ID,
+			"search":     search.ID,
 			// Theme entity IDs, for fetching the linked stylesheets.
 			"imageTheme":    themeImageBG.ID,
 			"gradientTheme": gradientBG.ID,
@@ -395,6 +413,34 @@ func TestBrowserDashboardDanglingRefsUseDefaults(t *testing.T) {
 
 	if rec := get("/_dashi/widget-theme/nope.css"); rec.Code != http.StatusOK {
 		t.Errorf("widget theme css status = %d, want 200", rec.Code)
+	}
+}
+
+// The real viewer wiring (module list in main.go, page.html) renders the
+// search widget as a working GET form, not the old empty image placeholder.
+func TestBrowserSearchWidgetRendersAForm(t *testing.T) {
+	h, ids := newTestViewerWithDashboards(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/"+ids["search"], nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`<form`,
+		`action="https://duckduckgo.com/"`,
+		`name="q"`,
+		`placeholder="Find"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("search widget missing %q:\n%s", want, truncate(body))
+		}
+	}
+	if strings.Contains(body, "widget-search-placeholder") {
+		t.Errorf("search widget still renders the empty placeholder:\n%s", truncate(body))
 	}
 }
 
