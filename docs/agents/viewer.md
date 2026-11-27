@@ -255,7 +255,10 @@ one rule, `Theme.mode(colorMode)`: dark only when `darkMode` is on and dark
 was asked for. With it off, every colour mode renders the light palette and
 background (`BrowserCSS` emits the light rule twice, `Meta.colors.dark` is
 the light palette) while the dark data stays stored, so switching it back on
-loses nothing; `Validate` then checks only the dark roles that are set. A
+loses nothing; `Validate` then checks only the dark roles that are set. The
+listing's `Meta.colors` come from `Theme.Palette` and are rendered values
+(defaults replace missing or malformed roles); the editor reads the stored
+data through `GET /themes/{id}`. A
 `theme.json` without the key loads with `darkMode` on (`decodeTheme` in
 `internal/themes/legacy.go`, shared by `Store.Get` and `List`). The
 `POST`/`PUT /themes` bodies must carry the key (`themes.DecodeRequest`), else
