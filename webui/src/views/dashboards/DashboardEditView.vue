@@ -13,6 +13,7 @@ import { insertByColumn, clampRowToLine, fitsInRow } from '@/lib/rowLayout'
 import { v4 as uuidv4 } from 'uuid'
 import Dialog from 'primevue/dialog'
 import dashiIcon from '@/assets/icon-64.png'
+import { dashboardViewUrl } from '@/lib/serverInfo'
 
 const route = useRoute()
 const router = useRouter()
@@ -191,6 +192,17 @@ const goToEinkPreview = async () => {
     })
 }
 
+// The tab is opened synchronously, inside the click, so popup blockers allow
+// it; it is pointed at the viewer only after pending edits are saved, so the
+// viewer shows what is on screen. flush() resolves even when the save fails
+// (the failure shows in the save indicator), so the viewer still opens.
+const openViewer = async () => {
+    const win = window.open('', '_blank')
+    if (win) win.opener = null
+    await flush()
+    if (win) win.location.href = dashboardViewUrl(id.value)
+}
+
 </script>
 
 <template>
@@ -228,6 +240,14 @@ const goToEinkPreview = async () => {
                 severity="secondary"
                 data-testid="eink-preview-button"
                 @click="goToEinkPreview"
+            />
+            <Button
+                v-else
+                icon="ti ti-eye"
+                label="Preview"
+                severity="secondary"
+                data-testid="viewer-preview-button"
+                @click="openViewer"
             />
             <Button
                 icon="ti ti-settings"
