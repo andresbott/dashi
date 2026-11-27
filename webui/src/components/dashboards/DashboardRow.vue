@@ -126,6 +126,7 @@ import {
     maxResizeWidth,
     totalSpan,
 } from '@/lib/rowLayout'
+import { duplicateInRow } from '@/lib/duplicateWidget'
 import { beginDragGuard, endDragGuard } from '@/lib/dragGuard'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -216,6 +217,12 @@ const addWidgetDialogVisible = ref(false)
 
 // A row is one 12-column line: once the widths add up to 12 nothing else fits.
 const rowFull = computed(() => totalSpan(props.row.widgets) >= GRID_COLUMNS)
+
+// The copy lands right after the original (the duplicate button is disabled
+// on a full row; duplicateInRow returns the row unchanged anyway).
+const duplicateWidget = (index: number) => {
+    emit('update', { ...props.row, widgets: duplicateInRow(props.row.widgets, index, uuidv4) })
+}
 
 const addWidget = (type: string) => {
     // Drop the widget into the first free span so it never overlaps an
@@ -503,8 +510,10 @@ const nudgeColumn = (index: number, delta: number) => {
                     <div :class="getWidgetClass(index)" class="widget-col">
                         <DashboardWidget
                             :widget="element"
+                            :row-full="rowFull"
                             @update="updateWidget(index, $event)"
                             @delete="deleteWidget(index)"
+                            @duplicate="duplicateWidget(index)"
                         >
                             <template #handle>
                                 <span

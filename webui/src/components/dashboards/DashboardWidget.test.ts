@@ -44,4 +44,15 @@ describe('DashboardWidget header', () => {
         expect(wrapper.emitted('delete')).toHaveLength(1)
         expect(wrapper.find('.confirm-stub').exists()).toBe(false)
     })
+
+    it('emits duplicate from the duplicate button', async () => {
+        const wrapper = mountCard()
+        await wrapper.find('.widget-header [aria-label="Duplicate widget"]').trigger('click')
+        expect(wrapper.emitted('duplicate')).toHaveLength(1)
+    })
+
+    it('disables duplicate when the row is full', () => {
+        const wrapper = mountCard({ rowFull: true })
+        expect(wrapper.find('[aria-label="Duplicate widget"]').attributes('disabled')).toBeDefined()
+    })
 })

@@ -8,11 +8,14 @@ import type { Widget } from '@/types/dashboard'
 
 defineProps<{
     widget: Widget
+    // The card's row has no free column left, so a copy cannot be placed.
+    rowFull?: boolean
 }>()
 
 const emit = defineEmits<{
     update: [widget: Widget]
     delete: []
+    duplicate: []
 }>()
 
 const settingsVisible = ref(false)
@@ -31,6 +34,16 @@ const confirmDelete = () => {
         <div class="widget-header">
             <slot name="handle" />
             <span class="widget-title" :title="widget.title">{{ widget.title }}</span>
+            <Button
+                icon="ti ti-copy"
+                text
+                rounded
+                class="p-1"
+                aria-label="Duplicate widget"
+                v-tooltip.top="rowFull ? 'Row is full (12 columns)' : 'Duplicate widget'"
+                :disabled="rowFull"
+                @click="emit('duplicate')"
+            />
             <Button
                 icon="ti ti-pencil"
                 text
@@ -81,8 +94,8 @@ const confirmDelete = () => {
     border-radius: 8px;
 }
 
-/* Grip (drag handle) sits at the left, the widget controls (edit, delete) at
-   the right. The title in between identifies the card; it is clipped before
+/* Grip (drag handle) sits at the left, the widget controls (duplicate, edit,
+   delete) at the right. The title in between identifies the card; it is clipped before
    the controls are. On a card too narrow for every control the header wraps
    (the title's zero flex-basis means it never forces a wrap by itself), so
    each control stays reachable even at a single column wide. */
