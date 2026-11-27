@@ -51,7 +51,8 @@ export const isValidRoleColor = (role: PaletteRole, value: string): boolean =>
 // (Go: validateColor): any hex colour, alpha allowed.
 export const isValidStopColor = (value: string): boolean => HEX.test(value)
 
-const isValidModeBackground = (mb: ModeBackground | undefined): boolean => {
+// isValidModeBackground checks one mode's background (see isValidBackground).
+export const isValidModeBackground = (mb: ModeBackground | undefined): boolean => {
     const g = mb?.gradient
     if (g && (g.stops.length < 2 || !g.stops.every(isValidStopColor))) return false
     if (mb?.image && !mb.image.ref) return false

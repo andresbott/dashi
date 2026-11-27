@@ -3,17 +3,23 @@ import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
+import Checkbox from 'primevue/checkbox'
 import InputText from 'primevue/inputtext'
 import SelectButton from 'primevue/selectbutton'
-import ColorPicker from 'primevue/colorpicker'
+import Tabs from 'primevue/tabs'
+import TabList from 'primevue/tablist'
+import Tab from 'primevue/tab'
+import TabPanels from 'primevue/tabpanels'
+import TabPanel from 'primevue/tabpanel'
 import { useToast } from 'primevue/usetoast'
 
 import ThemeBackgroundEditor from '@/components/admin/ThemeBackgroundEditor.vue'
+import ThemeColorsEditor from '@/components/admin/ThemeColorsEditor.vue'
 import { useGetTheme, useUpdateTheme } from '@/composables/useThemes'
 import { useAutosave } from '@/composables/useAutosave'
-import { isValidBackground, isValidRoleColor, previewStyle, PALETTE_ROLES } from '@/lib/themeCss'
+import { isValidModeBackground, isValidRoleColor, previewStyle, PALETTE_ROLES } from '@/lib/themeCss'
 import { plainCopy } from '@/lib/plainCopy'
-import { fromDraft, toDraft, type EditorBackground } from '@/lib/themeBackgroundDraft'
+import { seedDark } from '@/lib/themeEditor'
 import type { Theme, PaletteRole } from '@/types/theme'
 
 const route = useRoute()
@@ -31,77 +37,62 @@ const { updateTheme } = useUpdateTheme()
 // Editing happens on a local clone; autosave persists it after each change.
 const local = ref<Theme | null>(null)
 
-// The background editor still edits the pre-split draft shape (see
-// lib/themeBackgroundDraft). The draft is seeded once from the loaded theme
-// and written back to local only on an edit, so opening a theme never
-// rewrites (or autosaves) its background.
-const draft = ref<EditorBackground | null>(null)
-
 watch(serverTheme, (val) => {
     if (val && !local.value) {
         const copy = plainCopy(val)
         // An empty background may arrive as null from hand-edited data.
         copy.background ??= { light: {}, dark: {} }
+        copy.background.light ??= {}
+        copy.background.dark ??= {}
         local.value = copy
-        draft.value = toDraft(copy.background)
     }
 }, { immediate: true })
 
-watch(draft, (d, prev) => {
-    if (!d || !prev || !local.value) return
-    local.value.background = fromDraft(d)
-}, { deep: true })
+// While an image uploads the whole editor is read-only and autosave is off:
+// useAutosave drops changes made while it is disabled, so an edit typed
+// during the upload would otherwise be lost (see ThemeBackgroundEditor).
+const uploading = ref(false)
+const editorDisabled = computed(() => isBuiltin.value || uploading.value)
 
-// One colour mode drives both the colour rows and the preview, so editing the
-// dark palette shows the dark preview.
+// ---- colour modes ----
+
 type Mode = 'light' | 'dark'
-const mode = ref<Mode>('light')
-const modeOptions = [
-    { label: 'Light', value: 'light' },
-    { label: 'Dark', value: 'dark' },
+const MODES: { value: Mode; label: string }[] = [
+    { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Dark' },
 ]
 
-// ---- colours ----
+// The tab being edited; it also drives the right-hand preview. The editor
+// always opens on Light.
+const mode = ref<Mode>('light')
 
-const roleLabels: Record<PaletteRole, string> = {
-    bg: 'Page background',
-    surface: 'Card surface',
-    border: 'Border',
-    text: 'Text',
-    textMuted: 'Muted text',
-    primary: 'Primary',
-    onPrimary: 'Text on primary',
-    secondary: 'Secondary',
-    success: 'Success',
-    warning: 'Warning',
-    danger: 'Danger',
-}
+// Ticking dark mode the first time fills dark from light (seedDark); dark data
+// already there is kept. Unticking only hides it: the server keeps dormant
+// dark data, so re-ticking restores it.
+const darkMode = computed({
+    get: () => local.value?.darkMode === true,
+    set: (on: boolean) => {
+        const t = local.value
+        if (!t || editorDisabled.value) return
+        if (on) {
+            local.value = { ...seedDark(t), darkMode: true }
+        } else {
+            t.darkMode = false
+            mode.value = 'light'
+        }
+    },
+})
 
-const roles = PALETTE_ROLES.map(r => r.role)
-
-// ColorPicker understands only six-digit hex: expand #rgb and drop the alpha
-// of #rrggbbaa for display, and keep that alpha when the picker writes back —
-// except for bg, which must stay opaque.
-const pickerValue = (v: string): string => {
-    const h = (v ?? '').replace('#', '')
-    if (/^[0-9a-fA-F]{3}$/.test(h)) return h.split('').map(c => c + c).join('')
-    if (/^[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/.test(h)) return h.slice(0, 6)
-    return '000000'
-}
-
-const setFromPicker = (role: PaletteRole, v: string | undefined) => {
-    if (v === undefined || !local.value) return
-    const palette = local.value.colors[mode.value]
-    const prev = palette[role] ?? ''
-    const alpha = role !== 'bg' && /^#[0-9a-fA-F]{8}$/.test(prev) ? prev.slice(7) : ''
-    palette[role] = `#${v}${alpha}`
+const setMode = (v: string | number) => {
+    if (v === 'light' || v === 'dark') mode.value = v
 }
 
 // ---- preview ----
 
 // Generated by the same logic the server uses, so the preview shows what the
 // dashboard will actually render — no save and no round-trip required.
-const themePreviewStyle = computed(() => (local.value ? previewStyle(local.value, mode.value) : {}))
+const modePreviewStyle = (m: Mode) => (local.value ? previewStyle(local.value, m) : {})
+const themePreviewStyle = computed(() => modePreviewStyle(mode.value))
 
 const previewChips: { role: PaletteRole; label: string }[] = [
     { role: 'primary', label: 'Primary' },
@@ -115,19 +106,33 @@ const previewChips: { role: PaletteRole; label: string }[] = [
 // Mirrors the server's Validate for the fields the editor lets you break, so
 // a half-typed value is highlighted instead of autosaved into a 400.
 
+const roles = PALETTE_ROLES.map(r => r.role)
+
 const nameInvalid = computed(() => !local.value?.name.trim())
 
-const isValid = computed(() => {
+const lightValid = computed(() => {
     const t = local.value
-    if (!t || nameInvalid.value) return false
-    if (!roles.every(role => isValidRoleColor(role, t.colors.light[role]))) return false
-    // Go: the dark palette is required in full only with dark mode on; with
-    // it off, the roles that are set are still checked.
-    const darkOk = (role: PaletteRole) =>
-        (!t.darkMode && !t.colors.dark[role]) || isValidRoleColor(role, t.colors.dark[role])
-    if (!roles.every(darkOk)) return false
-    return isValidBackground(t.background)
+    if (!t) return false
+    return roles.every(role => isValidRoleColor(role, t.colors.light[role])) &&
+        isValidModeBackground(t.background.light)
 })
+
+// Go: the dark palette is required in full only with dark mode on; with it
+// off, the roles that are set are still checked. The dark background is
+// always checked.
+const darkValid = computed(() => {
+    const t = local.value
+    if (!t) return false
+    const roleOk = (role: PaletteRole) =>
+        (!t.darkMode && !t.colors.dark?.[role]) || isValidRoleColor(role, t.colors.dark?.[role])
+    return roles.every(roleOk) && isValidModeBackground(t.background.dark)
+})
+
+const isValid = computed(() => !!local.value && !nameInvalid.value && lightValid.value && darkValid.value)
+
+// Dormant dark data that the server would reject blocks every save, yet with
+// dark mode off nothing on screen is highlighted: say where to look.
+const hiddenDarkInvalid = computed(() => !!local.value && !local.value.darkMode && !darkValid.value)
 
 // ---- autosave ----
 
@@ -137,7 +142,7 @@ const isValid = computed(() => {
 const { status: saveStatus, error: saveError, flush } = useAutosave<Theme>({
     source: () => local.value,
     save: (theme) => (isValid.value ? updateTheme({ id: id.value, payload: theme }) : Promise.resolve()),
-    enabled: () => !isBuiltin.value && isValid.value,
+    enabled: () => !isBuiltin.value && isValid.value && !uploading.value,
 })
 
 // A 400 carries the store's validation message (it names the offending field),
@@ -193,50 +198,74 @@ const goBack = async () => {
                     <div class="edit-grid">
                         <div class="edit-fields">
                             <div class="flex flex-column gap-1">
-                                <label class="font-semibold text-sm">Name</label>
-                                <InputText v-model="local.name" :invalid="nameInvalid" class="w-full" />
+                                <label class="font-semibold text-sm" for="theme-name">Name</label>
+                                <InputText
+                                    id="theme-name"
+                                    v-model="local.name"
+                                    :invalid="nameInvalid"
+                                    :disabled="editorDisabled"
+                                    data-testid="theme-name"
+                                    class="w-full"
+                                />
                             </div>
 
-                            <!-- Colours: one palette per colour mode -->
-                            <label class="edit-subsection">Colours</label>
-                            <SelectButton
-                                v-model="mode"
-                                :options="modeOptions"
-                                optionLabel="label"
-                                optionValue="value"
-                                :allowEmpty="false"
-                            />
-                            <div class="color-rows">
-                                <div v-for="role in roles" :key="role" class="color-row">
-                                    <label class="text-sm" :for="`color-${role}`">{{ roleLabels[role] }}</label>
-                                    <div class="flex align-items-center gap-2">
-                                        <ColorPicker
-                                            :modelValue="pickerValue(local.colors[mode][role])"
-                                            @update:modelValue="(v: string | undefined) => setFromPicker(role, v)"
-                                        />
-                                        <InputText
-                                            :id="`color-${role}`"
-                                            v-model="local.colors[mode][role]"
-                                            :invalid="!isValidRoleColor(role, local.colors[mode][role])"
-                                            class="flex-grow-1 min-w-0"
-                                        />
-                                    </div>
-                                </div>
+                            <div class="flex align-items-center gap-2">
+                                <Checkbox
+                                    v-model="darkMode"
+                                    binary
+                                    inputId="theme-dark-mode"
+                                    :disabled="editorDisabled"
+                                    data-testid="dark-mode-toggle"
+                                />
+                                <label for="theme-dark-mode" class="text-sm">Enable dark mode</label>
                             </div>
-                            <small class="edit-hint">
-                                Hex colours: #rgb, #rrggbb or #rrggbbaa. The page background
-                                must be opaque.
-                            </small>
 
-                            <!-- Background: a base (palette bg or gradient) plus an optional image -->
-                            <label class="edit-subsection">Background</label>
-                            <ThemeBackgroundEditor
-                                v-if="draft"
-                                v-model:background="draft"
-                                :themeId="local.id"
-                                :colors="local.colors"
-                                :disabled="isBuiltin"
-                            />
+                            <!-- One set of sections per colour mode: Light and Dark tabs
+                                 with dark mode on, the light set alone with it off.
+                                 Not lazy, so switching tabs keeps each mode's state. -->
+                            <Tabs v-if="darkMode" :value="mode" @update:value="setMode">
+                                <TabList>
+                                    <Tab v-for="m in MODES" :key="m.value" :value="m.value">{{ m.label }}</Tab>
+                                </TabList>
+                                <TabPanels class="mode-panels">
+                                    <TabPanel v-for="m in MODES" :key="m.value" :value="m.value" class="mode-sections">
+                                        <label class="edit-subsection">Colours</label>
+                                        <ThemeColorsEditor
+                                            v-model:palette="local.colors[m.value]"
+                                            :mode="m.value"
+                                            :disabled="editorDisabled"
+                                        />
+                                        <label class="edit-subsection">Background</label>
+                                        <ThemeBackgroundEditor
+                                            v-model:background="local.background[m.value]"
+                                            :themeId="local.id"
+                                            :mode="m.value"
+                                            :flush="flush"
+                                            :previewStyle="modePreviewStyle(m.value)"
+                                            :disabled="editorDisabled"
+                                            @uploading="(v: boolean) => (uploading = v)"
+                                        />
+                                    </TabPanel>
+                                </TabPanels>
+                            </Tabs>
+                            <div v-else class="mode-sections">
+                                <label class="edit-subsection">Colours</label>
+                                <ThemeColorsEditor
+                                    v-model:palette="local.colors.light"
+                                    mode="light"
+                                    :disabled="editorDisabled"
+                                />
+                                <label class="edit-subsection">Background</label>
+                                <ThemeBackgroundEditor
+                                    v-model:background="local.background.light"
+                                    :themeId="local.id"
+                                    mode="light"
+                                    :flush="flush"
+                                    :previewStyle="modePreviewStyle('light')"
+                                    :disabled="editorDisabled"
+                                    @uploading="(v: boolean) => (uploading = v)"
+                                />
+                            </div>
                         </div>
 
                         <!-- Live preview, scoped to the box -->
@@ -244,8 +273,9 @@ const goBack = async () => {
                             <div class="flex align-items-center justify-content-between">
                                 <label class="font-semibold text-sm">Preview</label>
                                 <SelectButton
+                                    v-if="darkMode"
                                     v-model="mode"
-                                    :options="modeOptions"
+                                    :options="MODES"
                                     optionLabel="label"
                                     optionValue="value"
                                     :allowEmpty="false"
@@ -270,8 +300,12 @@ const goBack = async () => {
                                 </div>
                             </div>
                             <small class="edit-hint">
-                                <template v-if="isValid">Changes are saved automatically.</template>
+                                <template v-if="uploading">Uploading image…</template>
+                                <template v-else-if="isValid">Changes are saved automatically.</template>
                                 <template v-else>Fix the highlighted fields to save your changes.</template>
+                            </small>
+                            <small v-if="hiddenDarkInvalid" class="edit-warning">
+                                Dark mode has invalid values; enable it to fix them.
                             </small>
                         </div>
                     </div>
@@ -302,6 +336,17 @@ const goBack = async () => {
     gap: 0.75rem;
     flex: 1;
     min-width: 0;
+}
+
+.mode-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+/* The tab panels sit inside the card: no extra inset beyond the tab strip. */
+.mode-panels {
+    padding: 0.75rem 0 0;
 }
 
 .edit-preview {
@@ -364,18 +409,6 @@ const goBack = async () => {
     color: var(--dashi-on-primary);
 }
 
-.color-rows {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 0.5rem 1rem;
-}
-
-.color-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
 .edit-subsection {
     margin-top: 0.5rem;
     font-size: 0.75rem;
@@ -389,10 +422,7 @@ const goBack = async () => {
     color: var(--p-text-muted-color);
 }
 
-/* The colour swatch is unbordered by default, so a white or near-white value
-   is invisible against the card and there is nothing to click. */
-:deep(.p-colorpicker-preview) {
-    border: 1px solid var(--p-content-border-color);
-    border-radius: 4px;
+.edit-warning {
+    color: var(--p-red-500);
 }
 </style>

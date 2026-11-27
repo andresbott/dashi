@@ -5,15 +5,7 @@ import PrimeVue from 'primevue/config'
 import ColorPicker from 'primevue/colorpicker'
 import ThemeBackgroundEditor from './ThemeBackgroundEditor.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import type { EditorBackground } from '@/lib/themeBackgroundDraft'
-import type { Palette } from '@/types/theme'
-
-const palette: Palette = {
-    bg: '#ffffff', surface: '#f5f5f7', border: '#e0e0e5', text: '#333333', textMuted: '#666666',
-    primary: '#0a84ff', onPrimary: '#ffffff', secondary: '#8b5cf6', success: '#16a34a',
-    warning: '#d97706', danger: '#dc2626',
-}
-const darkPalette: Palette = { ...palette, bg: '#101010' }
+import type { ModeBackground } from '@/types/theme'
 
 const assets = ref<string[] | undefined>([])
 const uploadAsset = vi.fn()
@@ -25,14 +17,25 @@ vi.mock('@/composables/useThemes', () => ({
 }))
 vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: toastAdd }) }))
 
-function mountEditor(background: EditorBackground, disabled = false) {
+interface MountOptions {
+    mode?: 'light' | 'dark'
+    disabled?: boolean
+    flush?: () => Promise<void>
+    previewStyle?: Record<string, string>
+    onUploading?: (v: boolean) => void
+}
+
+function mountEditor(background: ModeBackground, opts: MountOptions = {}) {
     const bg = reactive(background)
     const wrapper = mount(ThemeBackgroundEditor, {
         props: {
             background: bg,
             themeId: 'abc123',
-            colors: { light: { ...palette }, dark: { ...darkPalette } },
-            disabled,
+            mode: opts.mode ?? 'light',
+            disabled: opts.disabled ?? false,
+            flush: opts.flush ?? (async () => {}),
+            previewStyle: opts.previewStyle ?? {},
+            onUploading: opts.onUploading,
         },
         global: { plugins: [PrimeVue], stubs: { RouterLink: true } },
     })
@@ -42,9 +45,24 @@ function mountEditor(background: EditorBackground, disabled = false) {
 // jsdom's File has no arrayBuffer(); the component only needs name + bytes.
 const fakeFile = (name: string) => ({ name, arrayBuffer: async () => new ArrayBuffer(1) })
 
-const gradient = (): EditorBackground => ({
-    gradient: { direction: '90deg', light: ['#000000', '#ff0000', '#ffffff'] },
+async function chooseFile(wrapper: ReturnType<typeof mountEditor>['wrapper'], name: string) {
+    const input = wrapper.find<HTMLInputElement>('[data-testid="image-upload-input"]')
+    Object.defineProperty(input.element, 'files', { value: [fakeFile(name)], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
+}
+
+const gradient = (): ModeBackground => ({
+    gradient: { direction: '90deg', stops: ['#000000', '#ff0000', '#ffffff'] },
 })
+
+const image = (ref: string): ModeBackground => ({
+    image: { ref, fit: 'contain', position: 'top', repeat: 'repeat' },
+})
+
+// 2026-11-27T00:00:00Z, so uploaded names carry a known stamp.
+const NOW = Date.UTC(2026, 10, 27)
+const STAMP = NOW.toString(36)
 
 describe('ThemeBackgroundEditor', () => {
     beforeEach(() => {
@@ -54,11 +72,14 @@ describe('ThemeBackgroundEditor', () => {
             addEventListener: vi.fn(),
             removeEventListener: vi.fn(),
         }))
+        vi.useFakeTimers({ toFake: ['Date'] })
+        vi.setSystemTime(NOW)
         vi.clearAllMocks()
-        assets.value = ['own.png', 'sky.jpg', 'notes.txt', 'anim.gif']
+        assets.value = ['own.png', 'sky.jpg']
     })
 
     afterEach(() => {
+        vi.useRealTimers()
         vi.unstubAllGlobals()
     })
 
@@ -67,32 +88,45 @@ describe('ThemeBackgroundEditor', () => {
             const { wrapper, bg } = mountEditor({})
             const buttons = wrapper.findAll('[data-testid="bg-base"] button')
             await buttons[1].trigger('click')
-            expect(bg.gradient?.light).toHaveLength(2)
+            expect(bg.gradient?.stops).toHaveLength(2)
             expect(bg.gradient?.direction).toBe('135deg')
 
             await buttons[0].trigger('click')
             expect(bg.gradient).toBeUndefined()
         })
 
+        it('scopes the stop controls to its mode', () => {
+            const { wrapper } = mountEditor(gradient(), { mode: 'dark' })
+            expect(wrapper.find('[data-testid="stop-dark-0"]').exists()).toBe(true)
+            expect(wrapper.find('[data-testid="stop-dark-add"]').exists()).toBe(true)
+            expect(wrapper.find('[data-testid="stop-light-0"]').exists()).toBe(false)
+        })
+
+        it('has no dark toggles of its own', () => {
+            const { wrapper } = mountEditor({ ...gradient(), ...image('asset:own.png') })
+            expect(wrapper.find('[data-testid="gradient-dark-toggle"]').exists()).toBe(false)
+            expect(wrapper.find('[data-testid="image-dark-toggle"]').exists()).toBe(false)
+        })
+
         it('adds a stop repeating the last colour', async () => {
             const { wrapper, bg } = mountEditor(gradient())
             await wrapper.find('[data-testid="stop-light-add"]').trigger('click')
-            expect(bg.gradient?.light).toEqual(['#000000', '#ff0000', '#ffffff', '#ffffff'])
+            expect(bg.gradient?.stops).toEqual(['#000000', '#ff0000', '#ffffff', '#ffffff'])
         })
 
         it('removes a stop but never below two', async () => {
             const { wrapper, bg } = mountEditor(gradient())
             await wrapper.find('[data-testid="stop-light-1-remove"]').trigger('click')
-            expect(bg.gradient?.light).toEqual(['#000000', '#ffffff'])
+            expect(bg.gradient?.stops).toEqual(['#000000', '#ffffff'])
             expect(wrapper.find('[data-testid="stop-light-0-remove"]').attributes('disabled')).toBeDefined()
         })
 
         it('reorders stops', async () => {
             const { wrapper, bg } = mountEditor(gradient())
             await wrapper.find('[data-testid="stop-light-0-down"]').trigger('click')
-            expect(bg.gradient?.light).toEqual(['#ff0000', '#000000', '#ffffff'])
+            expect(bg.gradient?.stops).toEqual(['#ff0000', '#000000', '#ffffff'])
             await wrapper.find('[data-testid="stop-light-2-up"]').trigger('click')
-            expect(bg.gradient?.light).toEqual(['#ff0000', '#ffffff', '#000000'])
+            expect(bg.gradient?.stops).toEqual(['#ff0000', '#ffffff', '#000000'])
             expect(wrapper.find('[data-testid="stop-light-0-up"]').attributes('disabled')).toBeDefined()
         })
 
@@ -100,34 +134,22 @@ describe('ThemeBackgroundEditor', () => {
             const { wrapper, bg } = mountEditor(gradient())
             const input = wrapper.find('[data-testid="stop-light-1"]')
             await input.setValue('#12')
-            expect(bg.gradient?.light[1]).toBe('#12')
+            expect(bg.gradient?.stops[1]).toBe('#12')
             expect(input.classes()).toContain('p-invalid')
         })
 
         it('keeps a stop alpha when the picker writes it', async () => {
             const { wrapper, bg } = mountEditor({
-                gradient: { direction: '90deg', light: ['#00000080', '#ffffff'] },
+                gradient: { direction: '90deg', stops: ['#00000080', '#ffffff'] },
             })
             wrapper.findAllComponents(ColorPicker)[0].vm.$emit('update:modelValue', '112233')
             await flushPromises()
-            expect(bg.gradient?.light[0]).toBe('#11223380')
-        })
-
-        it('toggles separate dark stops, seeded from the light ones', async () => {
-            const { wrapper, bg } = mountEditor(gradient())
-            await wrapper.find('[data-testid="gradient-dark-toggle"] input').setValue(true)
-            expect(bg.gradient?.dark).toEqual(['#000000', '#ff0000', '#ffffff'])
-            await wrapper.find('[data-testid="stop-dark-add"]').trigger('click')
-            expect(bg.gradient?.dark).toHaveLength(4)
-            expect(bg.gradient?.light).toHaveLength(3)
-
-            await wrapper.find('[data-testid="gradient-dark-toggle"] input').setValue(false)
-            expect(bg.gradient && 'dark' in bg.gradient).toBe(false)
+            expect(bg.gradient?.stops[0]).toBe('#11223380')
         })
 
         it('shows a keyword direction as its angle without rewriting it', () => {
             const { wrapper, bg } = mountEditor({
-                gradient: { direction: 'to bottom right', light: ['#000000', '#ffffff'] },
+                gradient: { direction: 'to bottom right', stops: ['#000000', '#ffffff'] },
             })
             expect(wrapper.find('[data-testid="bg-angle"]').text()).toBe('135°')
             expect(bg.gradient?.direction).toBe('to bottom right')
@@ -135,168 +157,142 @@ describe('ThemeBackgroundEditor', () => {
     })
 
     describe('image', () => {
-        it('offers only this theme\'s own images, image files only', () => {
+        it('shows the current image as a thumbnail with Replace and Remove', () => {
+            const { wrapper } = mountEditor(image('asset:sky.jpg'), { mode: 'dark' })
+            const thumb = wrapper.find('[data-testid="image-dark-thumb"]')
+            expect(thumb.attributes('src')).toContain('/api/v0/themes/abc123/assets/sky.jpg')
+            expect(wrapper.find('[data-testid="image-dark-upload"]').text()).toContain('Replace')
+            expect(wrapper.find('[data-testid="image-dark-remove"]').exists()).toBe(true)
+        })
+
+        it('offers only Upload when there is no image', () => {
             const { wrapper } = mountEditor({})
-            expect(wrapper.find('[data-testid="image-light-asset:own.png"]').exists()).toBe(true)
-            expect(wrapper.find('[data-testid="image-light-asset:sky.jpg"]').exists()).toBe(true)
-            expect(wrapper.find('[data-testid="image-light-asset:notes.txt"]').exists()).toBe(false)
-            expect(wrapper.find('[data-testid="image-light-asset:anim.gif"]').exists()).toBe(false)
-            const img = wrapper.find('[data-testid="image-light-asset:sky.jpg"] img')
-            expect(img.attributes('src')).toContain('/api/v0/themes/abc123/assets/sky.jpg')
-            expect(wrapper.html()).not.toContain('/api/v0/data/backgrounds')
+            expect(wrapper.find('[data-testid="image-light-thumb"]').exists()).toBe(false)
+            expect(wrapper.find('[data-testid="image-light-upload"]').text()).toContain('Upload')
+            expect(wrapper.find('[data-testid="image-light-remove"]').exists()).toBe(false)
         })
 
-        it('prompts for an upload when the theme has no images', () => {
-            assets.value = []
-            const { wrapper } = mountEditor({})
-            expect(wrapper.text()).toContain('No images in this theme yet. Upload one.')
-            expect(wrapper.find('[data-testid="image-upload-light"]').exists()).toBe(true)
-        })
-
-        it('picking an image creates the image layer with defaults, clearing removes it', async () => {
-            const { wrapper, bg } = mountEditor({})
-            await wrapper.find('[data-testid="image-light-asset:sky.jpg"]').trigger('click')
-            expect(bg.image).toEqual({ light: 'asset:sky.jpg', fit: 'cover', position: 'center', repeat: 'no-repeat' })
-            expect(wrapper.find('[data-testid="image-light-asset:sky.jpg"]').classes()).toContain('selected')
-
-            await wrapper.find('[data-testid="image-light-asset:own.png"]').trigger('click')
-            expect(bg.image?.light).toBe('asset:own.png')
-
-            await wrapper.find('[data-testid="image-clear"]').trigger('click')
-            expect(bg.image).toBeUndefined()
-        })
-
-        it('picks a separate dark image', async () => {
-            const { wrapper, bg } = mountEditor({
-                image: { light: 'asset:sky.jpg', fit: 'cover', position: 'center', repeat: 'no-repeat' },
-            })
-            await wrapper.find('[data-testid="image-dark-toggle"] input').setValue(true)
-            expect(bg.image?.dark).toBe('asset:sky.jpg')
-            await wrapper.find('[data-testid="image-dark-asset:own.png"]').trigger('click')
-            expect(bg.image?.dark).toBe('asset:own.png')
-            expect(bg.image?.light).toBe('asset:sky.jpg')
-        })
-
-        it('uploads into the theme and selects the upload', async () => {
+        it('uploads under a unique name and sets it with default settings', async () => {
             uploadAsset.mockResolvedValue(undefined)
             const { wrapper, bg } = mountEditor({})
-            const input = wrapper.find<HTMLInputElement>('[data-testid="image-upload-input"]')
-            Object.defineProperty(input.element, 'files', { value: [fakeFile('new.webp')] })
-            await input.trigger('change')
-            await flushPromises()
+            await chooseFile(wrapper, 'new.webp')
 
-            expect(uploadAsset).toHaveBeenCalledWith(expect.objectContaining({ name: 'new.webp' }))
-            expect(bg.image?.light).toBe('asset:new.webp')
+            const name = `new-${STAMP}.webp`
+            expect(uploadAsset).toHaveBeenCalledWith(expect.objectContaining({ name }))
+            expect(bg.image).toEqual({ ref: `asset:${name}`, fit: 'cover', position: 'center', repeat: 'no-repeat' })
             expect(toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'success' }))
         })
 
-        it('reports a failed upload and selects nothing', async () => {
+        // The parent's autosave is gated while uploading: it must be open again
+        // when the ref lands, or the edit that references the file is dropped.
+        it('flushes, blocks autosave, uploads, reopens it, sets the ref, then flushes again', async () => {
+            const calls: string[] = []
+            let bgRef: ModeBackground | null = null
+            const current = () => bgRef?.image?.ref ?? 'none'
+            const flush = vi.fn(async () => {
+                calls.push(`flush:${current()}`)
+            })
+            uploadAsset.mockImplementation(async () => {
+                calls.push('upload')
+            })
+            const { wrapper, bg } = mountEditor({}, {
+                flush,
+                onUploading: (v: boolean) => calls.push(`uploading:${v}:${current()}`),
+            })
+            bgRef = bg
+            await chooseFile(wrapper, 'a.png')
+
+            expect(calls).toEqual([
+                'flush:none',
+                'uploading:true:none',
+                'upload',
+                'uploading:false:none',
+                `flush:asset:a-${STAMP}.png`,
+            ])
+        })
+
+        it('reports a failed upload and sets nothing', async () => {
             uploadAsset.mockRejectedValue(new Error('nope'))
-            const { wrapper, bg } = mountEditor({})
-            const input = wrapper.find<HTMLInputElement>('[data-testid="image-upload-input"]')
-            Object.defineProperty(input.element, 'files', { value: [fakeFile('bad.png')] })
-            await input.trigger('change')
-            await flushPromises()
+            const flush = vi.fn(async () => {})
+            const { wrapper, bg } = mountEditor({}, { flush })
+            await chooseFile(wrapper, 'bad.png')
 
             expect(uploadAsset).toHaveBeenCalledTimes(1)
             expect(bg.image).toBeUndefined()
+            expect(flush).toHaveBeenCalledTimes(1)
+            expect((wrapper.emitted('uploading') ?? []).map(e => e[0])).toEqual([true, false])
             expect(toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }))
         })
 
-        it('calls out an image that no longer exists', () => {
-            const { wrapper } = mountEditor({
-                image: { light: 'asset:gone.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
-            })
+        it('Replace swaps the ref and keeps fit, position and repeat', async () => {
+            uploadAsset.mockResolvedValue(undefined)
+            const { wrapper, bg } = mountEditor(image('asset:sky.jpg'))
+            await chooseFile(wrapper, 'sky.jpg')
+            expect(bg.image).toEqual({ ref: `asset:sky-${STAMP}.jpg`, fit: 'contain', position: 'top', repeat: 'repeat' })
+        })
+
+        it('Remove asks first, then clears only the image and deletes no file', async () => {
+            const { wrapper, bg } = mountEditor({ ...gradient(), ...image('asset:sky.jpg') })
+            await wrapper.find('[data-testid="image-light-remove"]').trigger('click')
+            const dialog = wrapper.findComponent(ConfirmDialog)
+            expect(dialog.props('visible')).toBe(true)
+            expect(bg.image?.ref).toBe('asset:sky.jpg')
+
+            dialog.vm.$emit('confirm')
+            await flushPromises()
+            expect(bg.image).toBeUndefined()
+            expect(bg.gradient?.stops).toHaveLength(3)
+            expect(deleteAsset).not.toHaveBeenCalled()
+        })
+
+        it('calls out an image file that no longer exists', () => {
+            const { wrapper } = mountEditor(image('asset:gone.png'))
             expect(wrapper.text()).toContain('“gone.png” no longer exists')
         })
 
         it('calls out a leftover reference to the removed shared pool', () => {
-            const { wrapper } = mountEditor({
-                image: { light: 'shared:old.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
-            })
+            const { wrapper } = mountEditor(image('shared:old.png'))
             expect(wrapper.text()).toContain('“old.png” no longer exists')
         })
 
-        it('deletes an image from the theme after confirmation', async () => {
-            deleteAsset.mockResolvedValue(undefined)
-            const { wrapper, bg } = mountEditor({})
-            await wrapper.find('[data-testid="image-delete-light-asset:own.png"]').trigger('click')
-            const dialog = wrapper.findComponent(ConfirmDialog)
-            expect(dialog.props('name')).toBe('own.png')
-            expect(dialog.props('message')).toBe('Delete this image from the theme?')
-            expect(deleteAsset).not.toHaveBeenCalled()
-
-            dialog.vm.$emit('confirm')
-            await flushPromises()
-            expect(deleteAsset).toHaveBeenCalledWith('own.png')
-            expect(bg.image).toBeUndefined()
-            expect(toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'success' }))
-        })
-
-        it('warns when the image to delete is used by the background', async () => {
-            const { wrapper } = mountEditor({
-                image: { light: 'asset:sky.jpg', fit: 'cover', position: 'center', repeat: 'no-repeat' },
-            })
-            await wrapper.find('[data-testid="image-delete-light-asset:sky.jpg"]').trigger('click')
-            expect(wrapper.findComponent(ConfirmDialog).props('message')).toContain('used by the background')
-        })
-
-        it('reports a failed delete', async () => {
-            deleteAsset.mockRejectedValue(new Error('nope'))
-            const { wrapper } = mountEditor({})
-            await wrapper.find('[data-testid="image-delete-light-asset:own.png"]').trigger('click')
-            wrapper.findComponent(ConfirmDialog).vm.$emit('confirm')
-            await flushPromises()
-            expect(toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }))
+        it('asks for an upload when the image layer has no file', () => {
+            const { wrapper } = mountEditor(image(''))
+            expect(wrapper.text()).toContain('Upload an image, or remove the image layer.')
         })
     })
 
     describe('preview', () => {
-        it('renders the background per colour mode the way the viewer does', () => {
-            const { wrapper } = mountEditor({
-                gradient: { direction: '90deg', light: ['#000000', '#ffffff'], dark: ['#111111', '#222222'] },
+        it('renders one tile for its mode with the given style', () => {
+            const { wrapper } = mountEditor({}, {
+                mode: 'dark',
+                previewStyle: { '--dashi-bg': '#101010' },
             })
-            const light = wrapper.find('[data-testid="bg-preview-light"]').attributes('style')
-            const dark = wrapper.find('[data-testid="bg-preview-dark"]').attributes('style')
-            expect(light).toContain('--dashi-page-bg: linear-gradient(90deg,#000000,#ffffff)')
-            expect(light).toContain('--dashi-bg: #ffffff')
-            expect(dark).toContain('--dashi-page-bg: linear-gradient(90deg,#111111,#222222)')
-            expect(dark).toContain('--dashi-bg: #101010')
-        })
-
-        it('updates as the background is edited', async () => {
-            const { wrapper } = mountEditor(gradient())
-            await wrapper.find('[data-testid="stop-light-0"]').setValue('#abcdef')
-            const light = wrapper.find('[data-testid="bg-preview-light"]').attributes('style')
-            expect(light).toContain('linear-gradient(90deg,#abcdef,#ff0000,#ffffff)')
+            expect(wrapper.find('[data-testid="bg-preview-light"]').exists()).toBe(false)
+            const tile = wrapper.find('[data-testid="bg-preview-dark"]')
+            expect(tile.attributes('style')).toContain('--dashi-bg: #101010')
         })
     })
 
     describe('read-only', () => {
         it('disables every control and ignores clicks', async () => {
             const { wrapper, bg } = mountEditor(
-                {
-                    gradient: { direction: '90deg', light: ['#000000', '#ff0000', '#ffffff'] },
-                    image: { light: 'asset:sky.jpg', fit: 'cover', position: 'center', repeat: 'no-repeat' },
-                },
-                true,
+                { ...gradient(), ...image('asset:sky.jpg') },
+                { disabled: true },
             )
-            // A read-only theme offers no delete at all.
-            expect(wrapper.find('[data-testid="image-delete-light-asset:own.png"]').exists()).toBe(false)
             const before = JSON.parse(JSON.stringify(bg))
 
             for (const sel of [
                 '[data-testid="stop-light-add"]',
                 '[data-testid="stop-light-1-remove"]',
                 '[data-testid="stop-light-1-up"]',
-                '[data-testid="image-clear"]',
-                '[data-testid="image-upload-light"]',
-                '[data-testid="image-light-asset:own.png"]',
+                '[data-testid="image-light-upload"]',
+                '[data-testid="image-light-remove"]',
             ]) {
                 const el = wrapper.find(sel)
                 expect(el.attributes('disabled'), sel).toBeDefined()
                 await el.trigger('click')
             }
+            expect(wrapper.findComponent(ConfirmDialog).props('visible')).toBe(false)
             expect(wrapper.find('[data-testid="stop-light-0"]').attributes('disabled')).toBeDefined()
             expect(wrapper.findAll('[data-testid="bg-base"] button').every(b => b.attributes('disabled') !== undefined)).toBe(true)
             expect(JSON.parse(JSON.stringify(bg))).toEqual(before)

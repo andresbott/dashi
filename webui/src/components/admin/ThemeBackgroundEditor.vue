@@ -1,13 +1,10 @@
 <script setup lang="ts">
-// The Background section of the theme editor. A background belongs to its
-// theme (there is no separate background entity): a base — the palette `bg`
-// or a linear gradient — with an optional image painted over it, each with an
-// optional dark-mode variant. Edits mutate the bound background in place, so
-// the parent's autosave picks them up like any other theme field.
-//
-// It still edits the pre-split EditorBackground shape (dark as optional
-// overrides of light); the parent converts it to the stored per-mode
-// background through lib/themeBackgroundDraft.
+// The Background section of the theme editor for ONE colour mode. A
+// background belongs to its theme (there is no separate background entity): a
+// base — the mode's palette `bg` or a linear gradient — with an optional image
+// painted over it. Edits mutate the bound background in place, so the
+// parent's autosave picks them up like any other theme field. The light and
+// dark modes each get their own instance; nothing here is shared between them.
 import { computed, ref } from 'vue'
 import Button from 'primevue/button'
 import ColorPicker from 'primevue/colorpicker'
@@ -15,39 +12,48 @@ import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import SelectButton from 'primevue/selectbutton'
 import Slider from 'primevue/slider'
-import ToggleSwitch from 'primevue/toggleswitch'
 import { useToast } from 'primevue/usetoast'
 
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useThemeAssets } from '@/composables/useThemes'
 import { themeAssetUrl } from '@/lib/api/themes'
-import { fromDraft, type EditorBackground } from '@/lib/themeBackgroundDraft'
-import { isValidStopColor, previewStyle } from '@/lib/themeCss'
+import { isValidStopColor } from '@/lib/themeCss'
+import { uniqueAssetName } from '@/lib/themeEditor'
 import type {
     ImageFit,
     ImagePosition,
     ImageRepeat,
+    ModeBackground,
     PaletteRole,
-    ThemeColors,
 } from '@/types/theme'
 
 const props = withDefaults(
     defineProps<{
         themeId: string
-        // The theme's palettes, for the preview only.
-        colors: ThemeColors
+        // Scopes the test ids and labels, so a light and a dark editor can be
+        // mounted side by side.
+        mode: 'light' | 'dark'
+        // Persists the theme now (the parent's autosave flush). Awaited before
+        // and after an upload, see handleUpload.
+        flush: () => Promise<void>
+        // Inline style of the preview tile: the theme scoped to this mode.
+        previewStyle: Record<string, string>
         // Read-only: every control is disabled and nothing is written.
         disabled?: boolean
     }>(),
     { disabled: false },
 )
 
-const background = defineModel<EditorBackground>('background', { required: true })
+const emit = defineEmits<{
+    // True while a file is uploading: the parent blocks autosave (and the
+    // whole editor) until it reports false again.
+    uploading: [value: boolean]
+}>()
+
+const background = defineModel<ModeBackground>('background', { required: true })
 
 const toast = useToast()
-const { assets, uploadAsset, isUploadingAsset, deleteAsset } = useThemeAssets(() => props.themeId)
-
-type Mode = 'light' | 'dark'
+const { assets, uploadAsset, isUploadingAsset } = useThemeAssets(() => props.themeId)
 
 // ---- base: palette bg or gradient ----
 
@@ -63,7 +69,7 @@ const baseKind = computed<BaseKind>(() => (background.value.gradient ? 'gradient
 const setBaseKind = (kind: BaseKind) => {
     if (props.disabled) return
     if (kind === 'gradient') {
-        background.value.gradient ??= { direction: '135deg', light: ['#667eea', '#764ba2'] }
+        background.value.gradient ??= { direction: '135deg', stops: ['#667eea', '#764ba2'] }
     } else {
         delete background.value.gradient
     }
@@ -101,55 +107,34 @@ const setAngle = (v: number | number[]) => {
 }
 
 // ---- gradient stops ----
-// An absent `dark` list means "use the light stops". The toggle deletes the
-// key rather than leaving an empty list behind.
 
-const gradientDarkEnabled = computed(() => background.value.gradient?.dark !== undefined)
-
-const setGradientDark = (on: boolean) => {
-    const gradient = background.value.gradient
-    if (!gradient || props.disabled) return
-    if (on) gradient.dark = [...gradient.light]
-    else delete gradient.dark
-}
-
-const stopLists = computed(() => {
-    const g = background.value.gradient
-    if (!g) return []
-    const lists: { mode: Mode; label: string; stops: string[] }[] = [
-        { mode: 'light', label: g.dark ? 'Light stops' : 'Colour stops', stops: g.light },
-    ]
-    if (g.dark) lists.push({ mode: 'dark', label: 'Dark stops', stops: g.dark })
-    return lists
-})
-
-const stopsOf = (mode: Mode): string[] | undefined => background.value.gradient?.[mode]
+const stops = computed<string[] | undefined>(() => background.value.gradient?.stops)
 
 // A new stop repeats the last colour, so adding one never jumps the gradient.
-const addStop = (mode: Mode) => {
-    const stops = stopsOf(mode)
-    if (!stops || props.disabled) return
-    stops.push(stops[stops.length - 1] ?? '#ffffff')
+const addStop = () => {
+    const s = stops.value
+    if (!s || props.disabled) return
+    s.push(s[s.length - 1] ?? '#ffffff')
 }
 
 // A gradient needs at least two stops, so the last two cannot be removed.
-const removeStop = (mode: Mode, index: number) => {
-    const stops = stopsOf(mode)
-    if (!stops || props.disabled || stops.length <= 2) return
-    stops.splice(index, 1)
+const removeStop = (index: number) => {
+    const s = stops.value
+    if (!s || props.disabled || s.length <= 2) return
+    s.splice(index, 1)
 }
 
-const moveStop = (mode: Mode, index: number, delta: -1 | 1) => {
-    const stops = stopsOf(mode)
+const moveStop = (index: number, delta: -1 | 1) => {
+    const s = stops.value
     const target = index + delta
-    if (!stops || props.disabled || target < 0 || target >= stops.length) return
-    ;[stops[index], stops[target]] = [stops[target], stops[index]]
+    if (!s || props.disabled || target < 0 || target >= s.length) return
+    ;[s[index], s[target]] = [s[target], s[index]]
 }
 
-const setStop = (mode: Mode, index: number, value: string) => {
-    const stops = stopsOf(mode)
-    if (!stops || props.disabled) return
-    stops[index] = value
+const setStop = (index: number, value: string) => {
+    const s = stops.value
+    if (!s || props.disabled) return
+    s[index] = value
 }
 
 // ColorPicker understands only six-digit hex: expand #rgb and drop the alpha
@@ -161,17 +146,17 @@ const pickerValue = (v: string): string => {
     return '000000'
 }
 
-const setStopFromPicker = (mode: Mode, index: number, v: string | undefined) => {
-    const prev = stopsOf(mode)?.[index] ?? ''
+const setStopFromPicker = (index: number, v: string | undefined) => {
+    const prev = stops.value?.[index] ?? ''
     if (v === undefined) return
     const alpha = /^#[0-9a-fA-F]{8}$/.test(prev) ? prev.slice(7) : ''
-    setStop(mode, index, `#${v}${alpha}`)
+    setStop(index, `#${v}${alpha}`)
 }
 
-// The strip above each stop list shows the stops left to right over a
+// The strip above the stop list shows the stops left to right over a
 // checkerboard, so translucent stops are visible as such.
-const stripStyle = (stops: string[]) => {
-    const valid = stops.filter(isValidStopColor)
+const stripStyle = (list: string[]) => {
+    const valid = list.filter(isValidStopColor)
     const checker = 'repeating-conic-gradient(#d4d4d8 0 25%, #ffffff 0 50%) 0 0/12px 12px'
     if (valid.length < 2) return { background: checker }
     return { background: `linear-gradient(90deg,${valid.join(',')}), ${checker}` }
@@ -206,86 +191,67 @@ const repeatOptions: { label: string; value: ImageRepeat }[] = [
 ]
 
 // The extensions internal/themes ValidateRef accepts: anything else would be
-// rejected on save, so it is neither offered nor uploadable.
-const IMAGE_EXT = /\.(?:png|jpe?g|webp|svg)$/i
+// rejected on save, so it is not uploadable.
 const UPLOAD_ACCEPT = '.png,.jpg,.jpeg,.webp,.svg'
 
-interface ImageChoice {
-    ref: string
-    label: string
-    url: string
-}
+const ASSET = 'asset:'
 
-// A theme is self-contained: its images are its own uploads (asset:), which a
-// copy of the theme carries along. There is no shared pool.
-const ownImages = computed<ImageChoice[]>(() =>
-    (assets.value ?? [])
-        .filter(a => IMAGE_EXT.test(a))
-        .map(a => ({ ref: `asset:${a}`, label: a, url: themeAssetUrl(props.themeId, a) })),
-)
+const imageRef = computed(() => background.value.image?.ref ?? '')
 
-const knownRefs = computed(() => new Set(ownImages.value.map(c => c.ref)))
+// Only asset: refs exist: a theme references nothing but its own uploads.
+const assetName = computed(() => (imageRef.value.startsWith(ASSET) ? imageRef.value.slice(ASSET.length) : ''))
 
-// A reference to an image that no longer exists in the theme (deleted after
-// being picked, or a leftover from the removed shared pool): it renders
-// nothing, so it is called out once the asset list has loaded.
-const isMissing = (ref: string | undefined): boolean =>
-    !!ref && assets.value !== undefined && !knownRefs.value.has(ref)
+const refLabel = computed(() => imageRef.value.slice(imageRef.value.indexOf(':') + 1))
 
-const refLabel = (ref: string): string => ref.slice(ref.indexOf(':') + 1)
-
-const imageSlots = computed(() => {
-    const img = background.value.image
-    const slots: { mode: Mode; label: string; selected: string }[] = [
-        { mode: 'light', label: img?.dark !== undefined ? 'Light mode' : 'Both modes', selected: img?.light ?? '' },
-    ]
-    if (img?.dark !== undefined) slots.push({ mode: 'dark', label: 'Dark mode', selected: img.dark })
-    return slots
+// A reference to a file the theme does not have (a leftover from the removed
+// shared pool, or a hand-edited file): it renders nothing, so it is called out
+// once the asset list has loaded.
+const isMissing = computed(() => {
+    if (!imageRef.value || assets.value === undefined) return false
+    return !assetName.value || !assets.value.includes(assetName.value)
 })
 
-const selectImage = (mode: Mode, ref: string) => {
-    if (props.disabled) return
-    const img = background.value.image
-    if (mode === 'dark') {
-        if (img) img.dark = ref
-        return
-    }
-    if (img) img.light = ref
-    else background.value.image = { light: ref, fit: 'cover', position: 'center', repeat: 'no-repeat' }
-}
-
-const clearImage = () => {
-    if (props.disabled) return
-    delete background.value.image
-}
-
-const imageDarkEnabled = computed(() => background.value.image?.dark !== undefined)
-
-const setImageDark = (on: boolean) => {
-    const img = background.value.image
-    if (!img || props.disabled) return
-    if (on) img.dark = img.light
-    else delete img.dark
-}
+const thumbUrl = computed(() =>
+    assetName.value && !isMissing.value ? themeAssetUrl(props.themeId, assetName.value) : '',
+)
 
 const uploadInput = ref<HTMLInputElement | null>(null)
-const uploadTarget = ref<Mode>('light')
 
-const pickUpload = (mode: Mode) => {
+const pickUpload = () => {
     if (props.disabled) return
-    uploadTarget.value = mode
     uploadInput.value?.click()
 }
 
-// Uploads go into this theme's own assets, so the theme stays self-contained
-// (a copy of the theme carries them along), and select what was just uploaded.
+// Uploads go into this theme's own assets under a name no earlier upload has
+// (see uniqueAssetName), so light and dark never overwrite each other's file.
+//
+// The order pairs with the server's prune-on-save and its grace window:
+//  1. flush pending edits, so nothing unsaved is waiting while autosave is off;
+//  2. block autosave (and the editor) while the file uploads;
+//  3. reopen autosave BEFORE setting the ref, so that edit is not dropped;
+//  4. set the ref (Replace keeps fit/position/repeat) and flush it right away,
+//     so the new file is referenced well inside the grace window and the old
+//     one is pruned.
+// A failed upload sets nothing.
 const handleUpload = async (event: Event) => {
     const input = event.target as HTMLInputElement
     const file = input.files?.[0]
-    if (!file) return
+    if (!file || props.disabled) return
+    const name = uniqueAssetName(file.name, Date.now())
     try {
-        await uploadAsset({ name: file.name, bytes: await file.arrayBuffer() })
-        selectImage(uploadTarget.value, `asset:${file.name}`)
+        await props.flush()
+        emit('uploading', true)
+        try {
+            await uploadAsset({ name, bytes: await file.arrayBuffer() })
+        } finally {
+            emit('uploading', false)
+        }
+        // No disabled guard here: the prop still reads the uploading state
+        // until the parent re-renders.
+        const img = background.value.image
+        if (img) img.ref = `${ASSET}${name}`
+        else background.value.image = { ref: `${ASSET}${name}`, fit: 'cover', position: 'center', repeat: 'no-repeat' }
+        await props.flush()
         toast.add({ severity: 'success', summary: 'Uploaded', detail: file.name, life: 3000 })
     } catch {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to upload image', life: 5000 })
@@ -294,83 +260,43 @@ const handleUpload = async (event: Event) => {
     }
 }
 
-// Deleting removes the file from the theme's assets. A background still
-// pointing at it keeps the reference and shows the "no longer exists"
-// warning, so the confirmation says when the image is in use.
-const pendingDelete = ref<ImageChoice | null>(null)
-const deleteDialogVisible = ref(false)
+// Remove only clears this mode's reference: the other mode may use the same
+// file, and the server deletes unreferenced files on save.
+const removeDialogVisible = ref(false)
 
-const isInUse = (ref: string): boolean => {
-    const img = background.value.image
-    return !!img && (img.light === ref || img.dark === ref)
+const askRemove = () => {
+    if (props.disabled || !background.value.image) return
+    removeDialogVisible.value = true
 }
 
-const deleteMessage = computed(() =>
-    pendingDelete.value && isInUse(pendingDelete.value.ref)
-        ? 'This image is used by the background and will show as missing. Delete it from the theme?'
-        : 'Delete this image from the theme?',
-)
-
-const askDelete = (choice: ImageChoice) => {
+const confirmRemove = () => {
+    removeDialogVisible.value = false
     if (props.disabled) return
-    pendingDelete.value = choice
-    deleteDialogVisible.value = true
-}
-
-const confirmDelete = async () => {
-    const choice = pendingDelete.value
-    deleteDialogVisible.value = false
-    pendingDelete.value = null
-    if (!choice) return
-    try {
-        await deleteAsset(choice.label)
-        toast.add({ severity: 'success', summary: 'Deleted', detail: choice.label, life: 3000 })
-    } catch {
-        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete image', life: 5000 })
-    }
+    delete background.value.image
 }
 
 // ---- preview ----
 
-// Both colour modes side by side, generated by the same code the viewer's
-// stylesheet mirrors, so what you see is what the dashboard renders.
-const previewTiles = computed(() =>
-    (['light', 'dark'] as const).map(mode => ({
-        mode,
-        label: mode === 'light' ? 'Light' : 'Dark',
-        style: previewStyle(
-            { id: props.themeId, name: '', darkMode: true, background: fromDraft(background.value), colors: props.colors },
-            mode,
-        ),
-    })),
-)
+const modeLabel = computed(() => (props.mode === 'light' ? 'Light' : 'Dark'))
 
 const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', 'danger']
 </script>
 
 <template>
     <div class="bg-editor">
-        <!-- Live preview: light and dark side by side -->
-        <div class="bg-preview">
-            <div
-                v-for="tile in previewTiles"
-                :key="tile.mode"
-                class="bg-preview-tile"
-                :style="tile.style"
-                :data-testid="`bg-preview-${tile.mode}`"
-            >
-                <span class="bg-preview-mode">{{ tile.label }}</span>
-                <div class="bg-preview-card">
-                    <div class="bg-preview-text">Aa Sample text</div>
-                    <div class="bg-preview-muted">Muted text</div>
-                    <div class="bg-preview-swatches">
-                        <span
-                            v-for="role in swatches"
-                            :key="role"
-                            class="bg-preview-swatch"
-                            :style="{ background: `var(--dashi-${role})` }"
-                        />
-                    </div>
+        <!-- Live preview of this mode -->
+        <div class="bg-preview-tile" :style="previewStyle" :data-testid="`bg-preview-${mode}`">
+            <span class="bg-preview-mode">{{ modeLabel }}</span>
+            <div class="bg-preview-card">
+                <div class="bg-preview-text">Aa Sample text</div>
+                <div class="bg-preview-muted">Muted text</div>
+                <div class="bg-preview-swatches">
+                    <span
+                        v-for="role in swatches"
+                        :key="role"
+                        class="bg-preview-swatch"
+                        :style="{ background: `var(--dashi-${role})` }"
+                    />
                 </div>
             </div>
         </div>
@@ -411,26 +337,26 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
                 <small class="edit-hint">0° points up, increasing clockwise.</small>
             </div>
 
-            <div v-for="list in stopLists" :key="list.mode" class="flex flex-column gap-1">
-                <label class="font-semibold text-sm">{{ list.label }}</label>
-                <div class="stop-strip" :style="stripStyle(list.stops)" />
+            <div class="flex flex-column gap-1">
+                <label class="font-semibold text-sm">Colour stops</label>
+                <div class="stop-strip" :style="stripStyle(background.gradient.stops)" />
                 <div
-                    v-for="(stop, i) in list.stops"
-                    :key="`${list.mode}-${i}`"
+                    v-for="(stop, i) in background.gradient.stops"
+                    :key="i"
                     class="flex align-items-center gap-2"
                 >
                     <ColorPicker
                         :modelValue="pickerValue(stop)"
                         :disabled="disabled"
-                        @update:modelValue="(v: string | undefined) => setStopFromPicker(list.mode, i, v)"
+                        @update:modelValue="(v: string | undefined) => setStopFromPicker(i, v)"
                     />
                     <InputText
                         :modelValue="stop"
                         :invalid="!isValidStopColor(stop)"
                         :disabled="disabled"
-                        :data-testid="`stop-${list.mode}-${i}`"
+                        :data-testid="`stop-${mode}-${i}`"
                         class="flex-grow-1 min-w-0"
-                        @update:modelValue="(v: string | undefined) => setStop(list.mode, i, v ?? '')"
+                        @update:modelValue="(v: string | undefined) => setStop(i, v ?? '')"
                     />
                     <Button
                         icon="ti ti-arrow-up"
@@ -439,8 +365,8 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
                         severity="secondary"
                         aria-label="Move stop up"
                         :disabled="disabled || i === 0"
-                        :data-testid="`stop-${list.mode}-${i}-up`"
-                        @click="moveStop(list.mode, i, -1)"
+                        :data-testid="`stop-${mode}-${i}-up`"
+                        @click="moveStop(i, -1)"
                     />
                     <Button
                         icon="ti ti-arrow-down"
@@ -448,9 +374,9 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
                         rounded
                         severity="secondary"
                         aria-label="Move stop down"
-                        :disabled="disabled || i === list.stops.length - 1"
-                        :data-testid="`stop-${list.mode}-${i}-down`"
-                        @click="moveStop(list.mode, i, 1)"
+                        :disabled="disabled || i === background.gradient.stops.length - 1"
+                        :data-testid="`stop-${mode}-${i}-down`"
+                        @click="moveStop(i, 1)"
                     />
                     <Button
                         icon="ti ti-trash"
@@ -458,9 +384,9 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
                         rounded
                         severity="danger"
                         aria-label="Remove stop"
-                        :disabled="disabled || list.stops.length <= 2"
-                        :data-testid="`stop-${list.mode}-${i}-remove`"
-                        @click="removeStop(list.mode, i)"
+                        :disabled="disabled || background.gradient.stops.length <= 2"
+                        :data-testid="`stop-${mode}-${i}-remove`"
+                        @click="removeStop(i)"
                     />
                 </div>
                 <Button
@@ -470,113 +396,73 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
                     size="small"
                     class="align-self-start"
                     :disabled="disabled"
-                    :data-testid="`stop-${list.mode}-add`"
-                    @click="addStop(list.mode)"
+                    :data-testid="`stop-${mode}-add`"
+                    @click="addStop"
                 />
             </div>
             <small class="edit-hint">
                 Stops are spread evenly. Hex colours, alpha allowed: e-ink and image
                 dashboards flatten translucent stops over the page background.
             </small>
-
-            <div class="flex align-items-center gap-2">
-                <ToggleSwitch
-                    :modelValue="gradientDarkEnabled"
-                    :disabled="disabled"
-                    data-testid="gradient-dark-toggle"
-                    @update:modelValue="setGradientDark"
-                />
-                <span class="text-sm">Different stops in dark mode</span>
-            </div>
         </template>
 
-        <!-- Image layer, painted over the base -->
-        <div class="flex flex-wrap align-items-center justify-content-between gap-2 mt-2">
+        <!-- Image layer, painted over the base: one file per mode -->
+        <div class="flex flex-column gap-1 mt-2">
             <label class="font-semibold text-sm">Image</label>
-            <Button
-                label="Remove image"
-                icon="ti ti-x"
-                severity="secondary"
-                size="small"
-                text
-                :disabled="disabled || !background.image"
-                data-testid="image-clear"
-                @click="clearImage"
-            />
-        </div>
-        <small class="edit-hint">
-            Images are stored in the theme itself and copied along with it.
-        </small>
-
-        <div v-if="background.image" class="flex align-items-center gap-2">
-            <ToggleSwitch
-                :modelValue="imageDarkEnabled"
-                :disabled="disabled"
-                data-testid="image-dark-toggle"
-                @update:modelValue="setImageDark"
-            />
-            <span class="text-sm">Different image in dark mode</span>
-        </div>
-
-        <div v-for="slot in imageSlots" :key="slot.mode" class="flex flex-column gap-1">
-            <div class="flex align-items-center justify-content-between">
-                <span class="text-sm font-semibold">{{ slot.label }}</span>
-                <Button
-                    label="Upload"
-                    icon="ti ti-upload"
-                    severity="secondary"
-                    size="small"
-                    :loading="isUploadingAsset && uploadTarget === slot.mode"
-                    :disabled="disabled"
-                    :data-testid="`image-upload-${slot.mode}`"
-                    @click="pickUpload(slot.mode)"
-                />
-            </div>
-            <small v-if="background.image && slot.mode === 'light' && !slot.selected" class="image-warning">
-                Pick an image, or remove the image layer.
-            </small>
-            <small v-else-if="isMissing(slot.selected)" class="image-warning">
-                “{{ refLabel(slot.selected) }}” no longer exists. Pick another image.
-            </small>
-            <div v-if="!ownImages.length" class="edit-hint text-sm">
-                No images in this theme yet. Upload one.
-            </div>
-            <div v-else class="image-grid">
-                <div v-for="choice in ownImages" :key="choice.ref" class="image-tile-wrap">
-                    <button
-                        type="button"
-                        class="image-tile"
-                        :class="{ selected: slot.selected === choice.ref }"
-                        :title="choice.label"
-                        :disabled="disabled"
-                        :aria-pressed="slot.selected === choice.ref"
-                        :data-testid="`image-${slot.mode}-${choice.ref}`"
-                        @click="selectImage(slot.mode, choice.ref)"
-                    >
-                        <img :src="choice.url" :alt="choice.label" loading="lazy" />
-                        <span class="image-tile-name">{{ choice.label }}</span>
-                    </button>
-                    <Button
-                        v-if="!disabled"
-                        icon="ti ti-trash"
-                        severity="danger"
-                        size="small"
-                        rounded
-                        class="image-tile-delete"
-                        :aria-label="`Delete ${choice.label}`"
-                        :data-testid="`image-delete-${slot.mode}-${choice.ref}`"
-                        @click="askDelete(choice)"
+            <div class="image-slot">
+                <div class="image-thumb">
+                    <img
+                        v-if="thumbUrl"
+                        :src="thumbUrl"
+                        :alt="refLabel"
+                        :data-testid="`image-${mode}-thumb`"
                     />
+                    <span v-else class="edit-hint text-sm">No image</span>
+                </div>
+                <div class="flex flex-column gap-2 min-w-0">
+                    <span v-if="assetName" class="image-name" :title="assetName">{{ assetName }}</span>
+                    <div class="flex flex-wrap gap-2">
+                        <Button
+                            :label="background.image ? 'Replace' : 'Upload'"
+                            icon="ti ti-upload"
+                            severity="secondary"
+                            size="small"
+                            :loading="isUploadingAsset"
+                            :disabled="disabled"
+                            :data-testid="`image-${mode}-upload`"
+                            @click="pickUpload"
+                        />
+                        <Button
+                            v-if="background.image"
+                            label="Remove"
+                            icon="ti ti-x"
+                            severity="secondary"
+                            size="small"
+                            text
+                            :disabled="disabled"
+                            :data-testid="`image-${mode}-remove`"
+                            @click="askRemove"
+                        />
+                    </div>
                 </div>
             </div>
+            <small v-if="background.image && !imageRef" class="image-warning">
+                Upload an image, or remove the image layer.
+            </small>
+            <small v-else-if="isMissing" class="image-warning">
+                “{{ refLabel }}” no longer exists. Upload another image.
+            </small>
+            <small class="edit-hint">
+                Images are stored in the theme itself and copied along with it.
+            </small>
         </div>
 
         <ConfirmDialog
-            v-model:visible="deleteDialogVisible"
-            :name="pendingDelete?.label ?? ''"
-            title="Delete image"
-            :message="deleteMessage"
-            @confirm="confirmDelete"
+            v-model:visible="removeDialogVisible"
+            :name="refLabel"
+            title="Remove image"
+            :message="`Remove the ${mode} background image?`"
+            @confirm="confirmRemove"
         />
 
         <input
@@ -617,12 +503,6 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
 .bg-editor {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-}
-
-.bg-preview {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
     gap: 0.75rem;
 }
 
@@ -708,65 +588,33 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
     color: var(--p-red-500);
 }
 
-.image-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-    gap: 0.5rem;
-    max-height: 260px;
-    overflow-y: auto;
-}
-
-.image-tile-wrap {
-    position: relative;
-}
-
-/* Overlaid on the thumbnail's corner; kept small so the tile stays the click
-   target for selecting the image. */
-.image-tile-delete {
-    position: absolute;
-    top: 0.35rem;
-    right: 0.35rem;
-    width: 1.6rem;
-    height: 1.6rem;
-    padding: 0;
-}
-
-.image-tile {
-    width: 100%;
+.image-slot {
     display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    padding: 0.25rem;
-    border: 2px solid var(--p-content-border-color);
-    border-radius: 6px;
-    background: var(--p-surface-0);
-    cursor: pointer;
-    text-align: left;
+    align-items: center;
+    gap: 0.75rem;
 }
 
-.image-tile:hover:not(:disabled) {
-    border-color: var(--p-primary-200);
-}
-
-.image-tile.selected {
-    border-color: var(--p-primary-color);
-}
-
-.image-tile:disabled {
-    cursor: default;
-    opacity: 0.7;
-}
-
-.image-tile img {
-    width: 100%;
+.image-thumb {
+    flex: none;
+    width: 120px;
     aspect-ratio: 4 / 3;
-    object-fit: cover;
-    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--p-content-border-color);
+    border-radius: 6px;
     background: var(--p-surface-100);
+    overflow: hidden;
+
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
 }
 
-.image-tile-name {
-    font-size: 0.7rem;
+.image-name {
+    font-size: 0.8rem;
     color: var(--p-text-muted-color);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -781,9 +629,7 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
 }
 
 @include bp.below-sm {
-    .bg-preview,
     .edit-row {
-        grid-template-columns: 1fr;
         flex-direction: column;
     }
 }
