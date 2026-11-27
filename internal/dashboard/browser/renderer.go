@@ -58,6 +58,9 @@ type RenderData struct {
 	TotalPages  int
 	PageNames   []string       // one per dashboard page, for the page nav
 	Palette     themes.Palette // carried through to widget renderers
+	// EditURL is the target of the Edit button that opens this dashboard
+	// in the editor; empty draws no button.
+	EditURL string
 }
 
 type pageData struct {

@@ -77,7 +77,7 @@ func newDitherMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.H
 	mid := NewDashboardMiddleware(store,
 		browser.NewRenderer(reg, browser.NewAssets(nil).JSTypes()),
 		dashstatic.NewRenderer(reg), dashimage.NewRenderer(),
-		themes.NewStore(t.TempDir(), bs), widgetthemes.NewStore(""))
+		themes.NewStore(t.TempDir(), bs), widgetthemes.NewStore(""), "")
 	return mid(http.NotFoundHandler())
 }
 

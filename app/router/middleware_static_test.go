@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/andresbott/dashi/internal/dashboard"
@@ -23,6 +24,13 @@ import (
 
 // newTestMiddleware creates a test middleware stack with a store and test widget.
 func newTestMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.Handler {
+	t.Helper()
+	return newTestMiddlewareWithEditor(t, "", dashboards...)
+}
+
+// newTestMiddlewareWithEditor is newTestMiddleware with an editor public URL,
+// the base of the viewer's Edit button.
+func newTestMiddlewareWithEditor(t *testing.T, editorBase string, dashboards ...dashboard.Dashboard) http.Handler {
 	t.Helper()
 	dir := t.TempDir()
 	store := dashboard.NewStore(dir)
@@ -50,7 +58,7 @@ func newTestMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.Han
 
 	bs, _ := images.NewStore(t.TempDir())
 	themeStore := themes.NewStore(t.TempDir(), bs)
-	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetthemes.NewStore(""))
+	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetthemes.NewStore(""), editorBase)
 	return mid(spaHandler)
 }
 
@@ -147,6 +155,78 @@ func TestImageDashboard_NoHeadersHTMLPreview(t *testing.T) {
 	body := rec.Body.String()
 	if body == "<p>test-content</p>" || body == "SPA" {
 		t.Error("expected browser-rendered HTML, got static HTML or SPA")
+	}
+}
+
+func TestEditLink(t *testing.T) {
+	const base = "https://editor.example/ingress"
+	tests := []struct {
+		name string
+		dash dashboard.Dashboard
+		base string
+		want string
+	}{
+		{
+			name: "interactive dashboard with flag",
+			dash: dashboard.Dashboard{ID: "abc123", Type: "interactive", ShowEditButton: true},
+			base: base,
+			want: base + "/dashboards/abc123/edit",
+		},
+		{
+			name: "legacy empty type counts as interactive",
+			dash: dashboard.Dashboard{ID: "abc123", ShowEditButton: true},
+			base: base,
+			want: base + "/dashboards/abc123/edit",
+		},
+		{
+			name: "id is escaped to one path segment",
+			dash: dashboard.Dashboard{ID: "a/b c", ShowEditButton: true},
+			base: base,
+			want: base + "/dashboards/a%2Fb%20c/edit",
+		},
+		{
+			name: "flag off",
+			dash: dashboard.Dashboard{ID: "abc123", Type: "interactive"},
+			base: base,
+			want: "",
+		},
+		{
+			name: "image dashboard",
+			dash: dashboard.Dashboard{ID: "abc123", Type: "image", ShowEditButton: true},
+			base: base,
+			want: "",
+		},
+		{
+			name: "no editor public url",
+			dash: dashboard.Dashboard{ID: "abc123", Type: "interactive", ShowEditButton: true},
+			base: "",
+			want: "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := editLink(tc.dash, tc.base); got != tc.want {
+				t.Errorf("editLink() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestImageDashboard_BrowserPreviewHasNoEditButton(t *testing.T) {
+	dash := imageDashboard("test")
+	dash.ShowEditButton = true
+	handler := newTestMiddlewareWithEditor(t, "https://editor.example", dash)
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "Edit dashboard") || strings.Contains(body, "/dashboards/test/edit") {
+		t.Errorf("image dashboard must not get an edit button, body: %s", body)
 	}
 }
 
@@ -902,7 +982,7 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("SPA"))
 	})
-	mid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetthemes.NewStore(""))
+	mid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetthemes.NewStore(""), "")
 	handler := mid(spaHandler)
 
 	// Request the PNG

@@ -184,7 +184,8 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	imageRenderer := dashimage.NewRenderer()
 	syncImageFonts(widgetThemeStore, imageRenderer)
 
-	staticMid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetThemeStore)
+	editor := publicEditor(cfg)
+	staticMid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetThemeStore, editor.URL)
 	promHisto := middleware.NewPromHistogram("", nil, nil)
 
 	return &sharedDeps{
@@ -210,7 +211,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 			Port:    cfg.ViewerPort,
 			BaseURL: cfg.ViewerPublicURL,
 		},
-		publicEditor: publicEditor(cfg),
+		publicEditor: editor,
 	}, nil
 }
 
