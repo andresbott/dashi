@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, inject, computed } from 'vue'
+import { ref, watch, inject, computed, useId } from 'vue'
 import { DASHBOARD_ID } from '@/lib/injectionKeys'
 import InputText from 'primevue/inputtext'
 import Checkbox from 'primevue/checkbox'
@@ -20,6 +20,7 @@ const emit = defineEmits<{
 }>()
 
 const dashboardId = inject(DASHBOARD_ID, ref(''))
+const iconLabelId = useId()
 
 const editUrl = ref(props.config?.url ?? '')
 const editIcon = ref(props.config?.icon ?? 'ti-bookmark')
@@ -116,7 +117,7 @@ const onTablerSelect = (icon: string) => {
 <template>
     <div class="flex flex-column gap-3">
         <div class="flex flex-column gap-1">
-            <label class="text-sm font-semibold">Icon</label>
+            <label class="text-sm font-semibold">Icon source</label>
             <Select
                 :modelValue="iconType"
                 @update:modelValue="(v: IconType | undefined) => { if (v) iconType = v }"
@@ -127,8 +128,8 @@ const onTablerSelect = (icon: string) => {
             />
         </div>
         <div v-if="iconType === 'tabler'" class="flex flex-column gap-1">
-            <label class="text-sm font-semibold">Icon</label>
-            <IconSelector :modelValue="editIcon" @update:modelValue="onTablerSelect" />
+            <label :id="iconLabelId" class="text-sm font-semibold">Icon</label>
+            <IconSelector :modelValue="editIcon" :labelledBy="iconLabelId" @update:modelValue="onTablerSelect" />
         </div>
         <div v-if="iconType === 'selfhst'" class="flex flex-column gap-1">
             <label class="text-sm font-semibold">Filename</label>

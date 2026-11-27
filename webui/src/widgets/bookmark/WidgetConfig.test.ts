@@ -88,4 +88,15 @@ describe('bookmark WidgetConfig tabler icon', () => {
         expect(wrapper.findComponent({ name: 'IconSelector' }).props('modelValue')).toBe('ti-bookmark')
         expect(wrapper.text()).not.toContain('ti-bookmark')
     })
+
+    it('labels each field uniquely and names the selector by its visible label', () => {
+        const wrapper = mountForm()
+        const labels = wrapper.findAll('label').map(l => l.text())
+        expect(new Set(labels).size).toBe(labels.length)
+        expect(labels).toContain('Icon source')
+
+        const iconLabel = wrapper.findAll('label').find(l => l.text() === 'Icon')!
+        expect(iconLabel.attributes('id')).toBeTruthy()
+        expect(wrapper.findComponent({ name: 'IconSelector' }).props('labelledBy')).toBe(iconLabel.attributes('id'))
+    })
 })

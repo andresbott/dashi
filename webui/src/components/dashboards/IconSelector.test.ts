@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { defineComponent, h, ref } from 'vue'
+import { defineComponent, h, nextTick, ref } from 'vue'
 import PrimeVue from 'primevue/config'
 import IconSelector from './IconSelector.vue'
 
@@ -19,10 +19,11 @@ const PopoverStub = defineComponent({
     },
 })
 
-const mountSelector = (modelValue: string) =>
+const mountSelector = (modelValue: string, options: { attachTo?: HTMLElement } = {}) =>
     mount(IconSelector, {
-        props: { modelValue },
+        props: { modelValue, labelledBy: 'icon-field-label' },
         global: { plugins: [PrimeVue], directives: { tooltip: {} }, stubs: { Popover: PopoverStub } },
+        ...options,
     })
 
 const trigger = (wrapper: ReturnType<typeof mountSelector>) => wrapper.find('[data-testid="icon-selector-trigger"]')
@@ -47,6 +48,24 @@ describe('IconSelector trigger', () => {
         expect(label.text()).toBe('Select icon')
         expect(label.classes()).toContain('icon-selector-placeholder')
         expect(t.findAll('i').map(i => i.classes())).toEqual([['ti', 'ti-chevron-down', 'icon-selector-chevron']])
+    })
+
+    it('is named by the field label and the current value', () => {
+        const wrapper = mountSelector('ti-bookmark')
+        const t = trigger(wrapper)
+        expect(t.attributes('aria-label')).toBeUndefined()
+        const [labelId, valueId] = t.attributes('aria-labelledby')!.split(' ')
+        expect(labelId).toBe('icon-field-label')
+        expect(valueId).toBeTruthy()
+        expect(t.find('.icon-selector-label').attributes('id')).toBe(valueId)
+    })
+
+    it('focuses the search field when the picker opens', async () => {
+        const wrapper = mountSelector('ti-bookmark', { attachTo: document.body })
+        await trigger(wrapper).trigger('click')
+        await nextTick()
+        expect(document.activeElement).toBe(wrapper.find('[data-testid="popover"] input').element)
+        wrapper.unmount()
     })
 
     it('opens the icon picker and emits the picked icon', async () => {
