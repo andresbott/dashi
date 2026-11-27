@@ -449,23 +449,26 @@
       "category": "xr10s6x",
       "sprint": "5bwgs6s",
       "title": "Theme backgrounds: only one background file per mode",
-      "status": "followup",
+      "status": "done",
       "description": "A theme allows at most one background image file per mode: one for light and, if dark mode is enabled, one for dark.\n\n[qualify-sprint 2026-11-27]\nSize: medium\nScope: References already allow one image per mode (light.image.ref, dark.image.ref from task 56); enforce the rule in storage: themes Store.Update deletes every file in the theme assets/ folder that neither light.image.ref nor dark.image.ref references (a dark ref kept while darkMode is off still counts). Keep the existing upload endpoint and content-addressed/uploaded names, no fixed names and no new endpoint. Pruning happens on save only, never on load or startup. Files: internal/themes/store.go (+ store_test.go), app/router/handlers/themes.go if needed, webui useThemeAssets if its contract changes. The per-mode upload slot in the editor is built in task 53. Acceptance: Go store test - upload two light images, save referencing the second: exactly one file remains; a file referenced by dark survives; a theme with extra legacy files keeps them after load and loses them after the next save.\nDepends on: 78xtfae (task 56)\nBreaking changes: allowed (unreferenced files in existing themes are deleted on their next save)\nDecided: storage enforces the rule by pruning unreferenced assets on save, not fixed file names - overwriting a stable URL leaves stale browser and render caches and needs a new endpoint; editor-only enforcement lets the folder fill up again.\nDecided: light and dark may reference the same file - pruning just counts references.\nDecided: an image behind a gradient stays allowed as today - the task does not ask to change it.\nAnswer: \"Prune on save (Recommended)\"\n\n[next-iteration 2026-11-27]\nDecided: prune on save skips files modified in the last 5 minutes (grace window) - an edit made during an upload can start a save with the old ref; the grace window keeps the just-uploaded file; orphans go on a later save. 5 minutes is a small choice.\nDecided: the editor awaits any pending autosave before uploading, then sets the ref and saves immediately (built with task 53).\n\n[next-iteration 2026-11-27]\nBuilt: 5d3cddd - Store.Update prunes unreferenced files under the theme's assets/ after a successful write (after any folder rename), via os.OpenRoot; files modified in the last 5 minutes are kept; best effort, never fails the save.\nDecided: pruning errors are ignored and never fail the save - the store has no logger and its rollback code ignores errors the same way.\nDecided: the walk/remove is scoped with os.OpenRoot - satisfies gosec G122 and stops a hand-placed symlink from steering a delete outside the theme.\nReview: passed, follow-ups added as subtasks.",
       "subtasks": [
         {
           "id": "frr7bqd",
           "title": "Use go-cmp in the asset prune test helper",
-          "description": "assertAssets in internal/themes/store_test.go uses reflect.DeepEqual; the project's Go test convention asks for go-cmp."
+          "done": true,
+          "description": "assertAssets in internal/themes/store_test.go uses reflect.DeepEqual; the project's Go test convention asks for go-cmp.\n\n[next-iteration 2026-11-27]\nNot needed: go-cmp is a global reviewer rule Dashi never adopted - it is not in go.mod and reflect.DeepEqual is used in other tests; adding a dependency to compare two []string goes against the stdlib-first style."
         },
         {
           "id": "6daqmmj",
           "title": "Remove empty asset subfolders after pruning",
-          "description": "Pruning removes only files, so e.g. assets/nested/ stays after nested/older.jpg is pruned. Harmless, but ListAssets and copyAssets still walk them."
+          "done": true,
+          "description": "Pruning removes only files, so e.g. assets/nested/ stays after nested/older.jpg is pruned. Harmless, but ListAssets and copyAssets still walk them.\n\n[next-iteration 2026-11-27]\nNot needed: empty folders hold no file, ListAssets/prune skip folders and copyAssets copies only files; removing folders would open a race with SaveAsset's MkdirAll-then-WriteFile."
         },
         {
           "id": "gndh5zz",
           "title": "Serialize asset pruning with concurrent uploads",
-          "description": "Update prunes outside s.mu and SaveAsset takes no lock, so a save can race a concurrent upload; the 5-minute grace window covers the normal case. Narrow edge case."
+          "done": true,
+          "description": "Update prunes outside s.mu and SaveAsset takes no lock, so a save can race a concurrent upload; the 5-minute grace window covers the normal case. Narrow edge case.\n\n[next-iteration 2026-11-27]\nNot needed: SaveAsset uses os.WriteFile, which refreshes mtime, so an overwritten file is inside the grace window; the remaining microsecond gap needs a re-upload of the same old image at that instant, and fixing it would need a new locking model around file I/O."
         }
       ]
     }
