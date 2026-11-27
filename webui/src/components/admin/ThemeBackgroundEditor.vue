@@ -24,7 +24,6 @@ import type {
     ImagePosition,
     ImageRepeat,
     ModeBackground,
-    PaletteRole,
 } from '@/types/theme'
 
 const props = withDefaults(
@@ -36,8 +35,6 @@ const props = withDefaults(
         // Persists the theme now (the parent's autosave flush). Awaited before
         // and after an upload, see handleUpload.
         flush: () => Promise<void>
-        // Inline style of the preview tile: the theme scoped to this mode.
-        previewStyle: Record<string, string>
         // Read-only: every control is disabled and nothing is written.
         disabled?: boolean
     }>(),
@@ -274,33 +271,11 @@ const confirmRemove = () => {
     if (props.disabled) return
     delete background.value.image
 }
-
-// ---- preview ----
-
-const modeLabel = computed(() => (props.mode === 'light' ? 'Light' : 'Dark'))
-
-const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', 'danger']
 </script>
 
 <template>
+    <!-- No preview of its own: the editor's Preview section shows this mode. -->
     <div class="bg-editor">
-        <!-- Live preview of this mode -->
-        <div class="bg-preview-tile" :style="previewStyle" :data-testid="`bg-preview-${mode}`">
-            <span class="bg-preview-mode">{{ modeLabel }}</span>
-            <div class="bg-preview-card">
-                <div class="bg-preview-text">Aa Sample text</div>
-                <div class="bg-preview-muted">Muted text</div>
-                <div class="bg-preview-swatches">
-                    <span
-                        v-for="role in swatches"
-                        :key="role"
-                        class="bg-preview-swatch"
-                        :style="{ background: `var(--dashi-${role})` }"
-                    />
-                </div>
-            </div>
-        </div>
-
         <!-- Base layer -->
         <div class="flex flex-column gap-1">
             <label class="font-semibold text-sm">Base</label>
@@ -504,59 +479,6 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-}
-
-.bg-preview-tile {
-    position: relative;
-    height: 140px;
-    border-radius: 6px;
-    border: 1px solid var(--p-content-border-color);
-    display: flex;
-    align-items: flex-end;
-    padding: 0.75rem;
-    overflow: hidden;
-}
-
-.bg-preview-mode {
-    position: absolute;
-    top: 0.4rem;
-    left: 0.5rem;
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 0.05rem 0.4rem;
-    border-radius: 999px;
-    background: var(--dashi-surface);
-    color: var(--dashi-text-muted);
-}
-
-.bg-preview-card {
-    background: var(--dashi-surface);
-    border: 1px solid var(--dashi-border);
-    border-radius: 6px;
-    padding: 0.4rem 0.6rem;
-    color: var(--dashi-text);
-}
-
-.bg-preview-text {
-    font-weight: 600;
-    font-size: 0.85rem;
-}
-
-.bg-preview-muted {
-    color: var(--dashi-text-muted);
-    font-size: 0.75rem;
-}
-
-.bg-preview-swatches {
-    display: flex;
-    gap: 0.2rem;
-    margin-top: 0.3rem;
-}
-
-.bg-preview-swatch {
-    width: 0.8rem;
-    height: 0.8rem;
-    border-radius: 50%;
 }
 
 .stop-strip {

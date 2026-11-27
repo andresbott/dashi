@@ -366,34 +366,43 @@ background store, list or ID, and none should be reintroduced. The theme
 editor (`webui/src/views/admin/AdminThemeEdit.vue`) edits a local copy of
 the theme; its `useAutosave` (deep watch) persists the whole theme.
 
-Layout: Name, an **Enable dark mode** checkbox bound to `darkMode`, then the
-per-mode sections. Unticked, one light set (Colours + Background) and no
-tabs; ticked, PrimeVue `Tabs` (non-lazy) with a Light and a Dark panel, each
-holding its own set. Colours and Background are each a toggleable PrimeVue
-`Panel` (`section-colors-<mode>`, `section-background-<mode>`): open on
-load, collapse state kept by each Panel instance (so per tab, and kept
-across tab switches since the tabs are not lazy), never persisted. The
+Layout, one column spanning the whole `.admin-panel` (inside the shared
+1200px `.admin-view` limit; there is no side column): Name, an **Enable dark
+mode** checkbox bound to `darkMode`, the save status (`save-status`:
+"Changes are saved automatically" / "Fix the highlighted fields..." /
+"Uploading image...", plus the hidden-dark-invalid warning), then the
+per-mode sections. Unticked, one light set (Colours + Background + Preview)
+and no tabs; ticked, PrimeVue `Tabs` (non-lazy) with a Light and a Dark
+panel, each holding its own set. Colours, Background and Preview are each a
+toggleable PrimeVue `Panel` (`section-colors-<mode>`,
+`section-background-<mode>`, `section-preview-<mode>`): open on load,
+collapse state kept by each Panel instance (so per tab, and kept across tab
+switches since the tabs are not lazy), never persisted. The Preview section
+(`webui/src/components/admin/ThemePreview.vue`, `preview-<mode>`) shows the
+mode it sits in, with no toggle of its own: its style is
+`previewStyle(theme, mode)` from `webui/src/lib/themeCss.ts`, the TS mirror
+of `BrowserCSS`, compositing `--dashi-page-bg` over `--dashi-bg` the way
+`<body>` over `<html>` does in the viewer. The
 first tick runs `seedDark`
 (`webui/src/lib/themeEditor.ts`): empty dark roles take the light value, and
 a dark background with neither gradient nor image gets a copy of the light
 gradient - never the image, so the modes never share a ref by accident.
 Unticking only hides the Dark tab; the dormant dark data stays and is saved.
-The editor always opens on Light; the right-hand preview follows the tab.
+The editor always opens on Light.
 A new theme (`AdminThemes.vue`) starts with `darkMode` false, the builtin's
 light palette and an all-empty dark palette (`emptyPalette`).
 
-Each mode set is two components, scoped by a `mode` prop (test ids and field
-ids carry it):
+Each mode set is three components, scoped by a `mode` prop (test ids and
+field ids carry it): `ThemePreview` above, and
 
 - `webui/src/components/admin/ThemeColorsEditor.vue` - `v-model:palette`, a
   picker and a hex field per role; writes each role into the bound palette
   in place (so several edits in one tick all land).
 - `webui/src/components/admin/ThemeBackgroundEditor.vue` - one mode's
-  `v-model:background` (`ModeBackground`), edited in place. It gets
-  `previewStyle` (from `previewStyle(theme, mode)` in
-  `webui/src/lib/themeCss.ts`, the TS mirror of `BrowserCSS`, compositing
-  `--dashi-page-bg` over `--dashi-bg` the way `<body>` over `<html>` does in
-  the viewer), the parent's autosave `flush`, and emits `uploading`.
+  `v-model:background` (`ModeBackground`), edited in place. It has no
+  preview of its own (the mode's Preview section shows the result) and so
+  needs no palette; it gets the parent's autosave `flush` and emits
+  `uploading`.
   - **Base**: palette `bg` or a linear gradient. Direction is edited as an
     angle (keyword directions display as their angle and are only rewritten
     when the slider moves). Stops are colours only, spread evenly - no stop
@@ -472,9 +481,8 @@ switch at the same widths.
   class (on a Column's `headerClass` + `bodyClass`); anything still too wide
   scrolls inside PrimeVue's table container, never the page. Docs tables
   scroll on their own.
-- **Below lg (992px)**: the theme editor stacks its preview under the form.
-- **Below sm (576px)**: the background editor's preview tiles and fit/position/
-  repeat selects stack.
+- **Below sm (576px)**: the background editor's fit/position/repeat selects
+  stack. (The theme editor is a single column at every width.)
 - **Shared admin page frame** (`.admin-section`, `.admin-section-header`,
   `.admin-section-title`, `.info-message`) lives in `webui/src/assets/style.scss`
   (it was copy-pasted into six components); the header wraps so a title plus

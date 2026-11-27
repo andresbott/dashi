@@ -102,7 +102,8 @@ describe('AdminThemeEdit', () => {
             expect(wrapper.find('[data-testid="image-light-upload"]').exists()).toBe(true)
             expect(wrapper.find('#color-dark-text').exists()).toBe(false)
             expect(wrapper.find('[data-testid="image-dark-upload"]').exists()).toBe(false)
-            expect(wrapper.find('[data-testid="bg-preview-dark"]').exists()).toBe(false)
+            expect(wrapper.find('[data-testid="preview-light"]').exists()).toBe(true)
+            expect(wrapper.find('[data-testid="preview-dark"]').exists()).toBe(false)
         })
 
         it('ticking shows Light and Dark tabs, each with its own colours and background', async () => {
@@ -115,7 +116,7 @@ describe('AdminThemeEdit', () => {
             for (const mode of ['light', 'dark']) {
                 expect(wrapper.find(`#color-${mode}-text`).exists(), mode).toBe(true)
                 expect(wrapper.find(`[data-testid="image-${mode}-upload"]`).exists(), mode).toBe(true)
-                expect(wrapper.find(`[data-testid="bg-preview-${mode}"]`).exists(), mode).toBe(true)
+                expect(wrapper.find(`[data-testid="preview-${mode}"]`).exists(), mode).toBe(true)
             }
             expect(wrapper.findAll('[data-testid="bg-base"]')).toHaveLength(2)
         })
@@ -238,8 +239,66 @@ describe('AdminThemeEdit', () => {
         })
     })
 
+    describe('preview', () => {
+        const gradientBg = (from: string) => ({ gradient: { direction: '90deg', stops: [from, '#ffffff'] } })
+        const previewOf = (wrapper: VueWrapper, mode: string) =>
+            wrapper.find(`[data-testid="section-preview-${mode}"] [data-testid="preview-${mode}"]`)
+
+        it('has no side column and no preview toggle of its own', async () => {
+            theme.value!.darkMode = true
+            theme.value!.colors.dark = { ...darkPalette }
+            const wrapper = mountView()
+            await flushPromises()
+
+            expect(wrapper.find('.edit-preview').exists()).toBe(false)
+            expect(wrapper.find('.edit-grid').exists()).toBe(false)
+            // The only SelectButtons left are the two background Base pickers.
+            expect(wrapper.findAll('.p-selectbutton')).toHaveLength(2)
+            expect(wrapper.findAll('[data-testid^="preview-"]')).toHaveLength(2)
+        })
+
+        it('shows the light colours and background after the other sections in light-only mode', async () => {
+            theme.value!.background = { light: gradientBg('#aa0000'), dark: {} }
+            const wrapper = mountView()
+            await flushPromises()
+
+            const sections = wrapper.findAll('[data-testid^="section-"]').map(s => s.attributes('data-testid'))
+            expect(sections).toEqual(['section-colors-light', 'section-background-light', 'section-preview-light'])
+            expect(wrapper.find('[data-testid="section-preview-light"]').text()).toContain('Preview')
+            const style = previewOf(wrapper, 'light').attributes('style')
+            expect(style).toContain('--dashi-bg: #ffffff')
+            expect(style).toContain('#aa0000')
+
+            await wrapper.find('#color-light-bg').setValue('#fafafa')
+            expect(previewOf(wrapper, 'light').attributes('style')).toContain('--dashi-bg: #fafafa')
+        })
+
+        it('shows each tab its own mode', async () => {
+            theme.value!.darkMode = true
+            theme.value!.colors.dark = { ...darkPalette }
+            theme.value!.background = { light: gradientBg('#aa0000'), dark: gradientBg('#00bb00') }
+            const wrapper = mountView()
+            await flushPromises()
+
+            for (const mode of ['light', 'dark']) {
+                const ids = wrapper.find(`[data-testid="section-colors-${mode}"]`).element.parentElement!
+                    .querySelectorAll(':scope > [data-testid^="section-"]')
+                expect(Array.from(ids, e => e.getAttribute('data-testid')), mode).toEqual([
+                    `section-colors-${mode}`, `section-background-${mode}`, `section-preview-${mode}`,
+                ])
+            }
+            const light = previewOf(wrapper, 'light').attributes('style')
+            const dark = previewOf(wrapper, 'dark').attributes('style')
+            expect(light).toContain('--dashi-bg: #ffffff')
+            expect(light).toContain('#aa0000')
+            expect(dark).toContain('--dashi-bg: #101010')
+            expect(dark).toContain('#00bb00')
+            expect(dark).not.toContain('#aa0000')
+        })
+    })
+
     describe('collapsible sections', () => {
-        const SECTIONS = ['colors', 'background'] as const
+        const SECTIONS = ['colors', 'background', 'preview'] as const
         type Section = (typeof SECTIONS)[number]
 
         const panel = (wrapper: VueWrapper, section: Section, mode: string) =>
@@ -256,21 +315,28 @@ describe('AdminThemeEdit', () => {
             return open
         }
 
-        it('starts with both sections open and toggles each on its own in light-only mode', async () => {
+        it('starts with every section open and toggles each on its own in light-only mode', async () => {
             const wrapper = mountView()
             await flushPromises()
             expect(panel(wrapper, 'colors', 'light').text()).toContain('Colours')
             expect(panel(wrapper, 'background', 'light').text()).toContain('Background')
+            expect(panel(wrapper, 'preview', 'light').text()).toContain('Preview')
             for (const s of SECTIONS) expect(isOpen(wrapper, s, 'light'), s).toBe(true)
 
             await toggleOf(wrapper, 'colors', 'light').trigger('click')
             expect(isOpen(wrapper, 'colors', 'light')).toBe(false)
             expect(isOpen(wrapper, 'background', 'light')).toBe(true)
+            expect(isOpen(wrapper, 'preview', 'light')).toBe(true)
 
             await toggleOf(wrapper, 'background', 'light').trigger('click')
             await toggleOf(wrapper, 'colors', 'light').trigger('click')
             expect(isOpen(wrapper, 'colors', 'light')).toBe(true)
             expect(isOpen(wrapper, 'background', 'light')).toBe(false)
+            expect(isOpen(wrapper, 'preview', 'light')).toBe(true)
+
+            await toggleOf(wrapper, 'preview', 'light').trigger('click')
+            expect(isOpen(wrapper, 'preview', 'light')).toBe(false)
+            expect(isOpen(wrapper, 'colors', 'light')).toBe(true)
         })
 
         it('gives each tab its own sections, open at first, and keeps them across tab switches', async () => {
@@ -291,20 +357,24 @@ describe('AdminThemeEdit', () => {
             expect(expanded(wrapper, 'colors', 'dark')).toBe(true)
             expect(expanded(wrapper, 'background', 'dark')).toBe(true)
 
-            // Dark tab: collapse Colours only.
+            // Dark tab: collapse Colours and Preview.
             const tabs = wrapper.findAll('[role="tab"]')
             await tabs[1].trigger('click')
             await toggleOf(wrapper, 'colors', 'dark').trigger('click')
+            await toggleOf(wrapper, 'preview', 'dark').trigger('click')
             expect(isOpen(wrapper, 'colors', 'dark')).toBe(false)
             expect(isOpen(wrapper, 'background', 'dark')).toBe(true)
+            expect(isOpen(wrapper, 'preview', 'dark')).toBe(false)
 
             // Back and forth: each tab keeps its own state.
             await tabs[0].trigger('click')
             expect(isOpen(wrapper, 'colors', 'light')).toBe(true)
             expect(isOpen(wrapper, 'background', 'light')).toBe(false)
+            expect(isOpen(wrapper, 'preview', 'light')).toBe(true)
             await tabs[1].trigger('click')
             expect(isOpen(wrapper, 'colors', 'dark')).toBe(false)
             expect(isOpen(wrapper, 'background', 'dark')).toBe(true)
+            expect(isOpen(wrapper, 'preview', 'dark')).toBe(false)
         })
     })
 
@@ -324,6 +394,21 @@ describe('AdminThemeEdit', () => {
             await settle()
             expect(updateTheme).toHaveBeenCalledTimes(1)
             expect(lastPayload().colors.light.text).toBe('#1a2b3c')
+        })
+
+        it('says above the sections whether changes are being saved', async () => {
+            const wrapper = mountView()
+            await flushPromises()
+            const status = wrapper.find('[data-testid="save-status"]')
+            expect(status.text()).toBe('Changes are saved automatically.')
+            // It sits with the Name and dark mode fields, before any section.
+            const order = status.element.compareDocumentPosition(
+                wrapper.find('[data-testid="section-colors-light"]').element,
+            )
+            expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+            await wrapper.find('#color-light-text').setValue('#12')
+            expect(wrapper.find('[data-testid="save-status"]').text()).toBe('Fix the highlighted fields to save your changes.')
         })
 
         it('does not save a translucent page background', async () => {

@@ -20,7 +20,6 @@ interface MountOptions {
     mode?: 'light' | 'dark'
     disabled?: boolean
     flush?: () => Promise<void>
-    previewStyle?: Record<string, string>
     onUploading?: (v: boolean) => void
 }
 
@@ -33,7 +32,6 @@ function mountEditor(background: ModeBackground, opts: MountOptions = {}) {
             mode: opts.mode ?? 'light',
             disabled: opts.disabled ?? false,
             flush: opts.flush ?? (async () => {}),
-            previewStyle: opts.previewStyle ?? {},
             onUploading: opts.onUploading,
         },
         global: { plugins: [PrimeVue], stubs: { RouterLink: true } },
@@ -259,16 +257,9 @@ describe('ThemeBackgroundEditor', () => {
         })
     })
 
-    describe('preview', () => {
-        it('renders one tile for its mode with the given style', () => {
-            const { wrapper } = mountEditor({}, {
-                mode: 'dark',
-                previewStyle: { '--dashi-bg': '#101010' },
-            })
-            expect(wrapper.find('[data-testid="bg-preview-light"]').exists()).toBe(false)
-            const tile = wrapper.find('[data-testid="bg-preview-dark"]')
-            expect(tile.attributes('style')).toContain('--dashi-bg: #101010')
-        })
+    it('renders no preview of its own (the editor has a Preview section)', () => {
+        const { wrapper } = mountEditor(gradient())
+        expect(wrapper.find('[data-testid^="bg-preview"]').exists()).toBe(false)
     })
 
     describe('read-only', () => {
