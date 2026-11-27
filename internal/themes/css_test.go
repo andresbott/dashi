@@ -87,6 +87,26 @@ func TestBrowserCSSUsesEachModesPalette(t *testing.T) {
 	}
 }
 
+func TestBrowserCSSDarkModeOffRepeatsLightRule(t *testing.T) {
+	th := testTheme("Off")
+	th.ID = "abc123"
+	th.DarkMode = false
+	th.Colors.Dark.Primary = "#222222"
+	th.Background = Background{
+		Gradient: &Gradient{Direction: "to right", Light: []string{"#000000", "#ffffff"}, Dark: []string{"#111111", "#222222"}},
+		Image:    &Image{Light: "asset:a.png", Dark: "asset:b.png", Fit: "cover", Position: "center", Repeat: "no-repeat"},
+	}
+	got := string(BrowserCSS(th))
+	light := strings.TrimPrefix(lightRule(t, got), ":root")
+	dark := strings.TrimSuffix(strings.TrimPrefix(darkRule(t, got), `:root[data-color-mode="dark"]`), "\n")
+	if light != dark {
+		t.Fatalf("dark mode off must render the light rule twice:\nlight: %s\ndark:  %s", light, dark)
+	}
+	if css, ref := ImageCSS(th, "dark"); css != "" || ref != "asset:a.png" {
+		t.Fatalf("ImageCSS(dark) with dark mode off = %q %q, want the light image", css, ref)
+	}
+}
+
 func TestBrowserCSSImageOverGradient(t *testing.T) {
 	th := testTheme("Sunset")
 	th.ID = "abc123"

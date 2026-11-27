@@ -32,7 +32,7 @@ const dark: Palette = {
 }
 
 const theme = (over: Partial<Theme> = {}): Theme => ({
-    id: 'a1', name: 'X', background: {}, colors: { light: { ...light }, dark: { ...dark } }, ...over,
+    id: 'a1', name: 'X', darkMode: true, background: {}, colors: { light: { ...light }, dark: { ...dark } }, ...over,
 })
 
 const withImage = (image: ThemeImage): Theme => theme({ id: 'test', background: { image } })
@@ -87,6 +87,17 @@ describe('browserCss', () => {
             light: 'asset:a.png', fit: 'cover', position: 'center;}' as ThemeImage['position'], repeat: 'no-repeat',
         }))
         expect(css).not.toContain('--dashi-page-bg')
+    })
+
+    it('renders the light palette and background for dark when darkMode is off', () => {
+        const css = browserCss(theme({
+            darkMode: false,
+            background: { gradient: { direction: '90deg', light: ['#000000', '#ffffff'], dark: ['#111111', '#222222'] } },
+        }))
+        const [lightRule, darkRule] = css.trimEnd().split('\n')
+        expect(darkRule.replace(':root[data-color-mode="dark"]', '')).toBe(lightRule.replace(':root', ''))
+        expect(darkRule).toContain('--dashi-bg:#ffffff;')
+        expect(darkRule).toContain('linear-gradient(90deg,#000000,#ffffff)')
     })
 
     it('percent-encodes a single quote in a reference', () => {

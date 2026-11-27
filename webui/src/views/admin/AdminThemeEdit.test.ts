@@ -60,6 +60,7 @@ describe('AdminThemeEdit', () => {
         theme.value = {
             id: 'abc123',
             name: 'Mine',
+            darkMode: true,
             background: {},
             colors: { light: { ...palette }, dark: { ...palette } },
         }

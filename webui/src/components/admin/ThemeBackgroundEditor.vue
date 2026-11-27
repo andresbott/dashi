@@ -335,7 +335,7 @@ const previewTiles = computed(() =>
         mode,
         label: mode === 'light' ? 'Light' : 'Dark',
         style: previewStyle(
-            { id: props.themeId, name: '', background: background.value, colors: props.colors },
+            { id: props.themeId, name: '', darkMode: true, background: background.value, colors: props.colors },
             mode,
         ),
     })),

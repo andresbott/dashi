@@ -54,18 +54,27 @@ type Background struct {
 }
 
 // Theme is one theme: a background plus a palette per colour mode.
+//
+// DarkMode says whether the theme has a dark variant. When it is false every
+// colour mode renders the light palette and background; the dark data stays
+// stored but unused, so switching it back on loses nothing. The tag has no
+// omitempty on purpose: a file without the key loads with dark mode on (see
+// decodeTheme), so a saved false must be written out.
 type Theme struct {
 	ID         string     `json:"id"`
 	Name       string     `json:"name"`
+	DarkMode   bool       `json:"darkMode"`
 	Background Background `json:"background"`
 	Colors     Colors     `json:"colors"`
 }
 
-// Meta is the listing representation.
+// Meta is the listing representation. Colors is the rendered view: with
+// DarkMode off its dark palette is the light one.
 type Meta struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
 	Builtin    bool   `json:"builtin,omitempty"`
+	DarkMode   bool   `json:"darkMode"`
 	UsedBy     int    `json:"usedBy"`
 	PreviewCSS string `json:"previewCss"`
 	Colors     Colors `json:"colors"`
@@ -75,8 +84,9 @@ type Meta struct {
 // background.
 func DefaultTheme() Theme {
 	return Theme{
-		ID:   DefaultID,
-		Name: "Default",
+		ID:       DefaultID,
+		Name:     "Default",
+		DarkMode: true,
 		Colors: Colors{
 			Light: DefaultPalette("light"),
 			Dark:  DefaultPalette("dark"),
@@ -84,11 +94,21 @@ func DefaultTheme() Theme {
 	}
 }
 
-// Palette returns the palette for colorMode ("dark" → dark, anything else →
-// light), leniently: every role that is not a valid colour falls back to the
-// default, so data that bypassed Validate still renders and cannot inject.
+// mode maps a requested colour mode onto the variant the theme renders:
+// "dark" only when the theme has dark mode on and dark was asked for, "light"
+// for everything else. Every per-mode lookup goes through it.
+func (t Theme) mode(colorMode string) string {
+	if t.DarkMode && colorMode == "dark" {
+		return "dark"
+	}
+	return "light"
+}
+
+// Palette returns the palette rendered for colorMode (see mode), leniently:
+// every role that is not a valid colour falls back to the default, so data
+// that bypassed Validate still renders and cannot inject.
 func (t Theme) Palette(colorMode string) Palette {
-	if colorMode == "dark" {
+	if t.mode(colorMode) == "dark" {
 		return t.Colors.Dark.withDefaults("dark")
 	}
 	return t.Colors.Light.withDefaults("light")
@@ -121,8 +141,10 @@ var imageExts = map[string]bool{
 
 // Validate reports whether t is safe to store and to render. It is the only
 // gate between user input and generated CSS, so it must reject anything it
-// does not positively recognise. Every palette role is required in both
-// modes.
+// does not positively recognise. Every light palette role is required; the
+// dark palette is required in full only with dark mode on. With it off, the
+// dark roles that are set are still checked, because they stay stored and
+// render again once dark mode is switched back on.
 func (t Theme) Validate() error {
 	if strings.TrimSpace(t.Name) == "" {
 		return fmt.Errorf("%w: name is required", ErrInvalidConfig)
@@ -130,7 +152,11 @@ func (t Theme) Validate() error {
 	if err := t.Colors.Light.Validate(); err != nil {
 		return fmt.Errorf("light palette: %w", err)
 	}
-	if err := t.Colors.Dark.Validate(); err != nil {
+	validateDark := t.Colors.Dark.Validate
+	if !t.DarkMode {
+		validateDark = t.Colors.Dark.validateSet
+	}
+	if err := validateDark(); err != nil {
 		return fmt.Errorf("dark palette: %w", err)
 	}
 	if err := validateGradient(t.Background.Gradient); err != nil {

@@ -145,7 +145,13 @@ const pageBg = (theme: Theme, v: Variant): string => {
     return layers.join(',')
 }
 
-const rule = (selector: string, theme: Theme, mode: 'light' | 'dark'): string => {
+// effectiveMode mirrors Go's Theme.mode: dark only when the theme has dark
+// mode on and dark was asked for.
+const effectiveMode = (theme: Theme, mode: 'light' | 'dark'): 'light' | 'dark' =>
+    mode === 'dark' && theme.darkMode ? 'dark' : 'light'
+
+const rule = (selector: string, theme: Theme, requested: 'light' | 'dark'): string => {
+    const mode = effectiveMode(theme, requested)
     const palette = theme.colors?.[mode]
     const defaults = DEFAULT_PALETTES[mode]
     let body = ''

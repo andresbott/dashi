@@ -3,6 +3,7 @@
     "name": "plain background, custom palette with translucent surface",
     "theme": {
       "id": "abc123",
+      "darkMode": true,
       "name": "Solarized",
       "background": {},
       "colors": {
@@ -16,6 +17,7 @@
     "name": "gradient with dark stops",
     "theme": {
       "id": "abc123",
+      "darkMode": true,
       "name": "Dusk",
       "background": {
         "gradient": {
@@ -35,6 +37,7 @@
     "name": "gradient with custom angle and three stops",
     "theme": {
       "id": "abc123",
+      "darkMode": true,
       "name": "Angle",
       "background": {
         "gradient": {
@@ -53,6 +56,7 @@
     "name": "image over gradient, different dark image",
     "theme": {
       "id": "abc123",
+      "darkMode": true,
       "name": "Sunset",
       "background": {
         "gradient": {
@@ -79,6 +83,7 @@
     "name": "image over the palette bg, contain top left, repeat",
     "theme": {
       "id": "abc123",
+      "darkMode": true,
       "name": "Tile",
       "background": {
         "image": {
@@ -99,6 +104,7 @@
     "name": "image only, stretch",
     "theme": {
       "id": "abc123",
+      "darkMode": true,
       "name": "Stretch",
       "background": {
         "image": {
@@ -114,5 +120,25 @@
       }
     },
     "browserCss": ":root{--dashi-bg:#ffffff;--dashi-surface:#f5f5f7;--dashi-border:#e0e0e5;--dashi-text:#333333;--dashi-text-muted:#666666;--dashi-primary:#0a84ff;--dashi-on-primary:#ffffff;--dashi-secondary:#8b5cf6;--dashi-success:#16a34a;--dashi-warning:#d97706;--dashi-danger:#dc2626;--dashi-page-bg:url('/api/v0/themes/abc123/assets/wide.jpg') center/100% 100% no-repeat;}\n:root[data-color-mode=\"dark\"]{--dashi-bg:#1a1a2e;--dashi-surface:#23233d;--dashi-border:#33334d;--dashi-text:#e0e0e0;--dashi-text-muted:#999999;--dashi-primary:#4a90d9;--dashi-on-primary:#ffffff;--dashi-secondary:#a78bfa;--dashi-success:#22c55e;--dashi-warning:#f59e0b;--dashi-danger:#ef4444;--dashi-page-bg:url('/api/v0/themes/abc123/assets/wide.jpg') center/100% 100% no-repeat;}\n"
+  },
+  {
+    "name": "darkMode off gives identical light and dark rules",
+    "theme": {
+      "id": "abc123",
+      "darkMode": false,
+      "name": "Paper",
+      "background": {
+        "gradient": {
+          "direction": "to bottom",
+          "light": ["#ffffff", "#eeeeee"],
+          "dark": ["#000000", "#111111"]
+        }
+      },
+      "colors": {
+        "light": { "bg": "#fdf6e3", "surface": "#eee8d5", "border": "#93a1a1", "text": "#657b83", "textMuted": "#93a1a1", "primary": "#268bd2", "onPrimary": "#ffffff", "secondary": "#6c71c4", "success": "#859900", "warning": "#b58900", "danger": "#dc322f" },
+        "dark": { "bg": "#002b36", "primary": "#2aa198" }
+      }
+    },
+    "browserCss": ":root{--dashi-bg:#fdf6e3;--dashi-surface:#eee8d5;--dashi-border:#93a1a1;--dashi-text:#657b83;--dashi-text-muted:#93a1a1;--dashi-primary:#268bd2;--dashi-on-primary:#ffffff;--dashi-secondary:#6c71c4;--dashi-success:#859900;--dashi-warning:#b58900;--dashi-danger:#dc322f;--dashi-page-bg:linear-gradient(to bottom,#ffffff,#eeeeee);}\n:root[data-color-mode=\"dark\"]{--dashi-bg:#fdf6e3;--dashi-surface:#eee8d5;--dashi-border:#93a1a1;--dashi-text:#657b83;--dashi-text-muted:#93a1a1;--dashi-primary:#268bd2;--dashi-on-primary:#ffffff;--dashi-secondary:#6c71c4;--dashi-success:#859900;--dashi-warning:#b58900;--dashi-danger:#dc322f;--dashi-page-bg:linear-gradient(to bottom,#ffffff,#eeeeee);}\n"
   }
 ]

@@ -55,7 +55,42 @@ func doJSON(t *testing.T, r *mux.Router, method, path string, body any) *httptes
 
 // validTheme returns a theme that passes validation.
 func validTheme(name string) themes.Theme {
-	return themes.Theme{Name: name, Colors: themes.DefaultTheme().Colors}
+	return themes.Theme{Name: name, DarkMode: true, Colors: themes.DefaultTheme().Colors}
+}
+
+func TestThemeWritesRequireDarkModeKey(t *testing.T) {
+	r, themeStore, _ := newThemeTestRouter(t)
+	stored := mustCreateTheme(t, themeStore, "Stored")
+	body := map[string]any{"name": "No flag", "colors": themes.DefaultTheme().Colors}
+	for _, c := range []struct{ method, path string }{
+		{http.MethodPost, "/themes"},
+		{http.MethodPut, "/themes/" + stored.ID},
+	} {
+		rec := doJSON(t, r, c.method, c.path, body)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s %s without darkMode: expected 400, got %d body %s", c.method, c.path, rec.Code, rec.Body)
+		}
+		if !strings.Contains(rec.Body.String(), "darkMode") {
+			t.Errorf("%s %s: expected the error to name darkMode, got %s", c.method, c.path, rec.Body)
+		}
+	}
+	got, err := themeStore.Get(stored.ID)
+	if err != nil || got.Name != "Stored" {
+		t.Fatalf("a rejected PUT must not change the theme, got %+v %v", got, err)
+	}
+}
+
+func TestThemeUpdateStoresDarkModeOff(t *testing.T) {
+	r, themeStore, _ := newThemeTestRouter(t)
+	th := mustCreateTheme(t, themeStore, "Light")
+	th.DarkMode = false
+	if rec := doJSON(t, r, http.MethodPut, "/themes/"+th.ID, th); rec.Code != http.StatusOK {
+		t.Fatalf("update: got %d body %s", rec.Code, rec.Body)
+	}
+	got, err := themeStore.Get(th.ID)
+	if err != nil || got.DarkMode {
+		t.Fatalf("expected darkMode false to persist, got %+v %v", got, err)
+	}
 }
 
 func mustCreateTheme(t *testing.T, s *themes.Store, name string) themes.Theme {
@@ -111,8 +146,9 @@ func TestThemeCreateIgnoresClientID(t *testing.T) {
 func TestThemeCreateRejectsInvalidConfig(t *testing.T) {
 	r, _, _ := newThemeTestRouter(t)
 	rec := doJSON(t, r, http.MethodPost, "/themes", map[string]any{
-		"name":   "Bad",
-		"colors": map[string]any{"light": map[string]string{"bg": "#fff"}},
+		"name":     "Bad",
+		"darkMode": true,
+		"colors":   map[string]any{"light": map[string]string{"bg": "#fff"}},
 	})
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d body %s", rec.Code, rec.Body)

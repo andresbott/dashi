@@ -15,7 +15,7 @@ const palette: Palette = {
     warning: '#d97706', danger: '#dc2626',
 }
 const meta = (id: string, name: string): ThemeMeta => ({
-    id, name, usedBy: 0, previewCss: '', colors: { light: palette, dark: palette },
+    id, name, darkMode: true, usedBy: 0, previewCss: '', colors: { light: palette, dark: palette },
 })
 
 const draft = ref<Dashboard | null>(null)

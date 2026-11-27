@@ -61,6 +61,10 @@ export interface Theme {
     name: string
     // Set by the server on read-only builtins; never sent back.
     builtin?: boolean
+    // Whether the theme has a dark variant. Off: every colour mode renders the
+    // light palette and background; the dark data stays stored but unused.
+    // The server rejects a POST/PUT body without it.
+    darkMode: boolean
     background: ThemeBackground
     colors: ThemeColors
 }
@@ -69,6 +73,8 @@ export interface ThemeMeta {
     id: string
     name: string
     builtin?: boolean
+    // With darkMode off, `colors.dark` is the light palette (rendered view).
+    darkMode: boolean
     usedBy: number
     previewCss: string
     colors: ThemeColors

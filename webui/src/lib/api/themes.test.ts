@@ -17,7 +17,7 @@ const palette: Palette = {
 }
 
 const theme = (over: Partial<Theme> = {}): Theme => ({
-    id: 'a1', name: 'A', background: {}, colors: { light: palette, dark: palette }, ...over,
+    id: 'a1', name: 'A', darkMode: true, background: {}, colors: { light: palette, dark: palette }, ...over,
 })
 
 describe('themes api', () => {
@@ -25,7 +25,7 @@ describe('themes api', () => {
 
     it('unwraps the items envelope when listing', async () => {
         vi.mocked(apiClient.get).mockResolvedValue({
-            data: { items: [{ id: 'a1', name: 'A', usedBy: 0, previewCss: '', colors: { light: palette, dark: palette } }] },
+            data: { items: [{ id: 'a1', name: 'A', darkMode: true, usedBy: 0, previewCss: '', colors: { light: palette, dark: palette } }] },
         })
         const got = await listThemes()
         expect(apiClient.get).toHaveBeenCalledWith('/themes')
@@ -46,7 +46,7 @@ describe('themes api', () => {
     })
 
     it('creates and updates', async () => {
-        const dto: CreateThemeDTO = { name: 'A', background: {}, colors: { light: palette, dark: palette } }
+        const dto: CreateThemeDTO = { name: 'A', darkMode: true, background: {}, colors: { light: palette, dark: palette } }
         vi.mocked(apiClient.post).mockResolvedValue({ data: theme() })
         await createTheme(dto)
         expect(apiClient.post).toHaveBeenCalledWith('/themes', dto)

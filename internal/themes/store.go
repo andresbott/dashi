@@ -68,8 +68,8 @@ func readThemeFile(dir string) (Theme, bool) {
 	if err != nil {
 		return Theme{}, false
 	}
-	var t Theme
-	if err := json.Unmarshal(raw, &t); err != nil {
+	t, err := decodeTheme(raw)
+	if err != nil {
 		return Theme{}, false
 	}
 	if t.ID == "" || IsBuiltin(t.ID) {
@@ -224,8 +224,8 @@ func (s *Store) Get(id string) (Theme, error) {
 		}
 		return Theme{}, fmt.Errorf("read theme %s: %w", id, err)
 	}
-	var t Theme
-	if err := json.Unmarshal(raw, &t); err != nil {
+	t, err := decodeTheme(raw)
+	if err != nil {
 		return Theme{}, fmt.Errorf("unmarshal theme %s: %w", id, err)
 	}
 	return t, nil
@@ -278,9 +278,10 @@ func newMeta(t Theme, builtin bool, usage map[string]int) Meta {
 		ID:         t.ID,
 		Name:       t.Name,
 		Builtin:    builtin,
+		DarkMode:   t.DarkMode,
 		UsedBy:     usage[t.ID],
 		PreviewCSS: string(BrowserCSS(t)),
-		Colors:     t.Colors,
+		Colors:     Colors{Light: t.Palette("light"), Dark: t.Palette("dark")},
 	}
 }
 

@@ -352,6 +352,112 @@ func TestListSkipsStoredThemeClaimingBuiltinID(t *testing.T) {
 	}
 }
 
+// writeRawTheme writes raw as themes/<folder>/theme.json and returns a store
+// that indexes it.
+func writeRawTheme(t *testing.T, folder, raw string) *Store {
+	t.Helper()
+	themesDir := filepath.Join(t.TempDir(), "themes")
+	if err := os.MkdirAll(filepath.Join(themesDir, folder), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(themesDir, folder, "theme.json"), []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return NewStore(themesDir)
+}
+
+func findMeta(t *testing.T, metas []Meta, id string) Meta {
+	t.Helper()
+	for _, m := range metas {
+		if m.ID == id {
+			return m
+		}
+	}
+	t.Fatalf("no meta for %q in %+v", id, metas)
+	return Meta{}
+}
+
+func TestThemeWithoutDarkModeKeyLoadsDarkModeOn(t *testing.T) {
+	s := writeRawTheme(t, "old", `{"id":"old123","name":"Old","background":{},"colors":{}}`)
+	got, err := s.Get("old123")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !got.DarkMode {
+		t.Error("Get: a theme without the darkMode key must load with dark mode on")
+	}
+	metas, err := s.List(nil)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if !findMeta(t, metas, "old123").DarkMode {
+		t.Error("List: a theme without the darkMode key must load with dark mode on")
+	}
+}
+
+func TestStoredDarkModeOffSurvivesReload(t *testing.T) {
+	s, _ := newTestStore(t)
+	th := testTheme("Light only")
+	th.DarkMode = false
+	created, err := s.Create(th)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	got, err := s.Get(created.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.DarkMode {
+		t.Fatal("a saved darkMode false must reload as false")
+	}
+}
+
+func TestGetMalformedThemeFails(t *testing.T) {
+	s := writeRawTheme(t, "bad", `{"id":"bad123","name":"Bad","colors":`)
+	if _, err := s.Get("bad123"); err == nil {
+		t.Fatal("expected an error for a malformed theme.json")
+	}
+}
+
+func TestMetaDarkModeOffReportsLightAsDark(t *testing.T) {
+	s, _ := newTestStore(t)
+	th := testTheme("Light only")
+	th.DarkMode = false
+	th.Colors.Dark = Palette{}
+	created, err := s.Create(th)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	metas, err := s.List(nil)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	m := findMeta(t, metas, created.ID)
+	if m.DarkMode {
+		t.Error("meta must report dark mode off")
+	}
+	if m.Colors.Dark != th.Colors.Light || m.Colors.Light != th.Colors.Light {
+		t.Errorf("meta with dark mode off must report the light palette for both modes, got %+v", m.Colors)
+	}
+}
+
+func TestDecodeRequestRequiresDarkMode(t *testing.T) {
+	if _, err := DecodeRequest([]byte(`{"name":"X","colors":{}}`)); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig without darkMode, got %v", err)
+	}
+	if _, err := DecodeRequest([]byte(`{"name":`)); err == nil || errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected a plain decode error for malformed JSON, got %v", err)
+	}
+	got, err := DecodeRequest([]byte(`{"name":"X","darkMode":false}`))
+	if err != nil || got.DarkMode || got.Name != "X" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	got, err = DecodeRequest([]byte(`{"name":"X","darkMode":true}`))
+	if err != nil || !got.DarkMode {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
 func TestIndexIsRebuiltOnStartup(t *testing.T) {
 	themesDir := filepath.Join(t.TempDir(), "themes")
 

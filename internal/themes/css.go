@@ -29,7 +29,7 @@ func writeRule(sb *strings.Builder, selector string, t Theme, colorMode string) 
 	sb.WriteString(selector)
 	sb.WriteByte('{')
 	writePaletteVars(sb, t.Palette(colorMode))
-	if bg := browserValue(t, resolve(t.Background, colorMode, nil)); bg != "" {
+	if bg := browserValue(t, resolve(t.Background, t.mode(colorMode), nil)); bg != "" {
 		sb.WriteString("--dashi-page-bg:")
 		sb.WriteString(bg)
 		sb.WriteByte(';')
@@ -51,7 +51,7 @@ func writeRule(sb *strings.Builder, selector string, t Theme, colorMode string) 
 // flattened over this mode's palette bg first.
 func ImageCSS(t Theme, colorMode string) (css string, imageRef string) {
 	bg, _ := parseOpaqueHex(t.Palette(colorMode).BG) // Palette guarantees an opaque BG
-	v := resolve(t.Background, colorMode, func(stop string) string { return flattenOver(stop, bg) })
+	v := resolve(t.Background, t.mode(colorMode), func(stop string) string { return flattenOver(stop, bg) })
 	if v.image != "" {
 		return "", v.image
 	}
@@ -85,8 +85,8 @@ func urlSegment(s string) string {
 	return strings.ReplaceAll(url.PathEscape(s), "'", "%27")
 }
 
-// resolve picks the values for one colour mode. Any mode other than "dark"
-// resolves light, matching how the renderers collapse colorMode. Dark falls
+// resolve picks the values for one colour mode; callers pass the effective
+// mode from Theme.mode, so a theme with dark mode off resolves light. Dark falls
 // back to light per field. mapStop, when non-nil, rewrites each gradient
 // stop before it is joined.
 func resolve(b Background, colorMode string, mapStop func(string) string) variant {

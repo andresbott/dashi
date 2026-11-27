@@ -9,7 +9,55 @@ import (
 // testTheme returns a valid theme with the default palettes and an empty
 // background, ready for a test to tweak.
 func testTheme(name string) Theme {
-	return Theme{Name: name, Colors: DefaultTheme().Colors}
+	return Theme{Name: name, DarkMode: true, Colors: DefaultTheme().Colors}
+}
+
+func TestBuiltinsHaveDarkMode(t *testing.T) {
+	for id, fn := range builtins {
+		if !fn().DarkMode {
+			t.Errorf("builtin %q must have dark mode on", id)
+		}
+	}
+}
+
+func TestPaletteDarkModeOffRendersLight(t *testing.T) {
+	th := testTheme("Off")
+	th.DarkMode = false
+	th.Colors.Light.Primary = "#111111"
+	th.Colors.Dark.Primary = "#222222"
+	if got := th.Palette("dark"); got != th.Palette("light") {
+		t.Fatalf("dark mode off: Palette(dark) = %+v, want the light palette", got)
+	}
+	if got := th.Palette("dark").Primary; got != "#111111" {
+		t.Fatalf("Primary = %q, want the light primary", got)
+	}
+}
+
+func TestValidateDarkModeOff(t *testing.T) {
+	tests := map[string]struct {
+		mutate func(th *Theme)
+		valid  bool
+	}{
+		"empty dark palette":       {func(th *Theme) { th.Colors.Dark = Palette{} }, true},
+		"partial dark palette":     {func(th *Theme) { th.Colors.Dark = Palette{Primary: "#123456"} }, true},
+		"bad dark role":            {func(th *Theme) { th.Colors.Dark = Palette{Primary: "red"} }, false},
+		"translucent dark bg":      {func(th *Theme) { th.Colors.Dark.BG = "#00000080" }, false},
+		"light palette still full": {func(th *Theme) { th.Colors.Light.Text = "" }, false},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			th := testTheme("Off")
+			th.DarkMode = false
+			tt.mutate(&th)
+			err := th.Validate()
+			if tt.valid && err != nil {
+				t.Fatalf("expected valid, got %v", err)
+			}
+			if !tt.valid && !errors.Is(err, ErrInvalidConfig) {
+				t.Fatalf("expected ErrInvalidConfig, got %v", err)
+			}
+		})
+	}
 }
 
 func TestDefaultTheme(t *testing.T) {
