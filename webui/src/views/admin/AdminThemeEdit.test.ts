@@ -296,7 +296,7 @@ describe('AdminThemeEdit', () => {
             expect(dark).not.toContain('#aa0000')
         })
 
-        it('shows the background image layer over the gradient, in its own mode only', async () => {
+        it('shows the background image layer and the gradient, in its own mode only', async () => {
             const image = { ref: 'asset:sky.jpg', fit: 'cover' as const, position: 'center' as const, repeat: 'no-repeat' as const }
             theme.value!.darkMode = true
             theme.value!.colors.dark = { ...darkPalette }
