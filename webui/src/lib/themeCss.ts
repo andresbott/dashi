@@ -1,4 +1,4 @@
-import type { ImageFit, Palette, PaletteRole, Theme, ThemeBackground } from '@/types/theme'
+import type { ImageFit, ModeBackground, Palette, PaletteRole, Theme, ThemeBackground, ThemeImage } from '@/types/theme'
 import { withBase } from '@/lib/base'
 
 // This file mirrors internal/themes/css.go and palette.go byte for byte so the
@@ -51,19 +51,20 @@ export const isValidRoleColor = (role: PaletteRole, value: string): boolean =>
 // (Go: validateColor): any hex colour, alpha allowed.
 export const isValidStopColor = (value: string): boolean => HEX.test(value)
 
-// isValidBackground mirrors Go's validateGradient/validateImage for the fields
-// the editor lets you break: every gradient stop must be a hex colour (at
-// least two of them) and an image layer needs a chosen light image. Directions
-// and image enums come from closed controls, so they are not re-checked here.
-export const isValidBackground = (bg: ThemeBackground | undefined): boolean => {
-    const g = bg?.gradient
-    if (g) {
-        if (g.light.length < 2 || !g.light.every(isValidStopColor)) return false
-        if (g.dark?.length && (g.dark.length < 2 || !g.dark.every(isValidStopColor))) return false
-    }
-    if (bg?.image && !bg.image.light) return false
+const isValidModeBackground = (mb: ModeBackground | undefined): boolean => {
+    const g = mb?.gradient
+    if (g && (g.stops.length < 2 || !g.stops.every(isValidStopColor))) return false
+    if (mb?.image && !mb.image.ref) return false
     return true
 }
+
+// isValidBackground mirrors Go's validateModeBackground, applied to both
+// modes as Go does, for the fields the editor lets you break: every gradient
+// stop must be a hex colour (at least two of them) and an image layer needs a
+// chosen image. Directions and image enums come from closed controls, so they
+// are not re-checked here.
+export const isValidBackground = (bg: ThemeBackground | undefined): boolean =>
+    isValidModeBackground(bg?.light) && isValidModeBackground(bg?.dark)
 
 const FIT_VALUES = new Set(['cover', 'contain', 'stretch', 'original'])
 const POSITION_VALUES = new Set([
@@ -109,32 +110,30 @@ const safeBaseValue = (s: string): boolean => {
 }
 
 interface Variant {
-    image: string
+    image?: ThemeImage
     baseValue: string
 }
 
-const resolve = (bg: ThemeBackground, dark: boolean): Variant => {
-    const v: Variant = { image: '', baseValue: '' }
-    if (bg.image) {
-        v.image = dark && bg.image.dark ? bg.image.dark : bg.image.light
-    }
-    if (bg.gradient) {
-        const stops = dark && bg.gradient.dark?.length ? bg.gradient.dark : bg.gradient.light
-        if (stops?.length) {
-            v.baseValue = `linear-gradient(${bg.gradient.direction},${stops.join(',')})`
-        }
+// resolve builds one mode's background from that mode's own data; there is no
+// fallback to the other mode (Go: resolve).
+const resolve = (mb: ModeBackground): Variant => {
+    const v: Variant = { baseValue: '' }
+    if (mb.image?.ref) v.image = mb.image
+    const g = mb.gradient
+    if (g?.stops?.length) {
+        v.baseValue = `linear-gradient(${g.direction},${g.stops.join(',')})`
     }
     return v
 }
 
-const pageBg = (theme: Theme, v: Variant): string => {
+const pageBg = (themeId: string, v: Variant): string => {
     const layers: string[] = []
-    const img = theme.background?.image
+    const img = v.image
     if (
-        v.image && img &&
+        img &&
         FIT_VALUES.has(img.fit) && POSITION_VALUES.has(img.position) && REPEAT_VALUES.has(img.repeat)
     ) {
-        const url = refUrl(theme.id, v.image)
+        const url = refUrl(themeId, img.ref)
         if (url) {
             layers.push(`url('${url}') ${img.position}/${cssSize(img.fit)} ${img.repeat}`)
         }
@@ -159,7 +158,7 @@ const rule = (selector: string, theme: Theme, requested: 'light' | 'dark'): stri
         const value = palette?.[role] ?? ''
         body += `${cssVar}:${isValidRoleColor(role, value) ? value : defaults[role]};`
     }
-    const bg = pageBg(theme, resolve(theme.background ?? {}, mode === 'dark'))
+    const bg = pageBg(theme.id, resolve(theme.background?.[mode] ?? {}))
     if (bg) body += `--dashi-page-bg:${bg};`
     return `${selector}{${body}}\n`
 }

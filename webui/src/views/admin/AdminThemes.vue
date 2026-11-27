@@ -40,7 +40,7 @@ const handleCreate = async () => {
         const created = await createTheme({
             name: 'New theme',
             darkMode: true,
-            background: {},
+            background: { light: {}, dark: {} },
             // A plain copy: query data is a reactive proxy.
             colors: plainCopy(builtin.value.colors),
         })

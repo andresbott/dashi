@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { browserCss, cssVars, isValidBackground, pageBgValue, previewStyle } from '@/lib/themeCss'
-import type { Palette, Theme, ThemeImage } from '@/types/theme'
+import type { ModeBackground, Palette, Theme, ThemeBackground, ThemeImage } from '@/types/theme'
 
 interface FixtureCase {
     name: string
@@ -31,11 +31,16 @@ const dark: Palette = {
     warning: '#f59e0b', danger: '#ef4444',
 }
 
+// bg builds a per-mode background; an omitted mode is plain.
+const bg = (light: ModeBackground = {}, dark: ModeBackground = {}): ThemeBackground => ({ light, dark })
+
+const grad = (direction: string, stops: string[]): ModeBackground => ({ gradient: { direction, stops } })
+
 const theme = (over: Partial<Theme> = {}): Theme => ({
-    id: 'a1', name: 'X', darkMode: true, background: {}, colors: { light: { ...light }, dark: { ...dark } }, ...over,
+    id: 'a1', name: 'X', darkMode: true, background: bg(), colors: { light: { ...light }, dark: { ...dark } }, ...over,
 })
 
-const withImage = (image: ThemeImage): Theme => theme({ id: 'test', background: { image } })
+const withImage = (image: ThemeImage): Theme => theme({ id: 'test', background: bg({ image }) })
 
 describe('browserCss parity with Go', () => {
     it('loads a non-empty fixture', () => {
@@ -58,7 +63,7 @@ describe('browserCss', () => {
 
     it('emits a gradient page-bg', () => {
         const css = browserCss(theme({
-            background: { gradient: { direction: '135deg', light: ['#000000', '#ffffff'] } },
+            background: bg(grad('135deg', ['#000000', '#ffffff'])),
         }))
         expect(css).toContain('--dashi-page-bg:linear-gradient(')
     })
@@ -76,7 +81,7 @@ describe('browserCss', () => {
 
     it('drops a gradient carrying unsafe characters', () => {
         const css = browserCss(theme({
-            background: { gradient: { direction: 'to right;}</style>', light: ['#000', '#fff'] } },
+            background: bg(grad('to right;}</style>', ['#000', '#fff'])),
         }))
         expect(css).not.toContain('</style')
         expect(css).not.toContain('--dashi-page-bg')
@@ -84,7 +89,7 @@ describe('browserCss', () => {
 
     it('drops an image whose enum fields are not recognised', () => {
         const css = browserCss(withImage({
-            light: 'asset:a.png', fit: 'cover', position: 'center;}' as ThemeImage['position'], repeat: 'no-repeat',
+            ref: 'asset:a.png', fit: 'cover', position: 'center;}' as ThemeImage['position'], repeat: 'no-repeat',
         }))
         expect(css).not.toContain('--dashi-page-bg')
     })
@@ -92,7 +97,7 @@ describe('browserCss', () => {
     it('renders the light palette and background for dark when darkMode is off', () => {
         const css = browserCss(theme({
             darkMode: false,
-            background: { gradient: { direction: '90deg', light: ['#000000', '#ffffff'], dark: ['#111111', '#222222'] } },
+            background: bg(grad('90deg', ['#000000', '#ffffff']), grad('90deg', ['#111111', '#222222'])),
         }))
         const [lightRule, darkRule] = css.trimEnd().split('\n')
         expect(darkRule.replace(':root[data-color-mode="dark"]', '')).toBe(lightRule.replace(':root', ''))
@@ -100,8 +105,24 @@ describe('browserCss', () => {
         expect(darkRule).toContain('linear-gradient(90deg,#000000,#ffffff)')
     })
 
+    it('renders an empty dark background as the plain dark palette, with no fallback to light', () => {
+        const css = browserCss(theme({ background: bg(grad('90deg', ['#000000', '#ffffff'])) }))
+        const [lightRule, darkRule] = css.trimEnd().split('\n')
+        expect(lightRule).toContain('--dashi-page-bg:linear-gradient(90deg,#000000,#ffffff);')
+        expect(darkRule).not.toContain('--dashi-page-bg')
+    })
+
+    it('uses each mode\'s own image fit, position and repeat', () => {
+        const image = (fit: ThemeImage['fit'], position: ThemeImage['position'], repeat: ThemeImage['repeat']): ModeBackground =>
+            ({ image: { ref: 'asset:a.png', fit, position, repeat } })
+        const css = browserCss(theme({ background: bg(image('cover', 'center', 'no-repeat'), image('contain', 'top', 'repeat')) }))
+        const [lightRule, darkRule] = css.trimEnd().split('\n')
+        expect(lightRule).toContain('a.png\') center/cover no-repeat;')
+        expect(darkRule).toContain('a.png\') top/contain repeat;')
+    })
+
     it('percent-encodes a single quote in a reference', () => {
-        const css = browserCss(withImage({ light: "asset:it's.png", fit: 'cover', position: 'center', repeat: 'no-repeat' }))
+        const css = browserCss(withImage({ ref: "asset:it's.png", fit: 'cover', position: 'center', repeat: 'no-repeat' }))
         expect(css).toContain('it%27s.png')
     })
 })
@@ -109,24 +130,26 @@ describe('browserCss', () => {
 describe('isValidBackground', () => {
     const img = { fit: 'cover', position: 'center', repeat: 'no-repeat' } as const
 
-    it.each([
-        ['an empty background', {}, true],
-        ['a valid gradient', { gradient: { direction: '90deg', light: ['#000', '#ffffff80'] } }, true],
-        ['a half-typed stop', { gradient: { direction: '90deg', light: ['#000', '#ff'] } }, false],
-        ['a single stop', { gradient: { direction: '90deg', light: ['#000'] } }, false],
-        ['an invalid dark stop', { gradient: { direction: '90deg', light: ['#000', '#fff'], dark: ['#000', 'x'] } }, false],
-        ['an empty dark list (falls back to light)', { gradient: { direction: '90deg', light: ['#000', '#fff'], dark: [] } }, true],
-        ['a chosen image', { image: { light: 'asset:a.png', ...img } }, true],
-        ['an image layer with no image', { image: { light: '', ...img } }, false],
-    ])('%s → %s', (_name, bg, want) => {
-        expect(isValidBackground(bg)).toBe(want)
+    it.each<[string, ThemeBackground, boolean]>([
+        ['an empty background', bg(), true],
+        ['a valid gradient', bg(grad('90deg', ['#000', '#ffffff80'])), true],
+        ['a half-typed stop', bg(grad('90deg', ['#000', '#ff'])), false],
+        ['a single stop', bg(grad('90deg', ['#000'])), false],
+        ['a valid dark-only gradient', bg({}, grad('90deg', ['#000', '#fff'])), true],
+        ['an invalid dark stop', bg(grad('90deg', ['#000', '#fff']), grad('90deg', ['#000', 'x'])), false],
+        ['a single dark stop', bg({}, grad('90deg', ['#000'])), false],
+        ['a chosen image', bg({ image: { ref: 'asset:a.png', ...img } }), true],
+        ['an image layer with no image', bg({ image: { ref: '', ...img } }), false],
+        ['a dark image layer with no image', bg({}, { image: { ref: '', ...img } }), false],
+    ])('%s → %s', (_name, background, want) => {
+        expect(isValidBackground(background)).toBe(want)
     })
 })
 
 describe('previewStyle', () => {
     it('scopes one mode and composites the page background over the bg colour', () => {
         const t = theme({
-            background: { gradient: { direction: '90deg', light: ['#000000', '#ffffff'], dark: ['#111111', '#222222'] } },
+            background: bg(grad('90deg', ['#000000', '#ffffff']), grad('90deg', ['#111111', '#222222'])),
         })
         const light = previewStyle(t, 'light')
         expect(light['--dashi-bg']).toBe('#ffffff')
@@ -142,7 +165,7 @@ describe('previewStyle', () => {
 
 describe('cssVars', () => {
     it('maps one mode rule to its custom properties', () => {
-        const t = theme({ background: { gradient: { direction: '90deg', light: ['#111111', '#222222'] } } })
+        const t = theme({ background: bg({}, grad('90deg', ['#111111', '#222222'])) })
         const vars = cssVars(browserCss(t), 'dark')
         expect(Object.keys(vars)).toHaveLength(12)
         expect(vars['--dashi-surface']).toBe('#23233d')
@@ -167,7 +190,8 @@ describe('pageBgValue', () => {
                 const v = pageBgValue(c.browserCss, mode)
                 expect(v).not.toBe('transparent')
                 const selector = mode === 'dark' ? ':root[data-color-mode="dark"]{' : ':root{'
-                const rule = c.browserCss.slice(c.browserCss.indexOf(selector))
+                const start = c.browserCss.indexOf(selector)
+                const rule = c.browserCss.slice(start, c.browserCss.indexOf('\n', start))
                 const declared = rule.includes('--dashi-page-bg:')
                     ? `--dashi-page-bg:${v};}`
                     : `--dashi-bg:${v};`
@@ -178,7 +202,7 @@ describe('pageBgValue', () => {
 
     it('does not mistake the dark rule for the light one', () => {
         const css = browserCss(theme({
-            background: { gradient: { direction: '90deg', light: ['#111111', '#222222'], dark: ['#333333', '#444444'] } },
+            background: bg(grad('90deg', ['#111111', '#222222']), grad('90deg', ['#333333', '#444444'])),
         }))
         expect(pageBgValue(css, 'light')).toBe('linear-gradient(90deg,#111111,#222222)')
         expect(pageBgValue(css, 'dark')).toBe('linear-gradient(90deg,#333333,#444444)')
@@ -191,10 +215,10 @@ describe('pageBgValue', () => {
 
     it('keeps a multi-layer value intact', () => {
         const css = browserCss(theme({
-            background: {
-                gradient: { direction: 'to right', light: ['#000000', '#ffffff'] },
-                image: { light: 'asset:a.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
-            },
+            background: bg({
+                gradient: { direction: 'to right', stops: ['#000000', '#ffffff'] },
+                image: { ref: 'asset:a.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+            }),
         }))
         expect(pageBgValue(css)).toBe(
             "url('/api/v0/themes/a1/assets/a.png') center/cover no-repeat,linear-gradient(to right,#000000,#ffffff)",
@@ -226,7 +250,7 @@ describe('urlSegment encoding parity with Go url.PathEscape', () => {
     testCases.forEach(({ char, expected, desc }) => {
         it(`encodes ${desc} (${char}) to ${expected}`, () => {
             const css = browserCss(withImage({
-                light: `asset:file${char}name.png`, fit: 'cover', position: 'center', repeat: 'no-repeat',
+                ref: `asset:file${char}name.png`, fit: 'cover', position: 'center', repeat: 'no-repeat',
             }))
             expect(css).toContain(`/api/v0/themes/test/assets/file${expected}name.png`)
         })
@@ -234,7 +258,7 @@ describe('urlSegment encoding parity with Go url.PathEscape', () => {
 
     it('matches Go output for a composite filename', () => {
         const css = browserCss(withImage({
-            light: 'asset:photo (2024-08-22)!.png', fit: 'cover', position: 'center', repeat: 'no-repeat',
+            ref: 'asset:photo (2024-08-22)!.png', fit: 'cover', position: 'center', repeat: 'no-repeat',
         }))
         expect(css).toContain('photo%20%282024-08-22%29%21.png')
     })

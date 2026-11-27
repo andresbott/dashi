@@ -50,12 +50,12 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 		themeImageBG, err := tempThemeStore.Create(themes.Theme{
 			Name:   "Theme Image",
 			Colors: themes.DefaultTheme().Colors,
-			Background: themes.Background{Image: &themes.Image{
-				Light:    "asset:bg.jpg",
+			Background: themes.Background{Light: themes.ModeBackground{Image: &themes.Image{
+				Ref:      "asset:bg.jpg",
 				Fit:      "cover",
 				Position: "center",
 				Repeat:   "no-repeat",
-			}},
+			}}},
 		})
 		if err != nil {
 			panic("create theme-image-bg: " + err.Error())
@@ -64,10 +64,10 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 		gradientBG, err := tempThemeStore.Create(themes.Theme{
 			Name:   "Gradient",
 			Colors: themes.DefaultTheme().Colors,
-			Background: themes.Background{Gradient: &themes.Gradient{
+			Background: themes.Background{Light: themes.ModeBackground{Gradient: &themes.Gradient{
 				Direction: "to bottom",
-				Light:     []string{"#fff", "#000"},
-			}},
+				Stops:     []string{"#fff", "#000"},
+			}}},
 		})
 		if err != nil {
 			panic("create gradient-bg: " + err.Error())

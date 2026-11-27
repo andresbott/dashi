@@ -1,5 +1,5 @@
 // Package themes stores dashboard themes as first-class entities: a
-// light/dark colour palette plus a page background. Each stored theme is one
+// colour palette and a page background per mode (light, dark). Each stored theme is one
 // folder holding theme.json and an assets/ folder of uploaded images; the
 // read-only builtin themes ("default", "ember") live in code and are never
 // written to disk. Dashboards reference a theme by ID. Every field other than a colour
@@ -26,34 +26,39 @@ var (
 	ErrBuiltin       = errors.New("the builtin theme is read-only")
 )
 
-// Gradient is a linear-gradient base. Direction is shared by both modes;
-// only the colour stops vary.
+// Gradient is a linear-gradient base.
 type Gradient struct {
 	Direction string   `json:"direction"`
-	Light     []string `json:"light"`
-	Dark      []string `json:"dark,omitempty"`
+	Stops     []string `json:"stops"`
 }
 
-// Image is an image layer painted over the base. Fit, Position and Repeat
-// are shared by both modes; only the image itself varies.
+// Image is an image layer painted over the base.
 type Image struct {
-	Light    string `json:"light"`
-	Dark     string `json:"dark,omitempty"`
+	Ref      string `json:"ref"`
 	Fit      string `json:"fit"`
 	Position string `json:"position"`
 	Repeat   string `json:"repeat"`
 }
 
-// Background is a theme's page background. Gradient and Image may combine,
-// the image painted over the gradient. Both absent is the legal plain state:
-// the page shows the palette bg. There is no solid colour: the base is
-// always Palette.BG.
-type Background struct {
+// ModeBackground is one colour mode's page background. Gradient and Image
+// may combine, the image painted over the gradient. Both absent is the legal
+// plain state: the page shows that mode's palette bg. There is no solid
+// colour: the base is always Palette.BG.
+type ModeBackground struct {
 	Gradient *Gradient `json:"gradient,omitempty"`
 	Image    *Image    `json:"image,omitempty"`
 }
 
-// Theme is one theme: a background plus a palette per colour mode.
+// Background is a theme's page background, one per colour mode, mirroring
+// Colors. The modes are independent: an empty dark background renders the
+// plain dark palette, it never falls back to the light one. Both modes may
+// reference the same image file.
+type Background struct {
+	Light ModeBackground `json:"light"`
+	Dark  ModeBackground `json:"dark"`
+}
+
+// Theme is one theme: a background and a palette per colour mode.
 //
 // DarkMode says whether the theme has a dark variant. When it is false every
 // colour mode renders the light palette and background; the dark data stays
@@ -114,6 +119,14 @@ func (t Theme) Palette(colorMode string) Palette {
 	return t.Colors.Light.withDefaults("light")
 }
 
+// bgFor returns the background rendered for colorMode (see mode).
+func (t Theme) bgFor(colorMode string) ModeBackground {
+	if t.mode(colorMode) == "dark" {
+		return t.Background.Dark
+	}
+	return t.Background.Light
+}
+
 var hexColorRe = regexp.MustCompile(`^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$`)
 
 var gradientKeywords = map[string]bool{
@@ -144,7 +157,8 @@ var imageExts = map[string]bool{
 // does not positively recognise. Every light palette role is required; the
 // dark palette is required in full only with dark mode on. With it off, the
 // dark roles that are set are still checked, because they stay stored and
-// render again once dark mode is switched back on.
+// render again once dark mode is switched back on. For the same reason both
+// backgrounds are always checked.
 func (t Theme) Validate() error {
 	if strings.TrimSpace(t.Name) == "" {
 		return fmt.Errorf("%w: name is required", ErrInvalidConfig)
@@ -159,13 +173,20 @@ func (t Theme) Validate() error {
 	if err := validateDark(); err != nil {
 		return fmt.Errorf("dark palette: %w", err)
 	}
-	if err := validateGradient(t.Background.Gradient); err != nil {
-		return err
+	if err := validateModeBackground(t.Background.Light); err != nil {
+		return fmt.Errorf("light background: %w", err)
 	}
-	if err := validateImage(t.Background.Image); err != nil {
-		return err
+	if err := validateModeBackground(t.Background.Dark); err != nil {
+		return fmt.Errorf("dark background: %w", err)
 	}
 	return nil
+}
+
+func validateModeBackground(mb ModeBackground) error {
+	if err := validateGradient(mb.Gradient); err != nil {
+		return err
+	}
+	return validateImage(mb.Image)
 }
 
 func validateGradient(g *Gradient) error {
@@ -175,37 +196,17 @@ func validateGradient(g *Gradient) error {
 	if err := validateDirection(g.Direction); err != nil {
 		return err
 	}
-	if err := validateStops(g.Light); err != nil {
-		return err
-	}
-	if len(g.Dark) > 0 {
-		if err := validateStops(g.Dark); err != nil {
-			return err
-		}
-	}
-	return nil
+	return validateStops(g.Stops)
 }
 
 func validateImage(img *Image) error {
 	if img == nil {
 		return nil
 	}
-	if err := validateImageRefs(img); err != nil {
+	if err := ValidateRef(img.Ref); err != nil {
 		return err
 	}
 	return validateImageEnums(img)
-}
-
-func validateImageRefs(img *Image) error {
-	if err := ValidateRef(img.Light); err != nil {
-		return err
-	}
-	if img.Dark != "" {
-		if err := ValidateRef(img.Dark); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func validateImageEnums(img *Image) error {

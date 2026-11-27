@@ -4,6 +4,10 @@
 // or a linear gradient — with an optional image painted over it, each with an
 // optional dark-mode variant. Edits mutate the bound background in place, so
 // the parent's autosave picks them up like any other theme field.
+//
+// It still edits the pre-split EditorBackground shape (dark as optional
+// overrides of light); the parent converts it to the stored per-mode
+// background through lib/themeBackgroundDraft.
 import { computed, ref } from 'vue'
 import Button from 'primevue/button'
 import ColorPicker from 'primevue/colorpicker'
@@ -17,13 +21,13 @@ import { useToast } from 'primevue/usetoast'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useThemeAssets } from '@/composables/useThemes'
 import { themeAssetUrl } from '@/lib/api/themes'
+import { fromDraft, type EditorBackground } from '@/lib/themeBackgroundDraft'
 import { isValidStopColor, previewStyle } from '@/lib/themeCss'
 import type {
     ImageFit,
     ImagePosition,
     ImageRepeat,
     PaletteRole,
-    ThemeBackground,
     ThemeColors,
 } from '@/types/theme'
 
@@ -38,7 +42,7 @@ const props = withDefaults(
     { disabled: false },
 )
 
-const background = defineModel<ThemeBackground>('background', { required: true })
+const background = defineModel<EditorBackground>('background', { required: true })
 
 const toast = useToast()
 const { assets, uploadAsset, isUploadingAsset, deleteAsset } = useThemeAssets(() => props.themeId)
@@ -335,7 +339,7 @@ const previewTiles = computed(() =>
         mode,
         label: mode === 'light' ? 'Light' : 'Dark',
         style: previewStyle(
-            { id: props.themeId, name: '', darkMode: true, background: background.value, colors: props.colors },
+            { id: props.themeId, name: '', darkMode: true, background: fromDraft(background.value), colors: props.colors },
             mode,
         ),
     })),

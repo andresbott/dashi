@@ -7,7 +7,7 @@ import (
 
 // variant is one colour mode's fully resolved background.
 type variant struct {
-	image     string // ref, or "" when there is no image layer
+	image     *Image // the image layer, or nil when there is none
 	baseValue string // linear-gradient(...), or "" for the plain palette bg
 }
 
@@ -29,7 +29,7 @@ func writeRule(sb *strings.Builder, selector string, t Theme, colorMode string) 
 	sb.WriteString(selector)
 	sb.WriteByte('{')
 	writePaletteVars(sb, t.Palette(colorMode))
-	if bg := browserValue(t, resolve(t.Background, t.mode(colorMode), nil)); bg != "" {
+	if bg := browserValue(t.ID, resolve(t.bgFor(colorMode), nil)); bg != "" {
 		sb.WriteString("--dashi-page-bg:")
 		sb.WriteString(bg)
 		sb.WriteByte(';')
@@ -51,9 +51,9 @@ func writeRule(sb *strings.Builder, selector string, t Theme, colorMode string) 
 // flattened over this mode's palette bg first.
 func ImageCSS(t Theme, colorMode string) (css string, imageRef string) {
 	bg, _ := parseOpaqueHex(t.Palette(colorMode).BG) // Palette guarantees an opaque BG
-	v := resolve(t.Background, t.mode(colorMode), func(stop string) string { return flattenOver(stop, bg) })
-	if v.image != "" {
-		return "", v.image
+	v := resolve(t.bgFor(colorMode), func(stop string) string { return flattenOver(stop, bg) })
+	if v.image != nil {
+		return "", v.image.Ref
 	}
 	if !safeBaseValue(v.baseValue) {
 		return "", ""
@@ -85,51 +85,39 @@ func urlSegment(s string) string {
 	return strings.ReplaceAll(url.PathEscape(s), "'", "%27")
 }
 
-// resolve picks the values for one colour mode; callers pass the effective
-// mode from Theme.mode, so a theme with dark mode off resolves light. Dark falls
-// back to light per field. mapStop, when non-nil, rewrites each gradient
-// stop before it is joined.
-func resolve(b Background, colorMode string, mapStop func(string) string) variant {
-	dark := colorMode == "dark"
+// resolve builds one colour mode's background. Callers pass the mode's own
+// ModeBackground from Theme.bgFor; there is no fallback to the other mode.
+// mapStop, when non-nil, rewrites each gradient stop before it is joined.
+func resolve(mb ModeBackground, mapStop func(string) string) variant {
 	var v variant
-
-	if b.Image != nil {
-		v.image = b.Image.Light
-		if dark && b.Image.Dark != "" {
-			v.image = b.Image.Dark
-		}
+	if mb.Image != nil && mb.Image.Ref != "" {
+		v.image = mb.Image
 	}
-	if b.Gradient != nil {
-		stops := b.Gradient.Light
-		if dark && len(b.Gradient.Dark) > 0 {
-			stops = b.Gradient.Dark
-		}
-		if len(stops) > 0 && mapStop != nil {
-			mapped := make([]string, len(stops))
-			for i, s := range stops {
-				mapped[i] = mapStop(s)
+	if g := mb.Gradient; g != nil && len(g.Stops) > 0 {
+		stops := g.Stops
+		if mapStop != nil {
+			stops = make([]string, len(g.Stops))
+			for i, s := range g.Stops {
+				stops[i] = mapStop(s)
 			}
-			stops = mapped
 		}
-		if len(stops) > 0 {
-			v.baseValue = "linear-gradient(" + b.Gradient.Direction + "," + strings.Join(stops, ",") + ")"
-		}
+		v.baseValue = "linear-gradient(" + g.Direction + "," + strings.Join(stops, ",") + ")"
 	}
 	return v
 }
 
 // browserValue builds the CSS background shorthand for one variant: the
-// image layer first, the gradient as the final layer. Returns "" for a
-// plain background, which then shows the palette bg.
+// image layer first, using that mode's own fit, position and repeat, and the
+// gradient as the final layer. Returns "" for a plain background, which then
+// shows the palette bg.
 //
 // The image's enum fields are checked here too: Validate rejects bad values
 // on save, but a hand-edited theme.json bypasses it, and this output lands
 // in a <style> element where html/template escapes nothing.
-func browserValue(t Theme, v variant) string {
+func browserValue(themeID string, v variant) string {
 	layers := make([]string, 0, 2)
-	img := t.Background.Image
-	if v.image != "" && img != nil && validateImageEnums(img) == nil {
-		if u, ok := RefURL(t.ID, v.image); ok {
+	if img := v.image; img != nil && validateImageEnums(img) == nil {
+		if u, ok := RefURL(themeID, img.Ref); ok {
 			layers = append(layers, "url('"+u+"') "+
 				img.Position+"/"+cssSize(img.Fit)+" "+img.Repeat)
 		}

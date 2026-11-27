@@ -52,7 +52,7 @@ func TestCreateUnnamableFallsBackToThemeFolder(t *testing.T) {
 func TestCreateRejectsInvalidConfig(t *testing.T) {
 	s, _ := newTestStore(t)
 	th := testTheme("Bad")
-	th.Background.Gradient = &Gradient{Direction: "sideways", Light: []string{"#000", "#fff"}}
+	th.Background.Light.Gradient = &Gradient{Direction: "sideways", Stops: []string{"#000", "#fff"}}
 	if _, err := s.Create(th); !errors.Is(err, ErrInvalidConfig) {
 		t.Fatalf("expected ErrInvalidConfig, got %v", err)
 	}
@@ -84,7 +84,7 @@ func TestCreateRejectsBuiltinID(t *testing.T) {
 func TestGetRoundTrips(t *testing.T) {
 	s, _ := newTestStore(t)
 	th := testTheme("Dusk")
-	th.Background.Gradient = &Gradient{Direction: "135deg", Light: []string{"#000000", "#ffffff"}}
+	th.Background.Light.Gradient = &Gradient{Direction: "135deg", Stops: []string{"#000000", "#ffffff"}}
 	th.Colors.Dark.Surface = "#23233d80"
 	created, err := s.Create(th)
 	if err != nil {
@@ -94,7 +94,7 @@ func TestGetRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if got.Name != "Dusk" || got.Background.Gradient == nil || got.Background.Gradient.Direction != "135deg" {
+	if got.Name != "Dusk" || got.Background.Light.Gradient == nil || got.Background.Light.Gradient.Direction != "135deg" {
 		t.Fatalf("round trip lost data: %+v", got)
 	}
 	if got.Colors != th.Colors {
@@ -294,7 +294,7 @@ func TestListIncludesBuiltins(t *testing.T) {
 func TestListSortsByNameAndCarriesUsageAndPreview(t *testing.T) {
 	s, _ := newTestStore(t)
 	zebraTheme := testTheme("Zebra")
-	zebraTheme.Background.Gradient = &Gradient{Direction: "to right", Light: []string{"#123456", "#654321"}}
+	zebraTheme.Background.Light.Gradient = &Gradient{Direction: "to right", Stops: []string{"#123456", "#654321"}}
 	b, err := s.Create(zebraTheme)
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -553,7 +553,7 @@ func createOceanWithAsset(t *testing.T, s *Store) Theme {
 	th := testTheme("Ocean")
 	th.Colors.Light.Primary = "#0077be"
 	th.Colors.Dark.Surface = "#00334e80"
-	th.Background.Image = &Image{Light: "asset:img/a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
+	th.Background.Light.Image = &Image{Ref: "asset:img/a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
 	created, err := s.Create(th)
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -589,7 +589,7 @@ func TestCopyTheme(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the copy must be persisted: %v", err)
 	}
-	if stored.Background.Image == nil || stored.Background.Image.Light != "asset:img/a.png" {
+	if stored.Background.Light.Image == nil || stored.Background.Light.Image.Ref != "asset:img/a.png" {
 		t.Errorf("background not copied: %+v", stored.Background)
 	}
 }

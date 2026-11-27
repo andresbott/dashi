@@ -804,7 +804,7 @@ func TestResolveImageBackgroundWithGradientOnly(t *testing.T) {
 		ID:         "gradientonly",
 		Name:       "Gradient Only",
 		Colors:     themes.DefaultTheme().Colors,
-		Background: themes.Background{Gradient: &themes.Gradient{Direction: "to right", Light: []string{"#000000", "#ffffff"}}},
+		Background: themes.Background{Light: themes.ModeBackground{Gradient: &themes.Gradient{Direction: "to right", Stops: []string{"#000000", "#ffffff"}}}},
 	}
 
 	css, imageData := resolveImageBackground(theme, "light", themeStore)
@@ -827,9 +827,9 @@ func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
 		ID:     "withimage",
 		Name:   "With Image",
 		Colors: themes.DefaultTheme().Colors,
-		Background: themes.Background{Image: &themes.Image{
-			Light: "asset:test.png", Fit: "cover", Position: "center", Repeat: "no-repeat",
-		}},
+		Background: themes.Background{Light: themes.ModeBackground{Image: &themes.Image{
+			Ref: "asset:test.png", Fit: "cover", Position: "center", Repeat: "no-repeat",
+		}}},
 	}
 	if _, err := themeStore.Create(theme); err != nil {
 		t.Fatal(err)
@@ -933,12 +933,12 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 		ID:     "redbg",
 		Name:   "Red Background",
 		Colors: themes.DefaultTheme().Colors,
-		Background: themes.Background{Image: &themes.Image{
-			Light:    "asset:red.png",
+		Background: themes.Background{Light: themes.ModeBackground{Image: &themes.Image{
+			Ref:      "asset:red.png",
 			Fit:      "cover",
 			Position: "center",
 			Repeat:   "no-repeat",
-		}},
+		}}},
 	}
 	if _, err := themeStore.Create(bg); err != nil {
 		t.Fatal(err)

@@ -222,7 +222,7 @@ values through inline `style` attributes or CSS variables instead. Example:
 ## Theming: two entities, CSS variables and concrete values
 
 A dashboard references two independent entities: `themeId` (a **theme**:
-background + light/dark palette, `internal/themes`, stored in
+a palette and a page background per colour mode, `internal/themes`, stored in
 `{dataDir}/data/themes/`) and `widgetTheme` (a **widget theme**: fonts + icons,
 `internal/widgetthemes`, stored in `{dataDir}/data/widget_themes/`). Unknown,
 empty or dangling references fall back to `default` for both; they never error.
@@ -260,6 +260,15 @@ loses nothing; `Validate` then checks only the dark roles that are set. A
 `internal/themes/legacy.go`, shared by `Store.Get` and `List`). The
 `POST`/`PUT /themes` bodies must carry the key (`themes.DecodeRequest`), else
 400, which turns away stale SPA tabs sending the old shape.
+
+The background mirrors the palettes: `background.light` and `background.dark`
+are each a `ModeBackground` (optional `gradient{direction, stops}` and
+`image{ref, fit, position, repeat}`), picked by `Theme.bgFor(colorMode)`
+through the same `mode` rule. The modes are independent: there is **no
+fallback** from dark to light, so an empty dark background renders the plain
+dark palette, and each mode uses its own direction, fit, position and repeat.
+Both modes may reference the same image file. `Validate` always checks both
+backgrounds, whatever `darkMode` says.
 
 The browser stack gets the variables from `themes.BrowserCSS`, served at
 `/_dashi/theme/{id}.css` for `:root` and `:root[data-color-mode="dark"]`.
@@ -321,10 +330,19 @@ the network, so that path must not be "modernised".
 A background is part of its theme, not an entity of its own: there is no
 background store, list or ID, and none should be reintroduced. The theme
 editor (`webui/src/views/admin/AdminThemeEdit.vue`) delegates the whole
-`background` object to `webui/src/components/admin/ThemeBackgroundEditor.vue`
-via `v-model:background`; the component edits it in place, so the view's
-`useAutosave` (deep watch) persists it with the rest of the theme. What the
-component offers is bounded by the model in `internal/themes/types.go`:
+background to `webui/src/components/admin/ThemeBackgroundEditor.vue` via
+`v-model:background`; the component edits it in place, so the view's
+`useAutosave` (deep watch) persists it with the rest of the theme.
+
+The component still edits the older single-background shape (dark stops and
+dark image as optional overrides; direction, fit, position and repeat shared).
+`webui/src/lib/themeBackgroundDraft.ts` is a **temporary adapter**: the view
+seeds a draft with `toDraft(theme.background)` (light values, dark attached
+only where it differs) and, on each edit, writes `fromDraft(draft)` back
+(dark = copy of light plus the overrides). Opening a theme does not write the
+draft back, so it saves nothing. The mapping is lossy for what the old shape
+cannot express (dark-only gradient, plain dark over a light image, per-mode
+direction or fit). What the component offers is bounded by that shape:
 
 - **Base**: palette `bg` or a linear gradient. Direction is edited as an angle
   (keyword directions display as their angle and are only rewritten when the
@@ -344,8 +362,10 @@ component offers is bounded by the model in `internal/themes/types.go`:
   `--dashi-page-bg` over `--dashi-bg` the way `<body>` over `<html>` does in
   the viewer.
 
-Client-side validity is `isValidBackground` (same file), mirroring
-`validateGradient`/`validateImage` for what the controls can break; autosave
+Client-side validity is `isValidBackground` (`themeCss.ts`), mirroring
+`validateModeBackground` on both modes for what the controls can break; the
+view also mirrors the `darkMode` palette rule (with it off only the set dark
+roles are checked); autosave
 holds while it fails. The component takes a `disabled` prop for read-only use,
 though builtin themes currently never reach the form (the view shows a
 "cannot be edited" card for them).

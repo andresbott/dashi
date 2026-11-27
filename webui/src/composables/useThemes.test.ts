@@ -15,7 +15,7 @@ const palette: Palette = {
 }
 
 const theme = (over: Partial<Theme> = {}): Theme => ({
-    id: 'a1', name: 'A', darkMode: true, background: {}, colors: { light: palette, dark: palette }, ...over,
+    id: 'a1', name: 'A', darkMode: true, background: { light: {}, dark: {} }, colors: { light: palette, dark: palette }, ...over,
 })
 
 function withQueryClient(setup: () => unknown) {

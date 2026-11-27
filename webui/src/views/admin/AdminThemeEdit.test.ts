@@ -61,7 +61,7 @@ describe('AdminThemeEdit', () => {
             id: 'abc123',
             name: 'Mine',
             darkMode: true,
-            background: {},
+            background: { light: {}, dark: {} },
             colors: { light: { ...palette }, dark: { ...palette } },
         }
     })
@@ -97,7 +97,8 @@ describe('AdminThemeEdit', () => {
     })
 
     it('does not save while a gradient stop is invalid', async () => {
-        theme.value!.background = { gradient: { direction: '90deg', light: ['#000000', '#ffffff'] } }
+        const gradient = { gradient: { direction: '90deg', stops: ['#000000', '#ffffff'] } }
+        theme.value!.background = { light: gradient, dark: gradient }
         const wrapper = mountView()
         await flushPromises()
 
@@ -114,7 +115,8 @@ describe('AdminThemeEdit', () => {
 
     it('does not save an image layer with no image chosen', async () => {
         theme.value!.background = {
-            image: { light: '', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+            light: { image: { ref: '', fit: 'cover', position: 'center', repeat: 'no-repeat' } },
+            dark: {},
         }
         const wrapper = mountView()
         await flushPromises()
@@ -133,9 +135,58 @@ describe('AdminThemeEdit', () => {
         await wrapper.find('[data-testid="image-light-asset:sky.png"]').trigger('click')
         await settle()
         expect(updateTheme).toHaveBeenCalledTimes(1)
-        expect(updateTheme.mock.calls[0][0].payload.background.image).toEqual({
-            light: 'asset:sky.png', fit: 'cover', position: 'center', repeat: 'no-repeat',
-        })
+        const image = { ref: 'asset:sky.png', fit: 'cover', position: 'center', repeat: 'no-repeat' }
+        expect(updateTheme.mock.calls[0][0].payload.background).toEqual({ light: { image }, dark: { image } })
+    })
+
+    it('saves different dark stops to background.dark.gradient.stops', async () => {
+        const gradient = { gradient: { direction: '90deg', stops: ['#000000', '#ffffff'] } }
+        theme.value!.background = { light: gradient, dark: gradient }
+        const wrapper = mountView()
+        await flushPromises()
+
+        await wrapper.find('[data-testid="gradient-dark-toggle"] input').setValue(true)
+        await wrapper.find('[data-testid="stop-dark-0"]').setValue('#123456')
+        await settle()
+        expect(updateTheme).toHaveBeenCalledTimes(1)
+        const bg = updateTheme.mock.calls[0][0].payload.background
+        expect(bg.light.gradient.stops).toEqual(['#000000', '#ffffff'])
+        expect(bg.dark.gradient.stops).toEqual(['#123456', '#ffffff'])
+    })
+
+    it('does not save when the theme is only opened', async () => {
+        const gradient = { gradient: { direction: 'to right', stops: ['#000000', '#ffffff'] } }
+        const loaded: Theme = { ...theme.value!, background: { light: gradient, dark: {} } }
+        // The theme arrives after mount, as it does from the server.
+        theme.value = undefined
+        mountView()
+        await flushPromises()
+        theme.value = loaded
+        await flushPromises()
+        await settle()
+        expect(updateTheme).not.toHaveBeenCalled()
+    })
+
+    it('does not save a malformed dark role while dark mode is off', async () => {
+        theme.value!.darkMode = false
+        theme.value!.colors.dark = { primary: 'red' } as Palette
+        const wrapper = mountView()
+        await flushPromises()
+
+        await wrapper.find('#color-text').setValue('#1a2b3c')
+        await settle()
+        expect(updateTheme).not.toHaveBeenCalled()
+    })
+
+    it('saves a partial dark palette while dark mode is off', async () => {
+        theme.value!.darkMode = false
+        theme.value!.colors.dark = { primary: '#123456' } as Palette
+        const wrapper = mountView()
+        await flushPromises()
+
+        await wrapper.find('#color-text').setValue('#1a2b3c')
+        await settle()
+        expect(updateTheme).toHaveBeenCalledTimes(1)
     })
 
     it('drops the alpha when the picker writes the page background', async () => {

@@ -1,5 +1,5 @@
 // A theme is the colour entity a dashboard references by `themeId`: one
-// palette per colour mode plus an optional page background. Fonts and icons
+// palette and one optional page background per colour mode. Fonts and icons
 // live in the separate widget theme (see types/widgetTheme.ts).
 // Mirrors internal/themes (palette.go, types.go).
 
@@ -37,23 +37,30 @@ export type ImageRepeat = 'no-repeat' | 'repeat' | 'repeat-x' | 'repeat-y'
 
 export interface ThemeGradient {
     direction: string
-    light: string[]
-    dark?: string[]
+    stops: string[]
 }
 
 export interface ThemeImage {
-    light: string
-    dark?: string
+    ref: string
     fit: ImageFit
     position: ImagePosition
     repeat: ImageRepeat
 }
 
-// There is no solid colour: the base is the palette's `bg`. An image, when
-// present, is painted over the gradient (or over `bg`).
-export interface ThemeBackground {
+// One colour mode's page background. There is no solid colour: the base is
+// that mode's palette `bg`. An image, when present, is painted over the
+// gradient (or over `bg`).
+export interface ModeBackground {
     gradient?: ThemeGradient
     image?: ThemeImage
+}
+
+// A background per colour mode, mirroring ThemeColors. The modes are
+// independent: an empty dark background renders the plain dark palette, with
+// no fallback to light.
+export interface ThemeBackground {
+    light: ModeBackground
+    dark: ModeBackground
 }
 
 export interface Theme {

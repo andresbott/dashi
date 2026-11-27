@@ -12,6 +12,18 @@ func testTheme(name string) Theme {
 	return Theme{Name: name, DarkMode: true, Colors: DefaultTheme().Colors}
 }
 
+var bothModes = []string{"light", "dark"}
+
+// withBackground returns th with mb as the background of mode.
+func withBackground(th Theme, mode string, mb ModeBackground) Theme {
+	if mode == "dark" {
+		th.Background.Dark = mb
+	} else {
+		th.Background.Light = mb
+	}
+	return th
+}
+
 func TestBuiltinsHaveDarkMode(t *testing.T) {
 	for id, fn := range builtins {
 		if !fn().DarkMode {
@@ -68,7 +80,7 @@ func TestDefaultTheme(t *testing.T) {
 	if d.Name != "Default" {
 		t.Errorf("Name = %q, want Default", d.Name)
 	}
-	if d.Background.Gradient != nil || d.Background.Image != nil {
+	if d.Background != (Background{}) {
 		t.Errorf("expected an empty background, got %+v", d.Background)
 	}
 	if d.Colors.Light != DefaultPalette("light") || d.Colors.Dark != DefaultPalette("dark") {
@@ -149,30 +161,50 @@ func TestValidateGradient(t *testing.T) {
 		{"injected stop", "to right", []string{"#000", "#fff;}</style><script>"}, false},
 		{"named stop", "to right", []string{"#000", "red"}, false},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			th := testTheme("G")
-			th.Background.Gradient = &Gradient{Direction: tt.direction, Light: tt.stops}
+	for _, mode := range bothModes {
+		for _, tt := range tests {
+			t.Run(mode+"/"+tt.name, func(t *testing.T) {
+				th := withBackground(testTheme("G"), mode, ModeBackground{
+					Gradient: &Gradient{Direction: tt.direction, Stops: tt.stops},
+				})
+				err := th.Validate()
+				if tt.valid && err != nil {
+					t.Fatalf("expected valid, got %v", err)
+				}
+				if !tt.valid && err == nil {
+					t.Fatalf("expected rejection")
+				}
+			})
+		}
+	}
+}
+
+func TestValidateDarkBackgroundWithDarkModeOff(t *testing.T) {
+	// The dark background stays stored while dark mode is off and renders
+	// again once it is switched back on, so present dark data is checked.
+	tests := map[string]ModeBackground{
+		"bad dark stop": {Gradient: &Gradient{Direction: "to right", Stops: []string{"#000", "nope"}}},
+		"bad dark fit":  {Image: &Image{Ref: "asset:a.png", Fit: "zoom", Position: "center", Repeat: "no-repeat"}},
+		"bad dark ref":  {Image: &Image{Ref: "asset:../x.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}},
+	}
+	for name, mb := range tests {
+		t.Run(name, func(t *testing.T) {
+			th := withBackground(testTheme("Off"), "dark", mb)
+			th.DarkMode = false
 			err := th.Validate()
-			if tt.valid && err != nil {
-				t.Fatalf("expected valid, got %v", err)
-			}
-			if !tt.valid && err == nil {
-				t.Fatalf("expected rejection")
+			if !errors.Is(err, ErrInvalidConfig) || !strings.Contains(err.Error(), "dark background") {
+				t.Fatalf("expected a dark background error, got %v", err)
 			}
 		})
 	}
 }
 
-func TestValidateGradientDarkStopsWhenPresent(t *testing.T) {
-	th := testTheme("G")
-	th.Background.Gradient = &Gradient{
-		Direction: "to right",
-		Light:     []string{"#000", "#fff"},
-		Dark:      []string{"#000", "nope"},
-	}
-	if err := th.Validate(); err == nil {
-		t.Fatal("expected dark stops to be validated too")
+func TestValidateAcceptsDarkOnlyBackground(t *testing.T) {
+	th := withBackground(testTheme("D"), "dark", ModeBackground{
+		Gradient: &Gradient{Direction: "to right", Stops: []string{"#000", "#111"}},
+	})
+	if err := th.Validate(); err != nil {
+		t.Fatalf("a dark-only background must be valid, got %v", err)
 	}
 }
 
@@ -191,20 +223,21 @@ func TestValidateImageEnums(t *testing.T) {
 		{"bad repeat", "cover", "center", "tile", false},
 		{"injected fit", "cover;}", "center", "no-repeat", false},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			th := testTheme("I")
-			th.Background.Image = &Image{
-				Light: "asset:a.png", Fit: tt.fit, Position: tt.pos, Repeat: tt.rep,
-			}
-			err := th.Validate()
-			if tt.valid && err != nil {
-				t.Fatalf("expected valid, got %v", err)
-			}
-			if !tt.valid && err == nil {
-				t.Fatalf("expected rejection")
-			}
-		})
+	for _, mode := range bothModes {
+		for _, tt := range tests {
+			t.Run(mode+"/"+tt.name, func(t *testing.T) {
+				th := withBackground(testTheme("I"), mode, ModeBackground{Image: &Image{
+					Ref: "asset:a.png", Fit: tt.fit, Position: tt.pos, Repeat: tt.rep,
+				}})
+				err := th.Validate()
+				if tt.valid && err != nil {
+					t.Fatalf("expected valid, got %v", err)
+				}
+				if !tt.valid && err == nil {
+					t.Fatalf("expected rejection")
+				}
+			})
+		}
 	}
 }
 
@@ -222,31 +255,23 @@ func TestValidateImageRefs(t *testing.T) {
 		{"asset:../../etc/passwd", false},
 		{"asset:script.js", false},
 		{"asset:", false},
+		{"", false}, // an image layer needs a ref
 	}
-	for _, tt := range tests {
-		t.Run(tt.ref, func(t *testing.T) {
-			th := testTheme("I")
-			th.Background.Image = &Image{
-				Light: tt.ref, Fit: "cover", Position: "center", Repeat: "no-repeat",
-			}
-			err := th.Validate()
-			if tt.valid && err != nil {
-				t.Fatalf("expected %q valid, got %v", tt.ref, err)
-			}
-			if !tt.valid && err == nil {
-				t.Fatalf("expected %q rejected", tt.ref)
-			}
-		})
-	}
-}
-
-func TestValidateDarkImageRef(t *testing.T) {
-	th := testTheme("I")
-	th.Background.Image = &Image{
-		Light: "asset:a.png", Dark: "asset:../x.png", Fit: "cover", Position: "center", Repeat: "no-repeat",
-	}
-	if err := th.Validate(); err == nil {
-		t.Fatal("expected the dark image ref to be validated too")
+	for _, mode := range bothModes {
+		for _, tt := range tests {
+			t.Run(mode+"/"+tt.ref, func(t *testing.T) {
+				th := withBackground(testTheme("I"), mode, ModeBackground{Image: &Image{
+					Ref: tt.ref, Fit: "cover", Position: "center", Repeat: "no-repeat",
+				}})
+				err := th.Validate()
+				if tt.valid && err != nil {
+					t.Fatalf("expected %q valid, got %v", tt.ref, err)
+				}
+				if !tt.valid && err == nil {
+					t.Fatalf("expected %q rejected", tt.ref)
+				}
+			})
+		}
 	}
 }
 

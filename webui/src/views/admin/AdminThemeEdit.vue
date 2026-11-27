@@ -13,6 +13,7 @@ import { useGetTheme, useUpdateTheme } from '@/composables/useThemes'
 import { useAutosave } from '@/composables/useAutosave'
 import { isValidBackground, isValidRoleColor, previewStyle, PALETTE_ROLES } from '@/lib/themeCss'
 import { plainCopy } from '@/lib/plainCopy'
+import { fromDraft, toDraft, type EditorBackground } from '@/lib/themeBackgroundDraft'
 import type { Theme, PaletteRole } from '@/types/theme'
 
 const route = useRoute()
@@ -30,13 +31,26 @@ const { updateTheme } = useUpdateTheme()
 // Editing happens on a local clone; autosave persists it after each change.
 const local = ref<Theme | null>(null)
 
+// The background editor still edits the pre-split draft shape (see
+// lib/themeBackgroundDraft). The draft is seeded once from the loaded theme
+// and written back to local only on an edit, so opening a theme never
+// rewrites (or autosaves) its background.
+const draft = ref<EditorBackground | null>(null)
+
 watch(serverTheme, (val) => {
     if (val && !local.value) {
-        local.value = plainCopy(val)
+        const copy = plainCopy(val)
         // An empty background may arrive as null from hand-edited data.
-        if (local.value && !local.value.background) local.value.background = {}
+        copy.background ??= { light: {}, dark: {} }
+        local.value = copy
+        draft.value = toDraft(copy.background)
     }
 }, { immediate: true })
+
+watch(draft, (d, prev) => {
+    if (!d || !prev || !local.value) return
+    local.value.background = fromDraft(d)
+}, { deep: true })
 
 // One colour mode drives both the colour rows and the preview, so editing the
 // dark palette shows the dark preview.
@@ -106,9 +120,12 @@ const nameInvalid = computed(() => !local.value?.name.trim())
 const isValid = computed(() => {
     const t = local.value
     if (!t || nameInvalid.value) return false
-    for (const m of ['light', 'dark'] as const) {
-        if (!roles.every(role => isValidRoleColor(role, t.colors[m][role]))) return false
-    }
+    if (!roles.every(role => isValidRoleColor(role, t.colors.light[role]))) return false
+    // Go: the dark palette is required in full only with dark mode on; with
+    // it off, the roles that are set are still checked.
+    const darkOk = (role: PaletteRole) =>
+        (!t.darkMode && !t.colors.dark[role]) || isValidRoleColor(role, t.colors.dark[role])
+    if (!roles.every(darkOk)) return false
     return isValidBackground(t.background)
 })
 
@@ -214,7 +231,8 @@ const goBack = async () => {
                             <!-- Background: a base (palette bg or gradient) plus an optional image -->
                             <label class="edit-subsection">Background</label>
                             <ThemeBackgroundEditor
-                                v-model:background="local.background"
+                                v-if="draft"
+                                v-model:background="draft"
                                 :themeId="local.id"
                                 :colors="local.colors"
                                 :disabled="isBuiltin"

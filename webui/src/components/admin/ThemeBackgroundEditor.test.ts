@@ -5,7 +5,8 @@ import PrimeVue from 'primevue/config'
 import ColorPicker from 'primevue/colorpicker'
 import ThemeBackgroundEditor from './ThemeBackgroundEditor.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import type { Palette, ThemeBackground } from '@/types/theme'
+import type { EditorBackground } from '@/lib/themeBackgroundDraft'
+import type { Palette } from '@/types/theme'
 
 const palette: Palette = {
     bg: '#ffffff', surface: '#f5f5f7', border: '#e0e0e5', text: '#333333', textMuted: '#666666',
@@ -24,7 +25,7 @@ vi.mock('@/composables/useThemes', () => ({
 }))
 vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: toastAdd }) }))
 
-function mountEditor(background: ThemeBackground, disabled = false) {
+function mountEditor(background: EditorBackground, disabled = false) {
     const bg = reactive(background)
     const wrapper = mount(ThemeBackgroundEditor, {
         props: {
@@ -41,7 +42,7 @@ function mountEditor(background: ThemeBackground, disabled = false) {
 // jsdom's File has no arrayBuffer(); the component only needs name + bytes.
 const fakeFile = (name: string) => ({ name, arrayBuffer: async () => new ArrayBuffer(1) })
 
-const gradient = (): ThemeBackground => ({
+const gradient = (): EditorBackground => ({
     gradient: { direction: '90deg', light: ['#000000', '#ff0000', '#ffffff'] },
 })
 
