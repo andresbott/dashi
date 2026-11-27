@@ -148,6 +148,35 @@ describe('DashboardSettingsView', () => {
         })
     })
 
+    describe('max width', () => {
+        const maxWidthSelect = (wrapper: Awaited<ReturnType<typeof mountAppearance>>) =>
+            wrapper.findAllComponents(Select).find(s => s.attributes('data-testid') === 'max-width-select')!
+
+        it('offers common widths in an editable dropdown', async () => {
+            draft.value!.container.maxWidth = '1600px'
+            const wrapper = await mountAppearance()
+            const select = maxWidthSelect(wrapper)
+            expect(select.props('editable')).toBe(true)
+            expect(select.props('modelValue')).toBe('1600px')
+            expect(select.props('options')).toEqual(['100%', '1920px', '1600px', '1440px', '1280px', '1024px', '800px'])
+        })
+
+        it('stores a picked preset', async () => {
+            const wrapper = await mountAppearance()
+            maxWidthSelect(wrapper).vm.$emit('update:modelValue', '1280px')
+            await flushPromises()
+            expect(draft.value!.container.maxWidth).toBe('1280px')
+        })
+
+        it('stores a typed custom value', async () => {
+            const wrapper = await mountAppearance()
+            const input = maxWidthSelect(wrapper).find('input')
+            await input.setValue('75%')
+            await flushPromises()
+            expect(draft.value!.container.maxWidth).toBe('75%')
+        })
+    })
+
     it('shows a known theme and widget theme as stored', async () => {
         draft.value!.themeId = 'abc123'
         draft.value!.widgetTheme = 'retro'

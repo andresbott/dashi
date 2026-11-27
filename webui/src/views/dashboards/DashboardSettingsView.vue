@@ -116,6 +116,10 @@ const dither = computed<DitherOption['value']>({
     },
 })
 
+// Common widths to pick from; the Select is editable, so any CSS width can
+// still be typed in.
+const MAX_WIDTH_PRESETS = ['100%', '1920px', '1600px', '1440px', '1280px', '1024px', '800px']
+
 const ditherHint = computed(() => DITHER_OPTIONS.find(o => o.value === dither.value)?.hint ?? '')
 
 const saveIndicator = computed(() => {
@@ -299,7 +303,14 @@ const activeSection = ref('general')
                     <label class="settings-subsection">Container</label>
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Max Width</label>
-                        <InputText v-model="localDashboard.container.maxWidth" placeholder="e.g. 1200px, 80%, 100%" />
+                        <Select
+                            v-model="localDashboard.container.maxWidth"
+                            editable
+                            :options="MAX_WIDTH_PRESETS"
+                            placeholder="e.g. 1200px, 80%, 100%"
+                            class="w-full"
+                            data-testid="max-width-select"
+                        />
                     </div>
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Vertical Align</label>
