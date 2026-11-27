@@ -31,7 +31,8 @@ const mountView = () =>
         global: { plugins: [PrimeVue], stubs: { DashboardRow: true } },
     })
 
-const previewButton = (wrapper: ReturnType<typeof mountView>) => wrapper.find('[data-testid="eink-preview-button"]')
+const einkButton = (wrapper: ReturnType<typeof mountView>) => wrapper.find('[data-testid="eink-preview-button"]')
+const viewerButton = (wrapper: ReturnType<typeof mountView>) => wrapper.find('[data-testid="viewer-preview-button"]')
 
 describe('DashboardEditView e-ink preview button', () => {
     beforeEach(() => {
@@ -57,14 +58,14 @@ describe('DashboardEditView e-ink preview button', () => {
         draft.value!.type = 'interactive'
         const wrapper = mountView()
         await flushPromises()
-        expect(previewButton(wrapper).exists()).toBe(false)
+        expect(einkButton(wrapper).exists()).toBe(false)
     })
 
     it('saves pending edits, then opens the preview page on the page being edited', async () => {
         const wrapper = mountView()
         await flushPromises()
         await wrapper.findAll('.page-tab')[1].trigger('click')
-        await previewButton(wrapper).trigger('click')
+        await einkButton(wrapper).trigger('click')
         await flushPromises()
 
         expect(flush).toHaveBeenCalledTimes(1)
@@ -76,8 +77,6 @@ describe('DashboardEditView e-ink preview button', () => {
         expect(flush.mock.invocationCallOrder[0]).toBeLessThan(push.mock.invocationCallOrder[0])
     })
 })
-
-const viewerButton = (wrapper: ReturnType<typeof mountView>) => wrapper.find('[data-testid="viewer-preview-button"]')
 
 describe('DashboardEditView live viewer preview button', () => {
     let opened: { opener: unknown; location: { href: string } }
@@ -111,7 +110,7 @@ describe('DashboardEditView live viewer preview button', () => {
         const wrapper = mountView()
         await flushPromises()
         expect(viewerButton(wrapper).exists()).toBe(false)
-        expect(previewButton(wrapper).exists()).toBe(true)
+        expect(einkButton(wrapper).exists()).toBe(true)
     })
 
     it('opens a tab synchronously, saves, then points it at the dashboard root', async () => {
@@ -119,7 +118,6 @@ describe('DashboardEditView live viewer preview button', () => {
         flush.mockImplementation(() => new Promise<void>(r => { resolveFlush = r }))
         const wrapper = mountView()
         await flushPromises()
-        expect(previewButton(wrapper).exists()).toBe(false)
         await wrapper.findAll('.page-tab')[1].trigger('click')
         await viewerButton(wrapper).trigger('click')
 
@@ -141,5 +139,19 @@ describe('DashboardEditView live viewer preview button', () => {
         await viewerButton(wrapper).trigger('click')
         await flushPromises()
         expect(opened.location.href).toBe('http://viewer/d1')
+    })
+
+    it('still saves, without throwing, when the browser blocks the tab', async () => {
+        open.mockReturnValue(null)
+        const errorHandler = vi.fn()
+        const wrapper = mount(DashboardEditView, {
+            global: { plugins: [PrimeVue], stubs: { DashboardRow: true }, config: { errorHandler } },
+        })
+        await flushPromises()
+        await viewerButton(wrapper).trigger('click')
+        await flushPromises()
+        expect(open).toHaveBeenCalledWith('', '_blank')
+        expect(flush).toHaveBeenCalledTimes(1)
+        expect(errorHandler).not.toHaveBeenCalled()
     })
 })
