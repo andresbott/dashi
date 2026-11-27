@@ -3,6 +3,7 @@ import { useToast } from 'primevue/usetoast'
 import { useGetDashboard, useUpdateDashboard } from '@/composables/useDashboards'
 import { useAutosave, type AutosaveStatus } from '@/composables/useAutosave'
 import { apiErrorMessage } from '@/lib/api/client'
+import { plainCopy } from '@/lib/plainCopy'
 import type { Dashboard } from '@/types/dashboard'
 
 export interface UseDashboardDraftResult {
@@ -52,7 +53,7 @@ export function useDashboardDraft(id: () => string): UseDashboardDraftResult {
     // is held (initially, or once the previous id's copy has been dropped).
     watch([serverDashboard, draft], ([val]) => {
         if (val && !draft.value && val.id === idRef.value) {
-            draft.value = JSON.parse(JSON.stringify(val))
+            draft.value = plainCopy(val)
         }
     }, { immediate: true })
 

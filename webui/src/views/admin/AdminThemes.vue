@@ -9,6 +9,7 @@ import Column from 'primevue/column'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useListThemes } from '@/composables/useThemes'
 import { pageBgValue } from '@/lib/themeCss'
+import { plainCopy } from '@/lib/plainCopy'
 import type { ThemeMeta } from '@/types/theme'
 import { useToast } from 'primevue/usetoast'
 
@@ -39,8 +40,8 @@ const handleCreate = async () => {
         const created = await createTheme({
             name: 'New theme',
             background: {},
-            // A plain copy: query data is a reactive proxy, which structuredClone rejects.
-            colors: JSON.parse(JSON.stringify(builtin.value.colors)),
+            // A plain copy: query data is a reactive proxy.
+            colors: plainCopy(builtin.value.colors),
         })
         openEditor(created.id)
     } catch {

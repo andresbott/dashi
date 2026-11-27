@@ -1,16 +1,12 @@
 import type { Widget } from '@/types/dashboard'
 import { GRID_COLUMNS, placeRow, totalSpan, clampRowToLine } from '@/lib/rowLayout'
+import { plainCopy } from '@/lib/plainCopy'
 
 // cloneWidget returns a detached deep copy of widget under a fresh id. A stack
 // keeps its children in config.widgets; each child gets a fresh id too, so no
 // id on the dashboard is ever shared between the original and the copy.
-//
-// A JSON round-trip, not structuredClone: editor state can hold reactive
-// proxies below the top level (rows and configs are rebuilt around existing
-// children), which toRaw does not reach and structuredClone rejects. A widget
-// is plain JSON anyway: it is stored and sent as JSON.
 export function cloneWidget(widget: Widget, newId: () => string): Widget {
-    const copy = JSON.parse(JSON.stringify(widget)) as Widget
+    const copy = plainCopy(widget)
     copy.id = newId()
     const children = copy.config?.widgets
     if (Array.isArray(children)) {

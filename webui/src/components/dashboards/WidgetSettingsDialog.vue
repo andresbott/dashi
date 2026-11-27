@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, watch, toRaw } from 'vue'
+import { ref, computed, watch } from 'vue'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import { getWidgetEntry } from '@/lib/widgetRegistry'
+import { plainCopy } from '@/lib/plainCopy'
 import type { Widget } from '@/types/dashboard'
 
 // Shared widget settings dialog: edits a staged copy of the widget and hands
@@ -29,13 +30,13 @@ const entry = computed(() => getWidgetEntry(props.widget.type))
 // .p-dialog max-width still caps it to the screen on phones.
 const dialogWidth = computed(() => (entry.value?.settingsSize === 'wide' ? '60rem' : '28rem'))
 
-// Stage a fresh copy every time the dialog opens; a structured clone keeps
-// nested config (arrays, objects) detached from the live widget until Save.
-// toRaw first: the config is a reactive proxy, which structuredClone rejects.
+// Stage a fresh deep copy every time the dialog opens, so nested config
+// (arrays, objects, a stack's children) stays detached from the live widget
+// until Save.
 watch(visible, (open) => {
     if (!open) return
     editTitle.value = props.widget.title
-    editConfig.value = props.widget.config ? structuredClone(toRaw(props.widget.config)) : {}
+    editConfig.value = props.widget.config ? plainCopy(props.widget.config) : {}
 })
 
 // Config forms emit either a complete object or just the keys they own, so

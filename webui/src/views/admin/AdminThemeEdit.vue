@@ -12,6 +12,7 @@ import ThemeBackgroundEditor from '@/components/admin/ThemeBackgroundEditor.vue'
 import { useGetTheme, useUpdateTheme } from '@/composables/useThemes'
 import { useAutosave } from '@/composables/useAutosave'
 import { isValidBackground, isValidRoleColor, previewStyle, PALETTE_ROLES } from '@/lib/themeCss'
+import { plainCopy } from '@/lib/plainCopy'
 import type { Theme, PaletteRole } from '@/types/theme'
 
 const route = useRoute()
@@ -31,7 +32,7 @@ const local = ref<Theme | null>(null)
 
 watch(serverTheme, (val) => {
     if (val && !local.value) {
-        local.value = JSON.parse(JSON.stringify(val))
+        local.value = plainCopy(val)
         // An empty background may arrive as null from hand-edited data.
         if (local.value && !local.value.background) local.value.background = {}
     }
