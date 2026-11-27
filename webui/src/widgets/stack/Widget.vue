@@ -194,7 +194,6 @@ onBeforeUnmount(endDragGuard)
         v-if="editingChild"
         v-model:visible="settingsVisible"
         :widget="editingChild"
-        :deletable="false"
         @save="saveChild"
     />
 

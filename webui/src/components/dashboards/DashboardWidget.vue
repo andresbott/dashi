@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import Button from 'primevue/button'
 import WidgetRenderer from '@/components/dashboards/WidgetRenderer.vue'
 import WidgetSettingsDialog from '@/components/dashboards/WidgetSettingsDialog.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import type { Widget } from '@/types/dashboard'
 
 defineProps<{
@@ -15,6 +16,14 @@ const emit = defineEmits<{
 }>()
 
 const settingsVisible = ref(false)
+
+// --- Delete (confirmed) ---
+const confirmDeleteVisible = ref(false)
+
+const confirmDelete = () => {
+    confirmDeleteVisible.value = false
+    emit('delete')
+}
 </script>
 
 <template>
@@ -31,6 +40,16 @@ const settingsVisible = ref(false)
                 v-tooltip.top="'Widget settings'"
                 @click="settingsVisible = true"
             />
+            <Button
+                icon="ti ti-trash"
+                text
+                rounded
+                severity="danger"
+                class="p-1"
+                aria-label="Delete widget"
+                v-tooltip.top="'Delete widget'"
+                @click="confirmDeleteVisible = true"
+            />
         </div>
         <div class="widget-body">
             <WidgetRenderer :widget="widget" @update:widget="emit('update', $event)" />
@@ -43,7 +62,14 @@ const settingsVisible = ref(false)
         v-model:visible="settingsVisible"
         :widget="widget"
         @save="emit('update', $event)"
-        @delete="emit('delete')"
+    />
+
+    <ConfirmDialog
+        v-model:visible="confirmDeleteVisible"
+        title="Delete widget"
+        message="Delete this widget? This cannot be undone."
+        :name="widget.title"
+        @confirm="confirmDelete"
     />
 </template>
 
@@ -55,12 +81,14 @@ const settingsVisible = ref(false)
     border-radius: 8px;
 }
 
-/* Grip (drag handle) sits at the left, the edit button at the right, so both
-   stay reachable even when the card is a single column wide. The title in
-   between identifies the card; it is clipped before the controls are. Delete
-   lives in the settings dialog rather than the header. */
+/* Grip (drag handle) sits at the left, the widget controls (edit, delete) at
+   the right. The title in between identifies the card; it is clipped before
+   the controls are. On a card too narrow for every control the header wraps
+   (the title's zero flex-basis means it never forces a wrap by itself), so
+   each control stays reachable even at a single column wide. */
 .widget-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.25rem;
     min-height: 2rem;
@@ -69,7 +97,7 @@ const settingsVisible = ref(false)
 }
 
 .widget-title {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;

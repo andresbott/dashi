@@ -57,8 +57,12 @@ describe('WidgetSettingsDialog', () => {
         const footer = wrapper.find('.stub-footer').text()
         expect(footer).toContain('Save')
         expect(footer).toContain('Cancel')
-        expect(footer).toContain('Delete')
         expect(wrapper.find('.stub-content').text()).not.toContain('Save')
+    })
+
+    it('has no Delete action: delete lives in the widget card header', () => {
+        const wrapper = mountDialog('battery')
+        expect(wrapper.find('.stub-footer').text()).not.toContain('Delete')
     })
 
     it('renders the widget settings form inside the scrolling content', () => {
