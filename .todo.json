@@ -440,7 +440,7 @@
       "category": "xr10s6x",
       "sprint": "5bwgs6s",
       "title": "Theme editor: make Colours and Background collapsible sections",
-      "status": "ready",
+      "status": "followup",
       "description": "In the theme editor, Colours and Background become expandable/collapsible sections. They live inside each mode (and inside each Light/Dark tab when dark mode is enabled).\n\n[qualify-sprint 2026-11-27]\nSize: easy\nScope: Wrap the Colours and Background sections of the per-mode editor component (from task 53) in PrimeVue Panel with toggleable, one Panel per section, open by default. Collapse state is a local ref per mode component instance (each tab has its own), not persisted. Files: webui/src/views/admin/AdminThemeEdit.vue and the per-mode component(s) from task 53, plus their tests. Acceptance: vitest - each section toggles independently in light-only mode and in each tab; collapse state survives switching tabs; both start expanded.\nDepends on: z9t8tnk (task 53)\nBreaking changes: not allowed (none expected)\nDecided: PrimeVue Panel toggleable, not Accordion or custom - gives aria-expanded and keyboard handling, each section stays self-contained; Accordion ties separate components into one value-keyed group for no gain.\nDecided: all sections open by default, state not remembered, per tab - project uses no local/session storage; small choice.\nAnswer: \"Restructure, allow break (Recommended)\" (sprint-wide schema answer; no effect on this task)\n\n[next-iteration 2026-11-27]\nBuilt: 1dae874 - Colours and Background are each a toggleable PrimeVue Panel, open by default, in light-only mode and in each Light/Dark tab; non-lazy tabs keep each tab's state.\nDecided (small): collapse state is PrimeVue Panel's own per-instance state, no extra ref - same behaviour, less code; test ids section-colors-<mode> / section-background-<mode>; one sentence added to the DocTheming page.\nReview: passed, follow-ups added as subtasks.\n\n[next-iteration 2026-11-27]\nFollow-ups round 1 (expert):\n- 15haxhq NOT NEEDED: the task only requires state to survive tab switches and \"open by default, not remembered\" was decided; the reset only reopens Panels, and keeping it needs a growing per-mode/per-section record.\n- zzk9dge BUILD: each Colours and Background Panel header shows the same red ti ti-alert-circle marker as the tabs (reuse .tab-invalid style; aria-label \"Colours has invalid values\" / \"Background has invalid values\"; test ids section-invalid-colors-<mode>, section-invalid-background-<mode>) via the Panel #header slot keeping the title. In AdminThemeEdit split lightValid/darkValid into colours and background checks per mode (same dark rule); modeValid = AND. Decided: header marker, not auto-expand - matches the tab marker and does not override the user's collapse. Proof (vitest): dark off, Colours collapsed, invalid light role -> Colours marker only, fixing removes it; dark on, invalid dark background -> section-invalid-background-dark only.",
       "subtasks": [
         {
@@ -452,7 +452,18 @@
         {
           "id": "zzk9dge",
           "title": "A collapsed section can hide an invalid field",
+          "done": true,
           "description": "The hint says 'Fix the highlighted fields' but the field may be inside a collapsed Panel. Options: invalid marker on the Panel header, or auto-expand the Panel holding the invalid field. The tab marker already points to the tab."
+        },
+        {
+          "id": "79cg19m",
+          "title": "Theme editor panel markup is duplicated four times",
+          "description": "The Colours/Background Panel header markup (title + invalid marker) is copied for the light-only layout and each tab; a small shared component or template would avoid drift. The header=\"...\" prop is redundant next to the #header slot."
+        },
+        {
+          "id": "htga1ps",
+          "title": "Cover the remaining section-marker cases in tests",
+          "description": "Tests don't cover the light-only Background marker or the dark Colours marker, and don't assert that the header slot still carries the aria-labelledby id."
         }
       ]
     },
@@ -461,12 +472,13 @@
       "category": "xr10s6x",
       "sprint": "5bwgs6s",
       "title": "Theme editor: move the preview into a section and widen the editor",
-      "status": "ready",
+      "status": "followup",
       "description": "Move the live preview (currently a right-hand column with its own Light/Dark toggle) into a section of the editor, and make the editor wider now that it no longer shares its width with the preview column.\n\n[qualify-sprint 2026-11-27]\nSize: medium\nScope: In webui/src/views/admin/AdminThemeEdit.vue remove the .edit-grid/.edit-preview right-hand column and its Light/Dark SelectButton. Add a Preview section inside each mode, after Colours and Background, showing that mode (light when dark mode is off), as a collapsible PrimeVue Panel like task 54, open by default. Remove the Light/Dark preview tiles inside ThemeBackgroundEditor (the main preview already composites the background via previewStyle); move the bg-preview-* assertions to the main preview. The editor uses the full .admin-panel width inside the existing 1200px .admin-view limit; the colour grid repeat(auto-fill, minmax(220px, 1fr)) needs no change. Acceptance: vitest - no side column, a preview section per mode reflecting that mode's colours and background; visual check that the form spans the admin panel width.\nDepends on: z9t8tnk (task 53), cw22m3d (task 54)\nBreaking changes: not allowed (none expected)\nDecided: preview inside each mode after Colours and Background - keeps the user's top-to-bottom order and each mode self-contained.\nDecided: preview follows the mode it sits in, no own toggle - a second toggle brings back the two-controls-one-ref coupling; side by side has no dark side when dark is off.\nDecided: preview section is collapsible like the others, open by default - consistency with task 54.\nDecided: remove the background editor's own preview tiles - duplicated by the main preview, and drops the palette dependency from ThemeBackgroundEditor.\nDecided: full .admin-panel width inside the existing 1200px limit, no page-specific max-width - keeps admin pages consistent; small choice.\nAnswer: \"Restructure, allow break (Recommended)\" (sprint-wide schema answer; no effect on this task)\n\n[next-iteration 2026-11-27]\nScope note: .admin-panel already spans the 1200px .admin-view; removing the editor's own .edit-grid split is the widening. The \"Changes are saved automatically\" hint lives in the preview column today and needs a new place. Update the viewer.md note about preview tiles.\n\n[next-iteration 2026-11-27]\nBuilt: f558baf - right-hand preview column and its Light/Dark toggle removed; each mode gets a collapsible Preview Panel (open by default) after Colours and Background, rendered by the new webui/src/components/admin/ThemePreview.vue; the background editor's own preview tile and previewStyle prop removed; form spans the full admin panel width.\nDecided (small): save status and the hidden-dark-invalid warning sit just under the dark-mode checkbox, above the sections - stays in view; no other admin page has an autosave hint to copy. The sample card is capped at 320px so it still looks like a dashboard card.\nNot run: visual width check in a browser (needs the dev server and editor running).\nReview: passed, follow-ups added as subtasks.\n\n[next-iteration 2026-11-27]\nFollow-ups round 1 (expert):\n- 445rt5g BUILD: one test in the describe('preview') block of webui/src/views/admin/AdminThemeEdit.test.ts - light background with an image layer {ref 'asset:sky.jpg', cover, center, no-repeat} plus a gradient; assert the light preview's inline style contains /api/v0/themes/<id>/assets/sky.jpg and the gradient stop; if cheap, assert the dark preview does not contain the light image. Decided: assert the URL substring only - the exact layer string is pinned in themeCss.test.ts.\n- mzt2ypv NOT NEEDED: the palette has a text-on-accent role only for primary (--dashi-on-primary, already used); #ffffff predates this task (same colour in AdminThemeEdit.vue at 1dae874); adding on-* roles would change the theme schema, a separate decision.",
       "subtasks": [
         {
           "id": "445rt5g",
           "title": "Test that the preview shows the background image layer",
+          "done": true,
           "description": "The old bg-preview-* tile assertions were not all moved to the main preview tests: only the gradient stop colour is covered, nothing checks that an image layer appears in the preview style."
         },
         {
@@ -474,6 +486,11 @@
           "title": "ThemePreview chip text uses a hardcoded #ffffff",
           "done": true,
           "description": "webui/src/components/admin/ThemePreview.vue (~line 89) hardcodes #ffffff for the chip text colour instead of a theme variable.\n\n[next-iteration 2026-11-27]\nNot needed: the palette has a text-on-accent role only for primary (--dashi-on-primary, already used by the Primary chip); #ffffff predates this task; adding on-* roles would change the theme schema and the Go mirror, a separate decision."
+        },
+        {
+          "id": "7qwkg5n",
+          "title": "Preview image test title says 'over the gradient' but does not check layer order",
+          "description": "The test added in b15553b is titled as if it checks the image layer sits over the gradient, but it only checks both are present (layer order is pinned in themeCss.test.ts). Rename the title, or assert the order."
         }
       ]
     },
