@@ -439,7 +439,11 @@ background (`sectionValid`; a mode is valid when both are), and the Colours
 and Background Panel headers carry the same icon
 (`section-invalid-colors-<mode>`, `section-invalid-background-<mode>`)
 while that section is invalid, so a collapsed Panel still points to the
-field it hides; the Panel is not expanded for you. The Preview Panel has no
+field it hides; the Panel is not expanded for you. Each such `#header`
+slot renders `webui/src/components/admin/ThemeSectionHeader.vue` (title,
+invalid flag, marker test id, and the slot's `id`/`class`, which the
+Panel's content region is labelled by); the Panel keeps its `header` prop,
+which PrimeVue uses as the toggle button's aria-label. The Preview Panel has no
 marker. The
 components take a `disabled` prop for read-only use, though builtin themes
 currently never reach the form (the view shows a "cannot be edited" card

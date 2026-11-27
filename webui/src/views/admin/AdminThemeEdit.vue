@@ -16,6 +16,7 @@ import { useToast } from 'primevue/usetoast'
 import ThemeBackgroundEditor from '@/components/admin/ThemeBackgroundEditor.vue'
 import ThemeColorsEditor from '@/components/admin/ThemeColorsEditor.vue'
 import ThemePreview from '@/components/admin/ThemePreview.vue'
+import ThemeSectionHeader from '@/components/admin/ThemeSectionHeader.vue'
 import { useGetTheme, useUpdateTheme } from '@/composables/useThemes'
 import { useAutosave } from '@/composables/useAutosave'
 import { isValidModeBackground, isValidRoleColor, PALETTE_ROLES } from '@/lib/themeCss'
@@ -247,17 +248,13 @@ const goBack = async () => {
                                 <TabPanel v-for="m in MODES" :key="m.value" :value="m.value" class="mode-sections">
                                     <Panel header="Colours" toggleable :data-testid="`section-colors-${m.value}`">
                                         <template #header="{ id, class: titleClass }">
-                                            <span class="section-header">
-                                                <span :id="id" :class="titleClass">Colours</span>
-                                                <!-- Points to an invalid field the collapsed Panel may hide. -->
-                                                <i
-                                                    v-if="!sectionValid[m.value].colors"
-                                                    class="ti ti-alert-circle tab-invalid"
-                                                    role="img"
-                                                    aria-label="Colours has invalid values"
-                                                    :data-testid="`section-invalid-colors-${m.value}`"
-                                                />
-                                            </span>
+                                            <ThemeSectionHeader
+                                                title="Colours"
+                                                :invalid="!sectionValid[m.value].colors"
+                                                :markerTestid="`section-invalid-colors-${m.value}`"
+                                                :titleId="id"
+                                                :titleClass="titleClass"
+                                            />
                                         </template>
                                         <ThemeColorsEditor
                                             v-model:palette="local.colors[m.value]"
@@ -267,16 +264,13 @@ const goBack = async () => {
                                     </Panel>
                                     <Panel header="Background" toggleable :data-testid="`section-background-${m.value}`">
                                         <template #header="{ id, class: titleClass }">
-                                            <span class="section-header">
-                                                <span :id="id" :class="titleClass">Background</span>
-                                                <i
-                                                    v-if="!sectionValid[m.value].background"
-                                                    class="ti ti-alert-circle tab-invalid"
-                                                    role="img"
-                                                    aria-label="Background has invalid values"
-                                                    :data-testid="`section-invalid-background-${m.value}`"
-                                                />
-                                            </span>
+                                            <ThemeSectionHeader
+                                                title="Background"
+                                                :invalid="!sectionValid[m.value].background"
+                                                :markerTestid="`section-invalid-background-${m.value}`"
+                                                :titleId="id"
+                                                :titleClass="titleClass"
+                                            />
                                         </template>
                                         <ThemeBackgroundEditor
                                             v-model:background="local.background[m.value]"
@@ -296,16 +290,13 @@ const goBack = async () => {
                         <div v-else class="mode-sections">
                             <Panel header="Colours" toggleable data-testid="section-colors-light">
                                 <template #header="{ id, class: titleClass }">
-                                    <span class="section-header">
-                                        <span :id="id" :class="titleClass">Colours</span>
-                                        <i
-                                            v-if="!sectionValid.light.colors"
-                                            class="ti ti-alert-circle tab-invalid"
-                                            role="img"
-                                            aria-label="Colours has invalid values"
-                                            data-testid="section-invalid-colors-light"
-                                        />
-                                    </span>
+                                    <ThemeSectionHeader
+                                        title="Colours"
+                                        :invalid="!sectionValid.light.colors"
+                                        markerTestid="section-invalid-colors-light"
+                                        :titleId="id"
+                                        :titleClass="titleClass"
+                                    />
                                 </template>
                                 <ThemeColorsEditor
                                     v-model:palette="local.colors.light"
@@ -315,16 +306,13 @@ const goBack = async () => {
                             </Panel>
                             <Panel header="Background" toggleable data-testid="section-background-light">
                                 <template #header="{ id, class: titleClass }">
-                                    <span class="section-header">
-                                        <span :id="id" :class="titleClass">Background</span>
-                                        <i
-                                            v-if="!sectionValid.light.background"
-                                            class="ti ti-alert-circle tab-invalid"
-                                            role="img"
-                                            aria-label="Background has invalid values"
-                                            data-testid="section-invalid-background-light"
-                                        />
-                                    </span>
+                                    <ThemeSectionHeader
+                                        title="Background"
+                                        :invalid="!sectionValid.light.background"
+                                        markerTestid="section-invalid-background-light"
+                                        :titleId="id"
+                                        :titleClass="titleClass"
+                                    />
                                 </template>
                                 <ThemeBackgroundEditor
                                     v-model:background="local.background.light"
@@ -375,14 +363,7 @@ const goBack = async () => {
     color: var(--p-red-500);
 }
 
-/* Keeps a Panel's invalid marker next to its title, not pushed to the
-   middle of the header by its space-between layout. */
-.section-header {
-    display: inline-flex;
-    align-items: center;
-}
-
-/* Marks an invalid tab, or a Colours or Background Panel header. */
+/* Marks an invalid tab; ThemeSectionHeader gives Panel headers the same look. */
 .tab-invalid {
     margin-left: 0.35rem;
     color: var(--p-red-500);
