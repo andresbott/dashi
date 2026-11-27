@@ -2,8 +2,6 @@ package search
 
 import (
 	"context"
-	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/andresbott/dashi/internal/widgets"
@@ -17,17 +15,6 @@ func TestModule_Type(t *testing.T) {
 	}
 }
 
-func TestModule_Renderer_EmitsPlaceholder(t *testing.T) {
-	m := NewModule()
-	got, err := m.Renderer()(json.RawMessage(`{}`), widgets.RenderContext{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(string(got), "widget-search-placeholder") {
-		t.Errorf("expected placeholder HTML, got %q", got)
-	}
-}
-
 func TestModule_RegisterRoutes_NoPanic(t *testing.T) {
 	m := NewModule()
 	m.RegisterRoutes(mux.NewRouter())
@@ -38,4 +25,7 @@ func TestModule_Warmup_NoPanic(t *testing.T) {
 	m.Warmup(context.Background(), nil)
 }
 
-var _ widgets.Module = (*Module)(nil)
+var (
+	_ widgets.Module            = (*Module)(nil)
+	_ widgets.BrowserRenderable = (*Module)(nil)
+)

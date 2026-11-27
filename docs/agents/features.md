@@ -21,9 +21,9 @@ Statuses verified against the code on 2026-07-22.
 Full matrix and how to add one: [widgets.md](widgets.md). Registered types
 (backend `app/router/main.go` + frontend `webui/src/lib/widgetRegistry.ts`):
 weather, weather-compact, bookmark, clock, battery, page-indicator, market,
-xkcd, transport (Swiss transport), sysinfo, stack, markdown, image — plus
-frontend-only **search** (no static renderer: an input box is meaningless in a
-PNG — DIY-by-design gap, do not "fix" it).
+xkcd, transport (Swiss transport), sysinfo, stack, markdown, image, search.
+**search** is a plain GET form in the browser viewer (no JS, new tab) and a
+static picture of the bar in PNGs.
 
 ## Rendering
 

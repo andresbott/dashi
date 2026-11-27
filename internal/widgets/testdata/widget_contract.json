@@ -10,7 +10,7 @@
     "image": { "fields": ["fit", "image"] },
     "market": { "fields": ["range", "showChange", "showChart", "symbol"] },
     "markdown": { "fields": ["filename"] },
-    "search": { "fields": [], "editorOnly": ["engine", "placeholder"] },
+    "search": { "fields": ["engine", "placeholder"] },
     "stack": { "fields": ["widgets"], "noForm": true },
     "sysinfo": {
       "fields": ["disks", "showMemory", "showUptime"],

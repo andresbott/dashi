@@ -131,8 +131,8 @@ internal/widgets/clock/
 Editor forms stay in `webui/src/widgets/{name}/`; see
 [widgets.md](widgets.md#widget-boundary-decided-2026-11-06).
 
-Ported widgets: **clock** (no CSS), **sysinfo** (ships `sysinfo.css`). The
-remaining twelve widgets have not been ported and render through their image
+Ported widgets: **clock** (no CSS), **sysinfo** (ships `sysinfo.css`),
+**search** (no CSS, no JS: a plain GET form). The remaining eleven widgets have not been ported and render through their image
 renderers in the browser (expected transition state, not a defect). Which of
 them still need a port is an [open question](widgets.md#open-questions).
 

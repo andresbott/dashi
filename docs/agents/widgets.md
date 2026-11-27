@@ -111,7 +111,9 @@ html/template escapes it or replaces it with `#ZgotmplZ` (and in Vue, a
 go through `encodeURIComponent` and the data stores' name checks; markdown
 HTML comes from goldmark with its safe defaults (raw HTML dropped, dangerous
 link schemes stripped; tests in `internal/data/notes/render_test.go`); search
-`engine` only selects one of the fixed `searchEngineUrls`; bookmark `icon` only
+`engine` only selects a key of the fixed `engines` allowlist
+(`internal/widgets/search/engine.go`, unknown → google) and `placeholder` is
+attribute-escaped; bookmark `icon` only
 feeds a CDN/asset `img src` or a CSS class. Weather's `resolveIconHTML` builds
 `template.HTML` with `fmt.Sprintf` from widget-theme manifest values (not
 widget config), HTML-escaped but not CSS-escaped. Theme packs are trusted
@@ -158,7 +160,7 @@ detects the drag and paints the floating clone.
 | stack | yes | yes | no | container: renders children via the registry itself (`NewStaticRenderer(registry)`), and validates them through it too |
 | markdown | yes | yes | yes | reads `.md` from dashboard `md/` dir via `dashboard.Store` (spec: `docs/superpowers/specs/2026-04-16-markdown-widget-design.md`) |
 | image | yes | yes | yes | serves uploaded dashboard assets |
-| search | **no** | yes | yes | deliberately interactive-only |
+| search | yes | yes | yes | browser: plain GET form, no JS; image: static bar. Engine list shared via `internal/widgets/search/testdata/engines.json` |
 
 ## Package layout rule (current)
 
@@ -245,9 +247,6 @@ are required.
   [contract](#config-contract); removing or implementing them is still open.
 - **clock:** with no saved config, `Widget.vue` shows seconds and date, while
   the Go config defaults them to off.
-- **search:** the Go renderer outputs a blank placeholder, so it shows nothing
-  in the viewer. Its `engine` and `placeholder` are `editorOnly` in the
-  [contract](#config-contract) for the same reason.
 - **stack:** `stack.go` renders children through `registry.Render`, so ported
   children still use their image templates inside a stack.
 
@@ -263,7 +262,7 @@ are required.
     height syncing and drag handling. If the spike fails, keep the Vue versions
     as editor-only previews.
 - **Which widgets need a browser port?** Weather, weather-compact, market,
-  transport and xkcd need a template and script; search needs a template; stack
+  transport and xkcd need a template and script (search is done); stack
   needs a small change. Battery, page-indicator, image, bookmark and markdown
   could stay on the image-template fallback, with plainer styling. Not decided.
 

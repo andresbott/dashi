@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import type { SearchWidgetConfig, SearchEngine } from './types'
+import { searchEngineLabels } from './types'
 
 const props = defineProps<{
     config: SearchWidgetConfig | null
@@ -12,11 +13,7 @@ const emit = defineEmits<{
     'update:config': [config: SearchWidgetConfig]
 }>()
 
-const engineOptions = [
-    { label: 'Google', value: 'google' },
-    { label: 'DuckDuckGo', value: 'duckduckgo' },
-    { label: 'Bing', value: 'bing' },
-]
+const engineOptions = Object.entries(searchEngineLabels).map(([value, label]) => ({ label, value }))
 
 const editEngine = ref<SearchEngine>(props.config?.engine ?? 'google')
 const editPlaceholder = ref(props.config?.placeholder ?? 'Search...')

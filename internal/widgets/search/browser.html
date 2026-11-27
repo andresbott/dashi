@@ -1,0 +1,11 @@
+<div class="dashi-search flex min-h-[60px] flex-col justify-center gap-1 p-2">
+    <form class="dashi-search__form flex items-center overflow-hidden rounded-lg border border-[var(--dashi-border)] bg-[var(--dashi-surface)] focus-within:border-[var(--dashi-primary)]"
+          action="{{.Action}}" method="get" target="_blank" rel="noopener">
+        <span class="dashi-search__icon shrink-0 pr-2 pl-3 text-lg text-[var(--dashi-text-muted)]" style="font-family: '{{.IconFontFamily}}';" aria-hidden="true">{{.SearchIcon}}</span>
+        <input class="dashi-search__input min-w-0 flex-1 bg-transparent px-2 py-2.5 text-[0.95rem] text-[var(--dashi-text)] outline-none placeholder:text-[var(--dashi-text-muted)]"
+               type="text" name="q" placeholder="{{.Placeholder}}" aria-label="{{.Placeholder}}" required>
+        <button class="dashi-search__button flex cursor-pointer items-center self-stretch bg-[var(--dashi-primary)] px-3 text-[var(--dashi-on-primary)] hover:opacity-90"
+                type="submit" aria-label="Search with {{.Label}}"><span style="font-family: '{{.IconFontFamily}}';" aria-hidden="true">{{.ArrowIcon}}</span></button>
+    </form>
+    <span class="dashi-search__engine pr-1 text-right text-xs text-[var(--dashi-text-muted)]">{{.Label}}</span>
+</div>
