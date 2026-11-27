@@ -14,7 +14,10 @@ describe('info API', () => {
     })
 
     it('returns server info', async () => {
-        const info = { viewer: { enabled: true, url: 'http://localhost:8087' } }
+        const info = {
+            viewer: { enabled: true, url: 'http://localhost:8087' },
+            editor: { enabled: true, url: 'https://editor.local' },
+        }
         vi.mocked(apiClient.get).mockResolvedValue({ data: info })
         const result = await getServerInfo()
         expect(result).toEqual(info)

@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import PrimeVue from 'primevue/config'
 import Select from 'primevue/select'
+import ToggleSwitch from 'primevue/toggleswitch'
 import DashboardSettingsView from './DashboardSettingsView.vue'
 import AlignmentPicker from '@/components/dashboards/AlignmentPicker.vue'
 import type { Dashboard } from '@/types/dashboard'
@@ -48,6 +49,8 @@ vi.mock('vue-router', () => ({
     useRouter: () => ({ push: vi.fn(), back: vi.fn(), options: { history: { state: {} } } }),
 }))
 vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: vi.fn() }) }))
+const editorUrl = ref('')
+vi.mock('@/lib/serverInfo', () => ({ publicEditorUrl: () => editorUrl.value }))
 
 async function mountAppearance() {
     const wrapper = mount(DashboardSettingsView, {
@@ -146,6 +149,72 @@ describe('DashboardSettingsView', () => {
             const wrapper = await mountGeneral()
             const values = (ditherSelect(wrapper)!.props('options') as { value: string }[]).map(o => o.value)
             expect(values).toEqual(['plain', 'auto', 'balanced', 'dynamic', 'vivid', 'soft', 'grayscale'])
+        })
+    })
+
+    describe('edit button toggle', () => {
+        const mountGeneral = async () => {
+            const wrapper = mount(DashboardSettingsView, {
+                global: { plugins: [PrimeVue], directives: { tooltip: {} } },
+            })
+            await flushPromises()
+            return wrapper
+        }
+        const toggle = (wrapper: Awaited<ReturnType<typeof mountGeneral>>) =>
+            wrapper.findAllComponents(ToggleSwitch).find(t => t.attributes('data-testid') === 'edit-button-toggle')
+        const urlHint = '[data-testid="edit-button-url-hint"]'
+
+        beforeEach(() => {
+            editorUrl.value = 'https://editor.local'
+        })
+
+        it('is off by default for interactive dashboards', async () => {
+            const wrapper = await mountGeneral()
+            expect(toggle(wrapper)!.props('modelValue')).toBe(false)
+            expect(wrapper.find('label[for]').exists()).toBe(true)
+            expect(wrapper.text()).toContain('Show Edit button')
+        })
+
+        it('is shown for dashboards without a stored type', async () => {
+            delete (draft.value as Partial<Dashboard>).type
+            const wrapper = await mountGeneral()
+            expect(toggle(wrapper)).toBeDefined()
+        })
+
+        it('is hidden for image dashboards and keeps the stored value', async () => {
+            draft.value!.type = 'image'
+            draft.value!.showEditButton = true
+            const wrapper = await mountGeneral()
+            expect(toggle(wrapper)).toBeUndefined()
+            expect(draft.value!.showEditButton).toBe(true)
+        })
+
+        it('stores the flag when turned on and removes it when turned off', async () => {
+            const wrapper = await mountGeneral()
+            toggle(wrapper)!.vm.$emit('update:modelValue', true)
+            await flushPromises()
+            expect(draft.value!.showEditButton).toBe(true)
+            expect(toggle(wrapper)!.props('modelValue')).toBe(true)
+
+            toggle(wrapper)!.vm.$emit('update:modelValue', false)
+            await flushPromises()
+            expect('showEditButton' in draft.value!).toBe(false)
+        })
+
+        it('hints at the editor public URL when none is advertised', async () => {
+            editorUrl.value = ''
+            const wrapper = await mountGeneral()
+            expect(toggle(wrapper)!.props('disabled')).toBeFalsy()
+            const hint = wrapper.find(urlHint)
+            expect(hint.exists()).toBe(true)
+            expect(hint.text()).toContain('server.editor.publicUrl')
+            expect(hint.text()).toContain('editor_public_url')
+        })
+
+        it('shows no hint when the editor public URL is set', async () => {
+            const wrapper = await mountGeneral()
+            expect(toggle(wrapper)).toBeDefined()
+            expect(wrapper.find(urlHint).exists()).toBe(false)
         })
     })
 

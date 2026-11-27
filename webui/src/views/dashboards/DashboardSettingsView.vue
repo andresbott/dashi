@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
+import ToggleSwitch from 'primevue/toggleswitch'
 import AlignmentPicker from '@/components/dashboards/AlignmentPicker.vue'
 
 import { useDashboardAuth } from '@/composables/useDashboards'
@@ -12,6 +13,7 @@ import { useListThemes } from '@/composables/useThemes'
 import { useWidgetThemes } from '@/composables/useWidgetThemes'
 import { pageBgValue } from '@/lib/themeCss'
 import { DITHER_OPTIONS, DITHER_PLAIN, type DitherOption } from '@/lib/dither'
+import { publicEditorUrl } from '@/lib/serverInfo'
 import { useToast } from 'primevue/usetoast'
 import type { ColorMode } from '@/types/dashboard'
 import dashiIcon from '@/assets/icon-64.png'
@@ -27,6 +29,7 @@ const { data: widgetThemeList } = useWidgetThemes()
 const { auth: dashAuth, isLoadingAuth, setAuth, isSettingAuth, deleteAuth, isDeletingAuth } = useDashboardAuth(() => id.value)
 
 const alignmentLabelId = useId()
+const editButtonInputId = useId()
 
 const authUsername = ref('')
 const authPassword = ref('')
@@ -118,6 +121,21 @@ const dither = computed<DitherOption['value']>({
         else localDashboard.value.dither = v
     },
 })
+
+// Off is the absent field, like plain dithering. Switching the type to image
+// only hides the toggle; the stored value stays for when it is switched back.
+const showEditButton = computed<boolean>({
+    get: () => localDashboard.value?.showEditButton === true,
+    set: (v) => {
+        if (!localDashboard.value) return
+        if (v) localDashboard.value.showEditButton = true
+        else delete localDashboard.value.showEditButton
+    },
+})
+
+// The viewer draws the button only when the backend knows the editor's public
+// URL; without one the setting is still saved, but has no visible effect yet.
+const hasEditorUrl = computed(() => publicEditorUrl() !== '')
 
 // Common widths to pick from; the Select is editable, so any CSS width can
 // still be typed in.
@@ -242,6 +260,23 @@ const activeSection = ref('general')
                         <small class="settings-hint">
                             Applies to the e-ink formats (png-bw, png-spectra6, bw, spectra6).
                             Compare the options with E-ink preview in the editor.
+                        </small>
+                    </div>
+                    <div v-if="localDashboard.type !== 'image'" class="flex flex-column gap-1">
+                        <div class="flex align-items-center gap-2">
+                            <ToggleSwitch
+                                v-model="showEditButton"
+                                :inputId="editButtonInputId"
+                                data-testid="edit-button-toggle"
+                            />
+                            <label :for="editButtonInputId" class="font-semibold text-sm">Show Edit button</label>
+                        </div>
+                        <small class="settings-hint">
+                            Adds a button to the rendered dashboard that opens it here in the editor.
+                        </small>
+                        <small v-if="!hasEditorUrl" class="settings-hint" data-testid="edit-button-url-hint">
+                            Set <code>server.editor.publicUrl</code> (or the Home Assistant add-on option
+                            <code>editor_public_url</code>) for the button to appear.
                         </small>
                     </div>
                 </div>
