@@ -64,8 +64,7 @@ type pageData struct {
 	Name        string
 	ColorMode   string
 	MaxWidth    string
-	HAlign      string
-	VAlign      string
+	Placement   dashboard.ContainerPlacement
 	ThemeID     string
 	WidgetTheme string
 	CustomCSS   template.CSS
@@ -117,8 +116,7 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 		Name:      data.Name,
 		ColorMode: colorMode,
 		MaxWidth:  data.MaxWidth,
-		HAlign:    mapHAlign(data.HAlign),
-		VAlign:    mapVAlign(data.VAlign),
+		Placement: dashboard.PlaceContainer(data.HAlign, data.VAlign),
 		// Each reference is escaped to a single path segment, so a stored
 		// value can never point the link outside its asset route.
 		ThemeID:     url.PathEscape(orDefault(data.ThemeID, themes.DefaultID)),
@@ -190,28 +188,4 @@ func orDefault(ref, def string) string {
 		return def
 	}
 	return ref
-}
-
-func mapHAlign(align string) string {
-	switch align {
-	case "left":
-		return "flex-start"
-	case "right":
-		return "flex-end"
-	default:
-		return "center"
-	}
-}
-
-func mapVAlign(align string) string {
-	switch align {
-	case "top":
-		return "flex-start"
-	case "bottom":
-		return "flex-end"
-	case "center":
-		return "center"
-	default:
-		return "flex-start"
-	}
 }

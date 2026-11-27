@@ -210,6 +210,20 @@ the PNG/litehtml stack and the browser. The editor mirrors `PlaceRow` in
 `webui/src/lib/rowLayout.ts` and renders the gap with PrimeFlex `col-offset-N`.
 A row whose spans exceed 12 columns still wraps to a second line, as before.
 
+## Container placement (alignment)
+
+`Container.HorizontalAlign`/`VerticalAlign` move the whole container (all
+rows) inside the viewport; rows keep filling it. `dashboard.PlaceContainer`
+(`internal/dashboard/alignment.go`) is the single mapping for both stacks:
+left/center/right become the container's auto margin (empty or unknown =
+center), top/center/bottom become `justify-content` on a full-viewport-height
+flex column (empty or unknown = top). The browser shell hands the margins to
+`.dashi-container` as CSS variables (inline geometry is banned there, see
+[viewer.md](viewer.md#responsive-layout-mobile)). In `master.html` a plain
+`.page-track` block sits between the flex column and the container because
+litehtml paints nothing for a flex item with auto margins.
+`TestRenderer_Render_AlignmentInLitehtml` pins the real PNG positions.
+
 ## Analysis docs
 
 `docs/project/widget-rendering-architectures.md` — deep comparison of the two

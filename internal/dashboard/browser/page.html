@@ -14,9 +14,13 @@
     {{- /* Row height and cell width/offset travel as CSS variables, not as
            inline height/width/margin: viewer.css applies them from the `sm`
            breakpoint up and stacks every cell full width below it (phones).
-           An inline declaration could not be undone by a media query. */}}
-    <main class="mx-auto flex min-h-screen w-full flex-col px-2 py-2 sm:px-4 sm:py-4"
-          style="max-width: {{if .MaxWidth}}{{.MaxWidth}}{{else}}100%{{end}}; align-items: {{.HAlign}}; justify-content: {{.VAlign}};">
+           An inline declaration could not be undone by a media query.
+           The container's placement (dashboard.PlaceContainer) follows the
+           same rule: its auto margin moves it left/centre/right as variables
+           read by .dashi-container, and justify-content on this full-height
+           column moves the rows top/middle/bottom. */}}
+    <main class="dashi-container flex min-h-screen w-full flex-col px-2 py-2 sm:px-4 sm:py-4"
+          style="max-width: {{if .MaxWidth}}{{.MaxWidth}}{{else}}100%{{end}}; --dashi-container-left-margin: {{.Placement.MarginLeft}}; --dashi-container-right-margin: {{.Placement.MarginRight}}; justify-content: {{.Placement.JustifyContent}};">
         {{- range .Rows}}
         <div class="dashi-row w-full"{{if .Height}} style="--dashi-row-height: {{.Height}}"{{end}}>
             {{if .Title}}<h2 class="mb-2 text-lg font-semibold break-words text-[var(--dashi-text)]">{{.Title}}</h2>{{end}}

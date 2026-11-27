@@ -50,8 +50,7 @@ type RenderData struct {
 type pageData struct {
 	Name          string
 	MaxWidth      string
-	HAlign        string
-	VAlign        string
+	Placement     dashboard.ContainerPlacement
 	FontFamily    string
 	CustomCSS     template.CSS
 	BackgroundCSS template.CSS
@@ -82,8 +81,7 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 	pData := pageData{
 		Name:       data.Name,
 		MaxWidth:   data.MaxWidth,
-		HAlign:     mapHAlign(data.HAlign),
-		VAlign:     mapVAlign(data.VAlign),
+		Placement:  dashboard.PlaceContainer(data.HAlign, data.VAlign),
 		FontFamily: data.FontFamily,
 		// Owner-uploaded stylesheet; SanitizeCustomCSS neutralises any
 		// </style> breakout before it reaches the template.
@@ -132,30 +130,4 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 	}
 
 	return masterTmpl.Execute(w, pData)
-}
-
-func mapHAlign(align string) string {
-	switch align {
-	case "left":
-		return "flex-start"
-	case "right":
-		return "flex-end"
-	case "center":
-		return "center"
-	default:
-		return "center"
-	}
-}
-
-func mapVAlign(align string) string {
-	switch align {
-	case "top":
-		return "flex-start"
-	case "bottom":
-		return "flex-end"
-	case "center":
-		return "center"
-	default:
-		return "flex-start"
-	}
 }

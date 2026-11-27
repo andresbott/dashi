@@ -11,9 +11,23 @@
             background: {{if .BackgroundCSS}}{{.BackgroundCSS}}{{else}}{{.Palette.BG}}{{end}};
             color: {{.Palette.Text}};
         }
+        {{- /* Container placement (values from dashboard.PlaceContainer):
+               .page is a full-viewport-height flex column, so justify-content
+               moves everything vertically. .container is full width up to
+               max-width, so its auto margin moves it horizontally while the
+               rows keep filling it. .page-track sits between the two because
+               litehtml paints nothing for a flex item with auto margins; in
+               plain block flow they work. */}}
+        .page {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            justify-content: {{.Placement.JustifyContent}};
+        }
         .container {
             width: 100%;
             max-width: {{.MaxWidth}};
+            margin-left: {{.Placement.MarginLeft}}; margin-right: {{.Placement.MarginRight}};
         }
         .row {
             margin-bottom: 16px;
@@ -34,6 +48,7 @@
     </style>
 </head>
 <body>
+    <div class="page"><div class="page-track">
     <div class="container">
         {{- range .Rows}}
         <div class="row"{{if .Height}} style="height: {{.Height}}"{{end}}>
@@ -48,6 +63,7 @@
         </div>
         {{- end}}
     </div>
+    </div></div>
     <!-- custom.css goes LAST in the document. litehtml collects <style>
          elements in document order and breaks equal-specificity ties by
          insertion order, and widget CSS now ships inside each widget's body.

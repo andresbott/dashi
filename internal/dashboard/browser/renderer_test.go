@@ -120,6 +120,49 @@ func TestRenderIsMobileReady(t *testing.T) {
 	}
 }
 
+func TestRenderAlignmentPlacesContainer(t *testing.T) {
+	tests := []struct {
+		name           string
+		hAlign, vAlign string
+		want           []string
+	}{
+		{"top left", "left", "top", []string{"--dashi-container-left-margin: 0; --dashi-container-right-margin: auto;", "justify-content: flex-start;"}},
+		{"center center", "center", "center", []string{"--dashi-container-left-margin: auto; --dashi-container-right-margin: auto;", "justify-content: center;"}},
+		{"bottom right", "right", "bottom", []string{"--dashi-container-left-margin: auto; --dashi-container-right-margin: 0;", "justify-content: flex-end;"}},
+		{"defaults", "", "", []string{"--dashi-container-left-margin: auto; --dashi-container-right-margin: auto;", "justify-content: flex-start;"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := baseData()
+			data.MaxWidth = "800px"
+			data.HAlign, data.VAlign = tt.hAlign, tt.vAlign
+			out := render(t, NewRenderer(testRegistry(), nil), data)
+
+			for _, want := range tt.want {
+				if !strings.Contains(out, want) {
+					t.Errorf("expected %q in output:\n%s", want, out)
+				}
+			}
+			// The container itself moves; a fixed mx-auto would pin it to
+			// the centre, and align-items on it never moved full-width rows.
+			if strings.Contains(out, "mx-auto flex min-h-screen") || strings.Contains(out, "align-items:") {
+				t.Errorf("container must be placed by its margins only:\n%s", out)
+			}
+			// Rows keep filling the container.
+			if !strings.Contains(out, `class="dashi-row w-full"`) {
+				t.Errorf("rows must stay full width:\n%s", out)
+			}
+		})
+	}
+}
+
+func TestViewerCSSPlacesContainerByMargins(t *testing.T) {
+	want := ".dashi-container{margin-left:var(--dashi-container-left-margin,auto);margin-right:var(--dashi-container-right-margin,auto)}"
+	if !strings.Contains(string(viewerCSS), want) {
+		t.Errorf("viewer.css missing %q; run make viewer-css", want)
+	}
+}
+
 func TestViewerCSSStacksCellsOnPhones(t *testing.T) {
 	// The compiled stylesheet must apply the CSS variables from the sm
 	// breakpoint up and stack every cell full width below it.

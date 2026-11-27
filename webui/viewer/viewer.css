@@ -43,6 +43,14 @@
    minimum so stacked cells are not clipped. Only the browser stack reads
    this; the image/PNG stack has its own templates and is unaffected. */
 @layer components {
+  /* The container around all rows: page.html hands over its placement
+     (dashboard.PlaceContainer) as variables. It is full width up to its
+     max-width, so the auto side moves it left, centre or right. */
+  .dashi-container {
+    margin-left: var(--dashi-container-left-margin, auto);
+    margin-right: var(--dashi-container-right-margin, auto);
+  }
+
   .dashi-row {
     height: var(--dashi-row-height, auto);
   }
