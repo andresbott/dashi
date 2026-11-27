@@ -72,16 +72,27 @@ const settingsVisible = ref(false)
 const editTitle = ref('')
 const editHeight = ref('')
 const editWidth = ref('')
+const editMarginTop = ref('')
+const editMarginBottom = ref('')
 
 const openSettings = () => {
     editTitle.value = props.row.title ?? ''
     editHeight.value = props.row.height
     editWidth.value = props.row.width
+    editMarginTop.value = props.row.marginTop ?? ''
+    editMarginBottom.value = props.row.marginBottom ?? ''
     settingsVisible.value = true
 }
 
 const saveSettings = () => {
-    emit('update', { ...props.row, title: editTitle.value || undefined, height: editHeight.value, width: editWidth.value })
+    emit('update', {
+        ...props.row,
+        title: editTitle.value || undefined,
+        height: editHeight.value,
+        width: editWidth.value,
+        marginTop: editMarginTop.value.trim() || undefined,
+        marginBottom: editMarginBottom.value.trim() || undefined,
+    })
     settingsVisible.value = false
 }
 
@@ -448,6 +459,16 @@ const nudgeColumn = (index: number, delta: number) => {
             <div class="flex flex-column gap-1">
                 <label class="text-sm font-semibold" for="row-width">Width</label>
                 <InputText id="row-width" v-model="editWidth" placeholder="e.g. 100%, 1200px, 80%" />
+            </div>
+            <div class="flex gap-3">
+                <div class="flex flex-column gap-1 flex-1 min-w-0">
+                    <label class="text-sm font-semibold" for="row-margin-top">Margin top</label>
+                    <InputText id="row-margin-top" v-model="editMarginTop" class="w-full" placeholder="e.g. 2rem" />
+                </div>
+                <div class="flex flex-column gap-1 flex-1 min-w-0">
+                    <label class="text-sm font-semibold" for="row-margin-bottom">Margin bottom</label>
+                    <InputText id="row-margin-bottom" v-model="editMarginBottom" class="w-full" placeholder="e.g. 40px" />
+                </div>
             </div>
         </div>
         <div class="flex justify-content-end gap-3 mt-4">

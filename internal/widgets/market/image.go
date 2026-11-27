@@ -47,13 +47,63 @@ var rangeLabels = map[string]string{
 	"3mo": "3 Months", "6mo": "6 Months", "1y": "1 Year",
 }
 
+// marketOpts is a market config with its defaults applied.
+type marketOpts struct {
+	Symbol     string
+	RangeID    string
+	ShowChart  bool
+	ShowChange bool
+}
+
+// parseConfig decodes a market config and applies the defaults shared by
+// both render stacks: range "1mo", chart and change shown.
+func parseConfig(config json.RawMessage) (marketOpts, error) {
+	var cfg marketConfig
+	if len(config) > 0 {
+		if err := json.Unmarshal(config, &cfg); err != nil {
+			return marketOpts{}, fmt.Errorf("market config: %w", err)
+		}
+	}
+	rc := marketOpts{Symbol: cfg.Symbol, RangeID: cfg.Range, ShowChart: true, ShowChange: true}
+	if rc.RangeID == "" {
+		rc.RangeID = "1mo"
+	}
+	if cfg.ShowChart != nil {
+		rc.ShowChart = *cfg.ShowChart
+	}
+	if cfg.ShowChange != nil {
+		rc.ShowChange = *cfg.ShowChange
+	}
+	return rc, nil
+}
+
+// quoteText is a quote formatted for display, shared by both stacks.
+type quoteText struct {
+	Price         string
+	Change        string
+	ChangePercent string
+	Down          bool // the change is negative
+}
+
+func formatQuote(q mkt.Quote) quoteText {
+	prefix := "+"
+	down := q.Change < 0
+	if down {
+		prefix = ""
+	}
+	return quoteText{
+		Price:         fmt.Sprintf("%.2f", q.Price),
+		Change:        fmt.Sprintf("%s%.2f", prefix, q.Change),
+		ChangePercent: fmt.Sprintf("%s%.2f%%", prefix, q.ChangePercent),
+		Down:          down,
+	}
+}
+
 func NewStaticRenderer(client *mkt.Client) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
 	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
-		var cfg marketConfig
-		if len(config) > 0 {
-			if err := json.Unmarshal(config, &cfg); err != nil {
-				return "", fmt.Errorf("market config: %w", err)
-			}
+		cfg, err := parseConfig(config)
+		if err != nil {
+			return "", err
 		}
 
 		if cfg.Symbol == "" {
@@ -64,19 +114,8 @@ func NewStaticRenderer(client *mkt.Client) func(json.RawMessage, widgets.RenderC
 			return template.HTML(buf.String()), nil
 		}
 
-		rangeID := cfg.Range
-		if rangeID == "" {
-			rangeID = "1mo"
-		}
-
-		showChart := true
-		if cfg.ShowChart != nil {
-			showChart = *cfg.ShowChart
-		}
-		showChange := true
-		if cfg.ShowChange != nil {
-			showChange = *cfg.ShowChange
-		}
+		rangeID := cfg.RangeID
+		showChart := cfg.ShowChart
 
 		data, err := client.GetMarketData(cfg.Symbol, rangeID)
 		if err != nil {
@@ -84,11 +123,10 @@ func NewStaticRenderer(client *mkt.Client) func(json.RawMessage, widgets.RenderC
 		}
 
 		pal := ctx.EffectivePalette()
+		qt := formatQuote(data.Quote)
 		changeColor := pal.Success
-		changePrefix := "+"
-		if data.Quote.Change < 0 {
+		if qt.Down {
 			changeColor = pal.Danger
-			changePrefix = ""
 		}
 
 		td := marketTemplateData{
@@ -96,11 +134,11 @@ func NewStaticRenderer(client *mkt.Client) func(json.RawMessage, widgets.RenderC
 			Symbol:                 data.Quote.Symbol,
 			Name:                   data.Quote.Name,
 			Currency:               data.Quote.Currency,
-			PriceFormatted:         fmt.Sprintf("%.2f", data.Quote.Price),
-			ChangeFormatted:        fmt.Sprintf("%s%.2f", changePrefix, data.Quote.Change),
-			ChangePercentFormatted: fmt.Sprintf("%s%.2f%%", changePrefix, data.Quote.ChangePercent),
+			PriceFormatted:         qt.Price,
+			ChangeFormatted:        qt.Change,
+			ChangePercentFormatted: qt.ChangePercent,
 			ChangeColor:            changeColor,
-			ShowChange:             showChange,
+			ShowChange:             cfg.ShowChange,
 			ShowChart:              showChart,
 			RangeLabel:             rangeLabels[rangeID],
 			Palette:                pal,

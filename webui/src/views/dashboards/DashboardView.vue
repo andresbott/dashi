@@ -194,7 +194,7 @@ function debugColor(index: number): string | undefined {
                     v-for="row in currentRows"
                     :key="row.id"
                     class="dashboard-row"
-                    :style="{ height: row.height, maxWidth: row.width, margin: '0 auto', width: '100%' }"
+                    :style="{ height: row.height, maxWidth: row.width, margin: `${row.marginTop || 0} auto ${row.marginBottom || 0}`, width: '100%' }"
                 >
                     <h3 v-if="row.title" class="row-title">{{ row.title }}</h3>
                     <div class="grid">

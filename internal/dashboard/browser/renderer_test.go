@@ -115,8 +115,10 @@ func TestRenderIsMobileReady(t *testing.T) {
 		t.Errorf("row height must be handed over as --dashi-row-height:\n%s", out)
 	}
 	// A fixed row width may never push the page wider than a phone screen.
-	if !strings.Contains(out, `class="flex max-w-full flex-wrap items-stretch" style="width: 900px"`) {
-		t.Errorf("fixed row width must be capped by max-w-full:\n%s", out)
+	// mx-auto centres a row narrower than the container, as the editor and
+	// the PNG render do.
+	if !strings.Contains(out, `class="mx-auto flex max-w-full flex-wrap items-stretch" style="width: 900px"`) {
+		t.Errorf("fixed row width must be capped by max-w-full and centred by mx-auto:\n%s", out)
 	}
 }
 
@@ -241,6 +243,22 @@ func TestRenderIncludesWidgetScriptsOnlyForTypesPresentThatShipJS(t *testing.T) 
 	}
 	if strings.Contains(out, "unused.js") {
 		t.Error("script tag emitted for a widget type not on the page")
+	}
+}
+
+// A widget that only appears inside a container (stack) still needs its
+// script: otherwise a nested sysinfo, say, never refreshes.
+func TestRenderIncludesScriptsOfNestedWidgets(t *testing.T) {
+	reg := testRegistry()
+	reg.RegisterChildren("box", func(json.RawMessage) []widgets.Child {
+		return []widgets.Child{{Type: "nested"}}
+	})
+	data := baseData()
+	data.Rows[0].Widgets = []dashboard.Widget{{ID: "w1", Type: "box", Width: 4}}
+
+	out := render(t, NewRenderer(reg, map[string]bool{"nested": true}), data)
+	if !strings.Contains(out, `src="/_dashi/widgets/nested.js"`) {
+		t.Errorf("expected the nested widget's script tag:\n%s", out)
 	}
 }
 
@@ -400,5 +418,20 @@ func TestRenderPageNavLinksEveryPageAndMarksCurrent(t *testing.T) {
 	}
 	if strings.Contains(out, "<script") && !strings.Contains(out, "/_dashi/widgets/") {
 		t.Error("page navigation must not need JavaScript")
+	}
+}
+
+func TestRenderRowMargins(t *testing.T) {
+	data := baseData()
+	data.Rows[0].MarginTop = "2rem"
+	data.Rows[0].MarginBottom = "40px"
+	out := render(t, NewRenderer(testRegistry(), nil), data)
+	if !strings.Contains(out, `<div class="dashi-row w-full" style=" margin-top: 2rem; margin-bottom: 40px;">`) {
+		t.Errorf("expected the row margins:\n%s", out)
+	}
+
+	data.Rows[0].MarginTop = "0; background: url(javascript:alert(1))"
+	if out := render(t, NewRenderer(testRegistry(), nil), data); strings.Contains(out, "javascript") {
+		t.Errorf("unsafe margin value reached the output:\n%s", out)
 	}
 }

@@ -51,7 +51,7 @@
     <div class="page"><div class="page-track">
     <div class="container">
         {{- range .Rows}}
-        <div class="row"{{if .Height}} style="height: {{.Height}}"{{end}}>
+        <div class="row"{{if or .Height .MarginTop .MarginBottom}} style="{{if .Height}}height: {{.Height}};{{end}}{{if .MarginTop}} margin-top: {{.MarginTop}};{{end}}{{if .MarginBottom}} margin-bottom: {{.MarginBottom}};{{end}}"{{end}}>
             {{if .Title}}<h2 class="row-title">{{.Title}}</h2>{{end}}
             <div class="row-grid"{{if .Width}} style="width: {{.Width}}"{{end}}>
                 {{range .Widgets}}

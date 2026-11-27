@@ -62,6 +62,8 @@ type rowData struct {
 	Title             string
 	Height            string
 	Width             string
+	MarginTop         string
+	MarginBottom      string
 	HasExplicitHeight bool
 	Widgets           []widgetData
 }
@@ -102,6 +104,8 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 			Title:             row.Title,
 			Height:            row.Height,
 			Width:             row.Width,
+			MarginTop:         row.MarginTop,
+			MarginBottom:      row.MarginBottom,
 			HasExplicitHeight: hasExplicitHeight,
 		}
 		ctx := widgets.RenderContext{DashboardID: data.DashboardID, WidgetTheme: data.WidgetTheme, ColorMode: data.ColorMode, Palette: data.Palette, QueryParams: data.QueryParams, PageIndex: data.PageIndex, TotalPages: data.TotalPages}

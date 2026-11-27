@@ -100,3 +100,29 @@ describe('bookmark WidgetConfig tabler icon', () => {
         expect(wrapper.findComponent({ name: 'IconSelector' }).props('labelledBy')).toBe(iconLabel.attributes('id'))
     })
 })
+
+describe('bookmark WidgetConfig new tab option', () => {
+    beforeEach(() => {
+        vi.stubGlobal('matchMedia', () => ({
+            matches: false,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+        }))
+    })
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('starts off for a bookmark saved without it and emits it when ticked', async () => {
+        const wrapper = mountForm()
+        const box = wrapper.find('#bookmarkNewTab')
+        expect((box.element as HTMLInputElement).checked).toBe(false)
+
+        await box.setValue(true)
+        const updates = wrapper.emitted('update:config')!
+        expect((updates[updates.length - 1][0] as BookmarkWidgetConfig).newTab).toBe(true)
+    })
+
+    it('shows a stored newTab', () => {
+        const wrapper = mountForm({ ...base, newTab: true })
+        expect((wrapper.find('#bookmarkNewTab').element as HTMLInputElement).checked).toBe(true)
+    })
+})

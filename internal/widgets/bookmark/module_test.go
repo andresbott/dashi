@@ -11,27 +11,27 @@ import (
 )
 
 func TestModule_Type(t *testing.T) {
-	m := NewModule()
+	m := NewModule(nil)
 	if m.Type() != "bookmark" {
 		t.Errorf("Type() = %q, want %q", m.Type(), "bookmark")
 	}
 }
 
 func TestModule_RendererNotNil(t *testing.T) {
-	m := NewModule()
+	m := NewModule(nil)
 	if m.Renderer() == nil {
 		t.Fatal("Renderer() is nil")
 	}
 }
 
 func TestModule_RegisterRoutes_NoPanic(t *testing.T) {
-	m := NewModule()
+	m := NewModule(nil)
 	r := mux.NewRouter()
 	m.RegisterRoutes(r)
 }
 
 func TestModule_Warmup_NoPanic(t *testing.T) {
-	m := NewModule()
+	m := NewModule(nil)
 	m.Warmup(context.Background(), nil)
 }
 
@@ -50,7 +50,7 @@ func TestModule_ValidateConfig(t *testing.T) {
 		{name: "protocol relative", config: `{"url":"//evil.com"}`, wantErr: "bookmark url must start with"},
 		{name: "wrong type", config: `{"url":5}`, wantErr: "bookmark config"},
 	}
-	m := NewModule()
+	m := NewModule(nil)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			err := m.ValidateConfig(json.RawMessage(tc.config))

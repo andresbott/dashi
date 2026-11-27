@@ -117,68 +117,15 @@ type forecastDay struct {
 // theme store to resolve canonical icon names.
 func NewStaticRenderer(client *weatherpkg.Client, themeStore *widgetthemes.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
 	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
-		var cfg weatherConfig
-		if len(config) > 0 {
-			if err := json.Unmarshal(config, &cfg); err != nil {
-				return "", fmt.Errorf("weather config: %w", err)
-			}
-		}
-
-		wd, err := client.GetWeather(cfg.Latitude, cfg.Longitude)
+		cfg, wd, err := loadWeather(client, config)
 		if err != nil {
-			return "", fmt.Errorf("weather fetch: %w", err)
+			return "", err
 		}
 
-		themeName := ctx.WidgetTheme
-		if themeName == "" {
-			themeName = widgetthemes.DefaultName
-		}
-
-		showCurrent := cfg.ShowCurrent == nil || *cfg.ShowCurrent
-
-		currentIconHTML := resolveIconHTML(themeStore, themeName, wd.Current.Icon)
-
-		compactCity := cfg.CompactCity == nil || *cfg.CompactCity
-		compactDesc := cfg.CompactDescription == nil || *cfg.CompactDescription
-
-		compactAlign := cfg.CompactAlign
-		if compactAlign == "" {
-			compactAlign = "left"
-		}
-
-		data := weatherData{
-			Compact:            cfg.Compact,
-			CompactCity:        compactCity,
-			CompactFeelsLike:   cfg.CompactFeelsLike,
-			CompactDescription: compactDesc,
-			CompactAlign:       compactAlign,
-			City:               cfg.City,
-			Temperature:        wd.Current.Temperature,
-			Description:        wd.Current.Description,
-			FeelsLike:          wd.Current.FeelsLike,
-			Humidity:           wd.Current.Humidity,
-			WindSpeed:          wd.Current.WindSpeed,
-			ShowCurrent:        showCurrent,
-			ShowDetails:        cfg.ShowDetails,
-			ShowHourly:         cfg.ShowHourly && !cfg.Compact,
-			ShowForecast:       cfg.ShowForecast && !cfg.Compact,
-			IconHTML:           currentIconHTML,
-			Palette:            ctx.EffectivePalette(),
-		}
-
-		data.ExtraInfo = buildExtraInfo(cfg, wd, themeStore, themeName)
-
-		if cfg.ShowHourly {
-			data.Hourly = buildHourlyEntries(cfg, wd.Hourly, themeStore, themeName)
-		}
-
-		if cfg.ShowGraph && !cfg.Compact {
-			addGraphData(&data, cfg, wd.Hourly)
-		}
-
-		if cfg.ShowForecast {
-			data.Forecast = buildForecastDays(cfg, wd.Forecast, themeStore, themeName)
-		}
+		themeName := effectiveThemeName(ctx)
+		data := buildWeatherData(cfg, wd, ctx, func(canonical string) template.HTML {
+			return resolveIconHTML(themeStore, themeName, canonical)
+		})
 
 		var buf bytes.Buffer
 		if err := tmpl.Execute(&buf, data); err != nil {
@@ -193,22 +140,103 @@ func NewStaticRenderer(client *weatherpkg.Client, themeStore *widgetthemes.Store
 func NewStaticCompactRenderer(client *weatherpkg.Client, themeStore *widgetthemes.Store) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
 	inner := NewStaticRenderer(client, themeStore)
 	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
-		// Inject compact:true into the config
-		var raw map[string]any
-		if len(config) > 0 {
-			if err := json.Unmarshal(config, &raw); err != nil {
-				raw = make(map[string]any)
-			}
-		} else {
-			raw = make(map[string]any)
-		}
-		raw["compact"] = true
-		modified, err := json.Marshal(raw)
+		modified, err := forceCompact(config)
 		if err != nil {
-			return "", fmt.Errorf("marshal compact config: %w", err)
+			return "", err
 		}
 		return inner(modified, ctx)
 	}
+}
+
+// iconFunc turns a canonical icon name into markup. Each render stack
+// passes its own: the image stack sizes icons for litehtml, the browser
+// stack lets them inherit the surrounding font size.
+type iconFunc func(canonical string) template.HTML
+
+// forceCompact injects compact:true into a weather config. Malformed JSON
+// is replaced by an empty config, matching what weather-compact has always
+// done.
+func forceCompact(config json.RawMessage) (json.RawMessage, error) {
+	var raw map[string]any
+	if len(config) > 0 {
+		if err := json.Unmarshal(config, &raw); err != nil {
+			raw = make(map[string]any)
+		}
+	} else {
+		raw = make(map[string]any)
+	}
+	raw["compact"] = true
+	modified, err := json.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("marshal compact config: %w", err)
+	}
+	return modified, nil
+}
+
+// loadWeather parses the config and fetches the weather it points at.
+func loadWeather(client *weatherpkg.Client, config json.RawMessage) (weatherConfig, weatherpkg.WeatherData, error) {
+	var cfg weatherConfig
+	if len(config) > 0 {
+		if err := json.Unmarshal(config, &cfg); err != nil {
+			return cfg, weatherpkg.WeatherData{}, fmt.Errorf("weather config: %w", err)
+		}
+	}
+	wd, err := client.GetWeather(cfg.Latitude, cfg.Longitude)
+	if err != nil {
+		return cfg, weatherpkg.WeatherData{}, fmt.Errorf("weather fetch: %w", err)
+	}
+	return cfg, wd, nil
+}
+
+func effectiveThemeName(ctx widgets.RenderContext) string {
+	if ctx.WidgetTheme == "" {
+		return widgetthemes.DefaultName
+	}
+	return ctx.WidgetTheme
+}
+
+// buildWeatherData turns config and fetched weather into template data.
+// Both render stacks share it so they always show the same content.
+func buildWeatherData(cfg weatherConfig, wd weatherpkg.WeatherData, ctx widgets.RenderContext, icon iconFunc) weatherData {
+	compactAlign := cfg.CompactAlign
+	if compactAlign == "" {
+		compactAlign = "left"
+	}
+
+	data := weatherData{
+		Compact:            cfg.Compact,
+		CompactCity:        cfg.CompactCity == nil || *cfg.CompactCity,
+		CompactFeelsLike:   cfg.CompactFeelsLike,
+		CompactDescription: cfg.CompactDescription == nil || *cfg.CompactDescription,
+		CompactAlign:       compactAlign,
+		City:               cfg.City,
+		Temperature:        wd.Current.Temperature,
+		Description:        wd.Current.Description,
+		FeelsLike:          wd.Current.FeelsLike,
+		Humidity:           wd.Current.Humidity,
+		WindSpeed:          wd.Current.WindSpeed,
+		ShowCurrent:        cfg.ShowCurrent == nil || *cfg.ShowCurrent,
+		ShowDetails:        cfg.ShowDetails,
+		ShowHourly:         cfg.ShowHourly && !cfg.Compact,
+		ShowForecast:       cfg.ShowForecast && !cfg.Compact,
+		IconHTML:           icon(wd.Current.Icon),
+		Palette:            ctx.EffectivePalette(),
+	}
+
+	data.ExtraInfo = buildExtraInfo(cfg, wd, icon)
+
+	if cfg.ShowHourly {
+		data.Hourly = buildHourlyEntries(cfg, wd.Hourly, icon)
+	}
+
+	if cfg.ShowGraph && !cfg.Compact {
+		addGraphData(&data, cfg, wd.Hourly)
+	}
+
+	if cfg.ShowForecast {
+		data.Forecast = buildForecastDays(cfg, wd.Forecast, icon)
+	}
+	return data
 }
 
 func resolveIconHTML(store *widgetthemes.Store, themeName, canonicalName string) template.HTML {
@@ -258,12 +286,12 @@ func parseHexColor(hex string, fallback color.NRGBA) color.NRGBA {
 }
 
 // buildExtraInfo collects and formats extra weather information (sunrise, sunset, etc).
-func buildExtraInfo(cfg weatherConfig, wd weatherpkg.WeatherData, themeStore *widgetthemes.Store, themeName string) []extraInfoItem {
+func buildExtraInfo(cfg weatherConfig, wd weatherpkg.WeatherData, icon iconFunc) []extraInfoItem {
 	var items []extraInfoItem
 	if cfg.ShowSunrise && len(wd.Forecast) > 0 && wd.Forecast[0].Sunrise != "" {
 		sunrise := extractTime(wd.Forecast[0].Sunrise)
 		items = append(items, extraInfoItem{
-			IconHTML: resolveIconHTML(themeStore, themeName, "sunrise"),
+			IconHTML: icon("sunrise"),
 			Title:    "Sunrise",
 			Value:    sunrise,
 		})
@@ -271,49 +299,49 @@ func buildExtraInfo(cfg weatherConfig, wd weatherpkg.WeatherData, themeStore *wi
 	if cfg.ShowSunset && len(wd.Forecast) > 0 && wd.Forecast[0].Sunset != "" {
 		sunset := extractTime(wd.Forecast[0].Sunset)
 		items = append(items, extraInfoItem{
-			IconHTML: resolveIconHTML(themeStore, themeName, "sunset"),
+			IconHTML: icon("sunset"),
 			Title:    "Sunset",
 			Value:    sunset,
 		})
 	}
 	if cfg.ShowWind {
 		items = append(items, extraInfoItem{
-			IconHTML: resolveIconHTML(themeStore, themeName, "wind"),
+			IconHTML: icon("wind"),
 			Title:    "Wind",
 			Value:    fmt.Sprintf("%.0f km/h", wd.Current.WindSpeed),
 		})
 	}
 	if cfg.ShowHumidity {
 		items = append(items, extraInfoItem{
-			IconHTML: resolveIconHTML(themeStore, themeName, "humidity"),
+			IconHTML: icon("humidity"),
 			Title:    "Humidity",
 			Value:    fmt.Sprintf("%d%%", wd.Current.Humidity),
 		})
 	}
 	if cfg.ShowPressure {
 		items = append(items, extraInfoItem{
-			IconHTML: resolveIconHTML(themeStore, themeName, "pressure"),
+			IconHTML: icon("pressure"),
 			Title:    "Pressure",
 			Value:    fmt.Sprintf("%.0f hPa", wd.Current.Pressure),
 		})
 	}
 	if cfg.ShowUV && len(wd.Forecast) > 0 {
 		items = append(items, extraInfoItem{
-			IconHTML: resolveIconHTML(themeStore, themeName, "uv-index"),
+			IconHTML: icon("uv-index"),
 			Title:    "UV Index",
 			Value:    fmt.Sprintf("%.1f", wd.Forecast[0].UVIndex),
 		})
 	}
 	if cfg.ShowVisibility {
 		items = append(items, extraInfoItem{
-			IconHTML: resolveIconHTML(themeStore, themeName, "visibility"),
+			IconHTML: icon("visibility"),
 			Title:    "Visibility",
 			Value:    fmt.Sprintf("%.0f km", wd.Current.Visibility),
 		})
 	}
 	if cfg.ShowAirQuality && wd.AirQuality != nil {
 		items = append(items, extraInfoItem{
-			IconHTML: resolveIconHTML(themeStore, themeName, "air-quality"),
+			IconHTML: icon("air-quality"),
 			Title:    "AQI",
 			Value:    fmt.Sprintf("%d", wd.AirQuality.EuropeanAQI),
 		})
@@ -330,7 +358,7 @@ func extractTime(timestamp string) string {
 }
 
 // buildHourlyEntries creates hourly forecast entries for display.
-func buildHourlyEntries(cfg weatherConfig, hourly []weatherpkg.HourlyForecast, themeStore *widgetthemes.Store, themeName string) []hourlyEntry {
+func buildHourlyEntries(cfg weatherConfig, hourly []weatherpkg.HourlyForecast, icon iconFunc) []hourlyEntry {
 	hourlyCount := cfg.HourlyCount
 	if hourlyCount <= 0 {
 		hourlyCount = 12
@@ -368,7 +396,7 @@ func buildHourlyEntries(cfg weatherConfig, hourly []weatherpkg.HourlyForecast, t
 		}
 		entries = append(entries, hourlyEntry{
 			Time:        hourTime,
-			IconHTML:    resolveIconHTML(themeStore, themeName, h.Icon),
+			IconHTML:    icon(h.Icon),
 			Temperature: h.Temperature,
 		})
 	}
@@ -376,7 +404,7 @@ func buildHourlyEntries(cfg weatherConfig, hourly []weatherpkg.HourlyForecast, t
 }
 
 // buildForecastDays creates daily forecast entries.
-func buildForecastDays(cfg weatherConfig, forecast []weatherpkg.DailyForecast, themeStore *widgetthemes.Store, themeName string) []forecastDay {
+func buildForecastDays(cfg weatherConfig, forecast []weatherpkg.DailyForecast, icon iconFunc) []forecastDay {
 	forecastDays := cfg.ForecastDays
 	if forecastDays <= 0 {
 		forecastDays = 7
@@ -394,7 +422,7 @@ func buildForecastDays(cfg weatherConfig, forecast []weatherpkg.DailyForecast, t
 		days = append(days, forecastDay{
 			Date:        f.Date,
 			DayName:     dayName,
-			IconHTML:    resolveIconHTML(themeStore, themeName, f.Icon),
+			IconHTML:    icon(f.Icon),
 			TempMin:     f.TempMin,
 			TempMax:     f.TempMax,
 			Description: f.Description,

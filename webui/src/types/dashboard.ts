@@ -16,6 +16,9 @@ export interface Row {
     title?: string
     height: string
     width: string
+    /** Optional CSS lengths of space above/below the row, e.g. "2rem". */
+    marginTop?: string
+    marginBottom?: string
     widgets: Widget[]
 }
 

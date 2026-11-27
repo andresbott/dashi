@@ -22,9 +22,9 @@
     <main class="dashi-container flex min-h-screen w-full flex-col px-2 py-2 sm:px-4 sm:py-4"
           style="max-width: {{if .MaxWidth}}{{.MaxWidth}}{{else}}100%{{end}}; --dashi-container-left-margin: {{.Placement.MarginLeft}}; --dashi-container-right-margin: {{.Placement.MarginRight}}; justify-content: {{.Placement.JustifyContent}};">
         {{- range .Rows}}
-        <div class="dashi-row w-full"{{if .Height}} style="--dashi-row-height: {{.Height}}"{{end}}>
+        <div class="dashi-row w-full"{{if or .Height .MarginTop .MarginBottom}} style="{{if .Height}}--dashi-row-height: {{.Height}};{{end}}{{if .MarginTop}} margin-top: {{.MarginTop}};{{end}}{{if .MarginBottom}} margin-bottom: {{.MarginBottom}};{{end}}"{{end}}>
             {{if .Title}}<h2 class="mb-2 text-lg font-semibold break-words text-[var(--dashi-text)]">{{.Title}}</h2>{{end}}
-            <div class="flex max-w-full flex-wrap items-stretch"{{if .Width}} style="width: {{.Width}}"{{end}}>
+            <div class="mx-auto flex max-w-full flex-wrap items-stretch"{{if .Width}} style="width: {{.Width}}"{{end}}>
                 {{range .Widgets}}
                 <div class="dashi-cell p-2" style="--dashi-cell-width: {{printf "%.4f" .WidthPercent}}%; --dashi-cell-offset: {{printf "%.4f" .MarginLeftPercent}}%">
                     {{.HTML}}

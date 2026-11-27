@@ -642,3 +642,34 @@ func TestRenderUsesPaletteTextColour(t *testing.T) {
 		t.Errorf("body colour must come from Palette.Text:\n%s", buf.String())
 	}
 }
+
+func TestRenderer_Render_RowMargins(t *testing.T) {
+	reg := widgets.NewRegistry()
+	reg.Register("test", func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+		return template.HTML("<p>widget</p>"), nil
+	})
+	render := func(row dashboard.Row) string {
+		row.Widgets = []dashboard.Widget{{ID: "w1", Type: "test", Width: 12}}
+		var buf bytes.Buffer
+		if err := NewRenderer(reg).Render(&buf, RenderData{Rows: []dashboard.Row{row}}); err != nil {
+			t.Fatalf("Render: %v", err)
+		}
+		return buf.String()
+	}
+
+	html := render(dashboard.Row{ID: "r", Height: "200px", MarginTop: "2rem", MarginBottom: "40px"})
+	if !strings.Contains(html, `<div class="row" style="height: 200px; margin-top: 2rem; margin-bottom: 40px;">`) {
+		t.Errorf("expected height and margins on the row:\n%s", html)
+	}
+	if html := render(dashboard.Row{ID: "r", MarginTop: "1em"}); !strings.Contains(html, `<div class="row" style=" margin-top: 1em;">`) {
+		t.Errorf("expected only the top margin:\n%s", html)
+	}
+	if html := render(dashboard.Row{ID: "r"}); !strings.Contains(html, `<div class="row">`) {
+		t.Errorf("a row without height or margins gets no style:\n%s", html)
+	}
+	// Stored values are untrusted: a value breaking out of the declaration
+	// is neutralised by the template's CSS escaping.
+	if html := render(dashboard.Row{ID: "r", MarginTop: "0; background: url(javascript:alert(1))"}); strings.Contains(html, "javascript") {
+		t.Errorf("unsafe margin value reached the output:\n%s", html)
+	}
+}

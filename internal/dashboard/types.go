@@ -56,11 +56,15 @@ type DashboardMeta struct {
 
 // Row represents a horizontal section of the dashboard.
 type Row struct {
-	ID      string   `json:"id"`
-	Title   string   `json:"title,omitempty"`
-	Height  string   `json:"height"`
-	Width   string   `json:"width"`
-	Widgets []Widget `json:"widgets"`
+	ID     string `json:"id"`
+	Title  string `json:"title,omitempty"`
+	Height string `json:"height"`
+	Width  string `json:"width"`
+	// MarginTop and MarginBottom are optional CSS lengths ("2rem", "40px")
+	// of space above and below the row. Empty means none.
+	MarginTop    string   `json:"marginTop,omitempty"`
+	MarginBottom string   `json:"marginBottom,omitempty"`
+	Widgets      []Widget `json:"widgets"`
 }
 
 // Widget represents a single widget placed within a row.

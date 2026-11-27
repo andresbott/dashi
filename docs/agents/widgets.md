@@ -181,7 +181,7 @@ and out of stacks are not built (see [features.md](features.md)).
 | xkcd | yes | yes | yes | disk-cached comics |
 | transport | yes | yes | yes | Swiss transport; `swisstransport` folder on both sides |
 | sysinfo | yes | yes | yes | gopsutil, host metrics |
-| stack | yes | yes | no | container: renders children via the registry itself (`NewStaticRenderer(registry)`), and validates them through it too |
+| stack | yes | yes | no | container: renders children via the registry itself (image: `Render`, browser: `RenderBrowser`), validates them through it too, and lists them via `widgets.Container` so nested widgets' scripts load |
 | markdown | yes | yes | yes | reads `.md` from dashboard `md/` dir via `dashboard.Store` (spec: `docs/superpowers/specs/2026-04-16-markdown-widget-design.md`) |
 | image | yes | yes | yes | serves uploaded dashboard assets |
 | search | yes | yes | yes | browser: plain GET form, no JS; image: static bar. Engine list shared via `internal/widgets/search/testdata/engines.json` |
@@ -271,8 +271,6 @@ are required.
   [contract](#config-contract); removing or implementing them is still open.
 - **clock:** with no saved config, `Widget.vue` shows seconds and date, while
   the Go config defaults them to off.
-- **stack:** `stack.go` renders children through `registry.Render`, so ported
-  children still use their image templates inside a stack.
 
 ### Open questions
 
@@ -285,10 +283,11 @@ are required.
     inferred, not run). An iframe per widget should solve both, at the cost of
     height syncing and drag handling. If the spike fails, keep the Vue versions
     as editor-only previews.
-- **Which widgets need a browser port?** Weather, weather-compact, market,
-  transport and xkcd need a template and script (search is done); stack
-  needs a small change. Battery, page-indicator, image, bookmark and markdown
-  could stay on the image-template fallback, with plainer styling. Not decided.
+- **Which widgets need a browser port?** Transport still needs a template
+  (weather, weather-compact, market, xkcd, bookmark and stack are done; see
+  [viewer.md](viewer.md#widget-folder-layout-target-state)). Battery,
+  page-indicator, image and markdown could stay on the image-template
+  fallback, with plainer styling. Not decided.
 
 ### What would reopen this
 

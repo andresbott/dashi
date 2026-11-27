@@ -140,7 +140,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	modules := []widgets.Module{
 		weatherwidget.NewModule(weatherClient, widgetThemeStore, cfg.Logger),
 		weatherwidget.NewCompactModule(weatherClient, widgetThemeStore, cfg.Logger),
-		bookmarkwidget.NewModule(),
+		bookmarkwidget.NewModule(widgetThemeStore),
 		clockwidget.NewModule(),
 		batterywidget.NewModule(),
 		pageindicatorwidget.NewModule(),
@@ -166,6 +166,9 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		}
 		if v, ok := m.(widgets.ConfigValidator); ok {
 			registry.RegisterValidator(m.Type(), v.ValidateConfig)
+		}
+		if c, ok := m.(widgets.Container); ok {
+			registry.RegisterChildren(m.Type(), c.Children)
 		}
 		configs := widgets.CollectConfigs(dashStore, m.Type())
 		go m.Warmup(warmupCtx, configs)

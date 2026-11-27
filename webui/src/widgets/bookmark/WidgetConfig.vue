@@ -27,6 +27,7 @@ const editIcon = ref(props.config?.icon ?? 'ti-bookmark')
 const editTitle = ref(props.config?.title ?? '')
 const editSubtitle = ref(props.config?.subtitle ?? '')
 const editTextBelow = ref(props.config?.textBelow ?? false)
+const editNewTab = ref(props.config?.newTab ?? false)
 
 const iconTypeOptions = [
     { label: 'Tabler', value: 'tabler' },
@@ -88,6 +89,7 @@ watch(() => props.config, (val) => {
         editTitle.value = val.title
         editSubtitle.value = val.subtitle
         editTextBelow.value = val.textBelow ?? false
+        editNewTab.value = val.newTab ?? false
     }
 })
 
@@ -103,6 +105,7 @@ const emitUpdate = () => {
         title: editTitle.value,
         subtitle: editSubtitle.value,
         textBelow: editTextBelow.value,
+        newTab: editNewTab.value,
     })
 }
 
@@ -181,6 +184,10 @@ const onTablerSelect = (icon: string) => {
         <div class="flex align-items-center gap-2">
             <Checkbox v-model="editTextBelow" :binary="true" inputId="bookmarkTextBelow" @update:modelValue="emitUpdate" />
             <label for="bookmarkTextBelow" class="text-sm">Text below icon</label>
+        </div>
+        <div class="flex align-items-center gap-2">
+            <Checkbox v-model="editNewTab" :binary="true" inputId="bookmarkNewTab" @update:modelValue="emitUpdate" />
+            <label for="bookmarkNewTab" class="text-sm">Open in a new tab</label>
         </div>
     </div>
 </template>

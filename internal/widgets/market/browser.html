@@ -1,0 +1,26 @@
+<div class="dashi-market flex flex-col gap-1 text-[var(--dashi-text)]">
+{{- if not .Configured}}
+    <div class="dashi-market__empty py-4 text-center text-sm text-[var(--dashi-text-muted)]">No symbol configured</div>
+{{- else}}
+    <div class="dashi-market__header flex min-w-0 items-baseline gap-2">
+        <span class="dashi-market__symbol shrink-0 text-lg font-semibold">{{.Symbol}}</span>
+        <span class="dashi-market__name min-w-0 truncate text-xs text-[var(--dashi-text-muted)]">{{.Name}}</span>
+    </div>
+    <div class="dashi-market__quote flex flex-wrap items-baseline gap-x-2">
+        <span class="dashi-market__price text-2xl font-semibold tabular-nums">{{.Price}}</span>
+        {{- if .ShowChange}}
+        <span class="dashi-market__change text-sm font-semibold tabular-nums {{if .Down}}text-[var(--dashi-danger)]{{else}}text-[var(--dashi-success)]{{end}}">{{.Change}} ({{.ChangePercent}})</span>
+        {{- end}}
+    </div>
+    {{- with .Chart}}
+    <div class="dashi-market__chart relative my-1 aspect-[5/1] w-full {{if .Up}}text-[var(--dashi-success)]{{else}}text-[var(--dashi-danger)]{{end}}">
+        <svg class="absolute inset-0 h-full w-full [mask-image:linear-gradient(to_bottom,black,transparent)]" viewBox="{{.ViewBox}}" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="{{.Area}}" fill="currentColor" fill-opacity="0.3"/></svg>
+        <svg class="absolute inset-0 h-full w-full overflow-visible" viewBox="{{.ViewBox}}" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="{{.Line}}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>
+    </div>
+    {{- end}}
+    <div class="dashi-market__footer flex justify-between gap-2 text-xs text-[var(--dashi-text-muted)]">
+        <span class="dashi-market__currency">{{.Currency}}</span>
+        <span class="dashi-market__range">{{.RangeLabel}}</span>
+    </div>
+{{- end}}
+</div>

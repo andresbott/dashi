@@ -86,10 +86,12 @@ type pageLink struct {
 }
 
 type rowData struct {
-	Title   string
-	Height  string
-	Width   string
-	Widgets []widgetData
+	Title        string
+	Height       string
+	Width        string
+	MarginTop    string
+	MarginBottom string
+	Widgets      []widgetData
 }
 
 type widgetData struct {
@@ -136,7 +138,7 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 		if len(row.Widgets) == 0 && !hasExplicitHeight {
 			continue
 		}
-		rd := rowData{Title: row.Title, Height: row.Height, Width: row.Width}
+		rd := rowData{Title: row.Title, Height: row.Height, Width: row.Width, MarginTop: row.MarginTop, MarginBottom: row.MarginBottom}
 		placements := dashboard.PlaceRow(row.Widgets)
 		for i, widget := range row.Widgets {
 			html, err := r.registry.RenderBrowser(widget.Type, widget.Config, ctx)
@@ -149,7 +151,9 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 				MarginLeftPercent: float64(p.Gap) / float64(dashboard.GridColumns) * 100.0,
 				HTML:              html,
 			})
-			present[widget.Type] = true
+			for _, t := range r.registry.TypesIn(widget.Type, widget.Config) {
+				present[t] = true
+			}
 		}
 		pd.Rows = append(pd.Rows, rd)
 	}

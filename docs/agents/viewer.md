@@ -157,9 +157,34 @@ Editor forms stay in `webui/src/widgets/{name}/`; see
 [widgets.md](widgets.md#widget-boundary-decided-2026-11-06).
 
 Ported widgets: **clock** (no CSS), **sysinfo** (ships `sysinfo.css`),
-**search** (no CSS, no JS: a plain GET form). The remaining eleven widgets have not been ported and render through their image
-renderers in the browser (expected transition state, not a defect). Which of
-them still need a port is an [open question](widgets.md#open-questions).
+**search** (no CSS, no JS: a plain GET form), **market** (inline SVG area
+chart, no CSS/JS), **weather** and **weather-compact** (no CSS/JS),
+**xkcd**, **bookmark** and **stack** (none ship CSS or JS). Battery,
+page-indicator, image, markdown and transport have not been ported and
+render through their image renderers in the browser (expected transition
+state, not a defect). Which of them still need a port is an
+[open question](widgets.md#open-questions).
+
+The ported widgets share one look: no card or surface behind a widget (it
+sits on the page background), `--dashi-text` for primary and
+`--dashi-text-muted` for secondary text, semibold headline values, `text-xs`
+muted meta labels, `--dashi-success`/`--dashi-danger` for up/down, and thin
+dividers in translucent text colour (`--dashi-border` can vanish on an
+image background). Keep new ports in line with it.
+
+**Containers.** Stack implements `widgets.Container` (`Children`), which the
+router registers with `Registry.RegisterChildren`. Its browser renderer
+renders children through `Registry.RenderBrowser`, and the page renderer
+collects script types with `Registry.TypesIn`, so a widget that only
+appears inside a stack still gets its browser markup and its `.js`.
+
+**Icons in the browser.** `widgetthemes.Store.ResolveIcon` falls back, for a
+name the theme does not map, to the glyph of that name in the embedded
+Tabler font (`internal/widgetthemes/tabler.go`, built once from the font's
+glyph names), in `icon-font-default`. That is what lets a bookmark show any
+`ti-*` icon the editor's picker offers. Bookmark also renders the picker's
+`selfhst:<file>` (jsDelivr, same URL as the editor) and `dashboard:<file>`
+(the dashboard's asset route) icons as `<img>`.
 
 Client packages live separately under `internal/providers/`:
 `internal/providers/weather/`, `.../market/`, `.../swisstransport/`,

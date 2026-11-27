@@ -288,7 +288,29 @@ func hasResolvableIcons(t *theme) bool {
 // ResolveIcon resolves a canonical icon name through the named widget theme.
 // An unknown name, or a pack without usable icons, resolves through the
 // default.
+//
+// A name the theme does not map, but which names a glyph of the embedded
+// Tabler font ("ti-brand-github"), resolves to that glyph in the default's
+// icon font: the editor's icon picker offers every Tabler icon, so the
+// default must cover all of them, and any pack falls back to it.
 func (s *Store) ResolveIcon(themeName, canonicalName string) (ResolvedIcon, error) {
+	resolved, err := s.resolveThemeIcon(themeName, canonicalName)
+	if err == nil {
+		return resolved, nil
+	}
+	if cp, ok := tablerCodepoint(canonicalName); ok {
+		return ResolvedIcon{
+			Type:       ThemeTypeFont,
+			CSSClass:   "ti ti-" + strings.TrimPrefix(canonicalName, "ti-"),
+			Codepoint:  cp,
+			FontFile:   "embedded:default",
+			FontFamily: IconFontFamily(DefaultName),
+		}, nil
+	}
+	return ResolvedIcon{}, err
+}
+
+func (s *Store) resolveThemeIcon(themeName, canonicalName string) (ResolvedIcon, error) {
 	name, th := s.effective(themeName, hasResolvableIcons)
 	ic := th.icons()
 	if ic == nil {

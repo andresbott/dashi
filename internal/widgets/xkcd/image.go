@@ -28,35 +28,44 @@ type xkcdTemplateData struct {
 	Alt   string
 }
 
+// loadComic decodes the config and fetches the comic its mode selects. Both
+// render stacks use it, so they always show the same comic.
+func loadComic(client *xkcdclient.Client, config json.RawMessage) (xkcdTemplateData, error) {
+	var cfg xkcdConfig
+	if len(config) > 0 {
+		if err := json.Unmarshal(config, &cfg); err != nil {
+			return xkcdTemplateData{}, fmt.Errorf("xkcd config: %w", err)
+		}
+	}
+
+	var comic xkcdclient.Comic
+	var err error
+
+	switch cfg.Mode {
+	case "random":
+		comic, err = client.GetDailyRandom()
+	case "random-each":
+		comic, err = client.GetRandom()
+	default:
+		comic, err = client.GetLatest()
+	}
+	if err != nil {
+		return xkcdTemplateData{}, fmt.Errorf("xkcd fetch: %w", err)
+	}
+
+	return xkcdTemplateData{
+		Num:   comic.Num,
+		Title: comic.SafeTitle,
+		Img:   comic.Img,
+		Alt:   comic.Alt,
+	}, nil
+}
+
 func NewStaticRenderer(client *xkcdclient.Client) func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
 	return func(config json.RawMessage, ctx widgets.RenderContext) (template.HTML, error) {
-		var cfg xkcdConfig
-		if len(config) > 0 {
-			if err := json.Unmarshal(config, &cfg); err != nil {
-				return "", fmt.Errorf("xkcd config: %w", err)
-			}
-		}
-
-		var comic xkcdclient.Comic
-		var err error
-
-		switch cfg.Mode {
-		case "random":
-			comic, err = client.GetDailyRandom()
-		case "random-each":
-			comic, err = client.GetRandom()
-		default:
-			comic, err = client.GetLatest()
-		}
+		data, err := loadComic(client, config)
 		if err != nil {
-			return "", fmt.Errorf("xkcd fetch: %w", err)
-		}
-
-		data := xkcdTemplateData{
-			Num:   comic.Num,
-			Title: comic.SafeTitle,
-			Img:   comic.Img,
-			Alt:   comic.Alt,
+			return "", err
 		}
 
 		var buf strings.Builder

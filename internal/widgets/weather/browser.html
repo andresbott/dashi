@@ -1,0 +1,86 @@
+{{if .Compact}}
+<div class="dashi-weather dashi-weather__compact flex items-center gap-3 text-[var(--dashi-text)] {{if eq .CompactAlign "center"}}justify-center{{else if eq .CompactAlign "right"}}justify-end{{else}}justify-start{{end}}">
+    <span class="dashi-weather__icon shrink-0 text-[2.5rem] leading-none">{{.IconHTML}}</span>
+    <div class="min-w-0">
+        <div class="text-lg font-semibold leading-tight">{{if .CompactCity}}<span class="dashi-weather__city">{{.City}}</span> {{end}}<span class="dashi-weather__temp tabular-nums">{{printf "%.1f" .Temperature}}&deg;C</span></div>
+        {{if .CompactDescription}}<div class="dashi-weather__desc text-sm text-[var(--dashi-text-muted)]">{{.Description}}</div>{{end}}
+        {{if .CompactFeelsLike}}<div class="dashi-weather__feels text-xs text-[var(--dashi-text-muted)]">Feels like {{printf "%.1f" .FeelsLike}}&deg;</div>{{end}}
+    </div>
+</div>
+{{else}}
+<div class="dashi-weather flex flex-col divide-y divide-[var(--dashi-text)]/40 text-[var(--dashi-text)]">
+    {{if or .ShowCurrent .ShowDetails}}
+    <div class="dashi-weather__current py-3 first:pt-0 last:pb-0">
+        {{if .ShowCurrent}}
+        <div class="flex items-center justify-end gap-3">
+            <span class="dashi-weather__icon shrink-0 text-[2.5rem] leading-none">{{.IconHTML}}</span>
+            <div class="min-w-0">
+                <div class="text-lg font-semibold leading-tight">{{if .City}}<span class="dashi-weather__city">{{.City}}</span> {{end}}<span class="dashi-weather__temp tabular-nums">{{printf "%.1f" .Temperature}}&deg;C</span></div>
+                <div class="dashi-weather__desc text-sm text-[var(--dashi-text-muted)]">{{.Description}}</div>
+            </div>
+        </div>
+        {{end}}
+        {{if .ShowDetails}}
+        <div class="dashi-weather__summary mt-1 flex flex-wrap justify-end gap-x-3 text-xs text-[var(--dashi-text-muted)]">
+            <span>Feels like {{printf "%.1f" .FeelsLike}}&deg;C</span>
+            <span>Humidity {{.Humidity}}%</span>
+            <span>Wind {{printf "%.1f" .WindSpeed}} km/h</span>
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+    {{if .ExtraInfo}}
+    <div class="dashi-weather__details flex flex-wrap gap-y-2 py-3 first:pt-0 last:pb-0">
+        {{range .ExtraInfo}}
+        <div class="dashi-weather__detail flex min-w-16 flex-1 basis-0 flex-col items-center gap-0.5 text-center">
+            <span class="text-base leading-none">{{.IconHTML}}</span>
+            <span class="text-[10px] uppercase tracking-wide text-[var(--dashi-text-muted)]">{{.Title}}</span>
+            <span class="text-xs font-semibold tabular-nums">{{.Value}}</span>
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+    {{if .ShowGraph}}
+    {{- /* The axis labels sit on the graph's corners (temperature left,
+           precipitation right) so the curve spans the full width. */}}
+    <div class="dashi-weather__graph flex flex-col gap-1 py-3 text-xs text-[var(--dashi-text-muted)] first:pt-0 last:pb-0">
+        <div class="dashi-weather__plot relative tabular-nums">
+            <img class="block h-auto w-full" src="data:image/png;base64,{{.GraphImage}}" alt="forecast graph">
+            {{- if .GraphShowTemp}}
+            <span class="absolute top-0 left-0">{{.GraphTempMax}}</span>
+            <span class="absolute bottom-0 left-0">{{.GraphTempMin}}</span>
+            {{- end}}
+            {{- if .GraphShowRain}}
+            <span class="absolute top-0 right-0">100%</span>
+            <span class="absolute right-0 bottom-0">0%</span>
+            {{- end}}
+        </div>
+        <div class="flex justify-between tabular-nums">
+            {{range .GraphTimeLabels}}<span>{{.}}</span>{{end}}
+        </div>
+    </div>
+    {{end}}
+    {{if .ShowHourly}}
+    <div class="dashi-weather__hourly flex py-3 first:pt-0 last:pb-0">
+        {{range .Hourly}}
+        <div class="flex min-w-0 flex-1 basis-0 flex-col items-center gap-1 text-center">
+            <span class="text-xs font-semibold tabular-nums">{{.Time}}</span>
+            <span class="text-2xl leading-none">{{.IconHTML}}</span>
+            <span class="whitespace-nowrap text-xs tabular-nums">{{printf "%.0f" .Temperature}}&deg;</span>
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+    {{if .ShowForecast}}
+    <div class="dashi-weather__forecast flex py-3 first:pt-0 last:pb-0">
+        {{range .Forecast}}
+        <div class="dashi-weather__day flex min-w-0 flex-1 basis-0 flex-col items-center gap-1 text-center">
+            <span class="text-xs font-semibold">{{.DayName}}</span>
+            <span class="text-2xl leading-none">{{.IconHTML}}</span>
+            <span class="whitespace-nowrap text-xs tabular-nums">{{printf "%.0f" .TempMax}}&deg; <span class="text-[var(--dashi-text-muted)]">{{printf "%.0f" .TempMin}}&deg;</span></span>
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+</div>
+{{end}}

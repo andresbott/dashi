@@ -1,0 +1,11 @@
+<figure class="dashi-xkcd m-0 flex h-full min-h-0 flex-col items-center gap-2 text-[var(--dashi-text)]">
+    <figcaption class="dashi-xkcd__title text-center">
+        <span class="font-semibold">{{.Title}}</span>
+        <span class="dashi-xkcd__number text-xs text-[var(--dashi-text-muted)]">#{{.Num}}</span>
+    </figcaption>
+    {{- /* Only the comic card links to the comic's page on xkcd.com. */}}
+    <a class="dashi-xkcd__card flex min-h-0 max-w-full flex-1 items-center justify-center rounded-md bg-white px-6 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dashi-text)]"
+       href="https://xkcd.com/{{.Num}}/" target="_blank" rel="noopener noreferrer">
+        <img class="dashi-xkcd__image block max-h-72 max-w-full object-contain" src="{{.Img}}" alt="{{.Alt}}" title="{{.Alt}}">
+    </a>
+</figure>

@@ -4,7 +4,7 @@ import PrimeVue from 'primevue/config'
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import AddWidgetDialog from './AddWidgetDialog.vue'
 import { EDITING_MODE } from '@/lib/injectionKeys'
-import { getWidgetTypeOptions } from '@/lib/widgetRegistry'
+import { getWidgetTypeOptions, getWidgetsByCategory } from '@/lib/widgetRegistry'
 
 // Queries without a doc mock (widget themes, icon lookups) fall through to the
 // API client; stub it so nothing leaves the test.
@@ -49,6 +49,7 @@ async function settle() {
 
 const types = (w: VueWrapper) => w.findAll('.widget-type-option').map(o => o.attributes('data-type'))
 const option = (w: VueWrapper, type: string) => w.find(`.widget-type-option[data-type="${type}"]`)
+const category = (w: VueWrapper, id: string) => w.find(`.widget-category-option[data-category="${id}"]`)
 const button = (w: VueWrapper, label: string) => w.findAll('.stub-footer button').find(b => b.text() === label)!
 const preview = (w: VueWrapper) => w.find('[data-testid="widget-preview"]')
 
@@ -77,7 +78,36 @@ describe('AddWidgetDialog', () => {
 
     it('opens wide', () => {
         const wrapper = mountDialog()
-        expect(wrapper.find('.dialog-stub').attributes('style')).toContain('width: 48rem')
+        expect(wrapper.find('.dialog-stub').attributes('style')).toContain('width: 64rem')
+    })
+
+    it('lists All followed by the docs categories, in docs order', () => {
+        const wrapper = mountDialog()
+        const ids = wrapper.findAll('.widget-category-option').map(c => c.attributes('data-category'))
+        expect(ids).toEqual(['all', ...getWidgetsByCategory().map(g => g.id)])
+        expect(category(wrapper, 'all').attributes('aria-pressed')).toBe('true')
+    })
+
+    it('shows only the widgets of a clicked category', async () => {
+        const wrapper = mountDialog()
+        await category(wrapper, 'weather').trigger('click')
+        const weather = getWidgetsByCategory().find(g => g.id === 'weather')!.widgets.map(w => w.type)
+        expect(types(wrapper)).toEqual(weather)
+        expect(category(wrapper, 'weather').attributes('aria-pressed')).toBe('true')
+    })
+
+    it('drops a category that exclude leaves empty', () => {
+        const layout = getWidgetsByCategory().find(g => g.id === 'layout')!.widgets.map(w => w.type)
+        const wrapper = mountDialog({ exclude: layout })
+        expect(category(wrapper, 'layout').exists()).toBe(false)
+    })
+
+    it('searches every category when filtering', async () => {
+        const wrapper = mountDialog()
+        await category(wrapper, 'weather').trigger('click')
+        await wrapper.find('input[type="text"]').setValue('clock')
+        expect(types(wrapper)).toContain('clock')
+        expect(category(wrapper, 'all').attributes('aria-pressed')).toBe('true')
     })
 
     it.each([

@@ -42,6 +42,20 @@ func (c RenderContext) EffectivePalette() themes.Palette {
 // StaticRenderer renders a widget's HTML fragment from its JSON config.
 type StaticRenderer func(config json.RawMessage, ctx RenderContext) (template.HTML, error)
 
+// TypedRenderer renders a widget of any type, e.g. Registry.Render or
+// Registry.RenderBrowser. Containers receive one to render their children.
+type TypedRenderer func(widgetType string, config json.RawMessage, ctx RenderContext) (template.HTML, error)
+
+// Child is one widget nested in a container widget.
+type Child struct {
+	Type   string
+	Config json.RawMessage
+}
+
+// ChildrenFunc lists a container widget's direct children from its config.
+// A config that does not decode yields none.
+type ChildrenFunc func(config json.RawMessage) []Child
+
 // ConfigValidateFunc checks a widget's config JSON before it is persisted.
 type ConfigValidateFunc func(config json.RawMessage) error
 
@@ -52,6 +66,7 @@ type Registry struct {
 	renderers  map[string]StaticRenderer
 	browser    map[string]StaticRenderer
 	validators map[string]ConfigValidateFunc
+	children   map[string]ChildrenFunc
 }
 
 // NewRegistry creates an empty widget registry.
@@ -60,7 +75,29 @@ func NewRegistry() *Registry {
 		renderers:  make(map[string]StaticRenderer),
 		browser:    make(map[string]StaticRenderer),
 		validators: make(map[string]ConfigValidateFunc),
+		children:   make(map[string]ChildrenFunc),
 	}
+}
+
+// RegisterChildren marks widgetType as a container whose direct children
+// are listed by fn.
+func (r *Registry) RegisterChildren(widgetType string, fn ChildrenFunc) {
+	r.children[widgetType] = fn
+}
+
+// TypesIn returns widgetType plus the types of every widget nested in it,
+// at any depth. The browser page uses it to load the scripts of widgets
+// that only appear inside a container. Duplicates are allowed.
+func (r *Registry) TypesIn(widgetType string, config json.RawMessage) []string {
+	types := []string{widgetType}
+	fn, ok := r.children[widgetType]
+	if !ok {
+		return types
+	}
+	for _, child := range fn(config) {
+		types = append(types, r.TypesIn(child.Type, child.Config)...)
+	}
+	return types
 }
 
 // RegisterValidator adds a config validator for the given widget type.
@@ -176,4 +213,11 @@ type BrowserAssets interface {
 	CSS() []byte
 	// JS returns the widget's ES module, served at /_dashi/widgets/{type}.js.
 	JS() []byte
+}
+
+// Container is implemented by widget modules that nest other widgets
+// (stack). It is optional like BrowserRenderable; the router registers it
+// via Registry.RegisterChildren so Registry.TypesIn can see nested types.
+type Container interface {
+	Children(config json.RawMessage) []Child
 }

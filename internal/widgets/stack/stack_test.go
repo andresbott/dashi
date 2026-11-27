@@ -2,6 +2,7 @@ package stack
 
 import (
 	"encoding/json"
+	"errors"
 	"html/template"
 	"strings"
 	"testing"
@@ -122,5 +123,71 @@ func TestRenderStatic_InvalidConfig(t *testing.T) {
 	_, err := renderer(json.RawMessage(`{invalid`), widgets.RenderContext{})
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+// In the browser stack, children render through their browser renderers
+// (so ported widgets keep their browser look inside a stack), unported
+// children fall back to their image renderer, and the wrapper is the
+// spaced Tailwind column.
+func TestRenderBrowser_UsesChildBrowserRenderers(t *testing.T) {
+	reg := widgets.NewRegistry()
+	reg.Register("ported", func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+		return "<p>ported-image</p>", nil
+	})
+	reg.RegisterBrowser("ported", func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+		return "<p>ported-browser</p>", nil
+	})
+	reg.Register("unported", func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+		return "<p>unported-image</p>", nil
+	})
+
+	m := NewModule(reg)
+	config := json.RawMessage(`{"widgets":[{"id":"a","type":"ported"},{"id":"b","type":"unported"}]}`)
+	got, err := m.RenderBrowser(config, widgets.RenderContext{})
+	if err != nil {
+		t.Fatalf("RenderBrowser: %v", err)
+	}
+	want := template.HTML(`<div class="dashi-stack flex flex-col gap-5"><p>ported-browser</p><p>unported-image</p></div>`)
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+
+	// The image renderer is untouched by the browser port.
+	img, err := NewStaticRenderer(reg)(config, widgets.RenderContext{})
+	if err != nil {
+		t.Fatalf("image render: %v", err)
+	}
+	if img != `<div class="widget-stack"><p>ported-image</p><p>unported-image</p></div>` {
+		t.Errorf("image output changed: %q", img)
+	}
+}
+
+func TestRenderBrowser_ChildErrorAndBadConfig(t *testing.T) {
+	reg := widgets.NewRegistry()
+	reg.Register("boom", func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+		return "", errors.New("kaput")
+	})
+	m := NewModule(reg)
+
+	if _, err := m.RenderBrowser(json.RawMessage(`{"widgets":[{"id":"x","type":"boom"}]}`), widgets.RenderContext{}); err == nil || !strings.Contains(err.Error(), "stack child x (boom): kaput") {
+		t.Errorf("child error = %v", err)
+	}
+	if _, err := m.RenderBrowser(json.RawMessage(`{"widgets":5}`), widgets.RenderContext{}); err == nil {
+		t.Error("expected a config error")
+	}
+}
+
+func TestChildren(t *testing.T) {
+	m := NewModule(widgets.NewRegistry())
+	got := m.Children(json.RawMessage(`{"widgets":[{"id":"a","type":"market","config":{"symbol":"X"}},{"id":"b","type":"bookmark"}]}`))
+	if len(got) != 2 || got[0].Type != "market" || string(got[0].Config) != `{"symbol":"X"}` || got[1].Type != "bookmark" {
+		t.Errorf("Children = %+v", got)
+	}
+	if got := m.Children(json.RawMessage(`nope`)); got != nil {
+		t.Errorf("undecodable config: Children = %+v, want nil", got)
+	}
+	if got := m.Children(nil); got != nil {
+		t.Errorf("empty config: Children = %+v, want nil", got)
 	}
 }
