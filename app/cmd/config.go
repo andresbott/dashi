@@ -180,9 +180,12 @@ func normalizePublicURLs(cfg *AppCfg) {
 		*u.val, stripped = normalizeBaseURL(raw)
 		switch {
 		case *u.val == "" && strings.TrimSpace(raw) != "":
+			// Never log raw: it may carry a password, and a rejected value
+			// cannot be reliably redacted (e.g. "user:pass@host" parses as an
+			// opaque URL with scheme "user").
 			cfg.Msgs = append(cfg.Msgs, Msg{
 				Level: "warn",
-				Msg:   fmt.Sprintf("ignoring %s %q: not an absolute http or https URL", u.key, raw),
+				Msg:   fmt.Sprintf("ignoring %s: not an absolute http or https URL", u.key),
 			})
 		case stripped:
 			// Log the result, not raw: raw may carry a password.

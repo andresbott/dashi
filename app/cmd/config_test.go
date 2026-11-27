@@ -44,6 +44,38 @@ func TestNormalizePublicURLs(t *testing.T) {
 			want:     "",
 			wantWarn: "not an absolute http or https URL",
 		},
+		{
+			name:      "rejected schemeless value with credentials hides the password",
+			raw:       "admin:secret@ha.local:8123",
+			want:      "",
+			wantWarn:  "not an absolute http or https URL",
+			notInWarn: "secret",
+		},
+		{
+			name:      "rejected non http value with userinfo hides the password",
+			raw:       "ftp://u:secret@edit.example.com",
+			want:      "",
+			wantWarn:  "not an absolute http or https URL",
+			notInWarn: "secret",
+		},
+		{
+			name:     "bare question mark is dropped with a warning",
+			raw:      "https://edit.example.com/base?",
+			want:     "https://edit.example.com/base",
+			wantWarn: "dropped query, fragment or user info",
+		},
+		{
+			name:     "fragment only is dropped with a warning",
+			raw:      "https://edit.example.com/#frag",
+			want:     "https://edit.example.com",
+			wantWarn: "dropped query, fragment or user info",
+		},
+		{
+			name:     "bare fragment value is rejected",
+			raw:      "#frag",
+			want:     "",
+			wantWarn: "not an absolute http or https URL",
+		},
 	}
 
 	for _, tc := range tests {
