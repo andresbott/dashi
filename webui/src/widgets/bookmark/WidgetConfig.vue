@@ -128,10 +128,7 @@ const onTablerSelect = (icon: string) => {
         </div>
         <div v-if="iconType === 'tabler'" class="flex flex-column gap-1">
             <label class="text-sm font-semibold">Icon</label>
-            <div class="flex align-items-center gap-2">
-                <IconSelector :modelValue="editIcon" @update:modelValue="onTablerSelect" />
-                <span class="text-sm text-color-secondary">{{ editIcon }}</span>
-            </div>
+            <IconSelector :modelValue="editIcon" @update:modelValue="onTablerSelect" />
         </div>
         <div v-if="iconType === 'selfhst'" class="flex flex-column gap-1">
             <label class="text-sm font-semibold">Filename</label>

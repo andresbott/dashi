@@ -5,7 +5,7 @@ import Popover from 'primevue/popover'
 import InputText from 'primevue/inputtext'
 import { tablerIcons } from '@/data/tablerIcons'
 
-defineProps<{
+const props = defineProps<{
     modelValue: string
 }>()
 
@@ -14,7 +14,11 @@ const emit = defineEmits<{
 }>()
 
 const popover = ref()
+const open = ref(false)
 const search = ref('')
+
+// The stored value is the CSS class (ti-bookmark); people know it as "bookmark".
+const iconName = computed(() => props.modelValue.replace(/^ti-/, ''))
 
 const MAX_DISPLAY = 150
 
@@ -42,15 +46,22 @@ const selectIcon = (icon: string) => {
 
 <template>
     <div>
-        <Button
-            :icon="'ti ' + modelValue"
-            text
-            rounded
-            class="p-2"
+        <button
+            type="button"
+            class="icon-selector-trigger"
+            aria-haspopup="dialog"
+            :aria-expanded="open"
+            :aria-label="iconName ? `Icon: ${iconName}` : 'Select icon'"
+            data-testid="icon-selector-trigger"
             @click="toggle"
-            v-tooltip.top="'Select icon'"
-        />
-        <Popover ref="popover">
+        >
+            <i v-if="modelValue" :class="['ti', modelValue]" />
+            <span class="icon-selector-label" :class="{ 'icon-selector-placeholder': !modelValue }">
+                {{ iconName || 'Select icon' }}
+            </span>
+            <i class="ti ti-chevron-down icon-selector-chevron" />
+        </button>
+        <Popover ref="popover" @show="open = true" @hide="open = false">
             <div style="width: 300px">
                 <InputText
                     v-model="search"
@@ -67,6 +78,7 @@ const selectIcon = (icon: string) => {
                         rounded
                         class="p-1"
                         :severity="icon === modelValue ? 'primary' : 'secondary'"
+                        data-testid="icon-option"
                         @click="selectIcon(icon)"
                         v-tooltip.top="icon.replace('ti-', '')"
                     />
@@ -78,3 +90,50 @@ const selectIcon = (icon: string) => {
         </Popover>
     </div>
 </template>
+
+<style scoped>
+/* Looks like an InputText: it uses the form-field tokens InputText and Select
+   are themed from, so it follows the theme and colour mode. */
+.icon-selector-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: var(--p-form-field-padding-y) var(--p-form-field-padding-x);
+    font: inherit;
+    text-align: left;
+    color: var(--p-form-field-color);
+    background: var(--p-form-field-background);
+    border: 1px solid var(--p-form-field-border-color);
+    border-radius: var(--p-form-field-border-radius);
+    box-shadow: var(--p-form-field-shadow);
+    cursor: pointer;
+    transition: border-color var(--p-form-field-transition-duration);
+}
+
+.icon-selector-trigger:hover {
+    border-color: var(--p-form-field-hover-border-color);
+}
+
+.icon-selector-trigger:focus-visible {
+    border-color: var(--p-form-field-focus-border-color);
+    outline: var(--p-form-field-focus-ring-width) var(--p-form-field-focus-ring-style) var(--p-form-field-focus-ring-color);
+    outline-offset: var(--p-form-field-focus-ring-offset);
+}
+
+.icon-selector-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.icon-selector-placeholder {
+    color: var(--p-form-field-placeholder-color);
+}
+
+.icon-selector-chevron {
+    color: var(--p-form-field-icon-color);
+}
+</style>
