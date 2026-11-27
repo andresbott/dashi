@@ -743,24 +743,7 @@ func TestStore_ExportZip(t *testing.T) {
 		t.Fatalf("export zip: %v", err)
 	}
 
-	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
-	if err != nil {
-		t.Fatalf("open zip: %v", err)
-	}
-
-	got := map[string]string{}
-	for _, f := range zr.File {
-		rc, err := f.Open()
-		if err != nil {
-			t.Fatalf("open %s: %v", f.Name, err)
-		}
-		data, err := io.ReadAll(rc)
-		_ = rc.Close()
-		if err != nil {
-			t.Fatalf("read %s: %v", f.Name, err)
-		}
-		got[filepath.ToSlash(f.Name)] = string(data)
-	}
+	got := zipEntries(t, buf.Bytes())
 
 	if _, ok := got["dashboard.json"]; !ok {
 		t.Fatal("expected dashboard.json in zip")
@@ -796,46 +779,92 @@ func TestStore_ExportZip_NotFound(t *testing.T) {
 	}
 }
 
+// zipEntries reads every file of a zip archive into a name -> content map.
+func zipEntries(t *testing.T, data []byte) map[string]string {
+	t.Helper()
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatalf("open zip: %v", err)
+	}
+	got := map[string]string{}
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatalf("open %s: %v", f.Name, err)
+		}
+		content, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil {
+			t.Fatalf("read %s: %v", f.Name, err)
+		}
+		got[filepath.ToSlash(f.Name)] = string(content)
+	}
+	return got
+}
+
 func TestStore_ExportZip_ImportRoundTrip(t *testing.T) {
-	dir := t.TempDir()
-	store := NewStore(dir)
+	tests := []struct {
+		name           string
+		showEditButton bool
+	}{
+		{name: "edit button off", showEditButton: false},
+		{name: "edit button on", showEditButton: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			store := NewStore(dir)
 
-	original, err := store.Create(Dashboard{
-		ID:        "roundtrip",
-		Name:      "Round Trip",
-		Icon:      "ti-home",
-		Container: Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"},
-		Pages:     []Page{{Rows: []Row{}}},
-	})
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	if err := store.SaveAsset(original.ID, "bg.jpg", []byte("jpegdata")); err != nil {
-		t.Fatalf("save asset: %v", err)
-	}
+			original, err := store.Create(Dashboard{
+				ID:             "roundtrip",
+				Name:           "Round Trip",
+				Icon:           "ti-home",
+				Container:      Container{MaxWidth: "100%", VerticalAlign: "top", HorizontalAlign: "center"},
+				ShowEditButton: tc.showEditButton,
+				Pages:          []Page{{Rows: []Row{}}},
+			})
+			if err != nil {
+				t.Fatalf("create: %v", err)
+			}
+			if err := store.SaveAsset(original.ID, "bg.jpg", []byte("jpegdata")); err != nil {
+				t.Fatalf("save asset: %v", err)
+			}
 
-	var buf bytes.Buffer
-	if err := store.ExportZip(original.ID, &buf); err != nil {
-		t.Fatalf("export: %v", err)
-	}
+			var buf bytes.Buffer
+			if err := store.ExportZip(original.ID, &buf); err != nil {
+				t.Fatalf("export: %v", err)
+			}
 
-	imported, err := store.ImportZip(buf.Bytes())
-	if err != nil {
-		t.Fatalf("import: %v", err)
-	}
-	if imported.Name != original.Name {
-		t.Fatalf("name mismatch: got %q want %q", imported.Name, original.Name)
-	}
-	if imported.ID == original.ID {
-		t.Fatal("expected imported dashboard to get a new ID")
-	}
+			var raw map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(zipEntries(t, buf.Bytes())["dashboard.json"]), &raw); err != nil {
+				t.Fatalf("decode exported dashboard.json: %v", err)
+			}
+			if _, ok := raw["showEditButton"]; ok != tc.showEditButton {
+				t.Errorf("showEditButton key present in dashboard.json = %v, want %v", ok, tc.showEditButton)
+			}
 
-	assets, err := store.ListAssets(imported.ID)
-	if err != nil {
-		t.Fatalf("list assets: %v", err)
-	}
-	if len(assets) != 1 || assets[0] != "bg.jpg" {
-		t.Fatalf("expected [bg.jpg], got %v", assets)
+			imported, err := store.ImportZip(buf.Bytes())
+			if err != nil {
+				t.Fatalf("import: %v", err)
+			}
+			if imported.Name != original.Name {
+				t.Fatalf("name mismatch: got %q want %q", imported.Name, original.Name)
+			}
+			if imported.ID == original.ID {
+				t.Fatal("expected imported dashboard to get a new ID")
+			}
+			if imported.ShowEditButton != tc.showEditButton {
+				t.Errorf("imported ShowEditButton = %v, want %v", imported.ShowEditButton, tc.showEditButton)
+			}
+
+			assets, err := store.ListAssets(imported.ID)
+			if err != nil {
+				t.Fatalf("list assets: %v", err)
+			}
+			if len(assets) != 1 || assets[0] != "bg.jpg" {
+				t.Fatalf("expected [bg.jpg], got %v", assets)
+			}
+		})
 	}
 }
 

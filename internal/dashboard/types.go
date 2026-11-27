@@ -33,6 +33,9 @@ type Dashboard struct {
 	// icons. Empty or unknown names render with the default widget theme.
 	WidgetTheme string `json:"widgetTheme,omitempty"`
 	ColorMode   string `json:"colorMode,omitempty"`
+	// ShowEditButton asks the viewer to draw an "Edit" link to this dashboard
+	// in the editor. Interactive dashboards only; image output never shows it.
+	ShowEditButton bool `json:"showEditButton,omitempty"`
 	// Dither picks how an image dashboard is dithered for the e-ink formats
 	// (png-bw, png-spectra6, bw, spectra6): empty is plain Floyd-Steinberg,
 	// "auto" lets einkimage pick per render, any other value names an
