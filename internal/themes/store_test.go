@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func newTestStore(t *testing.T) (*Store, string) {
@@ -546,6 +547,138 @@ func TestAssetLifecycle(t *testing.T) {
 	if list, _ := s.ListAssets(created.ID); len(list) != 0 {
 		t.Fatalf("expected no assets, got %v", list)
 	}
+}
+
+// skipAssetGrace moves the store's clock an hour ahead so files saved by the
+// test fall outside the prune grace window.
+func skipAssetGrace(s *Store) {
+	s.now = func() time.Time { return time.Now().Add(time.Hour) }
+}
+
+func imageRef(name string) *Image {
+	return &Image{Ref: "asset:" + name, Fit: "cover", Position: "center", Repeat: "no-repeat"}
+}
+
+func mustSaveAssets(t *testing.T, s *Store, id string, names ...string) {
+	t.Helper()
+	for _, name := range names {
+		if err := s.SaveAsset(id, name, []byte(name)); err != nil {
+			t.Fatalf("save asset %s: %v", name, err)
+		}
+	}
+}
+
+func assertAssets(t *testing.T, s *Store, id string, want ...string) {
+	t.Helper()
+	got, err := s.ListAssets(id)
+	if err != nil {
+		t.Fatalf("list assets: %v", err)
+	}
+	if want == nil {
+		want = []string{}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("assets = %v, want %v", got, want)
+	}
+}
+
+func TestUpdatePrunesUnreferencedAssets(t *testing.T) {
+	s, _ := newTestStore(t)
+	skipAssetGrace(s)
+	th := mustCreate(t, s, "Prune")
+	mustSaveAssets(t, s, th.ID, "first.png", "second.png")
+
+	th.Background.Light.Image = imageRef("second.png")
+	th.Name = "Pruned" // the prune must follow the renamed folder
+	if _, err := s.Update(th); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	assertAssets(t, s, th.ID, "second.png")
+}
+
+func TestUpdateKeepsDarkReferencedAsset(t *testing.T) {
+	cases := []struct {
+		name      string
+		darkMode  bool
+		light     string
+		dark      string
+		wantAfter []string
+	}{
+		{"dark mode on", true, "light.png", "dark.png", []string{"dark.png", "light.png"}},
+		{"dark mode off keeps the stored dark ref", false, "light.png", "dark.png", []string{"dark.png", "light.png"}},
+		{"dark only", true, "", "dark.png", []string{"dark.png"}},
+		{"light and dark share a file", true, "light.png", "light.png", []string{"light.png"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, _ := newTestStore(t)
+			skipAssetGrace(s)
+			th := mustCreate(t, s, "Modes")
+			mustSaveAssets(t, s, th.ID, "light.png", "dark.png", "orphan.png")
+
+			th.DarkMode = tc.darkMode
+			if tc.light != "" {
+				th.Background.Light.Image = imageRef(tc.light)
+			}
+			th.Background.Dark.Image = imageRef(tc.dark)
+			if _, err := s.Update(th); err != nil {
+				t.Fatalf("update: %v", err)
+			}
+			assertAssets(t, s, th.ID, tc.wantAfter...)
+		})
+	}
+}
+
+// Legacy files are only pruned by a save: loading, listing, reading and a
+// store restart must leave them alone.
+func TestLegacyAssetsArePrunedOnlyOnSave(t *testing.T) {
+	raw := `{"id":"legacy1","name":"Legacy","darkMode":true,"background":{"light":{"image":` +
+		`{"ref":"asset:keep.png","fit":"cover","position":"center","repeat":"no-repeat"}},"dark":{}},"colors":{}}`
+	s := writeRawTheme(t, "legacy", raw)
+	assets := filepath.Join(s.dir, "legacy", assetsDir)
+	for _, name := range []string{"keep.png", "old.png", "nested/older.jpg"} {
+		full := filepath.Join(assets, name)
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	all := []string{"keep.png", "nested/older.jpg", "old.png"}
+
+	s = NewStore(s.dir)
+	skipAssetGrace(s)
+	if _, err := s.List(nil); err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	got, err := s.Get("legacy1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	assertAssets(t, s, "legacy1", all...)
+
+	got.Colors = testTheme("x").Colors
+	if _, err := s.Update(got); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	assertAssets(t, s, "legacy1", "keep.png")
+}
+
+func TestUpdateKeepsRecentlyModifiedAssets(t *testing.T) {
+	s, _ := newTestStore(t)
+	th := mustCreate(t, s, "Grace")
+	mustSaveAssets(t, s, th.ID, "fresh.png", "stale.png")
+	dir, _ := s.themeDir(th.ID)
+	old := time.Now().Add(-assetGrace - time.Minute)
+	if err := os.Chtimes(filepath.Join(dir, assetsDir, "stale.png"), old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.Update(th); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	assertAssets(t, s, th.ID, "fresh.png")
 }
 
 func TestAssetRejectsTraversalAndBadExtension(t *testing.T) {

@@ -337,6 +337,21 @@ which returns the CSS plus the image ref so the bytes can be loaded
 (`Store.LoadImage`) and drawn on the canvas - litehtml fetches nothing over
 the network, so that path must not be "modernised".
 
+A theme keeps **at most one background file per mode**. Storage enforces it,
+not fixed file names: uploads keep their names and endpoint, and
+`Store.Update` (`pruneAssets`, `internal/themes/store.go`), after a
+successful write, deletes every file under the theme's `assets/` (walked
+recursively, in the folder the theme ends up in after a rename) that neither
+`background.light.image.ref` nor `background.dark.image.ref` names. Light and
+dark may share a file; a dark ref kept while `darkMode` is off still counts.
+Files modified in the last 5 minutes (`assetGrace`) are kept, so a save that
+races an upload and still carries the old ref cannot delete the new file; such
+an orphan goes on a later save. Pruning runs on save only - never on load,
+`List`, `Get`, `Create`, `Copy` or startup - so a theme's legacy extra files
+survive until its next save. It is best effort: a failed removal does not fail
+the save. Overwriting a stable file name instead was rejected: it leaves stale
+browser and render caches.
+
 ### Editing a background
 
 A background is part of its theme, not an entity of its own: there is no
@@ -367,7 +382,9 @@ direction or fit). What the component offers is bounded by that shape:
   place theme images are managed: **Upload goes into the theme's own assets**
   (copied with the theme) and selects the file; each tile has a delete button
   (confirmation warns when the background uses the image). A deleted image
-  still referenced is flagged in the picker. Optional separate dark image;
+  still referenced is flagged in the picker. Files the background does not
+  reference are pruned on a later save (see the rule above), so the grid is
+  not a long-term library. Optional separate dark image;
   fit/position/repeat are shared by both modes.
 - **Preview**: light and dark tiles built with `previewStyle` from
   `webui/src/lib/themeCss.ts` (the TS mirror of `BrowserCSS`), compositing
