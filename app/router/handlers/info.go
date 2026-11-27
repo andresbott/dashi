@@ -19,32 +19,46 @@ type PublicViewer struct {
 	BaseURL string
 }
 
+// PublicEditor describes where the editor is reachable from a browser. URL is
+// the configured, already normalized public URL; it is never derived from the
+// request, because behind an ingress (HA add-on) the request cannot reveal it.
+type PublicEditor struct {
+	Enabled bool
+	URL     string
+}
+
 // InfoHandler serves the runtime facts the admin SPA needs at init time. The
 // SPA is the editor UI only — it does not render dashboards — so its "view"
 // links must point at the viewer server, which lives on a different port and,
 // behind a reverse proxy, possibly on a different host.
 type InfoHandler struct {
 	viewer PublicViewer
+	editor PublicEditor
 }
 
-func NewInfoHandler(viewer PublicViewer) *InfoHandler {
-	return &InfoHandler{viewer: viewer}
+func NewInfoHandler(viewer PublicViewer, editor PublicEditor) *InfoHandler {
+	return &InfoHandler{viewer: viewer, editor: editor}
 }
 
-type viewerInfo struct {
+type serverInfo struct {
 	Enabled bool   `json:"enabled"`
 	URL     string `json:"url"`
 }
 
 type infoResponse struct {
-	Viewer viewerInfo `json:"viewer"`
+	Viewer serverInfo `json:"viewer"`
+	Editor serverInfo `json:"editor"`
 }
 
 func (h *InfoHandler) Get(w http.ResponseWriter, r *http.Request) {
 	resp := infoResponse{
-		Viewer: viewerInfo{
+		Viewer: serverInfo{
 			Enabled: h.viewer.Enabled,
 			URL:     h.viewerURL(r),
+		},
+		Editor: serverInfo{
+			Enabled: h.editor.Enabled,
+			URL:     h.editorURL(),
 		},
 	}
 
@@ -73,6 +87,15 @@ func (h *InfoHandler) viewerURL(r *http.Request) string {
 		return ""
 	}
 	return requestScheme(r) + "://" + net.JoinHostPort(host, strconv.Itoa(h.viewer.Port))
+}
+
+// editorURL returns the editor's public base URL, or "" when the editor is
+// disabled or no public URL is configured.
+func (h *InfoHandler) editorURL() string {
+	if !h.editor.Enabled {
+		return ""
+	}
+	return h.editor.URL
 }
 
 // requestHost returns the hostname the client used, without a port.

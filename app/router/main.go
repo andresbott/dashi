@@ -54,6 +54,13 @@ type Cfg struct {
 	ViewerEnabled   bool
 	ViewerPort      int
 	ViewerPublicURL string
+
+	// Where the editor is reachable from a browser, for links that open a
+	// dashboard in the editor. EditorPublicURL is never derived: viewer and
+	// editor may sit on different origins (HA add-on: viewer on a host port,
+	// editor via ingress). Ignored when the editor is disabled.
+	EditorEnabled   bool
+	EditorPublicURL string
 }
 
 // ViewerHandler serves the read-only dashboard viewer.
@@ -99,6 +106,16 @@ type sharedDeps struct {
 	promHisto        middleware.Histogram
 	modules          []widgets.Module
 	publicViewer     handlers.PublicViewer
+	publicEditor     handlers.PublicEditor // URL is empty when the editor is disabled
+}
+
+// publicEditor reports where browsers reach the editor; a disabled editor has
+// no URL, so nothing links to it.
+func publicEditor(cfg Cfg) handlers.PublicEditor {
+	if !cfg.EditorEnabled {
+		return handlers.PublicEditor{}
+	}
+	return handlers.PublicEditor{Enabled: true, URL: cfg.EditorPublicURL}
 }
 
 func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
@@ -193,6 +210,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 			Port:    cfg.ViewerPort,
 			BaseURL: cfg.ViewerPublicURL,
 		},
+		publicEditor: publicEditor(cfg),
 	}, nil
 }
 
@@ -220,6 +238,7 @@ func newAPIDeps(deps *sharedDeps, logger *slog.Logger) apiDeps {
 		logger:           logger,
 		modules:          deps.modules,
 		publicViewer:     deps.publicViewer,
+		publicEditor:     deps.publicEditor,
 	}
 }
 

@@ -75,6 +75,9 @@ func runServer(configFile string) error {
 		ViewerEnabled:   cfg.Server.Viewer.Enabled,
 		ViewerPort:      cfg.Server.Viewer.Port,
 		ViewerPublicURL: cfg.Server.Viewer.PublicUrl,
+
+		EditorEnabled:   cfg.Server.Editor.Enabled,
+		EditorPublicURL: cfg.Server.Editor.PublicUrl,
 	}
 
 	// Build handlers based on which servers are enabled
