@@ -48,6 +48,11 @@ describe('DashboardView container placement', () => {
         expect(s.marginRight).toBe('auto')
     })
 
+    it.each(['', 'sideways', 'top'])('puts the rows at the top for vertical align %j', async align => {
+        const s = style(await mountView('center', align), '.dashboard-rows')
+        expect(s.justifyContent).toBe('flex-start')
+    })
+
     it.each([
         ['left', '0px', 'auto'],
         ['right', 'auto', '0px'],
