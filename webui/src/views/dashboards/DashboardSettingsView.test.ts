@@ -176,6 +176,13 @@ describe('DashboardSettingsView', () => {
             await flushPromises()
             expect(draft.value!.container.maxWidth).toBe('75%')
         })
+
+        it.each(['1200px', '75%'])('shows a stored non-preset value %s in the input', async value => {
+            draft.value!.container.maxWidth = value
+            const wrapper = await mountAppearance()
+            const input = maxWidthSelect(wrapper).find('input').element as HTMLInputElement
+            expect(input.value).toBe(value)
+        })
     })
 
     describe('alignment', () => {
