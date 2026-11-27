@@ -1,113 +1,5 @@
-<script lang="ts">
-import { reactive } from 'vue'
-import type { Widget } from '@/types/dashboard'
-import { GRID_COLUMNS, columnFromDrag, fitsInRow } from '@/lib/rowLayout'
-
-// ---------------------------------------------------------------------------
-// Widget drag session, shared by every DashboardRow instance (module scope).
-//
-// Only one widget is dragged at a time. Rows register their elements so the
-// session can hit-test the pointer against *all* rows on every move and
-// publish a single target (row + column) that the rows render as guides and
-// the source row commits on release. Rows never measure themselves inside a
-// computed: geometry is read here, on pointer moves and on scroll.
-// ---------------------------------------------------------------------------
-
-interface RowEntry {
-    // The whole row card, toolbar included, so there is no dead strip above
-    // the grid where a drop silently fails.
-    root: HTMLElement
-    grid: () => HTMLElement | null
-    widgets: () => Widget[]
-}
-
-const rowRegistry = new Map<string, RowEntry>()
-
-const dragState = reactive({
-    active: false,
-    sourceRowId: null as string | null,
-    span: 1,
-    targetRowId: null as string | null,
-    targetColumn: null as number | null,
-    // False when the hovered row has no room for the dragged span: the guide
-    // renders as blocked and releasing there does nothing.
-    targetFits: true,
-    // Set by Escape: the release is ignored and the widget stays put.
-    cancelled: false,
-})
-
-// Pointer bookkeeping for the active drag. Deliberately not reactive: it
-// changes on every pointer move, and only the resolved target needs to render.
-let session: {
-    originColumn: number
-    grabStartX: number
-    originLeftX: number
-    pointerX: number
-    pointerY: number
-} | null = null
-
-// A pointer this close (px) above or below a row still targets it, so the
-// margin between two rows is not a dead zone.
-const ROW_SNAP_PX = 24
-
-function hitRow(y: number): { id: string; entry: RowEntry } | null {
-    let best: { id: string; entry: RowEntry } | null = null
-    let bestDist = Infinity
-    for (const [id, entry] of rowRegistry) {
-        const r = entry.root.getBoundingClientRect()
-        const dist = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0
-        if (dist < bestDist) {
-            bestDist = dist
-            best = { id, entry }
-        }
-    }
-    return best && bestDist <= ROW_SNAP_PX ? best : null
-}
-
-function clearTarget() {
-    dragState.targetRowId = null
-    dragState.targetColumn = null
-    dragState.targetFits = true
-}
-
-// Resolves the row and column under the pointer and publishes them. Runs on
-// every pointer move and on scroll (the pointer is still but the rows moved).
-function updateTarget() {
-    if (!session || !dragState.active || dragState.cancelled) return
-    const hit = hitRow(session.pointerY)
-    const grid = hit?.entry.grid()
-    if (!hit || !grid) {
-        clearTarget()
-        return
-    }
-    const rect = grid.getBoundingClientRect()
-    const colWidth = rect.width / GRID_COLUMNS
-    const max = Math.max(1, GRID_COLUMNS - dragState.span + 1)
-    let column: number
-    if (hit.id === dragState.sourceRowId) {
-        // Own row: move by whole columns relative to the grab point, so a
-        // release without moving keeps the widget exactly where it was.
-        column = columnFromDrag({
-            originColumn: session.originColumn,
-            pointerX: session.pointerX,
-            grabStartX: session.grabStartX,
-            colWidth,
-            min: 1,
-            max,
-        })
-    } else {
-        // Another row: snap the widget's (moved) left edge to the nearest column.
-        const leftX = session.originLeftX + (session.pointerX - session.grabStartX)
-        column = Math.max(1, Math.min(max, Math.round((leftX - rect.left) / colWidth) + 1))
-    }
-    dragState.targetRowId = hit.id
-    dragState.targetColumn = column
-    dragState.targetFits = hit.id === dragState.sourceRowId || fitsInRow(hit.entry.widgets(), dragState.span)
-}
-</script>
-
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, inject, onMounted, onBeforeUnmount } from 'vue'
 import draggable from 'vuedraggable'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
@@ -115,9 +7,10 @@ import Button from 'primevue/button'
 import DashboardWidget from '@/components/dashboards/DashboardWidget.vue'
 import AddWidgetDialog from '@/components/dashboards/AddWidgetDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import type { Row } from '@/types/dashboard'
+import type { Row, Widget } from '@/types/dashboard'
 import { getWidgetEntry } from '@/lib/widgetRegistry'
 import {
+    GRID_COLUMNS,
     placeRow,
     firstFreeSpan,
     insertByColumn,
@@ -128,6 +21,8 @@ import {
 } from '@/lib/rowLayout'
 import { duplicateInRow } from '@/lib/duplicateWidget'
 import { beginDragGuard, endDragGuard } from '@/lib/dragGuard'
+import { abortIfSource, dragState, endWidgetDrag, registerRow, startWidgetDrag } from '@/lib/widgetDrag'
+import { WIDGET_MOVE } from '@/lib/injectionKeys'
 import { v4 as uuidv4 } from 'uuid'
 
 const props = defineProps<{
@@ -141,30 +36,34 @@ const emit = defineEmits<{
     delete: []
     'move-up': []
     'move-down': []
-    'move-widget': [payload: { widgetId: string; toRowId: string; column: number }]
 }>()
+
+// Commits a drop; provided by the editor page (absent elsewhere: drops do nothing).
+const moveWidget = inject(WIDGET_MOVE, null)
 
 // Vue owns the widget list. SortableJS only detects the drag and paints the
 // floating clone: its list mutation is disabled (:sort false, :move false) and
-// the binding is one-way; every reorder and cross-row move is committed
-// manually on release from the shared drag session above.
+// the binding is one-way; every drop is resolved by the shared drag session
+// (lib/widgetDrag.ts) and committed through WIDGET_MOVE on release.
 const widgets = computed(() => props.row.widgets)
 
 const rootRef = ref<HTMLElement | null>(null)
 const gridRef = ref<InstanceType<typeof draggable> | null>(null)
 const gridEl = () => (gridRef.value?.$el as HTMLElement | undefined) ?? null
 
+let unregisterRow: (() => void) | null = null
+
 onMounted(() => {
     if (rootRef.value) {
-        rowRegistry.set(props.row.id, { root: rootRef.value, grid: gridEl, widgets: () => props.row.widgets })
+        unregisterRow = registerRow(props.row.id, { root: rootRef.value, grid: gridEl, widgets: () => props.row.widgets })
     }
 })
 
 onBeforeUnmount(() => {
-    rowRegistry.delete(props.row.id)
+    unregisterRow?.()
     // A row removed mid-gesture (page switch, row delete) must not leave
     // document listeners or a stuck global drag behind.
-    if (dragState.sourceRowId === props.row.id) teardownDrag()
+    abortIfSource(props.row.id)
     stopResize(false)
 })
 
@@ -260,7 +159,10 @@ const getWidgetClass = (index: number) => {
 }
 
 // --- Drop guides (rendered from the shared session) ---
-const isDropTarget = computed(() => dragState.active && dragState.targetRowId === props.row.id)
+// A stack zone being targeted wins: then no row shows a guide.
+const isDropTarget = computed(
+    () => dragState.active && dragState.targetKind === 'row' && dragState.targetRowId === props.row.id,
+)
 const guideColumn = computed(() => (isDropTarget.value ? dragState.targetColumn : null))
 const guideBlocked = computed(() => isDropTarget.value && !dragState.targetFits)
 
@@ -331,40 +233,19 @@ const onGripDown = (e: PointerEvent) => {
     grabY = e.clientY
 }
 
-const onDragMove = (e: PointerEvent) => {
-    if (!session) return
-    session.pointerX = e.clientX
-    session.pointerY = e.clientY
-    updateTarget()
-}
-
-// Escape abandons the drag: hide the guides, ignore the release, and ask
-// SortableJS to finish (it only listens for the pointer going up).
-const onDragKey = (e: KeyboardEvent) => {
-    if (e.key !== 'Escape' || !dragState.active) return
-    dragState.cancelled = true
-    clearTarget()
-    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
-}
-
-function teardownDrag() {
-    document.removeEventListener('pointermove', onDragMove)
-    document.removeEventListener('keydown', onDragKey)
-    window.removeEventListener('scroll', updateTarget, { capture: true })
-    endDragGuard()
-    session = null
+const resetGrab = () => {
     grabX = null
     grabY = null
-    dragState.active = false
-    dragState.sourceRowId = null
-    dragState.cancelled = false
-    clearTarget()
 }
 
 const onDragStart = (evt: { oldIndex: number }) => {
+    const widget = props.row.widgets[evt.oldIndex]
     const p = placeRow(props.row.widgets)[evt.oldIndex]
     const grid = gridEl()
-    if (!p || !grid) return
+    if (!widget || !p || !grid) {
+        resetGrab()
+        return
+    }
     const rect = grid.getBoundingClientRect()
     const colWidth = rect.width / GRID_COLUMNS
     // A legacy row that overflowed the grid may report a column past 12; keep
@@ -373,33 +254,19 @@ const onDragStart = (evt: { oldIndex: number }) => {
     const originLeftX = rect.left + (originColumn - 1) * colWidth
     const startX = grabX ?? originLeftX + colWidth / 2
     const startY = grabY ?? rect.top
-    session = { originColumn, grabStartX: startX, originLeftX, pointerX: startX, pointerY: startY }
-    dragState.active = true
-    dragState.sourceRowId = props.row.id
-    dragState.span = p.width
-    dragState.cancelled = false
-    beginDragGuard('grabbing')
-    // The draggable runs in force-fallback (pointer) mode, so the pointer is
-    // tracked here; a scroll (autoscroll or wheel) re-resolves the target.
-    document.addEventListener('pointermove', onDragMove)
-    document.addEventListener('keydown', onDragKey)
-    window.addEventListener('scroll', updateTarget, { capture: true, passive: true })
-    updateTarget()
+    resetGrab()
+    startWidgetDrag(
+        { kind: 'row', rowId: props.row.id, widgetId: widget.id },
+        { originColumn, originLeftX, grabX: startX, grabY: startY, span: p.width, draggedType: widget.type },
+    )
 }
 
-const onDragEnd = (evt: { oldIndex: number }) => {
-    const { targetRowId, targetColumn, targetFits, cancelled } = dragState
-    const index = evt.oldIndex
-    teardownDrag()
-    if (cancelled || targetRowId === null || targetColumn === null || !targetFits) return
-    if (index < 0 || index >= props.row.widgets.length) return
-    if (targetRowId === props.row.id) {
-        // Within this row: reposition/reorder at the guide column, kept on one line.
-        emit('update', { ...props.row, widgets: clampRowToLine(moveWidgetToColumn(props.row.widgets, index, targetColumn)) })
-    } else {
-        // Over another row: the parent removes it here and inserts it there.
-        emit('move-widget', { widgetId: props.row.widgets[index].id, toRowId: targetRowId, column: targetColumn })
-    }
+// The session resolved the drop (this row, another row or a stack); the
+// editor applies it. Nothing is returned for Escape or a blocked target.
+const onDragEnd = () => {
+    resetGrab()
+    const move = endWidgetDrag()
+    if (move) moveWidget?.(move)
 }
 
 // Keyboard alternative on the grip: one column per arrow press.
@@ -486,7 +353,7 @@ const nudgeColumn = (index: number, delta: number) => {
                     v-for="c in GRID_COLUMNS"
                     :key="c"
                     class="guide-col"
-                    :class="{ 'guide-col--active': c >= guideColumn && c < guideColumn + dragState.span }"
+                    :class="{ 'guide-col--active': c >= guideColumn && c < guideColumn + dragState.targetSpan }"
                 />
             </div>
             <draggable
