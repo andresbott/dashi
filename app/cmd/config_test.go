@@ -7,6 +7,80 @@ import (
 	"testing"
 )
 
+func TestNormalizePublicURLs(t *testing.T) {
+	tests := []struct {
+		name      string
+		raw       string
+		want      string
+		wantWarn  string // substring of the single expected warning; empty means none
+		notInWarn string // must not appear in the warning
+	}{
+		{
+			name: "trailing slash is stripped",
+			raw:  "https://ha.example.com/hassio/ingress/dashi/",
+			want: "https://ha.example.com/hassio/ingress/dashi",
+		},
+		{
+			name: "encoded path is preserved",
+			raw:  "https://ha.example.com/a%2Fb/my%20dash/",
+			want: "https://ha.example.com/a%2Fb/my%20dash",
+		},
+		{
+			name:     "query and fragment are dropped with a warning",
+			raw:      "https://edit.example.com/base/?token=x#frag",
+			want:     "https://edit.example.com/base",
+			wantWarn: "dropped query, fragment or user info",
+		},
+		{
+			name:      "userinfo is dropped with a warning that hides the credential",
+			raw:       "https://admin:s3cret@edit.example.com/",
+			want:      "https://edit.example.com",
+			wantWarn:  "dropped query, fragment or user info",
+			notInWarn: "s3cret",
+		},
+		{
+			name:     "non http scheme is rejected",
+			raw:      "ftp://edit.example.com",
+			want:     "",
+			wantWarn: "not an absolute http or https URL",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &AppCfg{}
+			cfg.Server.Editor.PublicUrl = tc.raw
+			normalizePublicURLs(cfg)
+
+			if cfg.Server.Editor.PublicUrl != tc.want {
+				t.Errorf("editor public url = %q, want %q", cfg.Server.Editor.PublicUrl, tc.want)
+			}
+
+			var warns []string
+			for _, m := range cfg.Msgs {
+				if m.Level == "warn" {
+					warns = append(warns, m.Msg)
+				}
+			}
+			if tc.wantWarn == "" {
+				if len(warns) != 0 {
+					t.Fatalf("warnings = %q, want none", warns)
+				}
+				return
+			}
+			if len(warns) != 1 {
+				t.Fatalf("warnings = %q, want one mentioning %q", warns, tc.wantWarn)
+			}
+			if !strings.Contains(warns[0], tc.wantWarn) || !strings.Contains(warns[0], "server.editor.publicUrl") {
+				t.Errorf("warning = %q, want it to mention server.editor.publicUrl and %q", warns[0], tc.wantWarn)
+			}
+			if tc.notInWarn != "" && strings.Contains(warns[0], tc.notInWarn) {
+				t.Errorf("warning = %q, must not contain %q", warns[0], tc.notInWarn)
+			}
+		})
+	}
+}
+
 func TestGetAppCfgPublicURLs(t *testing.T) {
 	tests := []struct {
 		name       string

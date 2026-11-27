@@ -176,25 +176,37 @@ func normalizePublicURLs(cfg *AppCfg) {
 		{"server.editor.publicUrl", &cfg.Server.Editor.PublicUrl},
 	} {
 		raw := *u.val
-		*u.val = normalizeBaseURL(raw)
-		if *u.val == "" && strings.TrimSpace(raw) != "" {
+		var stripped bool
+		*u.val, stripped = normalizeBaseURL(raw)
+		switch {
+		case *u.val == "" && strings.TrimSpace(raw) != "":
 			cfg.Msgs = append(cfg.Msgs, Msg{
 				Level: "warn",
 				Msg:   fmt.Sprintf("ignoring %s %q: not an absolute http or https URL", u.key, raw),
+			})
+		case stripped:
+			// Log the result, not raw: raw may carry a password.
+			cfg.Msgs = append(cfg.Msgs, Msg{
+				Level: "warn",
+				Msg:   fmt.Sprintf("%s: dropped query, fragment or user info; using %q", u.key, *u.val),
 			})
 		}
 	}
 }
 
 // normalizeBaseURL validates a public base URL and strips its trailing slash.
-// Anything that is not an absolute http/https URL comes back empty.
-func normalizeBaseURL(raw string) string {
+// Anything that is not an absolute http/https URL comes back empty. Query,
+// fragment and userinfo are dropped — paths get appended to a base, and
+// userinfo in an href leaks a credential — and stripped reports whether any
+// of them was present.
+func normalizeBaseURL(raw string) (base string, stripped bool) {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || u.Host == "" {
-		return ""
+		return "", false
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return ""
+		return "", false
 	}
-	return strings.TrimSuffix(u.Scheme+"://"+u.Host+u.Path, "/")
+	stripped = u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.User != nil
+	return strings.TrimSuffix(u.Scheme+"://"+u.Host+u.EscapedPath(), "/"), stripped
 }
