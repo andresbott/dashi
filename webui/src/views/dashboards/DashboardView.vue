@@ -95,6 +95,30 @@ const onKeyDown = (e: KeyboardEvent) => {
 onMounted(() => window.addEventListener('keydown', onKeyDown))
 onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
 
+// Same placement as the server renders (dashboard.PlaceContainer) and the
+// alignment picker: an empty or unknown value is centred horizontally and at
+// the top vertically. The auto margin side moves the container; the rows
+// column spans the full viewport height so vertical alignment has room.
+const containerStyle = computed(() => {
+    const c = dashboard.value?.container
+    return {
+        maxWidth: c?.maxWidth,
+        marginLeft: c?.horizontalAlign === 'left' ? '0' : 'auto',
+        marginRight: c?.horizontalAlign === 'right' ? '0' : 'auto',
+    }
+})
+
+const rowsJustify = computed(() => {
+    switch (dashboard.value?.container.verticalAlign) {
+        case 'center':
+            return 'center'
+        case 'bottom':
+            return 'flex-end'
+        default:
+            return 'flex-start'
+    }
+})
+
 const isImageDashboard = computed(() => dashboard.value?.type === 'image')
 
 const imageUrl = computed(() => {
@@ -145,14 +169,7 @@ function debugColor(index: number): string | undefined {
         </div>
     </div>
     <div v-else-if="dashboard" class="dashboard-view" :class="{ 'show-boxes': dashboard.container.showBoxes || isDebug, 'dark-mode': colorMode === 'dark' }" :style="colorSchemeStyle">
-        <div
-            class="dashboard-container"
-            :style="{
-                maxWidth: dashboard.container.maxWidth,
-                marginLeft: dashboard.container.horizontalAlign === 'right' ? 'auto' : dashboard.container.horizontalAlign === 'center' ? 'auto' : undefined,
-                marginRight: dashboard.container.horizontalAlign === 'left' ? 'auto' : dashboard.container.horizontalAlign === 'center' ? 'auto' : undefined,
-            }"
-        >
+        <div class="dashboard-container" :style="containerStyle">
             <div v-if="showTabs" class="dashboard-tabs">
                 <button
                     v-for="(page, index) in dashboard.pages"
@@ -169,8 +186,8 @@ function debugColor(index: number): string | undefined {
                 :style="{
                     display: 'flex',
                     flexDirection: 'column',
-                    minHeight: '80vh',
-                    justifyContent: dashboard.container.verticalAlign === 'center' ? 'center' : dashboard.container.verticalAlign === 'bottom' ? 'flex-end' : 'flex-start',
+                    minHeight: '100vh',
+                    justifyContent: rowsJustify,
                 }"
             >
                 <div
