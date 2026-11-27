@@ -1,18 +1,26 @@
 {
   "_comment": "This file is managed by the todo CLI. Do not edit it directly, by hand or with a script. Read it with todo: `todo next --json` (what to work on), `todo show --id <id|ref> --json` (one task), `todo list --flat` (every item as flat JSON records). Change it with todo commands (add, edit, move, status, assign, rm, ...; see `todo --help`), which keep its ids and rules valid.",
-  "version": 8,
+  "version": 9,
   "refs": {
     "last": {
-      "DASHI": 2
+      "DASHI": 3
     }
+  },
+  "view": {
+    "screen": "sprint",
+    "sprint": "hf63v17"
   },
   "sprints": [
     {
       "id": "hf63v17",
       "ref": "DASHI-002",
       "name": "AFK batch 2026-11-21",
-      "goal": "Backlog items implemented overnight on next-steps",
-      "status": "open"
+      "goal": "Backlog items implemented overnight on next-steps"
+    },
+    {
+      "id": "vs7kjg0",
+      "ref": "DASHI-003",
+      "name": "Next iteration: mixed work"
     }
   ],
   "categories": [
@@ -106,10 +114,114 @@
       ]
     },
     {
+      "id": "1ktgkxr",
+      "category": "qyds6ns",
+      "sprint": "vs7kjg0",
+      "title": "Improve the Add Widget dialog",
+      "status": "new",
+      "description": "Dashboard editor's Add Widget dialog: currently a narrow plain list of widgets with a close button",
+      "subtasks": [
+        {
+          "id": "twjb7r6",
+          "title": "Filter input at the top to narrow the widget list"
+        },
+        {
+          "id": "3jqbnhe",
+          "title": "Make the dialog wider"
+        },
+        {
+          "id": "c9gd7ab",
+          "title": "Show a preview of the clicked widget",
+          "description": "Same approach as the live preview in the widget docs pages (/admin/docs/widgets)"
+        },
+        {
+          "id": "xxsce4q",
+          "title": "Insert / Cancel buttons",
+          "description": "Clicking a widget selects it (and shows the preview); Insert adds it, Cancel closes without adding"
+        }
+      ]
+    },
+    {
+      "id": "78vh90g",
+      "category": "qyds6ns",
+      "sprint": "vs7kjg0",
+      "title": "Drag and drop widgets into and out of a Stack widget",
+      "status": "new",
+      "description": "Bug: in the dashboard editor, widgets can't be dragged into or out of a Stack widget. Dragging an existing widget (e.g. Market) over a Stack doesn't drop it into the stack (the grid only shows the 12-column row placement), and a stack's children can't be dragged back out onto the row. Today children can only be added via the stack's own '+ Add' button."
+    },
+    {
+      "id": "6tjywjd",
+      "category": "qyds6ns",
+      "sprint": "vs7kjg0",
+      "title": "Widget header bar: delete and duplicate buttons",
+      "status": "new",
+      "description": "In the dashboard editor, each widget card's top bar currently only has the edit (pencil) button. Put the widget controls there.",
+      "subtasks": [
+        {
+          "id": "db3pbze",
+          "title": "Move the delete control into the widget's top bar",
+          "description": "Next to the edit (pencil) button"
+        },
+        {
+          "id": "bk4erjd",
+          "title": "Duplicate widget feature + button in the top bar",
+          "description": "Copies the widget with its config and inserts it next to the original"
+        }
+      ]
+    },
+    {
+      "id": "gny6ved",
+      "category": "qyds6ns",
+      "sprint": "vs7kjg0",
+      "title": "Preview button in the dashboard edit view",
+      "status": "new",
+      "description": "Edit view header, left of Settings, chosen by dashboard type like the dashboards list (AdminDashboards.vue). Image dashboards: keep the existing 'E-ink preview' button (DashboardEditView.vue, already there). Interactive dashboards: add the missing button, an eye icon that opens the live viewer (dashboardViewUrl) in a new tab, as the list does."
+    },
+    {
+      "id": "cxyme2w",
+      "category": "qyds6ns",
+      "sprint": "vs7kjg0",
+      "title": "Max Width: preset options plus manual input",
+      "status": "new",
+      "description": "Dashboard settings > Container > Max Width is a plain text field today. Offer sensible presets (e.g. 100%, 1600px, and a few common widths) in an editable dropdown, while still allowing a custom value to be typed."
+    },
+    {
+      "id": "2zrzpp6",
+      "category": "qyds6ns",
+      "sprint": "vs7kjg0",
+      "title": "Container alignment: replace dropdowns with a visual picker",
+      "status": "new",
+      "description": "Dashboard settings > Container: replace the Vertical Align and Horizontal Align dropdowns with an image-based picker, i.e. selectable options shown as icons/diagrams of the alignment (e.g. a 3x3 position grid covering both axes) instead of text lists."
+    },
+    {
+      "id": "0fjzc4n",
+      "category": "qyds6ns",
+      "sprint": "vs7kjg0",
+      "title": "Icon picker trigger doesn't look like a button",
+      "status": "new",
+      "description": "In widget config forms (e.g. Bookmark > Icon), the icon select trigger is just the icon glyph next to its name (ti-bookmark), with no affordance. Make it clearly clickable: bordered/outlined button or input-like field with the icon, its name and a 'choose' hint."
+    },
+    {
       "id": "tkgv9yd",
       "category": "22nmgta",
       "title": "review new userauth capabilites for auth, e.g. PAT",
       "status": "open"
+    },
+    {
+      "id": "aeg2pn2",
+      "category": "22nmgta",
+      "sprint": "vs7kjg0",
+      "title": "Implement the Search widget",
+      "status": "new",
+      "description": "Search widget doesn't work. Backend renderer (internal/widgets/search/module.go) only emits an empty placeholder div, so the server-rendered viewer shows nothing; only an editor-side Vue component exists (webui/src/widgets/search). Implement real rendering: a search input that submits to the configured search engine in interactive dashboards; decide what image dashboards show."
+    },
+    {
+      "id": "r7jg2sm",
+      "category": "22nmgta",
+      "sprint": "vs7kjg0",
+      "title": "Dashboard setting: show an Edit button on the rendered dashboard",
+      "status": "new",
+      "description": "New per-dashboard setting (off by default). When on, the rendered dashboard in the viewer shows an Edit button that opens this dashboard in the editor (/dashboards/<id>/edit), so entries can be changed from where you are looking at it. Needs: the setting in the dashboard model and settings view, the button in the viewer render (interactive dashboards only; not drawn on image/PNG output), and an editor URL that works when the viewer and editor are on different origins (HA add-on: viewer on host port, editor via ingress)."
     },
     {
       "id": "5f3ntke",
