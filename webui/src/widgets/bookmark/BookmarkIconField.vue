@@ -23,11 +23,14 @@ const iconLabelId = useId()
 
 const parsed = computed(() => parseIcon(props.modelValue))
 
-const iconTypeOptions = [
+// Dashboard assets need a dashboard to list them from: outside one (the
+// admin bookmark-file editor) the option is only kept for a value that
+// already uses it.
+const iconTypeOptions = computed(() => [
     { label: 'Tabler', value: 'tabler' },
     { label: 'selfh.st', value: 'selfhst' },
-    { label: 'Dashboard asset', value: 'dashboard' },
-]
+    ...(dashboardId.value || parsed.value.type === 'dashboard' ? [{ label: 'Dashboard asset', value: 'dashboard' }] : []),
+])
 
 const iconType = computed({
     get: () => parsed.value.type,

@@ -1,5 +1,5 @@
 {{- define "link" -}}
-<a href="{{.URL}}" class="dashi-bookmark flex min-w-0 text-[var(--dashi-text)] {{if not .InGroup}}-mx-2 {{end}}rounded-lg px-2 py-1.5 no-underline transition-colors hover:bg-[var(--dashi-text)]/10 focus-visible:bg-[var(--dashi-text)]/10 focus-visible:outline-2 focus-visible:outline-[var(--dashi-text)]/40 {{if .TextBelow}}flex-col items-center gap-2 text-center{{else}}flex-row items-center gap-3{{end}}{{if .Tile}} w-24{{end}}"{{if .TextBelow}} data-text-below{{end}}{{if .NewTab}} target="_blank" rel="noopener noreferrer"{{end}}>
+<a href="{{.URL}}" class="dashi-bookmark flex min-w-0 text-[var(--dashi-text)] {{if not .InGroup}}-mx-2 {{end}}rounded-lg px-2 py-1.5 no-underline transition-colors hover:bg-[var(--dashi-text)]/10 focus-visible:bg-[var(--dashi-text)]/10 focus-visible:outline-2 focus-visible:outline-[var(--dashi-text)]/40 {{if .TextBelow}}flex-col items-center gap-2 text-center{{else}}flex-row items-center gap-3{{end}}"{{if .TextBelow}} data-text-below{{end}}{{if .NewTab}} target="_blank" rel="noopener noreferrer"{{end}}>
     {{- with .Icon}}
     {{- if .Glyph}}
     <span class="dashi-bookmark__icon shrink-0 text-[2rem] leading-none text-[var(--dashi-text)]" style="font-family: '{{.FontFamily}}';" aria-hidden="true">{{.Glyph}}</span>
@@ -17,7 +17,14 @@
 {{- end -}}
 
 {{- define "group" -}}
-<div class="dashi-bookmarkgroup -mx-2 flex min-w-0 {{if .Vertical}}flex-col gap-1{{else}}flex-row flex-wrap gap-2{{end}}" data-direction="{{if .Vertical}}vertical{{else}}horizontal{{end}}">
+{{- /* Each item gets an equal-width column with the spacing separate
+       bookmark widgets get from their grid cells (p-2 per cell): no column
+       gap, since every link's px-2 already sits where a cell's padding
+       would, and a gap-y-4 between rows. */ -}}
+<div class="dashi-bookmarkgroup -mx-2 grid min-w-0 gap-x-0 gap-y-4" style="grid-template-columns: {{if .Vertical}}minmax(0, 1fr){{else if .Columns}}repeat({{.Columns}}, minmax(0, 1fr)){{else}}repeat(auto-fit, minmax(min(100%, 10rem), 1fr)){{end}};" data-direction="{{if .Vertical}}vertical{{else}}horizontal{{end}}"{{if .Columns}} data-columns="{{.Columns}}"{{end}}>
+    {{- with .Error}}
+    <p class="dashi-bookmarkgroup__error px-2 text-sm text-[var(--dashi-text-muted)]" style="grid-column: 1 / -1;">{{.}}</p>
+    {{- end}}
     {{- range .Links}}
     {{template "link" .}}
     {{- end}}

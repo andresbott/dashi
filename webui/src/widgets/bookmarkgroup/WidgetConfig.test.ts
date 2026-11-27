@@ -2,8 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { ref } from 'vue'
 import PrimeVue from 'primevue/config'
+import Slider from 'primevue/slider'
+import Select from 'primevue/select'
 import WidgetConfig from './WidgetConfig.vue'
 import type { BookmarkGroupWidgetConfig } from './types'
+
+vi.mock('@/composables/useBookmarkFiles', () => ({
+    useBookmarkFiles: () => ({ files: ref(['links.yaml', 'tools.yml']) }),
+}))
 
 vi.mock('@/composables/useDashboards', () => ({
     useDashboardAssets: () => ({ data: ref([]) }),
@@ -145,6 +151,60 @@ describe('bookmarkgroup WidgetConfig', () => {
         expect(stored.find('.bookmarkgroup-direction [aria-pressed="true"]').text()).toBe('Vertical')
 
         expect(mountForm().find('.bookmarkgroup-direction [aria-pressed="true"]').text()).toBe('Horizontal')
+    })
+
+    it('defaults to bookmarks kept in the dashboard', () => {
+        const wrapper = mountForm()
+        expect(wrapper.find('.bookmarkgroup-source [aria-pressed="true"]').text()).toBe('In dashboard')
+        expect(items(wrapper)).toHaveLength(3)
+        expect(wrapper.find('#bookmarkgroupFile').exists()).toBe(false)
+    })
+
+    it('switches to a file: hides the list, offers the files, keeps the own bookmarks', async () => {
+        const wrapper = mountForm()
+        const fromFile = wrapper.findAll('.bookmarkgroup-source button').find(b => b.text() === 'From file')!
+        await fromFile.trigger('click')
+        expect(lastEmit(wrapper).source).toBe('file')
+        expect(items(wrapper)).toHaveLength(0)
+
+        const select = wrapper.findAllComponents(Select).find(c => c.classes().includes('bookmarkgroup-file'))!
+        expect(select.props('options')).toEqual(['links.yaml', 'tools.yml'])
+        select.vm.$emit('update:modelValue', 'tools.yml')
+        await wrapper.vm.$nextTick()
+        const emitted = lastEmit(wrapper)
+        expect(emitted.file).toBe('tools.yml')
+        expect(titles(emitted)).toEqual(['A', 'B', 'C'])
+    })
+
+    it('still offers a stored file that no longer exists', () => {
+        const wrapper = mountForm({ ...base, source: 'file', file: 'gone.yaml' })
+        const select = wrapper.findAllComponents(Select).find(c => c.classes().includes('bookmarkgroup-file'))!
+        expect(select.props('modelValue')).toBe('gone.yaml')
+        expect(select.props('options')).toEqual(['gone.yaml', 'links.yaml', 'tools.yml'])
+    })
+
+    it('offers bookmarks per row only for a horizontal group', async () => {
+        const wrapper = mountForm()
+        const slider = wrapper.findComponent(Slider)
+        expect(slider.exists()).toBe(true)
+        expect(slider.props('modelValue')).toBe(0)
+        expect(wrapper.find('.bookmarkgroup-columns-value').text()).toBe('Auto')
+
+        slider.vm.$emit('update:modelValue', 3)
+        slider.vm.$emit('slideend', {})
+        await wrapper.vm.$nextTick()
+        expect(lastEmit(wrapper).columns).toBe(3)
+        expect(wrapper.find('.bookmarkgroup-columns-value').text()).toBe('3')
+
+        const vertical = wrapper.findAll('.bookmarkgroup-direction button').find(b => b.text() === 'Vertical')!
+        await vertical.trigger('click')
+        expect(wrapper.findComponent(Slider).exists()).toBe(false)
+    })
+
+    it('shows a stored row length and treats an invalid one as auto', () => {
+        expect(mountForm({ ...base, columns: 4 }).findComponent(Slider).props('modelValue')).toBe(4)
+        expect(mountForm({ ...base, columns: 99 }).findComponent(Slider).props('modelValue')).toBe(0)
+        expect(mountForm({ ...base, columns: -1 }).findComponent(Slider).props('modelValue')).toBe(0)
     })
 
     it('keeps the open bookmark open when its own update comes back as config', async () => {

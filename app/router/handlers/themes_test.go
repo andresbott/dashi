@@ -416,6 +416,42 @@ func TestThemeAssetUploadAndFetch(t *testing.T) {
 	}
 }
 
+// Theme assets are page backgrounds: browsers may cache them for a week, and
+// a request with the current ETag gets a 304.
+func TestThemeAssetCaching(t *testing.T) {
+	r, themeStore, _ := newThemeTestRouter(t)
+	th := mustCreateTheme(t, themeStore, "Cache")
+	req := httptest.NewRequest(http.MethodPost, "/themes/"+th.ID+"/assets/bg.jpg", bytes.NewReader([]byte("jpeg bytes")))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("upload: %d", rec.Code)
+	}
+
+	rec = doJSON(t, r, http.MethodGet, "/themes/"+th.ID+"/assets/bg.jpg", nil)
+	if rec.Code != http.StatusOK || rec.Body.String() != "jpeg bytes" {
+		t.Fatalf("fetch: %d %q", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "public, max-age=604800" {
+		t.Errorf("Cache-Control = %q", got)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "image/jpeg" {
+		t.Errorf("Content-Type = %q", got)
+	}
+	etag := rec.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("missing ETag")
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/themes/"+th.ID+"/assets/bg.jpg", nil)
+	req.Header.Set("If-None-Match", etag)
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotModified {
+		t.Errorf("matching ETag: got %d, want 304", rec.Code)
+	}
+}
+
 func TestThemeAssetRejectsTraversal(t *testing.T) {
 	r, themeStore, _ := newThemeTestRouter(t)
 	th := mustCreateTheme(t, themeStore, "Assets")

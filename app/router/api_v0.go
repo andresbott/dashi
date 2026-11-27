@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/andresbott/dashi/app/router/handlers"
+	bookmarkfiles "github.com/andresbott/dashi/internal/data/bookmarks"
 	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/data/notes"
 )
@@ -23,6 +24,7 @@ type apiDeps struct {
 	widgetThemeStore *widgetthemes.Store
 	notesStore       *notes.Store
 	imagesStore      *images.Store
+	bookmarkFiles    *bookmarkfiles.Store
 	logger           *slog.Logger
 	modules          []widgets.Module
 	publicViewer     handlers.PublicViewer
@@ -68,7 +70,7 @@ func attachReadAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/widget-themes/{name}/fonts/{font}").Methods(http.MethodGet).HandlerFunc(th.GetFont)
 
 	// Shared user-data (read)
-	dataH := handlers.NewDataHandler(deps.notesStore, deps.imagesStore, deps.logger)
+	dataH := handlers.NewDataHandler(deps.notesStore, deps.imagesStore, deps.bookmarkFiles, deps.logger)
 	dataH.RegisterRead(r)
 }
 
@@ -95,7 +97,7 @@ func attachWriteAPIs(r *mux.Router, deps apiDeps) {
 	r.Path("/widget-themes/{name}/download").Methods(http.MethodGet).HandlerFunc(th.Download)
 
 	// Shared user-data (write)
-	dataH := handlers.NewDataHandler(deps.notesStore, deps.imagesStore, deps.logger)
+	dataH := handlers.NewDataHandler(deps.notesStore, deps.imagesStore, deps.bookmarkFiles, deps.logger)
 	dataH.RegisterWrite(r)
 
 	// Theme entity CRUD (editor only)

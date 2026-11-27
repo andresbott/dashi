@@ -4,8 +4,11 @@
     .widget-bookmarkgroup .bookmark-subtitle { font-size: 0.85em; color: {{.Palette.TextMuted}}; display: block; margin-top: 2px; }
 </style>
 <div class="widget-bookmarkgroup" style="display: flex; {{if .Vertical}}flex-direction: column;{{else}}flex-direction: row; flex-wrap: wrap;{{end}}">
+    {{- with .Error}}
+    <span class="bookmark-subtitle">{{.}}</span>
+    {{- end}}
     {{- range .Links}}
-    <a href="{{.URL}}" class="bookmark-link">
+    <a href="{{.URL}}" class="bookmark-link"{{if $.ItemWidth}} style="width: {{$.ItemWidth}}; box-sizing: border-box; margin-right: 0; padding-right: 16px;"{{end}}>
         <span class="bookmark-title">{{.Title}}</span>
         {{- if .Subtitle}}<span class="bookmark-subtitle">{{.Subtitle}}</span>{{end}}
     </a>

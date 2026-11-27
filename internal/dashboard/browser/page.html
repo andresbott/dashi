@@ -4,6 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{.Name}}</title>
+    {{- /* The theme background is referenced from the theme stylesheet, so
+           without this the browser would find it only after fetching and
+           parsing that sheet, showing the plain bg colour meanwhile. */}}
+    {{if .BackgroundURL}}<link rel="preload" as="image" href="{{.BackgroundURL}}" fetchpriority="high">{{end}}
     <link rel="stylesheet" href="/_dashi/assets/viewer.css">
     <link rel="stylesheet" href="/_dashi/assets/widgets.css">
     <link rel="stylesheet" href="/_dashi/theme/{{.ThemeID}}.css">

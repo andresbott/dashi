@@ -6,7 +6,21 @@ export interface BookmarkGroupWidgetConfig {
     newTab?: boolean
     /** A wrapping row (default) or a column. */
     direction?: BookmarkGroupDirection
+    /**
+     * Horizontal only: bookmarks per row before the next row starts, in
+     * equal-width columns. 0 or absent fits as many as the width allows.
+     */
+    columns?: number
+    /** Where the bookmarks come from: `bookmarks` above (default) or a content file. */
+    source?: BookmarkGroupSource
+    /** With source "file": the bookmarks file name, e.g. "links.yaml". */
+    file?: string
 }
+
+export type BookmarkGroupSource = 'dashboard' | 'file'
+
+/** Highest `columns` value; the server rejects anything above it. */
+export const MAX_GROUP_COLUMNS = 12
 
 export type BookmarkGroupDirection = 'horizontal' | 'vertical'
 

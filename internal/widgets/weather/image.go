@@ -195,6 +195,14 @@ func effectiveThemeName(ctx widgets.RenderContext) string {
 	return ctx.WidgetTheme
 }
 
+// cityName is the label shown for a location: the stored city up to its
+// first comma. The editor stores "Basel, Switzerland"; the widget shows
+// "Basel", as the compact weather widget in the editor always has.
+func cityName(city string) string {
+	name, _, _ := strings.Cut(city, ",")
+	return strings.TrimSpace(name)
+}
+
 // buildWeatherData turns config and fetched weather into template data.
 // Both render stacks share it so they always show the same content.
 func buildWeatherData(cfg weatherConfig, wd weatherpkg.WeatherData, ctx widgets.RenderContext, icon iconFunc) weatherData {
@@ -209,7 +217,7 @@ func buildWeatherData(cfg weatherConfig, wd weatherpkg.WeatherData, ctx widgets.
 		CompactFeelsLike:   cfg.CompactFeelsLike,
 		CompactDescription: cfg.CompactDescription == nil || *cfg.CompactDescription,
 		CompactAlign:       compactAlign,
-		City:               cfg.City,
+		City:               cityName(cfg.City),
 		Temperature:        wd.Current.Temperature,
 		Description:        wd.Current.Description,
 		FeelsLike:          wd.Current.FeelsLike,

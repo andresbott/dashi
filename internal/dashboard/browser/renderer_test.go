@@ -158,6 +158,24 @@ func TestRenderAlignmentPlacesContainer(t *testing.T) {
 	}
 }
 
+func TestRenderPreloadsBackground(t *testing.T) {
+	out := render(t, NewRenderer(testRegistry(), nil), baseData())
+	if strings.Contains(out, `rel="preload"`) {
+		t.Errorf("no background must preload nothing:\n%s", out)
+	}
+
+	data := baseData()
+	data.BackgroundURL = "/api/v0/themes/abc123/assets/bg-1.jpg"
+	out = render(t, NewRenderer(testRegistry(), nil), data)
+	want := `<link rel="preload" as="image" href="/api/v0/themes/abc123/assets/bg-1.jpg" fetchpriority="high">`
+	if !strings.Contains(out, want) {
+		t.Fatalf("missing %s in:\n%s", want, out)
+	}
+	if strings.Index(out, want) > strings.Index(out, `rel="stylesheet"`) {
+		t.Errorf("the preload must come before the stylesheets:\n%s", out)
+	}
+}
+
 func TestRenderEditButton(t *testing.T) {
 	t.Run("drawn only with an edit url", func(t *testing.T) {
 		out := render(t, NewRenderer(testRegistry(), nil), baseData())

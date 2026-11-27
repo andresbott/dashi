@@ -579,3 +579,17 @@ func testPNG() []byte {
 	_ = png.Encode(&buf, img)
 	return buf.Bytes()
 }
+
+// The editor stores "City, Country"; the widget shows only the city.
+func TestCityName(t *testing.T) {
+	for in, want := range map[string]string{
+		"Basel, Switzerland":        "Basel",
+		"Basel":                     "Basel",
+		"  Zürich ,Switzerland, CH": "Zürich",
+		"":                          "",
+	} {
+		if got := cityName(in); got != want {
+			t.Errorf("cityName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

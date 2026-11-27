@@ -1,10 +1,14 @@
 package handlers
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/themes"
@@ -178,8 +182,20 @@ func (h *ThemeHandler) GetAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", mimeType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	_, _ = w.Write(data) //nolint:gosec // G705: binary image data with explicit Content-Type and nosniff; not HTML
+	// Theme backgrounds are page backgrounds: refetching one on every load
+	// shows the plain bg colour until it arrives. The editor gives each
+	// upload a new name (webui/src/lib/themeEditor.ts uniqueAssetName), so a
+	// cached copy is never outdated in practice; the content ETag lets a
+	// copy past its max-age revalidate with a 304.
+	sum := sha256.Sum256(data)
+	w.Header().Set("Cache-Control", themeAssetCacheControl)
+	w.Header().Set("ETag", `"`+hex.EncodeToString(sum[:16])+`"`)
+	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(data))
 }
+
+// themeAssetCacheControl lets browsers reuse a theme asset for a week
+// without asking the server.
+const themeAssetCacheControl = "public, max-age=604800"
 
 func (h *ThemeHandler) SaveAsset(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)

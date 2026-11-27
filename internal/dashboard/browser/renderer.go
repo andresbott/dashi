@@ -61,6 +61,10 @@ type RenderData struct {
 	// EditURL is the target of the Edit button that opens this dashboard
 	// in the editor; empty draws no button.
 	EditURL string
+	// BackgroundURL is the theme's background image for ColorMode
+	// (themes.BackgroundImageURL); the page preloads it so the image is
+	// not discovered only after the theme stylesheet. Empty preloads nothing.
+	BackgroundURL string
 }
 
 type pageData struct {
@@ -75,6 +79,8 @@ type pageData struct {
 	Pages       []pageLink
 	WidgetTypes []string
 	EditURL     string // html/template escapes it and neutralises unsafe schemes
+	// BackgroundURL is preloaded; html/template escapes it like EditURL.
+	BackgroundURL string
 }
 
 // pageLink is one entry in the page navigation. It is only populated for
@@ -130,6 +136,8 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 		CustomCSS:   template.CSS(dashboard.SanitizeCustomCSS(data.CustomCSS)), //nolint:gosec // G203: owner-uploaded stylesheet, </style> breakout neutralised
 		Pages:       buildPageLinks(data.PageIndex, data.TotalPages, data.PageNames),
 		EditURL:     data.EditURL,
+
+		BackgroundURL: data.BackgroundURL,
 	}
 
 	present := make(map[string]bool)

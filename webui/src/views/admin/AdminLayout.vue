@@ -7,7 +7,7 @@ const route = useRoute()
 const router = useRouter()
 
 // Sections are grouped by what they hold: Content is user data that widgets
-// display (notes, images), Theming is how dashboards look. Background images
+// display (notes, images, bookmark files), Theming is how dashboards look. Background images
 // have no section: each theme holds its own, uploaded in the theme editor.
 const groups = [
     {
@@ -28,6 +28,7 @@ const groups = [
         items: [
             { key: 'admin-notes',  label: 'Notes',  icon: 'ti ti-notes' },
             { key: 'admin-images', label: 'Images', icon: 'ti ti-photo' },
+            { key: 'admin-bookmarks', label: 'Bookmarks', icon: 'ti ti-bookmarks' },
         ],
     },
     {

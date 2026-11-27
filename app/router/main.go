@@ -15,6 +15,7 @@ import (
 	"github.com/andresbott/dashi/internal/dashboard/browser"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
+	bookmarkfiles "github.com/andresbott/dashi/internal/data/bookmarks"
 	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/data/notes"
 	"github.com/andresbott/dashi/internal/providers/market"
@@ -97,6 +98,7 @@ type sharedDeps struct {
 	widgetThemeStore *widgetthemes.Store
 	notesStore       *notes.Store
 	imagesStore      *images.Store
+	bookmarkFiles    *bookmarkfiles.Store
 	staticRenderer   *dashstatic.Renderer
 	imageRenderer    *dashimage.Renderer
 	browserRenderer  *browser.Renderer
@@ -132,6 +134,10 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create images store: %w", err)
 	}
+	bookmarkFiles, err := bookmarkfiles.NewStore(filepath.Join(cfg.DataDir, "content", "bookmarks"))
+	if err != nil {
+		return nil, fmt.Errorf("create bookmark files store: %w", err)
+	}
 	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "themes"))
 
 	// Static dashboard rendering
@@ -141,7 +147,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		weatherwidget.NewModule(weatherClient, widgetThemeStore, cfg.Logger),
 		weatherwidget.NewCompactModule(weatherClient, widgetThemeStore, cfg.Logger),
 		bookmarkwidget.NewModule(widgetThemeStore),
-		bookmarkwidget.NewGroupModule(widgetThemeStore),
+		bookmarkwidget.NewGroupModule(widgetThemeStore, bookmarkFiles),
 		clockwidget.NewModule(),
 		batterywidget.NewModule(),
 		pageindicatorwidget.NewModule(),
@@ -197,6 +203,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		widgetThemeStore: widgetThemeStore,
 		notesStore:       notesStore,
 		imagesStore:      imagesStore,
+		bookmarkFiles:    bookmarkFiles,
 		staticRenderer:   staticRenderer,
 		imageRenderer:    imageRenderer,
 		browserRenderer:  browserRenderer,
@@ -233,6 +240,7 @@ func newAPIDeps(deps *sharedDeps, logger *slog.Logger) apiDeps {
 		widgetThemeStore: deps.widgetThemeStore,
 		notesStore:       deps.notesStore,
 		imagesStore:      deps.imagesStore,
+		bookmarkFiles:    deps.bookmarkFiles,
 		logger:           logger,
 		modules:          deps.modules,
 		publicViewer:     deps.publicViewer,

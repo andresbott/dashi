@@ -40,9 +40,6 @@ type browserData struct {
 	// InGroup drops the link's own negative margin: the group container
 	// carries it once, so the links' gaps stay even.
 	InGroup bool
-	// Tile gives a text-below link a fixed width, so a horizontal group
-	// lines its tiles up in columns.
-	Tile bool
 }
 
 // RenderBrowser renders the bookmark for the browser stack: one link
