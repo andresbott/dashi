@@ -61,13 +61,21 @@ in-memory index would go stale across instances. The read/write split lives in
 one of viewer/editor must be enabled (validated in `app/cmd/config.go`).
 
 Because the two live on different ports, the SPA cannot guess where the public
-viewer is: `GET /api/v0/info` (`app/router/handlers/info.go`) advertises it as
-`{"viewer":{"enabled":…,"url":…}}`. The URL is `Server.Viewer.PublicUrl` when
-set, otherwise the request host with the viewer port swapped in — which covers
-both `vite dev` and a plain two-port deployment. Only http/https ever come out
-of it: the value lands in an SPA `href`, so a forged `Host`/`X-Forwarded-*`
-must not be able to smuggle another scheme in. The SPA loads it once at init
+viewer is: `GET /api/v0/info` (`app/router/handlers/info.go`) advertises both
+servers as `{"viewer":{"enabled":…,"url":…},"editor":{"enabled":…,"url":…}}`.
+The viewer URL is `Server.Viewer.PublicUrl` when set (used verbatim), otherwise
+the request host with the viewer port swapped in — which covers both `vite dev`
+and a plain two-port deployment. Only http/https ever come out of it: the value
+lands in an SPA `href`, so a forged `Host`/`X-Forwarded-*` must not be able to
+smuggle another scheme in. The SPA loads it once at init
 (`webui/src/lib/serverInfo.ts`) and falls back to same-origin `/{id}` paths.
+
+The editor URL is `Server.Editor.PublicUrl` and is **never derived** from the
+request: behind an ingress (HA add-on: viewer on a host port, editor under
+`<HA URL>/hassio/ingress/<slug>`) the request cannot reveal it. It is empty
+when unset or when the editor is disabled (`router.publicEditor` in
+`app/router/main.go`). The same value is handed to the dashboard middleware
+for the viewer's Edit button — see [viewer.md](viewer.md#edit-button).
 
 ## Security model — know the boundaries
 
@@ -76,7 +84,11 @@ must not be able to smuggle another scheme in. The SPA loads it once at init
   for both `/{id}` and `/api/v0/dashboards/{id}...` paths. Credentials are
   bcrypt-checked with constant-time username compare. The **editor is
   intentionally unprotected** — it is meant to be bound to a trusted interface;
-  it only hosts the auth CRUD endpoints (`/dashboards/{id}/auth`).
+  it only hosts the auth CRUD endpoints (`/dashboards/{id}/auth`). The
+  optional viewer Edit button links to `Server.Editor.PublicUrl`, i.e. it
+  publishes the editor's address to every viewer of that dashboard — so that
+  URL should only point at an editor behind an authenticating proxy (HA
+  ingress is one).
 - **Widget config is opaque, with opt-in per-widget validation** (decided
   2026-11-21, closing the bookmark stored-XSS item): a widget module may
   implement `widgets.ConfigValidator`; `newSharedDeps` registers it on the
@@ -118,6 +130,14 @@ must not be able to smuggle another scheme in. The SPA loads it once at init
 Loaded via `go-bumbu/config` in order (last wins): built-in defaults → `.env`
 → `config.yaml` → env vars prefixed `DASHI_`. `dashi config` writes a
 commented default `config.yaml` (refuses to overwrite; `-o` to change path).
+
+Public URLs (`Server.Viewer.PublicUrl`, `Server.Editor.PublicUrl`) are
+normalized **once at config load** (`normalizePublicURLs` in
+`app/cmd/config.go`): trimmed, trailing slash stripped, and anything that is
+not an absolute http/https URL dropped with a `warn` message that
+`app/cmd/server.go` logs at warn level. Consumers (info handler, edit link)
+use the values verbatim — don't re-validate downstream, and don't add a public
+URL without adding it to that list.
 Note: the README Quick Start still says `dashi generate-config > config.yaml` —
 that command name and stdout redirection are stale; the code is the truth.
 

@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"html/template"
+	"image"
 	"strings"
 	"testing"
 
 	"github.com/andresbott/dashi/internal/dashboard"
+	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 )
@@ -318,76 +320,125 @@ func TestRenderer_Render_NoColumnHasZeroMargin(t *testing.T) {
 	}
 }
 
-func TestRenderer_Render_HAlignVariants(t *testing.T) {
-	reg := widgets.NewRegistry()
-	renderer := NewRenderer(reg)
-
+func TestRenderer_Render_AlignmentPlacesContainer(t *testing.T) {
 	tests := []struct {
-		name   string
-		hAlign string
+		name           string
+		hAlign, vAlign string
+		want           []string
 	}{
-		{"left", "left"},
-		{"right", "right"},
-		{"center", "center"},
-		{"default", "unknown"},
+		{"top left", "left", "top", []string{"margin-left: 0; margin-right: auto;", "justify-content: flex-start;"}},
+		{"center center", "center", "center", []string{"margin-left: auto; margin-right: auto;", "justify-content: center;"}},
+		{"bottom right", "right", "bottom", []string{"margin-left: auto; margin-right: 0;", "justify-content: flex-end;"}},
+		{"defaults", "", "", []string{"margin-left: auto; margin-right: auto;", "justify-content: flex-start;"}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			data := RenderData{
-				Name:   "Test",
-				HAlign: tt.hAlign,
-				Rows:   []dashboard.Row{},
-			}
-
 			var buf bytes.Buffer
-			err := renderer.Render(&buf, data)
+			err := NewRenderer(widgets.NewRegistry()).Render(&buf, RenderData{
+				Name: "Test", MaxWidth: "800px", HAlign: tt.hAlign, VAlign: tt.vAlign,
+			})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-
 			html := buf.String()
-			if !strings.Contains(html, "<!DOCTYPE html>") {
-				t.Error("expected valid HTML output")
+			for _, want := range tt.want {
+				if !strings.Contains(html, want) {
+					t.Errorf("expected %q in output:\n%s", want, html)
+				}
 			}
 		})
 	}
 }
 
-func TestRenderer_Render_VAlignVariants(t *testing.T) {
+// TestRenderer_Render_AlignmentInLitehtml lays the page out with the real
+// litehtml renderer and checks where the container lands: the CSS above is
+// only worth something if litehtml honours it.
+func TestRenderer_Render_AlignmentInLitehtml(t *testing.T) {
+	const (
+		canvasW, canvasH = 300, 200
+		containerW       = 100 // MaxWidth below
+		blockH           = 20
+	)
+	// litehtml does not count the last row's margin-bottom into the
+	// container's height, so a bottom-aligned block sits flush with the edge.
 	reg := widgets.NewRegistry()
-	renderer := NewRenderer(reg)
+	reg.Register("block", func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+		return template.HTML(`<div style="height: 20px; background: #ff0000"></div>`), nil
+	})
+	img := dashimage.NewRenderer()
 
 	tests := []struct {
-		name   string
-		vAlign string
+		name           string
+		hAlign, vAlign string
+		wantX, wantY   int // top-left corner of the block
 	}{
-		{"top", "top"},
-		{"bottom", "bottom"},
-		{"center", "center"},
-		{"default", "unknown"},
+		{"top left", "left", "top", 0, 0},
+		{"top center", "center", "top", (canvasW - containerW) / 2, 0},
+		{"top right", "right", "top", canvasW - containerW, 0},
+		{"center left", "left", "center", 0, (canvasH - blockH) / 2},
+		{"center center", "center", "center", (canvasW - containerW) / 2, (canvasH - blockH) / 2},
+		{"bottom right", "right", "bottom", canvasW - containerW, canvasH - blockH},
+		{"defaults", "", "", (canvasW - containerW) / 2, 0},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			data := RenderData{
-				Name:   "Test",
-				VAlign: tt.vAlign,
-				Rows:   []dashboard.Row{},
-			}
-
 			var buf bytes.Buffer
-			err := renderer.Render(&buf, data)
+			err := NewRenderer(reg).Render(&buf, RenderData{
+				Name:     "Align",
+				MaxWidth: "100px",
+				HAlign:   tt.hAlign,
+				VAlign:   tt.vAlign,
+				Palette:  themes.DefaultPalette("light"),
+				Rows: []dashboard.Row{{
+					ID:      "row-1",
+					Widgets: []dashboard.Widget{{ID: "w1", Type: "block", Width: 12}},
+				}},
+			})
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Fatalf("render html: %v", err)
+			}
+			rgba, err := img.RenderToImage(buf.String(), canvasW, canvasH)
+			if err != nil {
+				t.Fatalf("render image: %v", err)
 			}
 
-			html := buf.String()
-			if !strings.Contains(html, "<!DOCTYPE html>") {
-				t.Error("expected valid HTML output")
+			box, ok := redBounds(rgba)
+			if !ok {
+				t.Fatalf("block not painted:\n%s", buf.String())
+			}
+			// The row fills the container: only the container moves.
+			if box.Dx() != containerW || box.Dy() != blockH {
+				t.Errorf("block is %dx%d, want %dx%d", box.Dx(), box.Dy(), containerW, blockH)
+			}
+			if box.Min.X != tt.wantX || box.Min.Y != tt.wantY {
+				t.Errorf("block at (%d,%d), want (%d,%d)", box.Min.X, box.Min.Y, tt.wantX, tt.wantY)
 			}
 		})
 	}
+}
+
+// redBounds returns the bounding box of the pure-red pixels in img.
+func redBounds(img *image.RGBA) (image.Rectangle, bool) {
+	var box image.Rectangle
+	found := false
+	b := img.Bounds()
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			c := img.RGBAAt(x, y)
+			if c.R != 0xff || c.G != 0 || c.B != 0 {
+				continue
+			}
+			px := image.Rect(x, y, x+1, y+1)
+			if !found {
+				box, found = px, true
+			} else {
+				box = box.Union(px)
+			}
+		}
+	}
+	return box, found
 }
 
 func TestRenderer_Render_CustomCSS(t *testing.T) {
@@ -480,6 +531,37 @@ func TestMasterTemplateHasNoWidgetSpecificCSS(t *testing.T) {
 	}
 }
 
+func TestRenderer_Render_NeverDrawsEditButton(t *testing.T) {
+	// The viewer's Edit button belongs to the interactive browser stack only;
+	// a PNG for an e-ink panel has nothing to click.
+	reg := widgets.NewRegistry()
+	reg.Register("test", func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+		return template.HTML("<p>w</p>"), nil
+	})
+	data := RenderData{
+		Name:        "Dash",
+		DashboardID: "abc123",
+		Rows: []dashboard.Row{{
+			ID:      "r1",
+			Widgets: []dashboard.Widget{{ID: "w1", Type: "test", Width: 12}},
+		}},
+		TotalPages: 1,
+	}
+	var buf bytes.Buffer
+	if err := NewRenderer(reg).Render(&buf, data); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	out := buf.String()
+	for _, banned := range []string{"Edit dashboard", "/edit", "<a "} {
+		if strings.Contains(out, banned) {
+			t.Errorf("static render must not contain %q:\n%s", banned, out)
+		}
+	}
+	if strings.Contains(masterHTML, "Edit dashboard") || strings.Contains(masterHTML, "EditURL") {
+		t.Error("master.html must not carry the viewer's edit button")
+	}
+}
+
 func TestRenderer_Render_CustomCSSComesAfterWidgetContent(t *testing.T) {
 	// litehtml collects <style> elements in document order and breaks
 	// equal-specificity ties by insertion order. Widget CSS now ships inside
@@ -558,5 +640,36 @@ func TestRenderUsesPaletteTextColour(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "color: #123456;") {
 		t.Errorf("body colour must come from Palette.Text:\n%s", buf.String())
+	}
+}
+
+func TestRenderer_Render_RowMargins(t *testing.T) {
+	reg := widgets.NewRegistry()
+	reg.Register("test", func(json.RawMessage, widgets.RenderContext) (template.HTML, error) {
+		return template.HTML("<p>widget</p>"), nil
+	})
+	render := func(row dashboard.Row) string {
+		row.Widgets = []dashboard.Widget{{ID: "w1", Type: "test", Width: 12}}
+		var buf bytes.Buffer
+		if err := NewRenderer(reg).Render(&buf, RenderData{Rows: []dashboard.Row{row}}); err != nil {
+			t.Fatalf("Render: %v", err)
+		}
+		return buf.String()
+	}
+
+	html := render(dashboard.Row{ID: "r", Height: "200px", MarginTop: "2rem", MarginBottom: "40px"})
+	if !strings.Contains(html, `<div class="row" style="height: 200px; margin-top: 2rem; margin-bottom: 40px;">`) {
+		t.Errorf("expected height and margins on the row:\n%s", html)
+	}
+	if html := render(dashboard.Row{ID: "r", MarginTop: "1em"}); !strings.Contains(html, `<div class="row" style=" margin-top: 1em;">`) {
+		t.Errorf("expected only the top margin:\n%s", html)
+	}
+	if html := render(dashboard.Row{ID: "r"}); !strings.Contains(html, `<div class="row">`) {
+		t.Errorf("a row without height or margins gets no style:\n%s", html)
+	}
+	// Stored values are untrusted: a value breaking out of the declaration
+	// is neutralised by the template's CSS escaping.
+	if html := render(dashboard.Row{ID: "r", MarginTop: "0; background: url(javascript:alert(1))"}); strings.Contains(html, "javascript") {
+		t.Errorf("unsafe margin value reached the output:\n%s", html)
 	}
 }

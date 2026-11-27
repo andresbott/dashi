@@ -58,20 +58,23 @@ type RenderData struct {
 	TotalPages  int
 	PageNames   []string       // one per dashboard page, for the page nav
 	Palette     themes.Palette // carried through to widget renderers
+	// EditURL is the target of the Edit button that opens this dashboard
+	// in the editor; empty draws no button.
+	EditURL string
 }
 
 type pageData struct {
 	Name        string
 	ColorMode   string
 	MaxWidth    string
-	HAlign      string
-	VAlign      string
+	Placement   dashboard.ContainerPlacement
 	ThemeID     string
 	WidgetTheme string
 	CustomCSS   template.CSS
 	Rows        []rowData
 	Pages       []pageLink
 	WidgetTypes []string
+	EditURL     string // html/template escapes it and neutralises unsafe schemes
 }
 
 // pageLink is one entry in the page navigation. It is only populated for
@@ -83,10 +86,12 @@ type pageLink struct {
 }
 
 type rowData struct {
-	Title   string
-	Height  string
-	Width   string
-	Widgets []widgetData
+	Title        string
+	Height       string
+	Width        string
+	MarginTop    string
+	MarginBottom string
+	Widgets      []widgetData
 }
 
 type widgetData struct {
@@ -117,14 +122,14 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 		Name:      data.Name,
 		ColorMode: colorMode,
 		MaxWidth:  data.MaxWidth,
-		HAlign:    mapHAlign(data.HAlign),
-		VAlign:    mapVAlign(data.VAlign),
+		Placement: dashboard.PlaceContainer(data.HAlign, data.VAlign),
 		// Each reference is escaped to a single path segment, so a stored
 		// value can never point the link outside its asset route.
 		ThemeID:     url.PathEscape(orDefault(data.ThemeID, themes.DefaultID)),
 		WidgetTheme: url.PathEscape(widgetTheme),
 		CustomCSS:   template.CSS(dashboard.SanitizeCustomCSS(data.CustomCSS)), //nolint:gosec // G203: owner-uploaded stylesheet, </style> breakout neutralised
 		Pages:       buildPageLinks(data.PageIndex, data.TotalPages, data.PageNames),
+		EditURL:     data.EditURL,
 	}
 
 	present := make(map[string]bool)
@@ -133,7 +138,7 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 		if len(row.Widgets) == 0 && !hasExplicitHeight {
 			continue
 		}
-		rd := rowData{Title: row.Title, Height: row.Height, Width: row.Width}
+		rd := rowData{Title: row.Title, Height: row.Height, Width: row.Width, MarginTop: row.MarginTop, MarginBottom: row.MarginBottom}
 		placements := dashboard.PlaceRow(row.Widgets)
 		for i, widget := range row.Widgets {
 			html, err := r.registry.RenderBrowser(widget.Type, widget.Config, ctx)
@@ -146,7 +151,9 @@ func (r *Renderer) Render(w io.Writer, data RenderData) error {
 				MarginLeftPercent: float64(p.Gap) / float64(dashboard.GridColumns) * 100.0,
 				HTML:              html,
 			})
-			present[widget.Type] = true
+			for _, t := range r.registry.TypesIn(widget.Type, widget.Config) {
+				present[t] = true
+			}
 		}
 		pd.Rows = append(pd.Rows, rd)
 	}
@@ -190,28 +197,4 @@ func orDefault(ref, def string) string {
 		return def
 	}
 	return ref
-}
-
-func mapHAlign(align string) string {
-	switch align {
-	case "left":
-		return "flex-start"
-	case "right":
-		return "flex-end"
-	default:
-		return "center"
-	}
-}
-
-func mapVAlign(align string) string {
-	switch align {
-	case "top":
-		return "flex-start"
-	case "bottom":
-		return "flex-end"
-	case "center":
-		return "center"
-	default:
-		return "flex-start"
-	}
 }

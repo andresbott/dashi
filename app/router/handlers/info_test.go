@@ -39,18 +39,19 @@ func TestInfoHandlerViewerURL(t *testing.T) {
 			wantURL: "http://[::1]:8087",
 		},
 		{
-			name:    "explicit public url wins and loses trailing slash",
-			viewer:  PublicViewer{Enabled: true, Port: 8087, BaseURL: "https://dash.example.com/"},
+			name:    "explicit public url wins",
+			viewer:  PublicViewer{Enabled: true, Port: 8087, BaseURL: "https://dash.example.com"},
 			host:    "localhost:8088",
 			wantOn:  true,
 			wantURL: "https://dash.example.com",
 		},
 		{
-			name:    "non http public url is dropped",
-			viewer:  PublicViewer{Enabled: true, Port: 8087, BaseURL: "javascript:alert(1)"},
+			// Normalization happens once at config load (app/cmd/config.go).
+			name:    "explicit public url used verbatim",
+			viewer:  PublicViewer{Enabled: true, Port: 8087, BaseURL: "https://ha.example.com/dash/"},
 			host:    "localhost:8088",
 			wantOn:  true,
-			wantURL: "",
+			wantURL: "https://ha.example.com/dash/",
 		},
 		{
 			name:    "forwarded proto and host",
@@ -97,16 +98,7 @@ func TestInfoHandlerViewerURL(t *testing.T) {
 				req.Header.Set(k, v)
 			}
 
-			rec := httptest.NewRecorder()
-			NewInfoHandler(tc.viewer).Get(rec, req)
-
-			if rec.Code != http.StatusOK {
-				t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
-			}
-			var got infoResponse
-			if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-				t.Fatalf("decode body: %v", err)
-			}
+			got := getInfo(t, NewInfoHandler(tc.viewer, PublicEditor{}), req)
 			if got.Viewer.Enabled != tc.wantOn {
 				t.Errorf("viewer.enabled = %v, want %v", got.Viewer.Enabled, tc.wantOn)
 			}
@@ -115,4 +107,61 @@ func TestInfoHandlerViewerURL(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInfoHandlerEditor(t *testing.T) {
+	tests := []struct {
+		name    string
+		editor  PublicEditor
+		wantOn  bool
+		wantURL string
+	}{
+		{
+			name:    "configured url used verbatim",
+			editor:  PublicEditor{Enabled: true, URL: "https://ha.example.com/hassio/ingress/dashi"},
+			wantOn:  true,
+			wantURL: "https://ha.example.com/hassio/ingress/dashi",
+		},
+		{
+			// Never derived from the request: the editor may sit behind an
+			// ingress whose URL the request cannot reveal.
+			name:    "enabled editor without url reports none",
+			editor:  PublicEditor{Enabled: true},
+			wantOn:  true,
+			wantURL: "",
+		},
+		{
+			name:    "disabled editor reports no url",
+			editor:  PublicEditor{Enabled: false, URL: "https://edit.example.com"},
+			wantOn:  false,
+			wantURL: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "http://localhost:8088/api/v0/info", nil)
+			got := getInfo(t, NewInfoHandler(PublicViewer{Enabled: true, Port: 8087}, tc.editor), req)
+			if got.Editor.Enabled != tc.wantOn {
+				t.Errorf("editor.enabled = %v, want %v", got.Editor.Enabled, tc.wantOn)
+			}
+			if got.Editor.URL != tc.wantURL {
+				t.Errorf("editor.url = %q, want %q", got.Editor.URL, tc.wantURL)
+			}
+		})
+	}
+}
+
+func getInfo(t *testing.T, h *InfoHandler, req *http.Request) infoResponse {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	h.Get(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	var got infoResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	return got
 }

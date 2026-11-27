@@ -58,8 +58,33 @@ image renderer when viewed in a browser (see Registry section below).
 - Rows and cells using Tailwind flex/grid with `data-color-mode` on `<html>`.
   Row height and cell width/offset are handed over as CSS variables, not
   inline declarations (see [Responsive layout](#responsive-layout-mobile))
+- the optional Edit button (see [Edit button](#edit-button)), just before the
+  scripts
 - `<script type="module" src="/_dashi/widgets/{type}.js">` once per widget type
   present on the page that ships JS
+
+### Edit button
+
+A dashboard with `ShowEditButton` (`showEditButton` in `dashboard.json`,
+omitted when false; the SPA's General-section toggle, shown for interactive
+dashboards only) gets a fixed bottom-right `<a>` that opens it in the editor.
+The link is built **server-side**: `editLink` in
+`app/router/middleware_static.go` returns
+`<Server.Editor.PublicUrl>/dashboards/<url.PathEscape(id)>/edit`, or `""` when
+the dashboard is `Type == "image"` (empty/legacy type counts as interactive),
+the flag is off, or there is no editor public URL (unset, or editor disabled).
+It reaches the template as `RenderData.EditURL`; `page.html` draws the button
+only when that is non-empty.
+
+- Same tab, `aria-label`/`title` "Edit dashboard", inline SVG pencil (the
+  viewer loads no icon font), dimmed until hover/focus, `print:hidden`.
+- Drawn on both servers' renders (the editor serves the same middleware); the
+  link points at the editor public URL either way.
+- The image/PNG stack (`internal/dashboard/static/master.html`) never draws it,
+  and an image dashboard opened in a browser gets none either (tests in
+  `app/router/middleware_static_test.go`, `browser/renderer_test.go`,
+  `static/renderer_test.go`).
+- After touching the button's classes run `make viewer-css`.
 
 Widget HTML is rendered server-side by Go with **values already filled in from
 the warm client cache** at page-load time. JavaScript only keeps those values
@@ -131,10 +156,35 @@ internal/widgets/clock/
 Editor forms stay in `webui/src/widgets/{name}/`; see
 [widgets.md](widgets.md#widget-boundary-decided-2026-11-06).
 
-Ported widgets: **clock** (no CSS), **sysinfo** (ships `sysinfo.css`). The
-remaining twelve widgets have not been ported and render through their image
-renderers in the browser (expected transition state, not a defect). Which of
-them still need a port is an [open question](widgets.md#open-questions).
+Ported widgets: **clock** (no CSS), **sysinfo** (ships `sysinfo.css`),
+**search** (no CSS, no JS: a plain GET form), **market** (inline SVG area
+chart, no CSS/JS), **weather** and **weather-compact** (no CSS/JS),
+**xkcd**, **bookmark** and **stack** (none ship CSS or JS). Battery,
+page-indicator, image, markdown and transport have not been ported and
+render through their image renderers in the browser (expected transition
+state, not a defect). Which of them still need a port is an
+[open question](widgets.md#open-questions).
+
+The ported widgets share one look: no card or surface behind a widget (it
+sits on the page background), `--dashi-text` for primary and
+`--dashi-text-muted` for secondary text, semibold headline values, `text-xs`
+muted meta labels, `--dashi-success`/`--dashi-danger` for up/down, and thin
+dividers in translucent text colour (`--dashi-border` can vanish on an
+image background). Keep new ports in line with it.
+
+**Containers.** Stack implements `widgets.Container` (`Children`), which the
+router registers with `Registry.RegisterChildren`. Its browser renderer
+renders children through `Registry.RenderBrowser`, and the page renderer
+collects script types with `Registry.TypesIn`, so a widget that only
+appears inside a stack still gets its browser markup and its `.js`.
+
+**Icons in the browser.** `widgetthemes.Store.ResolveIcon` falls back, for a
+name the theme does not map, to the glyph of that name in the embedded
+Tabler font (`internal/widgetthemes/tabler.go`, built once from the font's
+glyph names), in `icon-font-default`. That is what lets a bookmark show any
+`ti-*` icon the editor's picker offers. Bookmark also renders the picker's
+`selfhst:<file>` (jsDelivr, same URL as the editor) and `dashboard:<file>`
+(the dashboard's asset route) icons as `<img>`.
 
 Client packages live separately under `internal/providers/`:
 `internal/providers/weather/`, `.../market/`, `.../swisstransport/`,
@@ -197,7 +247,7 @@ values through inline `style` attributes or CSS variables instead. Example:
 ## Theming: two entities, CSS variables and concrete values
 
 A dashboard references two independent entities: `themeId` (a **theme**:
-background + light/dark palette, `internal/themes`, stored in
+a palette and a page background per colour mode, `internal/themes`, stored in
 `{dataDir}/data/themes/`) and `widgetTheme` (a **widget theme**: fonts + icons,
 `internal/widgetthemes`, stored in `{dataDir}/data/widget_themes/`). Unknown,
 empty or dangling references fall back to `default` for both; they never error.
@@ -224,6 +274,44 @@ emitted for a gradient or image) and `--dashi-font` (from the widget theme).
 Values are hex (`#rgb`, `#rrggbb`, `#rrggbbaa`). A hand-edited malformed or
 missing role falls back, per role, to `themes.DefaultPalette(mode)`
 (`Palette.withDefaults`); generated CSS never contains user-authored syntax.
+
+A theme also carries a `darkMode` flag. Every per-mode lookup goes through
+one rule, `Theme.mode(colorMode)`: dark only when `darkMode` is on and dark
+was asked for. With it off, every colour mode renders the light palette and
+background (`BrowserCSS` emits the light rule twice, `Meta.colors.dark` is
+the light palette) while the dark data stays stored, so switching it back on
+loses nothing; `Validate` then checks only the dark roles that are set. The
+listing's `Meta.colors` come from `Theme.Palette` and are rendered values
+(defaults replace missing or malformed roles); the editor reads the stored
+data through `GET /themes/{id}`. A
+`theme.json` without the key loads with `darkMode` on (`decodeTheme` in
+`internal/themes/legacy.go`, shared by `Store.Get` and `List`). The
+`POST`/`PUT /themes` bodies must carry the key (`themes.DecodeRequest`), else
+400, which turns away stale SPA tabs sending the old shape. Those bodies are
+capped at 10 MB (`maxThemeBody` in `app/router/handlers/themes.go`); a larger
+one is a 400.
+
+The background mirrors the palettes: `background.light` and `background.dark`
+are each a `ModeBackground` (optional `gradient{direction, stops}` and
+`image{ref, fit, position, repeat}`), picked by `Theme.bgFor(colorMode)`
+through the same `mode` rule. The modes are independent: there is **no
+fallback** from dark to light, so an empty dark background renders the plain
+dark palette, and each mode uses its own direction, fit, position and repeat.
+Both modes may reference the same image file. `Validate` always checks both
+backgrounds, whatever `darkMode` says.
+
+Files saved before per-mode backgrounds carry the **legacy shape**
+(`background.gradient{direction, light[], dark[]}` and
+`background.image{light, dark, fit, position, repeat}`). When both new modes
+are empty, `decodeTheme` converts it in memory (`legacyWire` in
+`internal/themes/legacy.go`): light takes the light values plus the shared
+direction/fit/position/repeat, and dark is a deep copy of light with the
+legacy dark stops and dark image applied on top, so the theme renders as it
+did. Nothing is written on load; the file takes the new shape on its next
+save. The migration lives only in the stored-file decoder: request bodies
+must already use the new shape, and `DecodeRequest` answers a body with a
+legacy `background.gradient` or `background.image` key with
+`ErrInvalidConfig` (400) rather than silently dropping it.
 
 The browser stack gets the variables from `themes.BrowserCSS`, served at
 `/_dashi/theme/{id}.css` for `:root` and `:root[data-color-mode="dark"]`.
@@ -267,49 +355,124 @@ carries whole background values - `linear-gradient(...)`, `url(...)
 center/cover no-repeat` - which are invalid as a colour and are dropped
 silently. When changing this, check *what* the generated CSS says, not merely
 that CSS was generated (`TestBodyBackgroundUsesTheShorthandNotAColorUtility`
-pins it). A theme without a gradient or image has no `--dashi-page-bg`, so the
-page is simply `--dashi-bg`.
+pins it). Each colour-mode rule gets its own `--dashi-page-bg` from that
+mode's background; a mode without a gradient or image has none, so its page
+is simply `--dashi-bg`.
 
 Image backgrounds reach the browser as a **URL**, not inlined bytes:
 `themes.RefURL` maps `asset:<path>` (a file in the theme's own `assets/`) to
-`/api/v0/themes/{id}/assets/{path}` and `shared:<name>` to
-`/api/v0/data/backgrounds/{name}`. The litehtml stack uses `themes.ImageCSS`,
+`/api/v0/themes/{id}/assets/{path}`. `asset:` is the only scheme: a theme is
+self-contained and references nothing outside its own folder (the former
+`shared:` pool and `/api/v0/data/backgrounds` were removed, and leftover
+`shared:` refs fail validation and render no image). The litehtml stack uses `themes.ImageCSS`,
 which returns the CSS plus the image ref so the bytes can be loaded
 (`Store.LoadImage`) and drawn on the canvas - litehtml fetches nothing over
 the network, so that path must not be "modernised".
+
+A theme keeps **at most one background file per mode**. Storage enforces it,
+not fixed file names: uploads keep their names and endpoint, and
+`Store.Update` (`pruneAssets`, `internal/themes/store.go`), after a
+successful write, deletes every file under the theme's `assets/` (walked
+recursively, in the folder the theme ends up in after a rename) that neither
+`background.light.image.ref` nor `background.dark.image.ref` names. Light and
+dark may share a file; a dark ref kept while `darkMode` is off still counts.
+Files modified in the last 5 minutes (`assetGrace`) are kept, so a save that
+races an upload and still carries the old ref cannot delete the new file; such
+an orphan goes on a later save. Pruning runs on save only - never on load,
+`List`, `Get`, `Create`, `Copy` or startup - so a theme's legacy extra files
+survive until its next save. It is best effort: a failed removal does not fail
+the save. Overwriting a stable file name instead was rejected: it leaves stale
+browser and render caches.
 
 ### Editing a background
 
 A background is part of its theme, not an entity of its own: there is no
 background store, list or ID, and none should be reintroduced. The theme
-editor (`webui/src/views/admin/AdminThemeEdit.vue`) delegates the whole
-`background` object to `webui/src/components/admin/ThemeBackgroundEditor.vue`
-via `v-model:background`; the component edits it in place, so the view's
-`useAutosave` (deep watch) persists it with the rest of the theme. What the
-component offers is bounded by the model in `internal/themes/types.go`:
+editor (`webui/src/views/admin/AdminThemeEdit.vue`) edits a local copy of
+the theme; its `useAutosave` (deep watch) persists the whole theme.
 
-- **Base**: palette `bg` or a linear gradient. Direction is edited as an angle
-  (keyword directions display as their angle and are only rewritten when the
-  slider moves). Stops are colours only, spread evenly - there are no stop
-  positions and no radial gradients in the model. Stops can be added (copy of
-  the last), removed (never below two), reordered, typed as hex or picked
-  (the picker keeps a stop's alpha); optional separate dark stops.
-- **Image**: a thumbnail grid of this theme's own assets (`asset:`) and the
-  shared pool (`shared:`), filtered to the extensions `ValidateRef` accepts.
-  **Upload goes into the theme's own assets** (copied with the theme) and
-  selects the file; the pool is managed on its own page (Theming → Background
-  images). A deleted image still referenced is flagged in the picker. Optional
-  separate dark image; fit/position/repeat are shared by both modes.
-- **Preview**: light and dark tiles built with `previewStyle` from
-  `webui/src/lib/themeCss.ts` (the TS mirror of `BrowserCSS`), compositing
-  `--dashi-page-bg` over `--dashi-bg` the way `<body>` over `<html>` does in
-  the viewer.
+Layout, one column spanning the whole `.admin-panel` (inside the shared
+1200px `.admin-view` limit; there is no side column): Name, an **Enable dark
+mode** checkbox bound to `darkMode`, the save status (`save-status`:
+"Changes are saved automatically" / "Fix the highlighted fields..." /
+"Uploading image...", plus the hidden-dark-invalid warning), then the
+per-mode sections. Unticked, one light set (Colours + Background + Preview)
+and no tabs; ticked, PrimeVue `Tabs` (non-lazy) with a Light and a Dark
+panel, each holding its own set. Colours, Background and Preview are each a
+toggleable PrimeVue `Panel` (`section-colors-<mode>`,
+`section-background-<mode>`, `section-preview-<mode>`): open on load,
+collapse state kept by each Panel instance (so per tab, and kept across tab
+switches since the tabs are not lazy), never persisted. The Preview section
+(`webui/src/components/admin/ThemePreview.vue`, `preview-<mode>`) shows the
+mode it sits in, with no toggle of its own: its style is
+`previewStyle(theme, mode)` from `webui/src/lib/themeCss.ts`, the TS mirror
+of `BrowserCSS`, compositing `--dashi-page-bg` over `--dashi-bg` the way
+`<body>` over `<html>` does in the viewer. The
+first tick runs `seedDark`
+(`webui/src/lib/themeEditor.ts`): empty dark roles take the light value, and
+a dark background with neither gradient nor image gets a copy of the light
+gradient - never the image, so the modes never share a ref by accident.
+Unticking only hides the Dark tab; the dormant dark data stays and is saved.
+The editor always opens on Light.
+A new theme (`AdminThemes.vue`) starts with `darkMode` false, the builtin's
+light palette and an all-empty dark palette (`emptyPalette`).
 
-Client-side validity is `isValidBackground` (same file), mirroring
-`validateGradient`/`validateImage` for what the controls can break; autosave
-holds while it fails. The component takes a `disabled` prop for read-only use,
-though builtin themes currently never reach the form (the view shows a
-"cannot be edited" card for them).
+Each mode set is three components, scoped by a `mode` prop (test ids and
+field ids carry it): `ThemePreview` above, and
+
+- `webui/src/components/admin/ThemeColorsEditor.vue` - `v-model:palette`, a
+  picker and a hex field per role; writes each role into the bound palette
+  in place (so several edits in one tick all land).
+- `webui/src/components/admin/ThemeBackgroundEditor.vue` - one mode's
+  `v-model:background` (`ModeBackground`), edited in place. It has no
+  preview of its own (the mode's Preview section shows the result) and so
+  needs no palette; it gets the parent's autosave `flush` and emits
+  `uploading`.
+  - **Base**: palette `bg` or a linear gradient. Direction is edited as an
+    angle (keyword directions display as their angle and are only rewritten
+    when the slider moves). Stops are colours only, spread evenly - no stop
+    positions and no radial gradients in the model. Stops can be added (copy
+    of the last), removed (never below two), reordered, typed as hex or
+    picked (the picker keeps a stop's alpha).
+  - **Image**: one slot - a thumbnail of the current `asset:` file,
+    Upload/Replace and Remove, plus this mode's fit/position/repeat (first
+    upload defaults to cover/center/no-repeat; Replace keeps them). A ref to
+    a file the theme lacks is flagged. **Remove** (ConfirmDialog) only clears
+    this mode's ref and deletes nothing: the other mode may share the file,
+    and pruning on save removes it once unreferenced. Replace swaps the ref,
+    so the old file is pruned the same way. There is no asset grid.
+  - **Upload order** (pairs with `pruneAssets` and its grace window): name
+    the file `uniqueAssetName` (`<base>-<Date.now() base36>.<ext>`, so modes
+    never overwrite each other's file and caches never go stale); `await
+    flush()`; emit `uploading(true)`; upload; emit `uploading(false)` -
+    reopening autosave **before** the ref is set; set the ref; `await
+    flush()`. A failed upload sets nothing. While `uploading` is true the
+    parent disables the **whole form** (Name, checkbox, both modes) and
+    autosave: `useAutosave` drops edits made while it is disabled, so an
+    edit typed during the upload would otherwise be lost.
+
+Client-side validity mirrors `Theme.Validate`: the light palette in full,
+the dark palette in full only with `darkMode` on (with it off, only the set
+dark roles), and `isValidModeBackground` (`themeCss.ts`) on both modes,
+dormant dark included; autosave holds while it fails. When dark mode is off
+and the dormant dark data is invalid, the view says so ("Dark mode has
+invalid values; enable it to fix them") instead of failing silently. With
+dark mode on, each tab header carries a red alert icon
+(`tab-invalid-<mode>`) while that mode is invalid, so a broken field in the
+closed tab is still found. Validity is split per mode into colours and
+background (`sectionValid`; a mode is valid when both are), and the Colours
+and Background Panel headers carry the same icon
+(`section-invalid-colors-<mode>`, `section-invalid-background-<mode>`)
+while that section is invalid, so a collapsed Panel still points to the
+field it hides; the Panel is not expanded for you. Each such `#header`
+slot renders `webui/src/components/admin/ThemeSectionHeader.vue` (title,
+invalid flag, marker test id, and the slot's `id`/`class`, which the
+Panel's content region is labelled by); the Panel keeps its `header` prop,
+which PrimeVue uses as the toggle button's aria-label. The Preview Panel has no
+marker. The
+components take a `disabled` prop for read-only use, though builtin themes
+currently never reach the form (the view shows a "cannot be edited" card
+for them).
 
 ## Responsive layout (mobile)
 
@@ -353,9 +516,8 @@ switch at the same widths.
   class (on a Column's `headerClass` + `bodyClass`); anything still too wide
   scrolls inside PrimeVue's table container, never the page. Docs tables
   scroll on their own.
-- **Below lg (992px)**: the theme editor stacks its preview under the form.
-- **Below sm (576px)**: the background editor's preview tiles and fit/position/
-  repeat selects stack.
+- **Below sm (576px)**: the background editor's fit/position/repeat selects
+  stack. (The theme editor is a single column at every width.)
 - **Shared admin page frame** (`.admin-section`, `.admin-section-header`,
   `.admin-section-title`, `.info-message`) lives in `webui/src/assets/style.scss`
   (it was copy-pasted into six components); the header wraps so a title plus

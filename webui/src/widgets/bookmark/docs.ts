@@ -8,6 +8,7 @@ const docs: WidgetDocs = {
         { name: 'title', type: 'string', description: 'Primary display text.' },
         { name: 'subtitle', type: 'string', description: 'Secondary text below the title (optional).' },
         { name: 'textBelow', type: 'boolean', default: 'false', description: 'Layout mode. `false`: icon left, text right. `true`: icon top, text below.' },
+        { name: 'newTab', type: 'boolean', default: 'false', description: 'Where the link opens. `false`: in place, replacing the dashboard. `true`: in a new browser tab.' },
     ],
     sections: [
         {
@@ -31,6 +32,7 @@ const docs: WidgetDocs = {
             title: 'GitHub',
             subtitle: 'Code hosting',
             textBelow: false,
+            newTab: false,
         },
         settingsNote: 'Dashboard asset icons need a dashboard, so the docs list none.',
     },

@@ -17,7 +17,7 @@ describe('data API', () => {
     })
 
     describe('listData', () => {
-        it.each(['notes', 'images', 'backgrounds'] as const)('lists %s', async (kind) => {
+        it.each(['notes', 'images'] as const)('lists %s', async (kind) => {
             vi.mocked(apiClient.get).mockResolvedValue({
                 data: [{ name: 'a', size: 1, modTime: '2026-01-01T00:00:00Z' }],
             })
@@ -36,9 +36,9 @@ describe('data API', () => {
         it('posts octet-stream body', async () => {
             vi.mocked(apiClient.post).mockResolvedValue({ data: undefined })
             const bytes = new ArrayBuffer(4)
-            await uploadData('backgrounds', 'bg.png', bytes)
+            await uploadData('images', 'bg.png', bytes)
             const call = vi.mocked(apiClient.post).mock.calls[0]
-            expect(call[0]).toBe('/data/backgrounds/bg.png')
+            expect(call[0]).toBe('/data/images/bg.png')
             expect(call[1]).toBe(bytes)
             expect(call[2]).toEqual({ headers: { 'Content-Type': 'application/octet-stream' } })
         })
@@ -60,7 +60,7 @@ describe('data API', () => {
 
     describe('dataUrl', () => {
         it('builds an api v0 url', () => {
-            expect(dataUrl('backgrounds', 'bg.jpg')).toBe('/api/v0/data/backgrounds/bg.jpg')
+            expect(dataUrl('images', 'bg.jpg')).toBe('/api/v0/data/images/bg.jpg')
         })
 
         it('URL-encodes the name', () => {

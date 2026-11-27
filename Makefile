@@ -95,7 +95,13 @@ check-git-clean: # check if git repo is clean
 	@git diff --quiet
 
 tag: check-git-clean check-branch ## create a git tag to publish a new release
-	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
+	@[ "${version}" ] || ( echo ">> version is not set, usage: make tag version=\"v1.2.3\" "; exit 1 )
+	@tag="$(version)"; tag="$${tag#v}"; \
+	cfg=$$(grep -E '^version:' ha-addon/config.yaml | awk '{print $$2}' | tr -d '"'); \
+	if [ "$$cfg" != "$$tag" ]; then \
+		echo ">> ha-addon/config.yaml version ($$cfg) != tag ($$tag); bump it before tagging"; \
+		exit 1; \
+	fi
 	@git tag -d $(version) || true
 	@git tag -a $(version) -m "Release version: $(version)"
 	@git push --delete origin $(version) || true

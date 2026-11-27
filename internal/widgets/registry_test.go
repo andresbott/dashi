@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"html/template"
+	"strings"
 	"testing"
 
 	"github.com/andresbott/dashi/internal/themes"
@@ -149,5 +150,46 @@ func TestEffectivePaletteFallsBackPerColorMode(t *testing.T) {
 	// An empty ColorMode is treated as light, matching DefaultPalette.
 	if got := (RenderContext{}).EffectivePalette(); got != themes.DefaultPalette("light") {
 		t.Errorf("empty color mode = %+v, want the light palette", got)
+	}
+}
+
+func TestTypesInRecursesThroughContainers(t *testing.T) {
+	r := NewRegistry()
+	// A toy container whose config is the JSON list of its children's types;
+	// a child named "box" is itself a container holding one "leaf".
+	r.RegisterChildren("box", func(config json.RawMessage) []Child {
+		var types []string
+		if json.Unmarshal(config, &types) != nil {
+			return nil
+		}
+		children := make([]Child, 0, len(types))
+		for _, t := range types {
+			cfg := json.RawMessage(`null`)
+			if t == "box" {
+				cfg = json.RawMessage(`["leaf"]`)
+			}
+			children = append(children, Child{Type: t, Config: cfg})
+		}
+		return children
+	})
+
+	tests := []struct {
+		name   string
+		typ    string
+		config string
+		want   []string
+	}{
+		{name: "plain widget", typ: "clock", config: `{}`, want: []string{"clock"}},
+		{name: "container", typ: "box", config: `["clock","market"]`, want: []string{"box", "clock", "market"}},
+		{name: "nested", typ: "box", config: `["box"]`, want: []string{"box", "box", "leaf"}},
+		{name: "undecodable", typ: "box", config: `5`, want: []string{"box"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := r.TypesIn(tc.typ, json.RawMessage(tc.config))
+			if strings.Join(got, ",") != strings.Join(tc.want, ",") {
+				t.Errorf("TypesIn = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

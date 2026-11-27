@@ -1,15 +1,13 @@
 package search
 
 import (
-	"encoding/json"
-	"html/template"
-
 	"github.com/andresbott/dashi/internal/widgets"
 )
 
-// Module implements widgets.Module for the search widget. The search
-// widget is frontend-only (interactive mode); in image mode it renders
-// a placeholder div.
+// Module implements widgets.Module and widgets.BrowserRenderable for the
+// search widget. The engine allowlist and config defaults live in
+// engine.go, the image-stack renderer in image.go and the browser-stack
+// renderer in browser.go.
 type Module struct {
 	widgets.NoopModule
 }
@@ -20,9 +18,5 @@ func NewModule() *Module { return &Module{} }
 // Type returns the widget type string.
 func (m *Module) Type() string { return "search" }
 
-// Renderer returns a placeholder renderer for image-mode dashboards.
-func (m *Module) Renderer() widgets.StaticRenderer {
-	return func(_ json.RawMessage, _ widgets.RenderContext) (template.HTML, error) {
-		return template.HTML(`<div class="widget-search-placeholder">&nbsp;</div>`), nil
-	}
-}
+// Renderer returns the search widget's image-stack renderer.
+func (m *Module) Renderer() widgets.StaticRenderer { return renderImage }

@@ -49,9 +49,9 @@ func TestBrowserCSSIsNeverNil(t *testing.T) {
 func TestBrowserCSSGradientAndImage(t *testing.T) {
 	th := testTheme("GI")
 	th.ID = "abc123"
-	th.Background = Background{
-		Gradient: &Gradient{Direction: "to bottom", Light: []string{"#000000", "#ffffff"}},
-		Image:    &Image{Light: "asset:a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"},
+	th.Background.Light = ModeBackground{
+		Gradient: &Gradient{Direction: "to bottom", Stops: []string{"#000000", "#ffffff"}},
+		Image:    &Image{Ref: "asset:a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"},
 	}
 	light := lightRule(t, string(BrowserCSS(th)))
 	want := "--dashi-page-bg:url('/api/v0/themes/abc123/assets/a.png') center/cover no-repeat,linear-gradient(to bottom,#000000,#ffffff);"
@@ -87,23 +87,48 @@ func TestBrowserCSSUsesEachModesPalette(t *testing.T) {
 	}
 }
 
+func TestBrowserCSSDarkModeOffRepeatsLightRule(t *testing.T) {
+	th := testTheme("Off")
+	th.ID = "abc123"
+	th.DarkMode = false
+	th.Colors.Dark.Primary = "#222222"
+	th.Background = Background{
+		Light: ModeBackground{
+			Gradient: &Gradient{Direction: "to right", Stops: []string{"#000000", "#ffffff"}},
+			Image:    &Image{Ref: "asset:a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"},
+		},
+		Dark: ModeBackground{
+			Gradient: &Gradient{Direction: "to right", Stops: []string{"#111111", "#222222"}},
+			Image:    &Image{Ref: "asset:b.png", Fit: "contain", Position: "top", Repeat: "repeat"},
+		},
+	}
+	got := string(BrowserCSS(th))
+	light := strings.TrimPrefix(lightRule(t, got), ":root")
+	dark := strings.TrimSuffix(strings.TrimPrefix(darkRule(t, got), `:root[data-color-mode="dark"]`), "\n")
+	if light != dark {
+		t.Fatalf("dark mode off must render the light rule twice:\nlight: %s\ndark:  %s", light, dark)
+	}
+	if css, ref := ImageCSS(th, "dark"); css != "" || ref != "asset:a.png" {
+		t.Fatalf("ImageCSS(dark) with dark mode off = %q %q, want the light image", css, ref)
+	}
+}
+
 func TestBrowserCSSImageOverGradient(t *testing.T) {
 	th := testTheme("Sunset")
 	th.ID = "abc123"
 	th.Background = Background{
-		Gradient: &Gradient{
-			Direction: "to bottom right",
-			Light:     []string{"#667eea", "#764ba2"},
-			Dark:      []string{"#1e1b4b", "#0f172a"},
+		Light: ModeBackground{
+			Gradient: &Gradient{Direction: "to bottom right", Stops: []string{"#667eea", "#764ba2"}},
+			Image:    &Image{Ref: "asset:sunset.jpg", Fit: "cover", Position: "center", Repeat: "no-repeat"},
 		},
-		Image: &Image{
-			Light: "asset:sunset.jpg", Dark: "shared:night.png",
-			Fit: "cover", Position: "center", Repeat: "no-repeat",
+		Dark: ModeBackground{
+			Gradient: &Gradient{Direction: "to top", Stops: []string{"#1e1b4b", "#0f172a"}},
+			Image:    &Image{Ref: "asset:night.png", Fit: "contain", Position: "bottom left", Repeat: "repeat-x"},
 		},
 	}
 	got := string(BrowserCSS(th))
 	wantLight := "--dashi-page-bg:url('/api/v0/themes/abc123/assets/sunset.jpg') center/cover no-repeat,linear-gradient(to bottom right,#667eea,#764ba2);}"
-	wantDark := "--dashi-page-bg:url('/api/v0/data/backgrounds/night.png') center/cover no-repeat,linear-gradient(to bottom right,#1e1b4b,#0f172a);}"
+	wantDark := "--dashi-page-bg:url('/api/v0/themes/abc123/assets/night.png') bottom left/contain repeat-x,linear-gradient(to top,#1e1b4b,#0f172a);}"
 	if !strings.Contains(lightRule(t, got), wantLight) {
 		t.Errorf("missing light page-bg\ngot:  %s\nwant: %s", got, wantLight)
 	}
@@ -112,12 +137,33 @@ func TestBrowserCSSImageOverGradient(t *testing.T) {
 	}
 }
 
-func TestBrowserCSSDarkGradientFallsBackToLight(t *testing.T) {
+func TestBrowserCSSEmptyDarkBackgroundRendersPlainPalette(t *testing.T) {
+	// Decided behaviour: the modes are independent, an empty dark background
+	// shows the plain dark palette instead of falling back to the light one.
 	th := testTheme("G")
-	th.Background.Gradient = &Gradient{Direction: "135deg", Light: []string{"#000000", "#ffffff"}}
+	th.ID = "abc123"
+	th.Background.Light = ModeBackground{
+		Gradient: &Gradient{Direction: "135deg", Stops: []string{"#000000", "#ffffff"}},
+		Image:    &Image{Ref: "asset:a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"},
+	}
 	got := string(BrowserCSS(th))
-	if strings.Count(got, "--dashi-page-bg:linear-gradient(135deg,#000000,#ffffff);") != 2 {
-		t.Fatalf("expected the dark rule to reuse the light stops, got:\n%s", got)
+	if !strings.Contains(lightRule(t, got), "--dashi-page-bg:") {
+		t.Fatalf("light rule lacks its page bg:\n%s", got)
+	}
+	if strings.Contains(darkRule(t, got), "--dashi-page-bg") {
+		t.Fatalf("an empty dark background must not set --dashi-page-bg:\n%s", got)
+	}
+}
+
+func TestBrowserCSSDarkOnlyGradient(t *testing.T) {
+	th := testTheme("D")
+	th.Background.Dark.Gradient = &Gradient{Direction: "to top", Stops: []string{"#000000", "#111111"}}
+	got := string(BrowserCSS(th))
+	if strings.Contains(lightRule(t, got), "--dashi-page-bg") {
+		t.Fatalf("an empty light background must not set --dashi-page-bg:\n%s", got)
+	}
+	if !strings.Contains(darkRule(t, got), "--dashi-page-bg:linear-gradient(to top,#000000,#111111);") {
+		t.Fatalf("dark rule lacks the dark gradient:\n%s", got)
 	}
 }
 
@@ -132,7 +178,7 @@ func TestBrowserCSSFitMapping(t *testing.T) {
 		t.Run(fit, func(t *testing.T) {
 			th := testTheme("I")
 			th.ID = "abc123"
-			th.Background.Image = &Image{Light: "shared:a.png", Fit: fit, Position: "center", Repeat: "no-repeat"}
+			th.Background.Light.Image = &Image{Ref: "asset:a.png", Fit: fit, Position: "center", Repeat: "no-repeat"}
 			if got := string(BrowserCSS(th)); !strings.Contains(got, want) {
 				t.Fatalf("got %s, want substring %s", got, want)
 			}
@@ -144,7 +190,7 @@ func TestBrowserCSSEscapesQuoteInRef(t *testing.T) {
 	// A single quote would terminate url('…'). It must be percent-encoded.
 	th := testTheme("I")
 	th.ID = "abc123"
-	th.Background.Image = &Image{Light: "shared:it's.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
+	th.Background.Light.Image = &Image{Ref: "asset:it's.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
 	got := string(BrowserCSS(th))
 	if strings.Contains(got, "it's") {
 		t.Fatalf("raw single quote leaked into url(): %s", got)
@@ -162,10 +208,11 @@ func TestBrowserCSSCannotBreakOutOfStyleElement(t *testing.T) {
 	th := testTheme("X")
 	th.Colors.Light.BG = "#fff;}</style><script>alert(1)</script>"
 	th.Colors.Dark.Surface = "</style><script>"
-	th.Background.Gradient = &Gradient{
+	th.Background.Light.Gradient = &Gradient{
 		Direction: "to right",
-		Light:     []string{"#000", "#fff);}</style><script>alert(1)</script>"},
+		Stops:     []string{"#000", "#fff);}</style><script>alert(1)</script>"},
 	}
+	th.Background.Dark.Gradient = &Gradient{Direction: "to right);}</style><script>", Stops: []string{"#000", "#fff"}}
 	got := strings.ToLower(string(BrowserCSS(th)))
 	if strings.Contains(got, "</style") || strings.Contains(got, "<script") {
 		t.Fatalf("style breakout possible: %s", got)
@@ -176,7 +223,8 @@ func TestBrowserCSSDropsImageWithBadEnums(t *testing.T) {
 	// A hand-edited theme.json can carry any string in fit/position/repeat;
 	// those are written into the CSS verbatim, so the layer is dropped.
 	th := testTheme("X")
-	th.Background.Image = &Image{Light: "shared:a.png", Fit: "cover", Position: "center;}body{x", Repeat: "no-repeat"}
+	th.Background.Light.Image = &Image{Ref: "asset:a.png", Fit: "cover", Position: "center;}body{x", Repeat: "no-repeat"}
+	th.Background.Dark.Image = &Image{Ref: "asset:a.png", Fit: "cover;}body{x", Position: "center", Repeat: "no-repeat"}
 	got := string(BrowserCSS(th))
 	if strings.Contains(got, "body{") || strings.Contains(got, "--dashi-page-bg") {
 		t.Fatalf("unvalidated image enums reached the CSS: %s", got)
@@ -185,7 +233,7 @@ func TestBrowserCSSDropsImageWithBadEnums(t *testing.T) {
 
 func TestImageCSSRejectsUnsafeGradient(t *testing.T) {
 	th := testTheme("X")
-	th.Background.Gradient = &Gradient{Direction: "to right);}body{x", Light: []string{"#000", "#fff"}}
+	th.Background.Light.Gradient = &Gradient{Direction: "to right);}body{x", Stops: []string{"#000", "#fff"}}
 	if css, ref := ImageCSS(th, "light"); css != "" || ref != "" {
 		t.Fatalf("unsafe gradient reached the litehtml CSS: %q %q", css, ref)
 	}
@@ -193,26 +241,27 @@ func TestImageCSSRejectsUnsafeGradient(t *testing.T) {
 
 func TestImageCSSPrefersImage(t *testing.T) {
 	th := testTheme("S")
-	th.Background = Background{
-		Gradient: &Gradient{Direction: "to right", Light: []string{"#000000", "#ffffff"}},
-		Image:    &Image{Light: "shared:a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"},
+	th.Background.Light = ModeBackground{
+		Gradient: &Gradient{Direction: "to right", Stops: []string{"#000000", "#ffffff"}},
+		Image:    &Image{Ref: "asset:a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"},
 	}
 	css, ref := ImageCSS(th, "light")
 	if css != "" {
 		t.Errorf("expected no CSS when an image is present, got %q", css)
 	}
-	if ref != "shared:a.png" {
+	if ref != "asset:a.png" {
 		t.Errorf("got ref %q", ref)
 	}
 }
 
 func TestImageCSSBaseOnlyEmitsConcreteValue(t *testing.T) {
 	th := testTheme("G")
-	th.Background.Gradient = &Gradient{Direction: "135deg", Light: []string{"#000000", "#ffffff"}, Dark: []string{"#111111", "#222222"}}
+	th.Background.Light.Gradient = &Gradient{Direction: "135deg", Stops: []string{"#000000", "#ffffff"}}
+	th.Background.Dark.Gradient = &Gradient{Direction: "to left", Stops: []string{"#111111", "#222222"}}
 	if css, _ := ImageCSS(th, "light"); css != "linear-gradient(135deg,#000000,#ffffff)" {
 		t.Errorf("light: got %q", css)
 	}
-	if css, _ := ImageCSS(th, "dark"); css != "linear-gradient(135deg,#111111,#222222)" {
+	if css, _ := ImageCSS(th, "dark"); css != "linear-gradient(to left,#111111,#222222)" {
 		t.Errorf("dark: got %q", css)
 	}
 }
@@ -223,11 +272,8 @@ func TestImageCSSFlattensTranslucentStopsOverModeBG(t *testing.T) {
 	th := testTheme("A")
 	th.Colors.Light.BG = "#ffffff"
 	th.Colors.Dark.BG = "#000000"
-	th.Background.Gradient = &Gradient{
-		Direction: "to right",
-		Light:     []string{"#ff000080", "#00ff00"},
-		Dark:      []string{"#ff000080", "#0000ffff"},
-	}
+	th.Background.Light.Gradient = &Gradient{Direction: "to right", Stops: []string{"#ff000080", "#00ff00"}}
+	th.Background.Dark.Gradient = &Gradient{Direction: "to right", Stops: []string{"#ff000080", "#0000ffff"}}
 	if css, _ := ImageCSS(th, "light"); css != "linear-gradient(to right,#ff7f7f,#00ff00)" {
 		t.Errorf("light: got %q", css)
 	}
@@ -245,19 +291,33 @@ func TestImageCSSPlainBackgroundIsEmpty(t *testing.T) {
 
 func TestImageCSSAutoResolvesToLight(t *testing.T) {
 	th := testTheme("G")
-	th.Background.Gradient = &Gradient{Direction: "to right", Light: []string{"#ffffff", "#eeeeee"}, Dark: []string{"#000000", "#111111"}}
+	th.Background.Light.Gradient = &Gradient{Direction: "to right", Stops: []string{"#ffffff", "#eeeeee"}}
+	th.Background.Dark.Gradient = &Gradient{Direction: "to right", Stops: []string{"#000000", "#111111"}}
 	css, _ := ImageCSS(th, "auto")
 	if css != "linear-gradient(to right,#ffffff,#eeeeee)" {
 		t.Fatalf("expected auto to resolve light, got %q", css)
 	}
 }
 
-func TestImageCSSDarkImageFallsBackToLight(t *testing.T) {
+func TestImageCSSEmptyDarkBackgroundIsPlain(t *testing.T) {
+	// No fallback to light: a light image with an empty dark background
+	// paints the plain dark palette.
 	th := testTheme("I")
-	th.Background.Image = &Image{Light: "shared:a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
-	_, ref := ImageCSS(th, "dark")
-	if ref != "shared:a.png" {
-		t.Fatalf("got %q", ref)
+	th.Background.Light.Image = &Image{Ref: "asset:a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
+	if css, ref := ImageCSS(th, "dark"); css != "" || ref != "" {
+		t.Fatalf("got %q %q, want a plain dark background", css, ref)
+	}
+	if _, ref := ImageCSS(th, "light"); ref != "asset:a.png" {
+		t.Fatalf("light ref = %q", ref)
+	}
+}
+
+func TestImageCSSDarkImage(t *testing.T) {
+	th := testTheme("I")
+	th.Background.Light.Image = &Image{Ref: "asset:a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
+	th.Background.Dark.Image = &Image{Ref: "asset:b.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
+	if _, ref := ImageCSS(th, "dark"); ref != "asset:b.png" {
+		t.Fatalf("dark ref = %q", ref)
 	}
 }
 
@@ -269,7 +329,7 @@ func TestRefURL(t *testing.T) {
 	}{
 		{"asset:sunset.jpg", "/api/v0/themes/abc123/assets/sunset.jpg", true},
 		{"asset:deep/a b.png", "/api/v0/themes/abc123/assets/deep/a%20b.png", true},
-		{"shared:night.png", "/api/v0/data/backgrounds/night.png", true},
+		{"shared:night.png", "", false}, // the shared pool was removed
 		{"theme:default/x.png", "", false},
 		{"nonsense", "", false},
 	}

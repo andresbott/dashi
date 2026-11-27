@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, inject, computed } from 'vue'
+import { ref, watch, inject, computed, useId } from 'vue'
 import { DASHBOARD_ID } from '@/lib/injectionKeys'
 import InputText from 'primevue/inputtext'
 import Checkbox from 'primevue/checkbox'
@@ -20,12 +20,14 @@ const emit = defineEmits<{
 }>()
 
 const dashboardId = inject(DASHBOARD_ID, ref(''))
+const iconLabelId = useId()
 
 const editUrl = ref(props.config?.url ?? '')
 const editIcon = ref(props.config?.icon ?? 'ti-bookmark')
 const editTitle = ref(props.config?.title ?? '')
 const editSubtitle = ref(props.config?.subtitle ?? '')
 const editTextBelow = ref(props.config?.textBelow ?? false)
+const editNewTab = ref(props.config?.newTab ?? false)
 
 const iconTypeOptions = [
     { label: 'Tabler', value: 'tabler' },
@@ -87,6 +89,7 @@ watch(() => props.config, (val) => {
         editTitle.value = val.title
         editSubtitle.value = val.subtitle
         editTextBelow.value = val.textBelow ?? false
+        editNewTab.value = val.newTab ?? false
     }
 })
 
@@ -102,6 +105,7 @@ const emitUpdate = () => {
         title: editTitle.value,
         subtitle: editSubtitle.value,
         textBelow: editTextBelow.value,
+        newTab: editNewTab.value,
     })
 }
 
@@ -116,7 +120,7 @@ const onTablerSelect = (icon: string) => {
 <template>
     <div class="flex flex-column gap-3">
         <div class="flex flex-column gap-1">
-            <label class="text-sm font-semibold">Icon</label>
+            <label class="text-sm font-semibold">Icon source</label>
             <Select
                 :modelValue="iconType"
                 @update:modelValue="(v: IconType | undefined) => { if (v) iconType = v }"
@@ -127,11 +131,8 @@ const onTablerSelect = (icon: string) => {
             />
         </div>
         <div v-if="iconType === 'tabler'" class="flex flex-column gap-1">
-            <label class="text-sm font-semibold">Icon</label>
-            <div class="flex align-items-center gap-2">
-                <IconSelector :modelValue="editIcon" @update:modelValue="onTablerSelect" />
-                <span class="text-sm text-color-secondary">{{ editIcon }}</span>
-            </div>
+            <label :id="iconLabelId" class="text-sm font-semibold">Icon</label>
+            <IconSelector :modelValue="editIcon" :labelledBy="iconLabelId" @update:modelValue="onTablerSelect" />
         </div>
         <div v-if="iconType === 'selfhst'" class="flex flex-column gap-1">
             <label class="text-sm font-semibold">Filename</label>
@@ -183,6 +184,10 @@ const onTablerSelect = (icon: string) => {
         <div class="flex align-items-center gap-2">
             <Checkbox v-model="editTextBelow" :binary="true" inputId="bookmarkTextBelow" @update:modelValue="emitUpdate" />
             <label for="bookmarkTextBelow" class="text-sm">Text below icon</label>
+        </div>
+        <div class="flex align-items-center gap-2">
+            <Checkbox v-model="editNewTab" :binary="true" inputId="bookmarkNewTab" @update:modelValue="emitUpdate" />
+            <label for="bookmarkNewTab" class="text-sm">Open in a new tab</label>
         </div>
     </div>
 </template>

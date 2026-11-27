@@ -9,7 +9,6 @@ import {
     copyTheme,
     listThemeAssets,
     uploadThemeAsset,
-    deleteThemeAsset,
 } from '@/lib/api/themes'
 import type { Theme, CreateThemeDTO } from '@/types/theme'
 import { invalidateAndRefetch } from '@/composables/queryUtils'
@@ -100,16 +99,12 @@ export function useThemeAssets(id: () => string) {
         onSuccess: doInvalidate,
     })
 
-    const deleteMutation = useMutation({
-        mutationFn: (name: string) => deleteThemeAsset(idRef.value, name),
-        onSuccess: doInvalidate,
-    })
-
+    // No delete here: the editor's Remove only clears a ref and pruning on save
+    // deletes the file (deleteThemeAsset stays in the API client).
     return {
         assets: query.data,
         isLoadingAssets: query.isLoading,
         uploadAsset: uploadMutation.mutateAsync,
         isUploadingAsset: uploadMutation.isPending,
-        deleteAsset: deleteMutation.mutateAsync,
     }
 }

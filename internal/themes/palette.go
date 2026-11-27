@@ -87,9 +87,19 @@ func DefaultPalette(colorMode string) Palette {
 // Validate reports whether every role holds a valid hex colour and BG is
 // opaque. Errors wrap ErrInvalidConfig and name the offending role.
 func (p Palette) Validate() error {
+	return p.validate(false)
+}
+
+// validateSet is Validate for a palette that may be partial: empty roles are
+// skipped, every set role must still be valid.
+func (p Palette) validateSet() error {
+	return p.validate(true)
+}
+
+func (p Palette) validate(skipEmpty bool) error {
 	for _, r := range paletteRoles {
 		v := *r.field(&p)
-		if r.valid(v) {
+		if r.valid(v) || (skipEmpty && v == "") {
 			continue
 		}
 		if r.opaque {

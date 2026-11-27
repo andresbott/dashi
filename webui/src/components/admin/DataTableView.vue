@@ -17,15 +17,9 @@ const toast = useToast()
 const { items: itemsData, isLoading, uploadItem, isUploading, deleteItem } = useDataItems(props.kind)
 const items = computed(() => itemsData.value ?? [])
 
-// Both kinds this component serves are image libraries: 'images' feeds the
-// image widget, 'backgrounds' is the shared pool that theme backgrounds
-// reference with `shared:`. Themes themselves live in AdminThemes.vue.
-const title = computed(() => (props.kind === 'images' ? 'Images' : 'Shared background images'))
-const description = computed(() =>
-    props.kind === 'backgrounds'
-        ? 'Images any theme can pick as its background. Images uploaded in a theme editor belong to that theme instead.'
-        : '',
-)
+// The image library the image widget reads. Theme background images are not
+// here: each theme keeps its own, managed in the theme editor.
+const title = 'Images'
 
 // Upload
 const uploadInput = ref<HTMLInputElement | null>(null)
@@ -121,7 +115,6 @@ const formatTime = (t: string): string => {
                 @change="handleFilePicked"
             />
         </div>
-        <p v-if="description" class="section-description">{{ description }}</p>
 
         <Card v-if="!items.length && !isLoading">
             <template #content>
@@ -197,11 +190,6 @@ const formatTime = (t: string): string => {
 
 <style scoped>
 /* .admin-section* and .info-message are shared: see assets/style.scss. */
-.section-description {
-    margin: -0.5rem 0 0;
-    color: var(--p-text-muted-color);
-}
-
 .thumb {
     width: 48px;
     height: 48px;

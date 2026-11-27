@@ -54,6 +54,13 @@ type Cfg struct {
 	ViewerEnabled   bool
 	ViewerPort      int
 	ViewerPublicURL string
+
+	// Where the editor is reachable from a browser, for links that open a
+	// dashboard in the editor. EditorPublicURL is never derived: viewer and
+	// editor may sit on different origins (HA add-on: viewer on a host port,
+	// editor via ingress). Ignored when the editor is disabled.
+	EditorEnabled   bool
+	EditorPublicURL string
 }
 
 // ViewerHandler serves the read-only dashboard viewer.
@@ -90,7 +97,6 @@ type sharedDeps struct {
 	widgetThemeStore *widgetthemes.Store
 	notesStore       *notes.Store
 	imagesStore      *images.Store
-	sharedBgImages   *images.Store
 	staticRenderer   *dashstatic.Renderer
 	imageRenderer    *dashimage.Renderer
 	browserRenderer  *browser.Renderer
@@ -99,6 +105,16 @@ type sharedDeps struct {
 	promHisto        middleware.Histogram
 	modules          []widgets.Module
 	publicViewer     handlers.PublicViewer
+	publicEditor     handlers.PublicEditor // URL is empty when the editor is disabled
+}
+
+// publicEditor reports where browsers reach the editor; a disabled editor has
+// no URL, so nothing links to it.
+func publicEditor(cfg Cfg) handlers.PublicEditor {
+	if !cfg.EditorEnabled {
+		return handlers.PublicEditor{}
+	}
+	return handlers.PublicEditor{Enabled: true, URL: cfg.EditorPublicURL}
 }
 
 func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
@@ -116,11 +132,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create images store: %w", err)
 	}
-	sharedBgImages, err := images.NewStore(filepath.Join(cfg.DataDir, "data", "shared-background-images"))
-	if err != nil {
-		return nil, fmt.Errorf("create shared background images store: %w", err)
-	}
-	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "data", "themes"), sharedBgImages)
+	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "data", "themes"))
 
 	// Static dashboard rendering
 	registry := widgets.NewRegistry()
@@ -128,7 +140,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	modules := []widgets.Module{
 		weatherwidget.NewModule(weatherClient, widgetThemeStore, cfg.Logger),
 		weatherwidget.NewCompactModule(weatherClient, widgetThemeStore, cfg.Logger),
-		bookmarkwidget.NewModule(),
+		bookmarkwidget.NewModule(widgetThemeStore),
 		clockwidget.NewModule(),
 		batterywidget.NewModule(),
 		pageindicatorwidget.NewModule(),
@@ -155,6 +167,9 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		if v, ok := m.(widgets.ConfigValidator); ok {
 			registry.RegisterValidator(m.Type(), v.ValidateConfig)
 		}
+		if c, ok := m.(widgets.Container); ok {
+			registry.RegisterChildren(m.Type(), c.Children)
+		}
 		configs := widgets.CollectConfigs(dashStore, m.Type())
 		go m.Warmup(warmupCtx, configs)
 	}
@@ -167,7 +182,8 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	imageRenderer := dashimage.NewRenderer()
 	syncImageFonts(widgetThemeStore, imageRenderer)
 
-	staticMid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetThemeStore)
+	editor := publicEditor(cfg)
+	staticMid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetThemeStore, editor.URL)
 	promHisto := middleware.NewPromHistogram("", nil, nil)
 
 	return &sharedDeps{
@@ -180,7 +196,6 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		widgetThemeStore: widgetThemeStore,
 		notesStore:       notesStore,
 		imagesStore:      imagesStore,
-		sharedBgImages:   sharedBgImages,
 		staticRenderer:   staticRenderer,
 		imageRenderer:    imageRenderer,
 		browserRenderer:  browserRenderer,
@@ -193,6 +208,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 			Port:    cfg.ViewerPort,
 			BaseURL: cfg.ViewerPublicURL,
 		},
+		publicEditor: editor,
 	}, nil
 }
 
@@ -216,10 +232,10 @@ func newAPIDeps(deps *sharedDeps, logger *slog.Logger) apiDeps {
 		widgetThemeStore: deps.widgetThemeStore,
 		notesStore:       deps.notesStore,
 		imagesStore:      deps.imagesStore,
-		sharedBgImages:   deps.sharedBgImages,
 		logger:           logger,
 		modules:          deps.modules,
 		publicViewer:     deps.publicViewer,
+		publicEditor:     deps.publicEditor,
 	}
 }
 

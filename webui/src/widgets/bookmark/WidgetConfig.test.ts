@@ -71,3 +71,58 @@ describe('bookmark WidgetConfig URL validation', () => {
         expect(wrapper.find('.bookmark-url-error').exists()).toBe(false)
     })
 })
+
+describe('bookmark WidgetConfig tabler icon', () => {
+    beforeEach(() => {
+        vi.stubGlobal('matchMedia', () => ({
+            matches: false,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+        }))
+    })
+    afterEach(() => vi.unstubAllGlobals())
+
+    // The icon selector's trigger shows the icon name itself.
+    it('hands the icon to the selector without repeating its class name beside it', () => {
+        const wrapper = mountForm()
+        expect(wrapper.findComponent({ name: 'IconSelector' }).props('modelValue')).toBe('ti-bookmark')
+        expect(wrapper.text()).not.toContain('ti-bookmark')
+    })
+
+    it('labels each field uniquely and names the selector by its visible label', () => {
+        const wrapper = mountForm()
+        const labels = wrapper.findAll('label').map(l => l.text())
+        expect(new Set(labels).size).toBe(labels.length)
+        expect(labels).toContain('Icon source')
+
+        const iconLabel = wrapper.findAll('label').find(l => l.text() === 'Icon')!
+        expect(iconLabel.attributes('id')).toBeTruthy()
+        expect(wrapper.findComponent({ name: 'IconSelector' }).props('labelledBy')).toBe(iconLabel.attributes('id'))
+    })
+})
+
+describe('bookmark WidgetConfig new tab option', () => {
+    beforeEach(() => {
+        vi.stubGlobal('matchMedia', () => ({
+            matches: false,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+        }))
+    })
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('starts off for a bookmark saved without it and emits it when ticked', async () => {
+        const wrapper = mountForm()
+        const box = wrapper.find('#bookmarkNewTab')
+        expect((box.element as HTMLInputElement).checked).toBe(false)
+
+        await box.setValue(true)
+        const updates = wrapper.emitted('update:config')!
+        expect((updates[updates.length - 1][0] as BookmarkWidgetConfig).newTab).toBe(true)
+    })
+
+    it('shows a stored newTab', () => {
+        const wrapper = mountForm({ ...base, newTab: true })
+        expect((wrapper.find('#bookmarkNewTab').element as HTMLInputElement).checked).toBe(true)
+    })
+})

@@ -16,6 +16,9 @@ export interface Row {
     title?: string
     height: string
     width: string
+    /** Optional CSS lengths of space above/below the row, e.g. "2rem". */
+    marginTop?: string
+    marginBottom?: string
     widgets: Widget[]
 }
 
@@ -54,6 +57,8 @@ export interface Dashboard {
     // by name. Empty or unknown renders "default".
     widgetTheme?: string
     colorMode?: ColorMode
+    // Interactive dashboards only: the viewer shows an Edit link to the editor.
+    showEditButton?: boolean
     // Image dashboards only; ignored for interactive ones.
     dither?: DitherMode
     pages: Page[]

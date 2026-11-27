@@ -9,13 +9,13 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/andresbott/dashi/internal/dashboard"
 	"github.com/andresbott/dashi/internal/dashboard/browser"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
-	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/andresbott/dashi/internal/widgetthemes"
@@ -23,6 +23,13 @@ import (
 
 // newTestMiddleware creates a test middleware stack with a store and test widget.
 func newTestMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.Handler {
+	t.Helper()
+	return newTestMiddlewareWithEditor(t, "", dashboards...)
+}
+
+// newTestMiddlewareWithEditor is newTestMiddleware with an editor public URL,
+// the base of the viewer's Edit button.
+func newTestMiddlewareWithEditor(t *testing.T, editorBase string, dashboards ...dashboard.Dashboard) http.Handler {
 	t.Helper()
 	dir := t.TempDir()
 	store := dashboard.NewStore(dir)
@@ -48,9 +55,8 @@ func newTestMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.Han
 		_, _ = w.Write([]byte("SPA"))
 	})
 
-	bs, _ := images.NewStore(t.TempDir())
-	themeStore := themes.NewStore(t.TempDir(), bs)
-	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetthemes.NewStore(""))
+	themeStore := themes.NewStore(t.TempDir())
+	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetthemes.NewStore(""), editorBase)
 	return mid(spaHandler)
 }
 
@@ -147,6 +153,96 @@ func TestImageDashboard_NoHeadersHTMLPreview(t *testing.T) {
 	body := rec.Body.String()
 	if body == "<p>test-content</p>" || body == "SPA" {
 		t.Error("expected browser-rendered HTML, got static HTML or SPA")
+	}
+}
+
+func TestEditLink(t *testing.T) {
+	const base = "https://editor.example/ingress"
+	tests := []struct {
+		name string
+		dash dashboard.Dashboard
+		base string
+		want string
+	}{
+		{
+			name: "interactive dashboard with flag",
+			dash: dashboard.Dashboard{ID: "abc123", Type: "interactive", ShowEditButton: true},
+			base: base,
+			want: base + "/dashboards/abc123/edit",
+		},
+		{
+			name: "legacy empty type counts as interactive",
+			dash: dashboard.Dashboard{ID: "abc123", ShowEditButton: true},
+			base: base,
+			want: base + "/dashboards/abc123/edit",
+		},
+		{
+			name: "id is escaped to one path segment",
+			dash: dashboard.Dashboard{ID: "a/b c", ShowEditButton: true},
+			base: base,
+			want: base + "/dashboards/a%2Fb%20c/edit",
+		},
+		{
+			name: "flag off",
+			dash: dashboard.Dashboard{ID: "abc123", Type: "interactive"},
+			base: base,
+			want: "",
+		},
+		{
+			name: "image dashboard",
+			dash: dashboard.Dashboard{ID: "abc123", Type: "image", ShowEditButton: true},
+			base: base,
+			want: "",
+		},
+		{
+			name: "no editor public url",
+			dash: dashboard.Dashboard{ID: "abc123", Type: "interactive", ShowEditButton: true},
+			base: "",
+			want: "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := editLink(tc.dash, tc.base); got != tc.want {
+				t.Errorf("editLink() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestInteractiveDashboard_EditButton(t *testing.T) {
+	dash := imageDashboard("test")
+	dash.Type = "interactive"
+	dash.ShowEditButton = true
+	handler := newTestMiddlewareWithEditor(t, "https://editor.example", dash)
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if want := `href="https://editor.example/dashboards/test/edit"`; !strings.Contains(rec.Body.String(), want) {
+		t.Errorf("expected edit button %s, body: %s", want, rec.Body.String())
+	}
+}
+
+func TestImageDashboard_BrowserPreviewHasNoEditButton(t *testing.T) {
+	dash := imageDashboard("test")
+	dash.ShowEditButton = true
+	handler := newTestMiddlewareWithEditor(t, "https://editor.example", dash)
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "Edit dashboard") || strings.Contains(body, "/dashboards/test/edit") {
+		t.Errorf("image dashboard must not get an edit button, body: %s", body)
 	}
 }
 
@@ -703,12 +799,12 @@ func TestImageDashboard_OversizedDisplayAnswers400WithLimit(t *testing.T) {
 func TestResolveImageBackgroundWithGradientOnly(t *testing.T) {
 	// When the background has a gradient but no image, resolveImageBackground
 	// should return the gradient CSS and nil bytes.
-	themeStore := themes.NewStore(t.TempDir(), nil)
+	themeStore := themes.NewStore(t.TempDir())
 	theme := themes.Theme{
 		ID:         "gradientonly",
 		Name:       "Gradient Only",
 		Colors:     themes.DefaultTheme().Colors,
-		Background: themes.Background{Gradient: &themes.Gradient{Direction: "to right", Light: []string{"#000000", "#ffffff"}}},
+		Background: themes.Background{Light: themes.ModeBackground{Gradient: &themes.Gradient{Direction: "to right", Stops: []string{"#000000", "#ffffff"}}}},
 	}
 
 	css, imageData := resolveImageBackground(theme, "light", themeStore)
@@ -725,25 +821,24 @@ func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
 	// When an image is present and loads successfully, resolveImageBackground
 	// must return "transparent" (not empty string) to prevent the template's
 	// else-branch from painting opaque theme colour over the pre-composited image.
-	imageStore, err := images.NewStore(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	themeStore := themes.NewStore(t.TempDir(), imageStore)
-
-	// Save a small test image
-	testPNG := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A} // PNG signature
-	if err := imageStore.Save("test.png", testPNG); err != nil {
-		t.Fatal(err)
-	}
+	themeStore := themes.NewStore(t.TempDir())
 
 	theme := themes.Theme{
 		ID:     "withimage",
 		Name:   "With Image",
 		Colors: themes.DefaultTheme().Colors,
-		Background: themes.Background{Image: &themes.Image{
-			Light: "shared:test.png", Fit: "cover", Position: "center", Repeat: "no-repeat",
-		}},
+		Background: themes.Background{Light: themes.ModeBackground{Image: &themes.Image{
+			Ref: "asset:test.png", Fit: "cover", Position: "center", Repeat: "no-repeat",
+		}}},
+	}
+	if _, err := themeStore.Create(theme); err != nil {
+		t.Fatal(err)
+	}
+
+	// Save a small test image into the theme's own assets
+	testPNG := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A} // PNG signature
+	if err := themeStore.SaveAsset(theme.ID, "test.png", testPNG); err != nil {
+		t.Fatal(err)
 	}
 
 	css, imageData := resolveImageBackground(theme, "light", themeStore)
@@ -830,32 +925,25 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Set up stores - use same imageStore for both saving and themeStore
 	dashStore := dashboard.NewStore(t.TempDir())
-	imageStore, err := images.NewStore(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	themeStore := themes.NewStore(t.TempDir(), imageStore)
+	themeStore := themes.NewStore(t.TempDir())
 
-	// Save the red image to the shared image store
-	if err := imageStore.Save("red.png", redBuf.Bytes()); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create a background entity referencing it
+	// Create a theme whose background references its own red asset
 	bg := themes.Theme{
 		ID:     "redbg",
 		Name:   "Red Background",
 		Colors: themes.DefaultTheme().Colors,
-		Background: themes.Background{Image: &themes.Image{
-			Light:    "shared:red.png",
+		Background: themes.Background{Light: themes.ModeBackground{Image: &themes.Image{
+			Ref:      "asset:red.png",
 			Fit:      "cover",
 			Position: "center",
 			Repeat:   "no-repeat",
-		}},
+		}}},
 	}
 	if _, err := themeStore.Create(bg); err != nil {
+		t.Fatal(err)
+	}
+	if err := themeStore.SaveAsset(bg.ID, "red.png", redBuf.Bytes()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -902,7 +990,7 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("SPA"))
 	})
-	mid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetthemes.NewStore(""))
+	mid := NewDashboardMiddleware(dashStore, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetthemes.NewStore(""), "")
 	handler := mid(spaHandler)
 
 	// Request the PNG

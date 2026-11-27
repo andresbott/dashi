@@ -24,6 +24,15 @@ export const publicViewerUrl = (): string => {
     return viewer?.enabled ? viewer.url : ''
 }
 
+// publicEditorUrl is the editor's configured public base URL, or '' when the
+// backend did not advertise one (editor disabled, no server.editor.publicUrl,
+// old backend, request failed). The viewer's Edit button links there, so it
+// must be set explicitly: behind an ingress the SPA cannot work it out.
+export const publicEditorUrl = (): string => {
+    const editor = serverInfo.value?.editor
+    return editor?.enabled ? editor.url : ''
+}
+
 // dashboardViewUrl is the link to the server-rendered view of a dashboard.
 export const dashboardViewUrl = (id: string): string => {
     return `${publicViewerUrl()}/${encodeURIComponent(id)}`

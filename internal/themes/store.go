@@ -13,14 +13,20 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 
-	"github.com/andresbott/dashi/internal/data/images"
 	"golang.org/x/text/unicode/norm"
 )
 
 const themeFile = "theme.json"
 const assetsDir = "assets"
+
+// assetGrace keeps files modified this recently out of the prune on save: an
+// edit made while an upload is in flight can start a save that still carries
+// the old ref, and the just-uploaded file must survive it. Such an orphan goes
+// on a later save.
+const assetGrace = 5 * time.Minute
 
 // Store persists themes as one folder per entity. The folder name is
 // snake_case of the display name and an in-memory id -> folder index is
@@ -34,13 +40,13 @@ const assetsDir = "assets"
 // would hold a stale index.
 type Store struct {
 	dir   string
-	pool  *images.Store
 	mu    sync.RWMutex
 	index map[string]string // id -> folder
+	now   func() time.Time  // clock for the asset prune grace window; tests move it
 }
 
-func NewStore(dir string, pool *images.Store) *Store {
-	s := &Store{dir: dir, pool: pool, index: make(map[string]string)}
+func NewStore(dir string) *Store {
+	s := &Store{dir: dir, index: make(map[string]string), now: time.Now}
 	s.buildIndex()
 	return s
 }
@@ -70,8 +76,8 @@ func readThemeFile(dir string) (Theme, bool) {
 	if err != nil {
 		return Theme{}, false
 	}
-	var t Theme
-	if err := json.Unmarshal(raw, &t); err != nil {
+	t, err := decodeTheme(raw)
+	if err != nil {
 		return Theme{}, false
 	}
 	if t.ID == "" || IsBuiltin(t.ID) {
@@ -226,8 +232,8 @@ func (s *Store) Get(id string) (Theme, error) {
 		}
 		return Theme{}, fmt.Errorf("read theme %s: %w", id, err)
 	}
-	var t Theme
-	if err := json.Unmarshal(raw, &t); err != nil {
+	t, err := decodeTheme(raw)
+	if err != nil {
 		return Theme{}, fmt.Errorf("unmarshal theme %s: %w", id, err)
 	}
 	return t, nil
@@ -280,9 +286,10 @@ func newMeta(t Theme, builtin bool, usage map[string]int) Meta {
 		ID:         t.ID,
 		Name:       t.Name,
 		Builtin:    builtin,
+		DarkMode:   t.DarkMode,
 		UsedBy:     usage[t.ID],
 		PreviewCSS: string(BrowserCSS(t)),
-		Colors:     t.Colors,
+		Colors:     Colors{Light: t.Palette("light"), Dark: t.Palette("dark")},
 	}
 }
 
@@ -324,7 +331,50 @@ func (s *Store) Update(t Theme) (Theme, error) {
 	if err := s.write(t); err != nil {
 		return Theme{}, err
 	}
+	s.pruneAssets(t)
 	return t, nil
+}
+
+// pruneAssets enforces one background file per mode: it deletes every file
+// under the theme's assets/ that neither the light nor the dark image refers
+// to. A stored dark ref counts even with darkMode off, so switching it back on
+// loses nothing; files modified within assetGrace are kept. It runs on save
+// only, never on load, so a theme's legacy files go on its next save. It is
+// best effort: the theme is already written, and a file that cannot be
+// removed now is retried on the next save.
+func (s *Store) pruneAssets(t Theme) {
+	dir, ok := s.themeDir(t.ID)
+	if !ok {
+		return
+	}
+	keep := make(map[string]bool, 2)
+	for _, img := range []*Image{t.Background.Light.Image, t.Background.Dark.Image} {
+		if img == nil {
+			continue
+		}
+		if _, path, ok := strings.Cut(img.Ref, ":"); ok {
+			keep[filepath.ToSlash(filepath.Clean(path))] = true
+		}
+	}
+	// Scoped to assets/ so a hand-placed symlink cannot steer a removal
+	// outside the theme.
+	root, err := os.OpenRoot(filepath.Join(dir, assetsDir))
+	if err != nil {
+		return // no assets/ folder yet
+	}
+	defer func() { _ = root.Close() }()
+	cutoff := s.now().Add(-assetGrace)
+	_ = fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || keep[path] {
+			return nil // best effort: skip what cannot be read
+		}
+		info, err := d.Info()
+		if err != nil || info.ModTime().After(cutoff) {
+			return nil
+		}
+		_ = root.Remove(filepath.FromSlash(path))
+		return nil
+	})
 }
 
 func (s *Store) Delete(id string) error {
@@ -543,16 +593,9 @@ func (s *Store) LoadImage(id, ref string) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("%w: reference %q has no scheme", ErrInvalidConfig, ref)
 	}
-	switch scheme {
-	case "asset":
-		data, _, err := s.GetAsset(id, path)
-		return data, err
-	case "shared":
-		if s.pool == nil {
-			return nil, fmt.Errorf("shared image pool not configured")
-		}
-		data, _, err := s.pool.Get(path)
-		return data, err
+	if scheme != "asset" {
+		return nil, fmt.Errorf("%w: unsupported reference scheme %q", ErrInvalidConfig, scheme)
 	}
-	return nil, fmt.Errorf("%w: unsupported reference scheme %q", ErrInvalidConfig, scheme)
+	data, _, err := s.GetAsset(id, path)
+	return data, err
 }

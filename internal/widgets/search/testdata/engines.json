@@ -1,0 +1,8 @@
+{
+  "default": "google",
+  "engines": [
+    { "engine": "google", "label": "Google", "action": "https://www.google.com/search" },
+    { "engine": "duckduckgo", "label": "DuckDuckGo", "action": "https://duckduckgo.com/" },
+    { "engine": "bing", "label": "Bing", "action": "https://www.bing.com/search" }
+  ]
+}

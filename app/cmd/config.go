@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/go-bumbu/config"
 )
@@ -49,6 +51,10 @@ type editorCfg struct {
 	Enabled bool
 	BindIp  string
 	Port    int
+	// PublicUrl is the URL browsers use to reach the editor, e.g.
+	// "https://ha.example.com/hassio/ingress/dashi". It is never derived:
+	// the viewer's Edit button only appears when it is set.
+	PublicUrl string
 }
 
 func (c editorCfg) Addr() string {
@@ -86,9 +92,10 @@ var defaultCfg = AppCfg{
 			PublicUrl: "",
 		},
 		Editor: editorCfg{
-			Enabled: true,
-			BindIp:  "",
-			Port:    8088,
+			Enabled:   true,
+			BindIp:    "",
+			Port:      8088,
+			PublicUrl: "",
 		},
 	},
 	Obs: obsCfg{
@@ -137,6 +144,8 @@ func getAppCfg(file string) (AppCfg, error) {
 		return cfg, err
 	}
 
+	normalizePublicURLs(&cfg)
+
 	absPath, err := filepath.Abs(cfg.DataDir)
 	if err != nil {
 		return cfg, fmt.Errorf("failed to get absolute path: %w", err)
@@ -152,4 +161,55 @@ func getAppCfg(file string) (AppCfg, error) {
 	}
 
 	return cfg, nil
+}
+
+// normalizePublicURLs normalizes the configured public base URLs once, so
+// every consumer can use them verbatim. A value that is not an absolute
+// http/https URL is dropped with a warning: these URLs end up in hrefs, and a
+// silent drop would leave the user guessing why a link is missing.
+func normalizePublicURLs(cfg *AppCfg) {
+	for _, u := range []struct {
+		key string
+		val *string
+	}{
+		{"server.viewer.publicUrl", &cfg.Server.Viewer.PublicUrl},
+		{"server.editor.publicUrl", &cfg.Server.Editor.PublicUrl},
+	} {
+		raw := *u.val
+		var stripped bool
+		*u.val, stripped = normalizeBaseURL(raw)
+		switch {
+		case *u.val == "" && strings.TrimSpace(raw) != "":
+			// Never log raw: it may carry a password, and a rejected value
+			// cannot be reliably redacted (e.g. "user:pass@host" parses as an
+			// opaque URL with scheme "user").
+			cfg.Msgs = append(cfg.Msgs, Msg{
+				Level: "warn",
+				Msg:   fmt.Sprintf("ignoring %s: not an absolute http or https URL", u.key),
+			})
+		case stripped:
+			// Log the result, not raw: raw may carry a password.
+			cfg.Msgs = append(cfg.Msgs, Msg{
+				Level: "warn",
+				Msg:   fmt.Sprintf("%s: dropped query, fragment or user info; using %q", u.key, *u.val),
+			})
+		}
+	}
+}
+
+// normalizeBaseURL validates a public base URL and strips its trailing slash.
+// Anything that is not an absolute http/https URL comes back empty. Query,
+// fragment and userinfo are dropped — paths get appended to a base, and
+// userinfo in an href leaks a credential — and stripped reports whether any
+// of them was present.
+func normalizeBaseURL(raw string) (base string, stripped bool) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Host == "" {
+		return "", false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", false
+	}
+	stripped = u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.User != nil
+	return strings.TrimSuffix(u.Scheme+"://"+u.Host+u.EscapedPath(), "/"), stripped
 }

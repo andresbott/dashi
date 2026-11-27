@@ -4,20 +4,16 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/andresbott/dashi/internal/data/images"
+	"time"
 )
 
 func newTestStore(t *testing.T) (*Store, string) {
 	t.Helper()
 	dir := t.TempDir()
-	pool, err := images.NewStore(filepath.Join(dir, "pool"))
-	if err != nil {
-		t.Fatalf("create pool: %v", err)
-	}
-	return NewStore(filepath.Join(dir, "themes"), pool), dir
+	return NewStore(filepath.Join(dir, "themes")), dir
 }
 
 // mustCreate creates a valid theme named name and fails the test on error.
@@ -58,7 +54,7 @@ func TestCreateUnnamableFallsBackToThemeFolder(t *testing.T) {
 func TestCreateRejectsInvalidConfig(t *testing.T) {
 	s, _ := newTestStore(t)
 	th := testTheme("Bad")
-	th.Background.Gradient = &Gradient{Direction: "sideways", Light: []string{"#000", "#fff"}}
+	th.Background.Light.Gradient = &Gradient{Direction: "sideways", Stops: []string{"#000", "#fff"}}
 	if _, err := s.Create(th); !errors.Is(err, ErrInvalidConfig) {
 		t.Fatalf("expected ErrInvalidConfig, got %v", err)
 	}
@@ -90,7 +86,7 @@ func TestCreateRejectsBuiltinID(t *testing.T) {
 func TestGetRoundTrips(t *testing.T) {
 	s, _ := newTestStore(t)
 	th := testTheme("Dusk")
-	th.Background.Gradient = &Gradient{Direction: "135deg", Light: []string{"#000000", "#ffffff"}}
+	th.Background.Light.Gradient = &Gradient{Direction: "135deg", Stops: []string{"#000000", "#ffffff"}}
 	th.Colors.Dark.Surface = "#23233d80"
 	created, err := s.Create(th)
 	if err != nil {
@@ -100,7 +96,7 @@ func TestGetRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
-	if got.Name != "Dusk" || got.Background.Gradient == nil || got.Background.Gradient.Direction != "135deg" {
+	if got.Name != "Dusk" || got.Background.Light.Gradient == nil || got.Background.Light.Gradient.Direction != "135deg" {
 		t.Fatalf("round trip lost data: %+v", got)
 	}
 	if got.Colors != th.Colors {
@@ -300,7 +296,7 @@ func TestListIncludesBuiltins(t *testing.T) {
 func TestListSortsByNameAndCarriesUsageAndPreview(t *testing.T) {
 	s, _ := newTestStore(t)
 	zebraTheme := testTheme("Zebra")
-	zebraTheme.Background.Gradient = &Gradient{Direction: "to right", Light: []string{"#123456", "#654321"}}
+	zebraTheme.Background.Light.Gradient = &Gradient{Direction: "to right", Stops: []string{"#123456", "#654321"}}
 	b, err := s.Create(zebraTheme)
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -358,15 +354,164 @@ func TestListSkipsStoredThemeClaimingBuiltinID(t *testing.T) {
 	}
 }
 
-func TestIndexIsRebuiltOnStartup(t *testing.T) {
-	dir := t.TempDir()
-	pool, _ := images.NewStore(filepath.Join(dir, "pool"))
-	themesDir := filepath.Join(dir, "themes")
+// writeRawTheme writes raw as themes/<folder>/theme.json and returns a store
+// that indexes it.
+func writeRawTheme(t *testing.T, folder, raw string) *Store {
+	t.Helper()
+	themesDir := filepath.Join(t.TempDir(), "themes")
+	if err := os.MkdirAll(filepath.Join(themesDir, folder), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(themesDir, folder, "theme.json"), []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return NewStore(themesDir)
+}
 
-	first := NewStore(themesDir, pool)
+func findMeta(t *testing.T, metas []Meta, id string) Meta {
+	t.Helper()
+	for _, m := range metas {
+		if m.ID == id {
+			return m
+		}
+	}
+	t.Fatalf("no meta for %q in %+v", id, metas)
+	return Meta{}
+}
+
+func TestThemeWithoutDarkModeKeyLoadsDarkModeOn(t *testing.T) {
+	s := writeRawTheme(t, "old", `{"id":"old123","name":"Old","background":{},"colors":{}}`)
+	got, err := s.Get("old123")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !got.DarkMode {
+		t.Error("Get: a theme without the darkMode key must load with dark mode on")
+	}
+	metas, err := s.List(nil)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if !findMeta(t, metas, "old123").DarkMode {
+		t.Error("List: a theme without the darkMode key must load with dark mode on")
+	}
+}
+
+func TestStoredDarkModeOffSurvivesReload(t *testing.T) {
+	s, _ := newTestStore(t)
+	th := testTheme("Light only")
+	th.DarkMode = false
+	created, err := s.Create(th)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	got, err := s.Get(created.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.DarkMode {
+		t.Fatal("a saved darkMode false must reload as false")
+	}
+}
+
+func TestGetMalformedThemeFails(t *testing.T) {
+	s := writeRawTheme(t, "bad", `{"id":"bad123","name":"Bad","colors":`)
+	if _, err := s.Get("bad123"); err == nil {
+		t.Fatal("expected an error for a malformed theme.json")
+	}
+}
+
+func TestListSkipsMalformedTheme(t *testing.T) {
+	s := writeRawTheme(t, "bad", `{"id":"bad123","name":"Bad","colors":`)
+	metas, err := s.List(nil)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	for _, m := range metas {
+		if m.ID == "bad123" {
+			t.Fatal("List must skip a malformed theme.json")
+		}
+	}
+}
+
+// The Banana case: a theme saved before per-mode backgrounds and the darkMode
+// flag, with only a light image.
+func TestLegacyThemeLoadsWithLightBackgroundCopiedToDark(t *testing.T) {
+	raw := `{"id":"banana1","name":"Banana","background":{"image":{"light":"asset:banana.png",` +
+		`"fit":"cover","position":"center","repeat":"no-repeat"}},"colors":{}}`
+	s := writeRawTheme(t, "banana", raw)
+	want := ModeBackground{Image: &Image{Ref: "asset:banana.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}}
+
+	got, err := s.Get("banana1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !got.DarkMode {
+		t.Error("Get: a legacy theme must load with dark mode on")
+	}
+	if !reflect.DeepEqual(got.Background.Light, want) || !reflect.DeepEqual(got.Background.Dark, want) {
+		t.Errorf("Get: want the light image in both modes, got %s", fmtBackground(got.Background))
+	}
+
+	metas, err := s.List(nil)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	m := findMeta(t, metas, "banana1")
+	if !m.DarkMode {
+		t.Error("List: a legacy theme must load with dark mode on")
+	}
+	if !strings.Contains(m.PreviewCSS, "banana.png") {
+		t.Errorf("List: preview must carry the migrated image, got %q", m.PreviewCSS)
+	}
+}
+
+func TestMetaDarkModeOffReportsLightAsDark(t *testing.T) {
+	s, _ := newTestStore(t)
+	th := testTheme("Light only")
+	th.DarkMode = false
+	th.Colors.Dark = Palette{}
+	created, err := s.Create(th)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	metas, err := s.List(nil)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	m := findMeta(t, metas, created.ID)
+	if m.DarkMode {
+		t.Error("meta must report dark mode off")
+	}
+	if m.Colors.Dark != th.Colors.Light || m.Colors.Light != th.Colors.Light {
+		t.Errorf("meta with dark mode off must report the light palette for both modes, got %+v", m.Colors)
+	}
+}
+
+func TestDecodeRequestRequiresDarkMode(t *testing.T) {
+	if _, err := DecodeRequest([]byte(`{"name":"X","colors":{}}`)); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected ErrInvalidConfig without darkMode, got %v", err)
+	}
+	if _, err := DecodeRequest([]byte(`{"name":`)); err == nil || errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("expected a plain decode error for malformed JSON, got %v", err)
+	}
+	got, err := DecodeRequest([]byte(`{"name":"X","darkMode":false}`))
+	if err != nil || got.DarkMode || got.Name != "X" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	got, err = DecodeRequest([]byte(`{"name":"X","darkMode":true}`))
+	if err != nil || !got.DarkMode {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
+func TestIndexIsRebuiltOnStartup(t *testing.T) {
+	themesDir := filepath.Join(t.TempDir(), "themes")
+
+	first := NewStore(themesDir)
 	created := mustCreate(t, first, "Persisted")
 
-	second := NewStore(themesDir, pool)
+	second := NewStore(themesDir)
 	if _, err := second.Get(created.ID); err != nil {
 		t.Fatalf("a fresh store must find the theme by id: %v", err)
 	}
@@ -404,6 +549,138 @@ func TestAssetLifecycle(t *testing.T) {
 	}
 }
 
+// skipAssetGrace moves the store's clock an hour ahead so files saved by the
+// test fall outside the prune grace window.
+func skipAssetGrace(s *Store) {
+	s.now = func() time.Time { return time.Now().Add(time.Hour) }
+}
+
+func imageRef(name string) *Image {
+	return &Image{Ref: "asset:" + name, Fit: "cover", Position: "center", Repeat: "no-repeat"}
+}
+
+func mustSaveAssets(t *testing.T, s *Store, id string, names ...string) {
+	t.Helper()
+	for _, name := range names {
+		if err := s.SaveAsset(id, name, []byte(name)); err != nil {
+			t.Fatalf("save asset %s: %v", name, err)
+		}
+	}
+}
+
+func assertAssets(t *testing.T, s *Store, id string, want ...string) {
+	t.Helper()
+	got, err := s.ListAssets(id)
+	if err != nil {
+		t.Fatalf("list assets: %v", err)
+	}
+	if want == nil {
+		want = []string{}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("assets = %v, want %v", got, want)
+	}
+}
+
+func TestUpdatePrunesUnreferencedAssets(t *testing.T) {
+	s, _ := newTestStore(t)
+	skipAssetGrace(s)
+	th := mustCreate(t, s, "Prune")
+	mustSaveAssets(t, s, th.ID, "first.png", "second.png")
+
+	th.Background.Light.Image = imageRef("second.png")
+	th.Name = "Pruned" // the prune must follow the renamed folder
+	if _, err := s.Update(th); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	assertAssets(t, s, th.ID, "second.png")
+}
+
+func TestUpdateKeepsDarkReferencedAsset(t *testing.T) {
+	cases := []struct {
+		name      string
+		darkMode  bool
+		light     string
+		dark      string
+		wantAfter []string
+	}{
+		{"dark mode on", true, "light.png", "dark.png", []string{"dark.png", "light.png"}},
+		{"dark mode off keeps the stored dark ref", false, "light.png", "dark.png", []string{"dark.png", "light.png"}},
+		{"dark only", true, "", "dark.png", []string{"dark.png"}},
+		{"light and dark share a file", true, "light.png", "light.png", []string{"light.png"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, _ := newTestStore(t)
+			skipAssetGrace(s)
+			th := mustCreate(t, s, "Modes")
+			mustSaveAssets(t, s, th.ID, "light.png", "dark.png", "orphan.png")
+
+			th.DarkMode = tc.darkMode
+			if tc.light != "" {
+				th.Background.Light.Image = imageRef(tc.light)
+			}
+			th.Background.Dark.Image = imageRef(tc.dark)
+			if _, err := s.Update(th); err != nil {
+				t.Fatalf("update: %v", err)
+			}
+			assertAssets(t, s, th.ID, tc.wantAfter...)
+		})
+	}
+}
+
+// Legacy files are only pruned by a save: loading, listing, reading and a
+// store restart must leave them alone.
+func TestLegacyAssetsArePrunedOnlyOnSave(t *testing.T) {
+	raw := `{"id":"legacy1","name":"Legacy","darkMode":true,"background":{"light":{"image":` +
+		`{"ref":"asset:keep.png","fit":"cover","position":"center","repeat":"no-repeat"}},"dark":{}},"colors":{}}`
+	s := writeRawTheme(t, "legacy", raw)
+	assets := filepath.Join(s.dir, "legacy", assetsDir)
+	for _, name := range []string{"keep.png", "old.png", "nested/older.jpg"} {
+		full := filepath.Join(assets, name)
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	all := []string{"keep.png", "nested/older.jpg", "old.png"}
+
+	s = NewStore(s.dir)
+	skipAssetGrace(s)
+	if _, err := s.List(nil); err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	got, err := s.Get("legacy1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	assertAssets(t, s, "legacy1", all...)
+
+	got.Colors = testTheme("x").Colors
+	if _, err := s.Update(got); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	assertAssets(t, s, "legacy1", "keep.png")
+}
+
+func TestUpdateKeepsRecentlyModifiedAssets(t *testing.T) {
+	s, _ := newTestStore(t)
+	th := mustCreate(t, s, "Grace")
+	mustSaveAssets(t, s, th.ID, "fresh.png", "stale.png")
+	dir, _ := s.themeDir(th.ID)
+	old := time.Now().Add(-assetGrace - time.Minute)
+	if err := os.Chtimes(filepath.Join(dir, assetsDir, "stale.png"), old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.Update(th); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	assertAssets(t, s, th.ID, "fresh.png")
+}
+
 func TestAssetRejectsTraversalAndBadExtension(t *testing.T) {
 	s, _ := newTestStore(t)
 	created := mustCreate(t, s, "Assets")
@@ -432,13 +709,8 @@ func TestListAssetsExcludesThemeJSON(t *testing.T) {
 	}
 }
 
-func TestLoadImageFromAssetAndPool(t *testing.T) {
-	dir := t.TempDir()
-	pool, _ := images.NewStore(filepath.Join(dir, "pool"))
-	if err := pool.Save("shared.png", []byte("pool-bytes")); err != nil {
-		t.Fatalf("seed pool: %v", err)
-	}
-	s := NewStore(filepath.Join(dir, "themes"), pool)
+func TestLoadImageFromAsset(t *testing.T) {
+	s, _ := newTestStore(t)
 	created := mustCreate(t, s, "Loader")
 	_ = s.SaveAsset(created.ID, "own.png", []byte("own-bytes"))
 
@@ -446,12 +718,10 @@ func TestLoadImageFromAssetAndPool(t *testing.T) {
 	if err != nil || string(own) != "own-bytes" {
 		t.Fatalf("asset ref: %q, %v", own, err)
 	}
-	shared, err := s.LoadImage(created.ID, "shared:shared.png")
-	if err != nil || string(shared) != "pool-bytes" {
-		t.Fatalf("shared ref: %q, %v", shared, err)
-	}
-	if _, err := s.LoadImage(created.ID, "theme:default/x.png"); err == nil {
-		t.Fatal("theme refs must be rejected")
+	for _, ref := range []string{"shared:own.png", "theme:default/x.png"} {
+		if _, err := s.LoadImage(created.ID, ref); err == nil {
+			t.Fatalf("%s must be rejected: a theme only loads its own assets", ref)
+		}
 	}
 }
 
@@ -462,7 +732,7 @@ func createOceanWithAsset(t *testing.T, s *Store) Theme {
 	th := testTheme("Ocean")
 	th.Colors.Light.Primary = "#0077be"
 	th.Colors.Dark.Surface = "#00334e80"
-	th.Background.Image = &Image{Light: "asset:img/a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
+	th.Background.Light.Image = &Image{Ref: "asset:img/a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
 	created, err := s.Create(th)
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -498,7 +768,7 @@ func TestCopyTheme(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the copy must be persisted: %v", err)
 	}
-	if stored.Background.Image == nil || stored.Background.Image.Light != "asset:img/a.png" {
+	if stored.Background.Light.Image == nil || stored.Background.Light.Image.Ref != "asset:img/a.png" {
 		t.Errorf("background not copied: %+v", stored.Background)
 	}
 }

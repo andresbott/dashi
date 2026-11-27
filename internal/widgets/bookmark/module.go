@@ -5,15 +5,19 @@ import (
 	"fmt"
 
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
 // Module implements widgets.Module for the bookmark widget.
 type Module struct {
 	widgets.NoopModule
+	themes *widgetthemes.Store // resolves config.icon for the browser stack; nil renders no icon
 }
 
-// NewModule constructs a bookmark Module.
-func NewModule() *Module { return &Module{} }
+// NewModule constructs a bookmark Module. The widget-theme store resolves
+// the configured icon in the browser renderer; the image renderer does not
+// use it.
+func NewModule(themes *widgetthemes.Store) *Module { return &Module{themes: themes} }
 
 // Type returns the widget type string.
 func (m *Module) Type() string { return "bookmark" }

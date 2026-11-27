@@ -72,6 +72,8 @@ type bookmarkConfig struct {
 	Title     string `json:"title"`
 	Subtitle  string `json:"subtitle"`
 	TextBelow bool   `json:"textBelow,omitempty"`
+	// NewTab opens the link in a new browser tab; off opens it in place.
+	NewTab bool `json:"newTab,omitempty"`
 }
 
 type bookmarkData struct {

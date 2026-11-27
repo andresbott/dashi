@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, useId } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
+import ToggleSwitch from 'primevue/toggleswitch'
+import AlignmentPicker from '@/components/dashboards/AlignmentPicker.vue'
 
 import { useDashboardAuth } from '@/composables/useDashboards'
 import { useDashboardDraft } from '@/composables/useDashboardDraft'
@@ -11,6 +13,7 @@ import { useListThemes } from '@/composables/useThemes'
 import { useWidgetThemes } from '@/composables/useWidgetThemes'
 import { pageBgValue } from '@/lib/themeCss'
 import { DITHER_OPTIONS, DITHER_PLAIN, type DitherOption } from '@/lib/dither'
+import { publicEditorUrl } from '@/lib/serverInfo'
 import { useToast } from 'primevue/usetoast'
 import type { ColorMode } from '@/types/dashboard'
 import dashiIcon from '@/assets/icon-64.png'
@@ -24,6 +27,9 @@ const { draft: localDashboard, isLoading, isError, saveStatus, hasUnsaved, flush
 const { themes: themeList } = useListThemes()
 const { data: widgetThemeList } = useWidgetThemes()
 const { auth: dashAuth, isLoadingAuth, setAuth, isSettingAuth, deleteAuth, isDeletingAuth } = useDashboardAuth(() => id.value)
+
+const alignmentLabelId = useId()
+const editButtonInputId = useId()
 
 const authUsername = ref('')
 const authPassword = ref('')
@@ -115,6 +121,25 @@ const dither = computed<DitherOption['value']>({
         else localDashboard.value.dither = v
     },
 })
+
+// Off is the absent field, like plain dithering. Switching the type to image
+// only hides the toggle; the stored value stays for when it is switched back.
+const showEditButton = computed<boolean>({
+    get: () => localDashboard.value?.showEditButton === true,
+    set: (v) => {
+        if (!localDashboard.value) return
+        if (v) localDashboard.value.showEditButton = true
+        else delete localDashboard.value.showEditButton
+    },
+})
+
+// The viewer draws the button only when the backend knows the editor's public
+// URL; without one the setting is still saved, but has no visible effect yet.
+const hasEditorUrl = computed(() => publicEditorUrl() !== '')
+
+// Common widths to pick from; the Select is editable, so any CSS width can
+// still be typed in.
+const MAX_WIDTH_PRESETS = ['100%', '1920px', '1600px', '1440px', '1280px', '1024px', '800px']
 
 const ditherHint = computed(() => DITHER_OPTIONS.find(o => o.value === dither.value)?.hint ?? '')
 
@@ -237,6 +262,23 @@ const activeSection = ref('general')
                             Compare the options with E-ink preview in the editor.
                         </small>
                     </div>
+                    <div v-if="localDashboard.type !== 'image'" class="flex flex-column gap-1">
+                        <div class="flex align-items-center gap-2">
+                            <ToggleSwitch
+                                v-model="showEditButton"
+                                :inputId="editButtonInputId"
+                                data-testid="edit-button-toggle"
+                            />
+                            <label :for="editButtonInputId" class="font-semibold text-sm">Show Edit button</label>
+                        </div>
+                        <small class="settings-hint">
+                            Adds a button to the rendered dashboard that opens it here in the editor.
+                        </small>
+                        <small v-if="!hasEditorUrl" class="settings-hint" data-testid="edit-button-url-hint">
+                            Set <code>server.editor.publicUrl</code> (or the Home Assistant add-on option
+                            <code>editor_public_url</code>) for the button to appear.
+                        </small>
+                    </div>
                 </div>
 
                 <!-- Appearance (theme, widget theme, colour mode, container) -->
@@ -299,35 +341,23 @@ const activeSection = ref('general')
                     <label class="settings-subsection">Container</label>
                     <div class="flex flex-column gap-1">
                         <label class="font-semibold text-sm">Max Width</label>
-                        <InputText v-model="localDashboard.container.maxWidth" placeholder="e.g. 1200px, 80%, 100%" />
-                    </div>
-                    <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Vertical Align</label>
                         <Select
-                            v-model="localDashboard.container.verticalAlign"
-                            :options="[
-                                { label: 'Top', value: 'top' },
-                                { label: 'Center', value: 'center' },
-                                { label: 'Bottom', value: 'bottom' },
-                            ]"
-                            optionLabel="label"
-                            optionValue="value"
+                            v-model="localDashboard.container.maxWidth"
+                            editable
+                            :options="MAX_WIDTH_PRESETS"
+                            placeholder="e.g. 1200px, 80%, 100%"
                             class="w-full"
+                            data-testid="max-width-select"
                         />
                     </div>
                     <div class="flex flex-column gap-1">
-                        <label class="font-semibold text-sm">Horizontal Align</label>
-                        <Select
-                            v-model="localDashboard.container.horizontalAlign"
-                            :options="[
-                                { label: 'Left', value: 'left' },
-                                { label: 'Center', value: 'center' },
-                                { label: 'Right', value: 'right' },
-                            ]"
-                            optionLabel="label"
-                            optionValue="value"
-                            class="w-full"
+                        <span :id="alignmentLabelId" class="font-semibold text-sm">Alignment</span>
+                        <AlignmentPicker
+                            :labelledBy="alignmentLabelId"
+                            v-model:vertical="localDashboard.container.verticalAlign"
+                            v-model:horizontal="localDashboard.container.horizontalAlign"
                         />
+                        <small class="settings-hint">Where the container sits on the screen.</small>
                     </div>
 
                 </div>

@@ -9,6 +9,8 @@ import Column from 'primevue/column'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useListThemes } from '@/composables/useThemes'
 import { pageBgValue } from '@/lib/themeCss'
+import { plainCopy } from '@/lib/plainCopy'
+import { emptyPalette } from '@/lib/themeEditor'
 import type { ThemeMeta } from '@/types/theme'
 import { useToast } from 'primevue/usetoast'
 
@@ -36,11 +38,15 @@ const openEditor = (id: string) => {
 const handleCreate = async () => {
     if (!builtin.value) return
     try {
+        // A new theme has one mode: dark mode off, the builtin's light palette
+        // and no dark values. Ticking "Enable dark mode" in the editor seeds
+        // dark from light.
         const created = await createTheme({
             name: 'New theme',
-            background: {},
-            // A plain copy: query data is a reactive proxy, which structuredClone rejects.
-            colors: JSON.parse(JSON.stringify(builtin.value.colors)),
+            darkMode: false,
+            background: { light: {}, dark: {} },
+            // A plain copy: query data is a reactive proxy.
+            colors: { light: plainCopy(builtin.value.colors.light), dark: emptyPalette() },
         })
         openEditor(created.id)
     } catch {

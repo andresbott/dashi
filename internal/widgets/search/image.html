@@ -1,0 +1,40 @@
+<div class="widget-search">
+    <div class="search-bar">
+        <span class="search-icon" style="font-family: '{{.IconFontFamily}}';">{{.SearchIcon}}</span>
+        <span class="search-placeholder">{{.Placeholder}}</span>
+        <span class="search-button" style="font-family: '{{.IconFontFamily}}';">{{.ArrowIcon}}</span>
+    </div>
+    <div class="search-engine">{{.Label}}</div>
+</div>
+<style>
+    .widget-search { padding: 8px; }
+    .widget-search .search-bar {
+        display: flex;
+        align-items: center;
+        background-color: {{.Palette.Surface}};
+        border: 1px solid {{.Palette.Border}};
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .widget-search .search-icon { flex-shrink: 0; padding: 0 8px 0 12px; font-size: 1.1em; color: {{.Palette.TextMuted}}; }
+    .widget-search .search-placeholder {
+        flex: 1;
+        padding: 10px 8px;
+        font-size: 0.95em;
+        color: {{.Palette.TextMuted}};
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    .widget-search .search-button {
+        flex-shrink: 0;
+        align-self: stretch;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        border-radius: 0 7px 7px 0; /* litehtml does not clip children to the bar's radius */
+        background-color: {{.Palette.Primary}};
+        color: {{.Palette.OnPrimary}};
+    }
+    .widget-search .search-engine { margin-top: 4px; padding-right: 4px; text-align: right; font-size: 0.75em; color: {{.Palette.TextMuted}}; }
+</style>

@@ -8,9 +8,10 @@ Releases are goreleaser builds triggered by pushing a `v*.*.*` tag
     make tag version="v1.2.3"
 
 `make tag` refuses unless the working tree is clean and you are on `main`
-(`check-git-clean`, `check-branch`). Note it does **not** run `make verify` —
+(`check-git-clean`, `check-branch`), and unless the tag (without the `v`)
+equals `version:` in `ha-addon/config.yaml`. Note it does **not** run `make verify` —
 CI test workflows run on push, but the tag target itself only checks git
-state; run `make verify` yourself before tagging.
+state and the add-on version; run `make verify` yourself before tagging.
 
 The Release workflow then:
 1. `release-linux` (ubuntu-22.04 — pinned for glibc compatibility, PR #3):
@@ -34,8 +35,9 @@ base image MUST stay Debian (glibc/litehtml); an Alpine/musl base would not run
 the binary.
 
 **Version sync (required before tagging):** bump `version:` in
-`ha-addon/config.yaml` to the new version (without the `v`). CI asserts it
-equals the tag and fails the release on mismatch. The add-on manifests live in
+`ha-addon/config.yaml` to the new version (without the `v`). `make tag`
+refuses to create a mismatching tag, and CI asserts it again and fails the
+release on mismatch. The add-on manifests live in
 this repo (`repository.yaml` at the root, `ha-addon/`), so users add
 `github.com/andresbott/dashi` as an add-on repository.
 

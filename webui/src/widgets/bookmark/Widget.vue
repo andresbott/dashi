@@ -43,7 +43,12 @@ const iconInfo = computed(() => {
             <span>Configure bookmark in edit mode</span>
         </div>
 
-        <a v-else :href="href" target="_blank" rel="noopener noreferrer" class="bookmark-link" :class="{ 'bookmark-link--below': config.textBelow }">
+        <a
+            v-else
+            :href="href"
+            :target="config.newTab ? '_blank' : undefined"
+            :rel="config.newTab ? 'noopener noreferrer' : undefined"
+            class="bookmark-link" :class="{ 'bookmark-link--below': config.textBelow }">
             <img
                 v-if="iconInfo?.type === 'image'"
                 :src="iconInfo.src"

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -12,7 +11,10 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const maxThemeAssetUpload = 10 << 20 // 10 MB, same cap as other uploads
+const (
+	maxThemeAssetUpload = 10 << 20 // 10 MB, same cap as other uploads
+	maxThemeBody        = 10 << 20 // 10 MB, same cap for the theme JSON on POST/PUT
+)
 
 // ThemeHandler serves the theme entity and its assets. It holds the
 // dashboard store only to count references for the listing — the shared
@@ -81,10 +83,33 @@ func (h *ThemeHandler) Get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, themeResponse{Theme: t, Builtin: themes.IsBuiltin(t.ID)})
 }
 
+// decodeThemeBody reads a POST/PUT body. It must carry the darkMode key
+// (themes.DecodeRequest), which turns away a stale SPA tab still sending the
+// pre-flag shape. Unknown keys stay allowed: the editor PUTs back the
+// builtin flag it got from GET. A body over maxThemeBody fails the read. It
+// answers 400 itself and reports false on failure.
+func decodeThemeBody(w http.ResponseWriter, r *http.Request) (themes.Theme, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxThemeBody)
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		ErrorJSON(w, "failed to read body", http.StatusBadRequest)
+		return themes.Theme{}, false
+	}
+	t, err := themes.DecodeRequest(raw)
+	if err != nil {
+		msg := "invalid request body"
+		if errors.Is(err, themes.ErrInvalidConfig) {
+			msg = err.Error()
+		}
+		ErrorJSON(w, msg, http.StatusBadRequest)
+		return themes.Theme{}, false
+	}
+	return t, true
+}
+
 func (h *ThemeHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var t themes.Theme
-	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
-		ErrorJSON(w, "invalid request body", http.StatusBadRequest)
+	t, ok := decodeThemeBody(w, r)
+	if !ok {
 		return
 	}
 	t.ID = "" // the store assigns it
@@ -100,9 +125,8 @@ func (h *ThemeHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ThemeHandler) Update(w http.ResponseWriter, r *http.Request) {
-	var t themes.Theme
-	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
-		ErrorJSON(w, "invalid request body", http.StatusBadRequest)
+	t, ok := decodeThemeBody(w, r)
+	if !ok {
 		return
 	}
 	t.ID = mux.Vars(r)["id"]

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -20,8 +21,9 @@ import (
 // GET paths that name a dashboard and renders it. Image dashboards
 // requested with display headers render as PNG for e-ink clients;
 // everything else renders as browser HTML. Non-dashboard paths fall
-// through to the next handler.
-func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Renderer, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store, widgetThemeStore *widgetthemes.Store) func(http.Handler) http.Handler {
+// through to the next handler. editorBase is the editor's public URL, the
+// target of the optional Edit button; empty means no button.
+func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Renderer, staticRenderer *dashstatic.Renderer, imageRenderer *dashimage.Renderer, themeStore *themes.Store, widgetThemeStore *widgetthemes.Store, editorBase string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet {
@@ -48,15 +50,28 @@ func NewDashboardMiddleware(store *dashboard.Store, browserRenderer *browser.Ren
 				serveImageDashboard(w, r, dash, store, staticRenderer, imageRenderer, theme, themeStore, widgetThemeStore)
 				return
 			}
-			serveBrowserDashboard(w, r, dash, store, browserRenderer, theme)
+			serveBrowserDashboard(w, r, dash, store, browserRenderer, theme, editLink(dash, editorBase))
 		})
 	}
+}
+
+// editLink returns the editor URL for dash's Edit button, or "" when the
+// button is not drawn: image dashboards never get one (their browser view is
+// a preview of the PNG), nor does a dashboard with the setting off, nor any
+// dashboard while the editor has no public URL. base is already normalised
+// (no trailing slash) at config load.
+func editLink(dash dashboard.Dashboard, base string) string {
+	if dash.Type == "image" || !dash.ShowEditButton || base == "" {
+		return ""
+	}
+	return base + "/dashboards/" + url.PathEscape(dash.ID) + "/edit"
 }
 
 // serveBrowserDashboard renders a dashboard as HTML for a real browser.
 // Theme colours, background and fonts reach the page through the two
 // linked stylesheets; the palette is only carried for widget renderers.
-func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, renderer *browser.Renderer, theme themes.Theme) {
+// editURL is the Edit button's target; empty draws no button.
+func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboard.Dashboard, store *dashboard.Store, renderer *browser.Renderer, theme themes.Theme, editURL string) {
 	pageIdx, ok := parsePageIndex(r, len(dash.Pages))
 	if !ok {
 		http.NotFound(w, r)
@@ -96,6 +111,7 @@ func serveBrowserDashboard(w http.ResponseWriter, r *http.Request, dash dashboar
 		TotalPages:  len(dash.Pages),
 		PageNames:   pageNames,
 		Palette:     theme.Palette(colorMode),
+		EditURL:     editURL,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

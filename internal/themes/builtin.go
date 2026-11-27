@@ -31,8 +31,9 @@ func Builtin(id string) (Theme, bool) {
 // EmberTheme returns the builtin Ember theme over a plain background.
 func EmberTheme() Theme {
 	return Theme{
-		ID:   EmberID,
-		Name: "Ember",
+		ID:       EmberID,
+		Name:     "Ember",
+		DarkMode: true,
 		Colors: Colors{
 			Light: Palette{
 				BG: "#f4ecdf", Surface: "#fbf6ee", Border: "#e2d5c0",

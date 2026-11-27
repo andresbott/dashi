@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/andresbott/dashi/internal/dashboard"
-	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/gorilla/mux"
 )
@@ -20,11 +19,7 @@ import (
 func newThemeTestRouter(t *testing.T) (*mux.Router, *themes.Store, *dashboard.Store) {
 	t.Helper()
 	dir := t.TempDir()
-	pool, err := images.NewStore(filepath.Join(dir, "pool"))
-	if err != nil {
-		t.Fatalf("pool: %v", err)
-	}
-	themeStore := themes.NewStore(filepath.Join(dir, "themes"), pool)
+	themeStore := themes.NewStore(filepath.Join(dir, "themes"))
 	dashStore := dashboard.NewStore(filepath.Join(dir, "dashboards"))
 
 	h := NewThemeHandler(themeStore, dashStore, slog.Default())
@@ -60,7 +55,86 @@ func doJSON(t *testing.T, r *mux.Router, method, path string, body any) *httptes
 
 // validTheme returns a theme that passes validation.
 func validTheme(name string) themes.Theme {
-	return themes.Theme{Name: name, Colors: themes.DefaultTheme().Colors}
+	return themes.Theme{Name: name, DarkMode: true, Colors: themes.DefaultTheme().Colors}
+}
+
+func TestThemeWritesRequireDarkModeKey(t *testing.T) {
+	r, themeStore, _ := newThemeTestRouter(t)
+	stored := mustCreateTheme(t, themeStore, "Stored")
+	body := map[string]any{"name": "No flag", "colors": themes.DefaultTheme().Colors}
+	for _, c := range []struct{ method, path string }{
+		{http.MethodPost, "/themes"},
+		{http.MethodPut, "/themes/" + stored.ID},
+	} {
+		rec := doJSON(t, r, c.method, c.path, body)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s %s without darkMode: expected 400, got %d body %s", c.method, c.path, rec.Code, rec.Body)
+		}
+		if !strings.Contains(rec.Body.String(), "darkMode") {
+			t.Errorf("%s %s: expected the error to name darkMode, got %s", c.method, c.path, rec.Body)
+		}
+	}
+	got, err := themeStore.Get(stored.ID)
+	if err != nil || got.Name != "Stored" {
+		t.Fatalf("a rejected PUT must not change the theme, got %+v %v", got, err)
+	}
+}
+
+func TestThemeUpdateRejectsLegacyBackground(t *testing.T) {
+	r, themeStore, _ := newThemeTestRouter(t)
+	stored := mustCreateTheme(t, themeStore, "Stored")
+	rec := doJSON(t, r, http.MethodPut, "/themes/"+stored.ID, map[string]any{
+		"name":       "Legacy",
+		"darkMode":   true,
+		"colors":     themes.DefaultTheme().Colors,
+		"background": map[string]any{"gradient": map[string]any{"direction": "to bottom", "light": []string{"#fff", "#eee"}}},
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body %s", rec.Code, rec.Body)
+	}
+	if !strings.Contains(rec.Body.String(), "background") {
+		t.Errorf("expected the error to name the background, got %s", rec.Body)
+	}
+	got, err := themeStore.Get(stored.ID)
+	if err != nil || got.Name != "Stored" {
+		t.Fatalf("a rejected PUT must not change the theme, got %+v %v", got, err)
+	}
+}
+
+func TestThemeWritesRejectOversizedBody(t *testing.T) {
+	r, themeStore, _ := newThemeTestRouter(t)
+	stored := mustCreateTheme(t, themeStore, "Stored")
+	// A valid theme padded with trailing JSON whitespace past the cap, so only
+	// the size limit can reject it.
+	raw, err := json.Marshal(validTheme("Big"))
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	body := string(raw) + strings.Repeat(" ", maxThemeBody)
+	for _, c := range []struct{ method, path string }{
+		{http.MethodPost, "/themes"},
+		{http.MethodPut, "/themes/" + stored.ID},
+	} {
+		req := httptest.NewRequest(c.method, c.path, strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s %s oversized: expected 400, got %d", c.method, c.path, rec.Code)
+		}
+	}
+}
+
+func TestThemeUpdateStoresDarkModeOff(t *testing.T) {
+	r, themeStore, _ := newThemeTestRouter(t)
+	th := mustCreateTheme(t, themeStore, "Light")
+	th.DarkMode = false
+	if rec := doJSON(t, r, http.MethodPut, "/themes/"+th.ID, th); rec.Code != http.StatusOK {
+		t.Fatalf("update: got %d body %s", rec.Code, rec.Body)
+	}
+	got, err := themeStore.Get(th.ID)
+	if err != nil || got.DarkMode {
+		t.Fatalf("expected darkMode false to persist, got %+v %v", got, err)
+	}
 }
 
 func mustCreateTheme(t *testing.T, s *themes.Store, name string) themes.Theme {
@@ -116,8 +190,9 @@ func TestThemeCreateIgnoresClientID(t *testing.T) {
 func TestThemeCreateRejectsInvalidConfig(t *testing.T) {
 	r, _, _ := newThemeTestRouter(t)
 	rec := doJSON(t, r, http.MethodPost, "/themes", map[string]any{
-		"name":   "Bad",
-		"colors": map[string]any{"light": map[string]string{"bg": "#fff"}},
+		"name":     "Bad",
+		"darkMode": true,
+		"colors":   map[string]any{"light": map[string]string{"bg": "#fff"}},
 	})
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d body %s", rec.Code, rec.Body)

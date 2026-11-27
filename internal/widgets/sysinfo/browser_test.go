@@ -34,6 +34,35 @@ func TestRenderBrowserEmitsOneSlotPerConfiguredDisk(t *testing.T) {
 	}
 }
 
+func TestRenderBrowserItemLayout(t *testing.T) {
+	m := NewModule(nil)
+	cfg := json.RawMessage(`{"showMemory":true,"showUptime":true,"disks":["/"]}`)
+	out, err := m.RenderBrowser(cfg, widgets.RenderContext{})
+	if err != nil {
+		t.Fatalf("RenderBrowser: %v", err)
+	}
+	html := string(out)
+
+	// Each item carries its Tabler glyph, painted with the default icon font.
+	if got := strings.Count(html, `font-family: '`+iconFontFamily+`';`); got != 3 {
+		t.Errorf("want 3 icons in the default icon font, got %d:\n%s", got, html)
+	}
+	for name, glyph := range map[string]string{"disk": diskGlyph, "memory": memoryGlyph, "uptime": uptimeGlyph} {
+		if !strings.Contains(html, glyph) {
+			t.Errorf("missing %s icon glyph in:\n%s", name, html)
+		}
+	}
+
+	// Disk and memory get a success-coloured bar; uptime has none.
+	if got := strings.Count(html, `dashi-sysinfo__bar-fill h-full rounded-full bg-[var(--dashi-success)]`); got != 2 {
+		t.Errorf("want 2 success bar fills (disk + memory), got %d:\n%s", got, html)
+	}
+	uptime := html[strings.Index(html, "data-uptime"):]
+	if strings.Contains(uptime, "dashi-sysinfo__bar") {
+		t.Errorf("uptime must not render a bar:\n%s", uptime)
+	}
+}
+
 func TestRenderBrowserOmitsDisabledSections(t *testing.T) {
 	m := NewModule(nil)
 	out, err := m.RenderBrowser(json.RawMessage(`{}`), widgets.RenderContext{})

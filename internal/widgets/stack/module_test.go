@@ -86,6 +86,8 @@ func TestModule_ValidateConfig(t *testing.T) {
 }
 
 var (
-	_ widgets.Module          = (*Module)(nil)
-	_ widgets.ConfigValidator = (*Module)(nil)
+	_ widgets.Module            = (*Module)(nil)
+	_ widgets.ConfigValidator   = (*Module)(nil)
+	_ widgets.BrowserRenderable = (*Module)(nil)
+	_ widgets.Container         = (*Module)(nil)
 )

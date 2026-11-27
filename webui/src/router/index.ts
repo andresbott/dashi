@@ -21,7 +21,6 @@ const router = createRouter({
                 { path: 'themes', name: 'admin-themes', component: () => import('@/views/admin/AdminThemes.vue') },
                 { path: 'themes/:id', name: 'admin-theme-edit', component: () => import('@/views/admin/AdminThemeEdit.vue') },
                 { path: 'widget-themes', name: 'admin-widget-themes', component: () => import('@/views/admin/AdminWidgetThemes.vue') },
-                { path: 'background-images', name: 'admin-background-images', component: () => import('@/views/admin/AdminBackgroundImages.vue') },
                 { path: 'docs/dashboards', name: 'doc-dashboards', component: () => import('@/views/docs/DocDashboards.vue') },
                 { path: 'docs/widgets', name: 'doc-widgets', component: () => import('@/views/docs/DocWidgets.vue') },
                 { path: 'docs/widgets/:type', name: 'doc-widget', component: () => import('@/views/docs/DocWidget.vue') },

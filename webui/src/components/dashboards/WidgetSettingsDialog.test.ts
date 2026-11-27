@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
+import { reactive } from 'vue'
 import PrimeVue from 'primevue/config'
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import WidgetSettingsDialog from './WidgetSettingsDialog.vue'
@@ -22,13 +23,16 @@ vi.mock('@/lib/widgetRegistry', async (importOriginal) => {
     }
 })
 
-function mountDialog(type: string) {
-    const widget = { id: 'w1', type, title: 'My widget', width: 4, config: {} } as unknown as Widget
+type MountOptions = { config?: Record<string, unknown>; visible?: boolean; errorHandler?: () => void }
+
+function mountDialog(type: string, { config = {}, visible = true, errorHandler }: MountOptions = {}) {
+    const widget = { id: 'w1', type, title: 'My widget', width: 4, config } as unknown as Widget
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return mount(WidgetSettingsDialog, {
-        props: { widget, visible: true },
+        props: { widget, visible },
         global: {
             plugins: [PrimeVue, [VueQueryPlugin, { queryClient }]],
+            config: { errorHandler },
             // The real Dialog teleports to <body>; the stub keeps the width
             // (fallthrough style) and shows which slot each part lands in.
             stubs: {
@@ -57,12 +61,36 @@ describe('WidgetSettingsDialog', () => {
         const footer = wrapper.find('.stub-footer').text()
         expect(footer).toContain('Save')
         expect(footer).toContain('Cancel')
-        expect(footer).toContain('Delete')
         expect(wrapper.find('.stub-content').text()).not.toContain('Save')
+    })
+
+    it('has no Delete action: delete lives in the widget card header', () => {
+        const wrapper = mountDialog('battery')
+        expect(wrapper.find('.stub-footer').text()).not.toContain('Delete')
     })
 
     it('renders the widget settings form inside the scrolling content', () => {
         const wrapper = mountDialog('weather')
         expect(wrapper.find('.stub-content .form-stub').exists()).toBe(true)
+    })
+
+    // A stack's config is a plain object, but setChildren leaves reactive
+    // child proxies in its widgets array, out of toRaw's reach.
+    it('stages a detached copy of a config that holds reactive children', async () => {
+        const child = { id: 'c1', type: 'clock', title: '', width: 12, config: { format: '24h' } }
+        const config = { widgets: [reactive(child)] }
+        const errorHandler = vi.fn()
+        const wrapper = mountDialog('stack', { config, visible: false, errorHandler })
+
+        await wrapper.setProps({ visible: true })
+        await flushPromises()
+        expect(errorHandler).not.toHaveBeenCalled()
+
+        // A stack has no settings form, so the staged config is what Save hands back.
+        await wrapper.findAll('button').find(b => b.text().includes('Save'))!.trigger('click')
+        const saved = (wrapper.emitted('save')![0][0] as Widget).config as Record<string, unknown>
+        expect(saved).toEqual({ widgets: [child] })
+        expect(saved).not.toBe(config)
+        expect((saved.widgets as unknown[])[0]).not.toBe(config.widgets[0])
     })
 })

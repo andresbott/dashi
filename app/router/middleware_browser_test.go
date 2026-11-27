@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/andresbott/dashi/internal/dashboard"
-	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/themes"
 )
 
@@ -26,10 +25,11 @@ var (
 	sharedTestDeps *sharedDeps
 )
 
-// newTestViewerWithDashboards returns a viewer handler with two dashboards
-// (one plain, one image). The handler and dashboards are built once per test
-// binary and reused across all tests to avoid prometheus metrics collision.
-// All four tests using this helper are read-only GETs, so sharing is safe.
+// newTestViewerWithDashboards returns a viewer handler with a set of fixture
+// dashboards (plain, image, themed, multi-page, search, ...) keyed by name in
+// the returned map. The handler and dashboards are built once per test binary
+// and reused across all tests to avoid prometheus metrics collision. Every
+// test using this helper only issues read-only GETs, so sharing is safe.
 func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string) {
 	t.Helper()
 
@@ -45,21 +45,17 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 
 		// Create theme entities using the themes Store so they are properly
 		// indexed and persisted where newSharedDeps will look for them.
-		sharedBgImages, err := images.NewStore(filepath.Join(dir, "data", "shared-background-images"))
-		if err != nil {
-			panic("create shared bg images store: " + err.Error())
-		}
-		tempThemeStore := themes.NewStore(filepath.Join(dir, "data", "themes"), sharedBgImages)
+		tempThemeStore := themes.NewStore(filepath.Join(dir, "data", "themes"))
 
 		themeImageBG, err := tempThemeStore.Create(themes.Theme{
-			Name:   "Shared Image",
+			Name:   "Theme Image",
 			Colors: themes.DefaultTheme().Colors,
-			Background: themes.Background{Image: &themes.Image{
-				Light:    "shared:bg.jpg",
+			Background: themes.Background{Light: themes.ModeBackground{Image: &themes.Image{
+				Ref:      "asset:bg.jpg",
 				Fit:      "cover",
 				Position: "center",
 				Repeat:   "no-repeat",
-			}},
+			}}},
 		})
 		if err != nil {
 			panic("create theme-image-bg: " + err.Error())
@@ -68,10 +64,10 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 		gradientBG, err := tempThemeStore.Create(themes.Theme{
 			Name:   "Gradient",
 			Colors: themes.DefaultTheme().Colors,
-			Background: themes.Background{Gradient: &themes.Gradient{
+			Background: themes.Background{Light: themes.ModeBackground{Gradient: &themes.Gradient{
 				Direction: "to bottom",
-				Light:     []string{"#fff", "#000"},
-			}},
+				Stops:     []string{"#fff", "#000"},
+			}}},
 		})
 		if err != nil {
 			panic("create gradient-bg: " + err.Error())
@@ -144,6 +140,23 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 			panic("create dangling dashboard: " + err.Error())
 		}
 
+		search, err := store.Create(dashboard.Dashboard{
+			Name: "Search",
+			Pages: []dashboard.Page{{
+				Name: "Main",
+				Rows: []dashboard.Row{{
+					ID: "r1",
+					Widgets: []dashboard.Widget{{
+						ID: "w1", Type: "search", Width: 12,
+						Config: json.RawMessage(`{"engine":"duckduckgo","placeholder":"Find"}`),
+					}},
+				}},
+			}},
+		})
+		if err != nil {
+			panic("create search dashboard: " + err.Error())
+		}
+
 		cfg := Cfg{DataDir: dir, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 		deps, err := newSharedDeps(cfg)
 		if err != nil {
@@ -165,6 +178,7 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 			"multi":      multi.ID,
 			"themed":     themed.ID,
 			"dangling":   dangling.ID,
+			"search":     search.ID,
 			// Theme entity IDs, for fetching the linked stylesheets.
 			"imageTheme":    themeImageBG.ID,
 			"gradientTheme": gradientBG.ID,
@@ -278,12 +292,13 @@ func TestBrowserImageBackgroundIsAURLNotInlinedBytes(t *testing.T) {
 	cssRec := httptest.NewRecorder()
 	h.ServeHTTP(cssRec, httptest.NewRequest(http.MethodGet, link, nil))
 	// browserValue builds the shorthand with position/size/repeat. The image
-	// is from the shared pool, so it references /api/v0/data/backgrounds/{name}.
-	if css := cssRec.Body.String(); !strings.Contains(css, `url('/api/v0/data/backgrounds/bg.jpg') center/cover no-repeat`) {
-		t.Errorf("expected a background URL in the theme stylesheet:\n%s", css)
+	// is the theme's own asset, so it references /api/v0/themes/{id}/assets/{name}.
+	want := `url('/api/v0/themes/` + ids["imageTheme"] + `/assets/bg.jpg') center/cover no-repeat`
+	if css := cssRec.Body.String(); !strings.Contains(css, want) {
+		t.Errorf("expected %s in the theme stylesheet:\n%s", want, css)
 	}
-	// We don't test the route here because the image file doesn't actually exist
-	// in the shared pool - we only created the background entity, not the image file itself.
+	// The route itself is not exercised: only the theme was created, not the
+	// image file.
 }
 
 func TestBrowserGradientBackgroundReachesThePage(t *testing.T) {
@@ -395,6 +410,37 @@ func TestBrowserDashboardDanglingRefsUseDefaults(t *testing.T) {
 
 	if rec := get("/_dashi/widget-theme/nope.css"); rec.Code != http.StatusOK {
 		t.Errorf("widget theme css status = %d, want 200", rec.Code)
+	}
+}
+
+// The real viewer wiring (module list in main.go, page.html) renders the
+// search widget as a working GET form, not the old empty image placeholder.
+func TestBrowserSearchWidgetRendersAForm(t *testing.T) {
+	h, ids := newTestViewerWithDashboards(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/"+ids["search"], nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`<form`,
+		`action="https://duckduckgo.com/"`,
+		`name="q"`,
+		`placeholder="Find"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("search widget missing %q:\n%s", want, truncate(body))
+		}
+	}
+	// "search-placeholder" matches both the image stack's fake input
+	// (image.html) and the old empty <div class="widget-search-placeholder">,
+	// so it fails if the browser path falls back to either.
+	if strings.Contains(body, "search-placeholder") {
+		t.Errorf("search widget renders the image-stack placeholder, not the browser form:\n%s", truncate(body))
 	}
 }
 

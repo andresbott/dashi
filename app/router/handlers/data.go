@@ -15,17 +15,16 @@ import (
 
 const maxDataUpload = 10 << 20 // 10 MB
 
-// DataHandler exposes /api/v0/data/{notes,images,backgrounds} for the
-// shared cross-dashboard user-data layer.
+// DataHandler exposes /api/v0/data/{notes,images} for the shared
+// cross-dashboard user-data layer.
 type DataHandler struct {
-	notes       *notes.Store
-	images      *images.Store
-	backgrounds *images.Store
-	logger      *slog.Logger
+	notes  *notes.Store
+	images *images.Store
+	logger *slog.Logger
 }
 
-func NewDataHandler(n *notes.Store, i *images.Store, b *images.Store, logger *slog.Logger) *DataHandler {
-	return &DataHandler{notes: n, images: i, backgrounds: b, logger: logger}
+func NewDataHandler(n *notes.Store, i *images.Store, logger *slog.Logger) *DataHandler {
+	return &DataHandler{notes: n, images: i, logger: logger}
 }
 
 // RegisterRead mounts the GET endpoints on r. Intended for
@@ -37,9 +36,6 @@ func (h *DataHandler) RegisterRead(r *mux.Router) {
 
 	r.Path("/data/images").Methods(http.MethodGet).HandlerFunc(h.listImages)
 	r.Path("/data/images/{name}").Methods(http.MethodGet).HandlerFunc(h.getImage)
-
-	r.Path("/data/backgrounds").Methods(http.MethodGet).HandlerFunc(h.listBackgrounds)
-	r.Path("/data/backgrounds/{name}").Methods(http.MethodGet).HandlerFunc(h.getBackground)
 }
 
 // RegisterWrite mounts the POST/DELETE endpoints on r. Intended for
@@ -50,9 +46,6 @@ func (h *DataHandler) RegisterWrite(r *mux.Router) {
 
 	r.Path("/data/images/{name}").Methods(http.MethodPost).HandlerFunc(h.saveImage)
 	r.Path("/data/images/{name}").Methods(http.MethodDelete).HandlerFunc(h.deleteImage)
-
-	r.Path("/data/backgrounds/{name}").Methods(http.MethodPost).HandlerFunc(h.saveBackground)
-	r.Path("/data/backgrounds/{name}").Methods(http.MethodDelete).HandlerFunc(h.deleteBackground)
 }
 
 // ----- notes -----
@@ -153,53 +146,6 @@ func (h *DataHandler) deleteImage(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 	if err := h.images.Delete(name); err != nil {
 		h.dataErr(w, "delete image", err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// ----- backgrounds -----
-
-func (h *DataHandler) listBackgrounds(w http.ResponseWriter, r *http.Request) {
-	items, err := h.backgrounds.List()
-	if err != nil {
-		h.internalErr(w, "list backgrounds", err)
-		return
-	}
-	writeJSON(w, http.StatusOK, items)
-}
-
-func (h *DataHandler) getBackground(w http.ResponseWriter, r *http.Request) {
-	name := mux.Vars(r)["name"]
-	body, mime, err := h.backgrounds.Get(name)
-	if err != nil {
-		h.dataErr(w, "get background", err)
-		return
-	}
-	w.Header().Set("Content-Type", mime)
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	_, _ = w.Write(body) //nolint:gosec // G705: binary image data with explicit Content-Type and nosniff; not HTML
-}
-
-func (h *DataHandler) saveBackground(w http.ResponseWriter, r *http.Request) {
-	name := mux.Vars(r)["name"]
-	r.Body = http.MaxBytesReader(w, r.Body, maxDataUpload)
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		ErrorJSON(w, "failed to read body", http.StatusBadRequest)
-		return
-	}
-	if err := h.backgrounds.Save(name, body); err != nil {
-		h.dataErr(w, "save background", err)
-		return
-	}
-	w.WriteHeader(http.StatusCreated)
-}
-
-func (h *DataHandler) deleteBackground(w http.ResponseWriter, r *http.Request) {
-	name := mux.Vars(r)["name"]
-	if err := h.backgrounds.Delete(name); err != nil {
-		h.dataErr(w, "delete background", err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

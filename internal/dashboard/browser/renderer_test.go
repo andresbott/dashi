@@ -115,8 +115,107 @@ func TestRenderIsMobileReady(t *testing.T) {
 		t.Errorf("row height must be handed over as --dashi-row-height:\n%s", out)
 	}
 	// A fixed row width may never push the page wider than a phone screen.
-	if !strings.Contains(out, `class="flex max-w-full flex-wrap items-stretch" style="width: 900px"`) {
-		t.Errorf("fixed row width must be capped by max-w-full:\n%s", out)
+	// mx-auto centres a row narrower than the container, as the editor and
+	// the PNG render do.
+	if !strings.Contains(out, `class="mx-auto flex max-w-full flex-wrap items-stretch" style="width: 900px"`) {
+		t.Errorf("fixed row width must be capped by max-w-full and centred by mx-auto:\n%s", out)
+	}
+}
+
+func TestRenderAlignmentPlacesContainer(t *testing.T) {
+	tests := []struct {
+		name           string
+		hAlign, vAlign string
+		want           []string
+	}{
+		{"top left", "left", "top", []string{"--dashi-container-left-margin: 0; --dashi-container-right-margin: auto;", "justify-content: flex-start;"}},
+		{"center center", "center", "center", []string{"--dashi-container-left-margin: auto; --dashi-container-right-margin: auto;", "justify-content: center;"}},
+		{"bottom right", "right", "bottom", []string{"--dashi-container-left-margin: auto; --dashi-container-right-margin: 0;", "justify-content: flex-end;"}},
+		{"defaults", "", "", []string{"--dashi-container-left-margin: auto; --dashi-container-right-margin: auto;", "justify-content: flex-start;"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := baseData()
+			data.MaxWidth = "800px"
+			data.HAlign, data.VAlign = tt.hAlign, tt.vAlign
+			out := render(t, NewRenderer(testRegistry(), nil), data)
+
+			for _, want := range tt.want {
+				if !strings.Contains(out, want) {
+					t.Errorf("expected %q in output:\n%s", want, out)
+				}
+			}
+			// The container itself moves; a fixed mx-auto would pin it to
+			// the centre, and align-items on it never moved full-width rows.
+			if strings.Contains(out, "mx-auto flex min-h-screen") || strings.Contains(out, "align-items:") {
+				t.Errorf("container must be placed by its margins only:\n%s", out)
+			}
+			// Rows keep filling the container.
+			if !strings.Contains(out, `class="dashi-row w-full"`) {
+				t.Errorf("rows must stay full width:\n%s", out)
+			}
+		})
+	}
+}
+
+func TestRenderEditButton(t *testing.T) {
+	t.Run("drawn only with an edit url", func(t *testing.T) {
+		out := render(t, NewRenderer(testRegistry(), nil), baseData())
+		if strings.Contains(out, "Edit dashboard") {
+			t.Errorf("no EditURL must draw no edit button:\n%s", out)
+		}
+	})
+
+	t.Run("links to the edit url in the same tab", func(t *testing.T) {
+		data := baseData()
+		data.EditURL = "https://editor.example/dashboards/abc123/edit"
+		out := render(t, NewRenderer(testRegistry(), nil), data)
+		for _, want := range []string{
+			`href="https://editor.example/dashboards/abc123/edit"`,
+			`aria-label="Edit dashboard"`,
+			`title="Edit dashboard"`,
+			`<svg`,
+			"print:hidden",
+		} {
+			if !strings.Contains(out, want) {
+				t.Errorf("edit button missing %q:\n%s", want, out)
+			}
+		}
+		if strings.Contains(out, "target=") {
+			t.Errorf("edit button must open in the same tab:\n%s", out)
+		}
+	})
+
+	t.Run("escapes the url", func(t *testing.T) {
+		data := baseData()
+		data.EditURL = `https://editor.example/a"onmouseover="x`
+		out := render(t, NewRenderer(testRegistry(), nil), data)
+		if strings.Contains(out, `"onmouseover="`) {
+			t.Errorf("edit url must be attribute-escaped:\n%s", out)
+		}
+	})
+
+	t.Run("rejects an unsafe scheme", func(t *testing.T) {
+		data := baseData()
+		data.EditURL = "javascript:alert(1)"
+		out := render(t, NewRenderer(testRegistry(), nil), data)
+		if strings.Contains(out, "javascript:") {
+			t.Errorf("unsafe edit url must be neutralised:\n%s", out)
+		}
+	})
+}
+
+func TestViewerCSSHidesEditButtonInPrint(t *testing.T) {
+	want := "@media print{.print\\:hidden{display:none}}"
+	if !strings.Contains(string(viewerCSS), want) {
+		t.Errorf("viewer.css missing %q; run make viewer-css", want)
+	}
+}
+
+func TestViewerCSSPlacesContainerByMargins(t *testing.T) {
+	want := ".dashi-container{margin-left:var(--dashi-container-left-margin,auto);margin-right:var(--dashi-container-right-margin,auto)}"
+	if !strings.Contains(string(viewerCSS), want) {
+		t.Errorf("viewer.css missing %q; run make viewer-css", want)
 	}
 }
 
@@ -144,6 +243,22 @@ func TestRenderIncludesWidgetScriptsOnlyForTypesPresentThatShipJS(t *testing.T) 
 	}
 	if strings.Contains(out, "unused.js") {
 		t.Error("script tag emitted for a widget type not on the page")
+	}
+}
+
+// A widget that only appears inside a container (stack) still needs its
+// script: otherwise a nested sysinfo, say, never refreshes.
+func TestRenderIncludesScriptsOfNestedWidgets(t *testing.T) {
+	reg := testRegistry()
+	reg.RegisterChildren("box", func(json.RawMessage) []widgets.Child {
+		return []widgets.Child{{Type: "nested"}}
+	})
+	data := baseData()
+	data.Rows[0].Widgets = []dashboard.Widget{{ID: "w1", Type: "box", Width: 4}}
+
+	out := render(t, NewRenderer(reg, map[string]bool{"nested": true}), data)
+	if !strings.Contains(out, `src="/_dashi/widgets/nested.js"`) {
+		t.Errorf("expected the nested widget's script tag:\n%s", out)
 	}
 }
 
@@ -303,5 +418,20 @@ func TestRenderPageNavLinksEveryPageAndMarksCurrent(t *testing.T) {
 	}
 	if strings.Contains(out, "<script") && !strings.Contains(out, "/_dashi/widgets/") {
 		t.Error("page navigation must not need JavaScript")
+	}
+}
+
+func TestRenderRowMargins(t *testing.T) {
+	data := baseData()
+	data.Rows[0].MarginTop = "2rem"
+	data.Rows[0].MarginBottom = "40px"
+	out := render(t, NewRenderer(testRegistry(), nil), data)
+	if !strings.Contains(out, `<div class="dashi-row w-full" style=" margin-top: 2rem; margin-bottom: 40px;">`) {
+		t.Errorf("expected the row margins:\n%s", out)
+	}
+
+	data.Rows[0].MarginTop = "0; background: url(javascript:alert(1))"
+	if out := render(t, NewRenderer(testRegistry(), nil), data); strings.Contains(out, "javascript") {
+		t.Errorf("unsafe margin value reached the output:\n%s", out)
 	}
 }

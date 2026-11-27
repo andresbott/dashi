@@ -1,33 +1,28 @@
 <script setup lang="ts">
-import { ref, computed, watch, toRaw } from 'vue'
+import { ref, computed, watch } from 'vue'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { getWidgetEntry } from '@/lib/widgetRegistry'
+import { plainCopy } from '@/lib/plainCopy'
 import type { Widget } from '@/types/dashboard'
 
 // Shared widget settings dialog: edits a staged copy of the widget and hands
 // the result back on Save, so Cancel never leaks a partial edit. Used by row
-// cards and by the stack editor for its children.
-const props = withDefaults(defineProps<{
+// cards and by the stack editor for its children. Deleting is not a setting:
+// it lives in the card's (or stack child's) header bar.
+const props = defineProps<{
     widget: Widget
-    // Show a Delete action (confirmed) in the dialog footer.
-    deletable?: boolean
-}>(), {
-    deletable: true,
-})
+}>()
 
 const visible = defineModel<boolean>('visible', { default: false })
 
 const emit = defineEmits<{
     save: [widget: Widget]
-    delete: []
 }>()
 
 const editTitle = ref('')
 const editConfig = ref<Record<string, unknown>>({})
-const confirmDeleteVisible = ref(false)
 
 const entry = computed(() => getWidgetEntry(props.widget.type))
 
@@ -35,13 +30,13 @@ const entry = computed(() => getWidgetEntry(props.widget.type))
 // .p-dialog max-width still caps it to the screen on phones.
 const dialogWidth = computed(() => (entry.value?.settingsSize === 'wide' ? '60rem' : '28rem'))
 
-// Stage a fresh copy every time the dialog opens; a structured clone keeps
-// nested config (arrays, objects) detached from the live widget until Save.
-// toRaw first: the config is a reactive proxy, which structuredClone rejects.
+// Stage a fresh deep copy every time the dialog opens, so nested config
+// (arrays, objects, a stack's children) stays detached from the live widget
+// until Save.
 watch(visible, (open) => {
     if (!open) return
     editTitle.value = props.widget.title
-    editConfig.value = props.widget.config ? structuredClone(toRaw(props.widget.config)) : {}
+    editConfig.value = props.widget.config ? plainCopy(props.widget.config) : {}
 })
 
 // Config forms emit either a complete object or just the keys they own, so
@@ -53,12 +48,6 @@ const onUpdateConfig = (config: Record<string, unknown>) => {
 const save = () => {
     emit('save', { ...props.widget, title: editTitle.value, config: editConfig.value })
     visible.value = false
-}
-
-const confirmDelete = () => {
-    confirmDeleteVisible.value = false
-    visible.value = false
-    emit('delete')
 }
 </script>
 
@@ -86,27 +75,10 @@ const confirmDelete = () => {
         <!-- The footer sits outside PrimeVue's scrolling content area, so the
              actions stay visible when a long form scrolls. -->
         <template #footer>
-            <div class="flex align-items-center gap-3 w-full">
-                <Button
-                    v-if="deletable"
-                    label="Delete"
-                    icon="ti ti-trash"
-                    severity="danger"
-                    text
-                    @click="confirmDeleteVisible = true"
-                />
-                <span class="flex-grow-1"></span>
+            <div class="flex align-items-center justify-content-end gap-3 w-full">
                 <Button label="Save" icon="ti ti-check" @click="save" />
                 <Button label="Cancel" icon="ti ti-x" severity="secondary" @click="visible = false" />
             </div>
         </template>
     </Dialog>
-
-    <ConfirmDialog
-        v-model:visible="confirmDeleteVisible"
-        title="Delete widget"
-        message="Delete this widget? This cannot be undone."
-        :name="widget.title"
-        @confirm="confirmDelete"
-    />
 </template>

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import type { Widget } from '@/types/dashboard'
-import type { SearchWidgetConfig } from './types'
-import { searchEngineUrls } from './types'
+import type { SearchEngine, SearchWidgetConfig } from './types'
+import { searchEngineLabels, searchEngineUrls } from './types'
 
 const props = defineProps<{
     widget: Widget
@@ -15,21 +15,19 @@ const config = computed<SearchWidgetConfig | null>(() => {
 
 const query = ref('')
 
-const engineLabel = computed(() => {
-    switch (config.value?.engine) {
-        case 'duckduckgo': return 'DuckDuckGo'
-        case 'bing': return 'Bing'
-        default: return 'Google'
-    }
+// Unknown engines fall back to google, as the server renders do.
+const engine = computed<SearchEngine>(() => {
+    const value = config.value?.engine
+    return value && Object.hasOwn(searchEngineUrls, value) ? value : 'google'
 })
+
+const engineLabel = computed(() => searchEngineLabels[engine.value])
 
 const placeholder = computed(() => config.value?.placeholder || 'Search...')
 
 const doSearch = () => {
     if (!query.value.trim()) return
-    const engine = config.value?.engine ?? 'google'
-    const baseUrl = searchEngineUrls[engine]
-    window.open(baseUrl + encodeURIComponent(query.value.trim()), '_blank')
+    window.open(searchEngineUrls[engine.value] + encodeURIComponent(query.value.trim()), '_blank')
 }
 </script>
 

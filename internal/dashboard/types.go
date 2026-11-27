@@ -33,6 +33,9 @@ type Dashboard struct {
 	// icons. Empty or unknown names render with the default widget theme.
 	WidgetTheme string `json:"widgetTheme,omitempty"`
 	ColorMode   string `json:"colorMode,omitempty"`
+	// ShowEditButton asks the viewer to draw an "Edit" link to this dashboard
+	// in the editor. Interactive dashboards only; image output never shows it.
+	ShowEditButton bool `json:"showEditButton,omitempty"`
 	// Dither picks how an image dashboard is dithered for the e-ink formats
 	// (png-bw, png-spectra6, bw, spectra6): empty is plain Floyd-Steinberg,
 	// "auto" lets einkimage pick per render, any other value names an
@@ -53,11 +56,15 @@ type DashboardMeta struct {
 
 // Row represents a horizontal section of the dashboard.
 type Row struct {
-	ID      string   `json:"id"`
-	Title   string   `json:"title,omitempty"`
-	Height  string   `json:"height"`
-	Width   string   `json:"width"`
-	Widgets []Widget `json:"widgets"`
+	ID     string `json:"id"`
+	Title  string `json:"title,omitempty"`
+	Height string `json:"height"`
+	Width  string `json:"width"`
+	// MarginTop and MarginBottom are optional CSS lengths ("2rem", "40px")
+	// of space above and below the row. Empty means none.
+	MarginTop    string   `json:"marginTop,omitempty"`
+	MarginBottom string   `json:"marginBottom,omitempty"`
+	Widgets      []Widget `json:"widgets"`
 }
 
 // Widget represents a single widget placed within a row.

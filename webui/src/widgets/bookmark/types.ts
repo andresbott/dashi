@@ -4,4 +4,6 @@ export interface BookmarkWidgetConfig {
     title: string
     subtitle: string
     textBelow?: boolean
+    /** Open the link in a new tab; off (default) opens it in place. */
+    newTab?: boolean
 }

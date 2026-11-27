@@ -1,7 +1,7 @@
 import { apiClient } from '@/lib/api/client'
 import { withBase } from '@/lib/base'
 
-export type DataKind = 'notes' | 'images' | 'backgrounds'
+export type DataKind = 'notes' | 'images'
 
 export interface DataItem {
     name: string

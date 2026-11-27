@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, provide } from 'vue'
-import { DASHBOARD_WIDGET_THEME, DASHBOARD_ID, ACTIVE_PAGE, TOTAL_PAGES, EDITING_MODE } from '@/lib/injectionKeys'
+import { DASHBOARD_WIDGET_THEME, DASHBOARD_ID, ACTIVE_PAGE, TOTAL_PAGES, EDITING_MODE, WIDGET_MOVE } from '@/lib/injectionKeys'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
@@ -9,10 +9,11 @@ import DashboardRow from '@/components/dashboards/DashboardRow.vue'
 
 import { useDashboardDraft } from '@/composables/useDashboardDraft'
 import type { Row } from '@/types/dashboard'
-import { insertByColumn, clampRowToLine, fitsInRow } from '@/lib/rowLayout'
+import { applyWidgetMove, type WidgetMove } from '@/lib/widgetMove'
 import { v4 as uuidv4 } from 'uuid'
 import Dialog from 'primevue/dialog'
 import dashiIcon from '@/assets/icon-64.png'
+import { dashboardViewUrl } from '@/lib/serverInfo'
 
 const route = useRoute()
 const router = useRouter()
@@ -122,27 +123,16 @@ const updateRow = (index: number, row: Row) => {
     activePage.value.rows[index] = row
 }
 
-// Cross-row widget move: DashboardRow emits this on drop when the pointer was
-// over a different row than the widget's own. Remove it from the source row and
-// insert it into the target row at the drop column (placeRow resolves overlap,
-// clampRowToLine keeps the target row on one line). The row already refuses
-// the drop visually when the widget does not fit; this re-checks it.
-const moveWidgetAcross = (fromIndex: number, payload: { widgetId: string; toRowId: string; column: number }) => {
+// Every widget drop (within a row, across rows, into, out of and between
+// stacks) lands here from the row or stack that started the drag. The rows
+// are replaced in one assignment, so a drop is one draft change (one
+// autosave); a refused move (no room, stack into stack) leaves them alone.
+const moveWidget = (move: WidgetMove) => {
     if (!activePage.value) return
-    const rows = activePage.value.rows
-    const fromRow = rows[fromIndex]
-    if (!fromRow) return
-    const widget = fromRow.widgets.find(w => w.id === payload.widgetId)
-    const toIndex = rows.findIndex(r => r.id === payload.toRowId)
-    if (!widget || toIndex < 0 || toIndex === fromIndex) return
-    const toRow = rows[toIndex]
-    if (!fitsInRow(toRow.widgets, widget.width)) return
-    rows[fromIndex] = { ...fromRow, widgets: fromRow.widgets.filter(w => w.id !== payload.widgetId) }
-    rows[toIndex] = {
-        ...toRow,
-        widgets: clampRowToLine(insertByColumn(toRow.widgets, { ...widget, column: payload.column })),
-    }
+    const next = applyWidgetMove(activePage.value.rows, move)
+    if (next) activePage.value.rows = next
 }
+provide(WIDGET_MOVE, moveWidget)
 
 const deleteRow = (index: number) => {
     if (!activePage.value) return
@@ -191,6 +181,17 @@ const goToEinkPreview = async () => {
     })
 }
 
+// The tab is opened synchronously, inside the click, so popup blockers allow
+// it; it is pointed at the viewer only after pending edits are saved, so the
+// viewer shows what is on screen. flush() resolves even when the save fails
+// (the failure shows in the save indicator), so the viewer still opens.
+const openViewer = async () => {
+    const win = window.open('', '_blank')
+    if (win) win.opener = null
+    await flush()
+    if (win) win.location.href = dashboardViewUrl(id.value)
+}
+
 </script>
 
 <template>
@@ -228,6 +229,14 @@ const goToEinkPreview = async () => {
                 severity="secondary"
                 data-testid="eink-preview-button"
                 @click="goToEinkPreview"
+            />
+            <Button
+                v-else
+                icon="ti ti-eye"
+                label="Preview"
+                severity="secondary"
+                data-testid="viewer-preview-button"
+                @click="openViewer"
             />
             <Button
                 icon="ti ti-settings"
@@ -301,7 +310,6 @@ const goToEinkPreview = async () => {
             @delete="deleteRow(index)"
             @move-up="moveRowUp(index)"
             @move-down="moveRowDown(index)"
-            @move-widget="moveWidgetAcross(index, $event)"
         />
 
         <div class="mt-2">

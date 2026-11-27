@@ -3,18 +3,30 @@ import { ref } from 'vue'
 import Button from 'primevue/button'
 import WidgetRenderer from '@/components/dashboards/WidgetRenderer.vue'
 import WidgetSettingsDialog from '@/components/dashboards/WidgetSettingsDialog.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import type { Widget } from '@/types/dashboard'
 
 defineProps<{
     widget: Widget
+    // The card's row has no free column left, so a copy cannot be placed.
+    rowFull?: boolean
 }>()
 
 const emit = defineEmits<{
     update: [widget: Widget]
     delete: []
+    duplicate: []
 }>()
 
 const settingsVisible = ref(false)
+
+// --- Delete (confirmed) ---
+const confirmDeleteVisible = ref(false)
+
+const confirmDelete = () => {
+    confirmDeleteVisible.value = false
+    emit('delete')
+}
 </script>
 
 <template>
@@ -23,6 +35,16 @@ const settingsVisible = ref(false)
             <slot name="handle" />
             <span class="widget-title" :title="widget.title">{{ widget.title }}</span>
             <Button
+                icon="ti ti-copy"
+                text
+                rounded
+                class="p-1"
+                aria-label="Duplicate widget"
+                v-tooltip.top="rowFull ? 'Row is full (12 columns)' : 'Duplicate widget'"
+                :disabled="rowFull"
+                @click="emit('duplicate')"
+            />
+            <Button
                 icon="ti ti-pencil"
                 text
                 rounded
@@ -30,6 +52,16 @@ const settingsVisible = ref(false)
                 aria-label="Widget settings"
                 v-tooltip.top="'Widget settings'"
                 @click="settingsVisible = true"
+            />
+            <Button
+                icon="ti ti-trash"
+                text
+                rounded
+                severity="danger"
+                class="p-1"
+                aria-label="Delete widget"
+                v-tooltip.top="'Delete widget'"
+                @click="confirmDeleteVisible = true"
             />
         </div>
         <div class="widget-body">
@@ -43,7 +75,14 @@ const settingsVisible = ref(false)
         v-model:visible="settingsVisible"
         :widget="widget"
         @save="emit('update', $event)"
-        @delete="emit('delete')"
+    />
+
+    <ConfirmDialog
+        v-model:visible="confirmDeleteVisible"
+        title="Delete widget"
+        message="Delete this widget? This cannot be undone."
+        :name="widget.title"
+        @confirm="confirmDelete"
     />
 </template>
 
@@ -55,12 +94,14 @@ const settingsVisible = ref(false)
     border-radius: 8px;
 }
 
-/* Grip (drag handle) sits at the left, the edit button at the right, so both
-   stay reachable even when the card is a single column wide. The title in
-   between identifies the card; it is clipped before the controls are. Delete
-   lives in the settings dialog rather than the header. */
+/* Grip (drag handle) sits at the left, the widget controls (duplicate, edit,
+   delete) at the right. The title in between identifies the card; it is clipped before
+   the controls are. On a card too narrow for every control the header wraps
+   (the title's zero flex-basis means it never forces a wrap by itself), so
+   each control stays reachable even at a single column wide. */
 .widget-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.25rem;
     min-height: 2rem;
@@ -69,7 +110,7 @@ const settingsVisible = ref(false)
 }
 
 .widget-title {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;

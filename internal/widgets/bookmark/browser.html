@@ -1,0 +1,15 @@
+<a href="{{.URL}}" class="dashi-bookmark flex min-w-0 text-[var(--dashi-text)] -mx-2 rounded-lg px-2 py-1.5 no-underline transition-colors hover:bg-[var(--dashi-text)]/10 focus-visible:bg-[var(--dashi-text)]/10 focus-visible:outline-2 focus-visible:outline-[var(--dashi-text)]/40 {{if .TextBelow}}flex-col items-center gap-2 text-center{{else}}flex-row items-center gap-3{{end}}"{{if .TextBelow}} data-text-below{{end}}{{if .NewTab}} target="_blank" rel="noopener noreferrer"{{end}}>
+    {{- with .Icon}}
+    {{- if .Glyph}}
+    <span class="dashi-bookmark__icon shrink-0 text-[2rem] leading-none text-[var(--dashi-text)]" style="font-family: '{{.FontFamily}}';" aria-hidden="true">{{.Glyph}}</span>
+    {{- else if .Src}}
+    <img class="dashi-bookmark__icon size-8 shrink-0 object-contain" src="{{.Src}}" alt="" aria-hidden="true">
+    {{- end}}
+    {{- end}}
+    <span class="dashi-bookmark__text flex min-w-0 max-w-full flex-col">
+        <span class="dashi-bookmark__title truncate text-base font-semibold">{{.Title}}</span>
+        {{- if .Subtitle}}
+        <span class="dashi-bookmark__subtitle truncate text-sm text-[var(--dashi-text-muted)]">{{.Subtitle}}</span>
+        {{- end}}
+    </span>
+</a>

@@ -52,9 +52,12 @@ func runServer(configFile string) error {
 		slog.String("commit", metainfo.ShaVer),
 	)
 	for _, m := range cfg.Msgs {
-		if m.Level == "info" {
+		switch m.Level {
+		case "warn":
+			l.Warn(m.Msg, slog.String("component", "config"))
+		case "info":
 			l.Info(m.Msg, slog.String("component", "config"))
-		} else {
+		default:
 			l.Debug(m.Msg, slog.String("component", "config"))
 		}
 	}
@@ -72,6 +75,9 @@ func runServer(configFile string) error {
 		ViewerEnabled:   cfg.Server.Viewer.Enabled,
 		ViewerPort:      cfg.Server.Viewer.Port,
 		ViewerPublicURL: cfg.Server.Viewer.PublicUrl,
+
+		EditorEnabled:   cfg.Server.Editor.Enabled,
+		EditorPublicURL: cfg.Server.Editor.PublicUrl,
 	}
 
 	// Build handlers based on which servers are enabled

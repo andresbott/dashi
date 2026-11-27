@@ -14,13 +14,17 @@
     {{- /* Row height and cell width/offset travel as CSS variables, not as
            inline height/width/margin: viewer.css applies them from the `sm`
            breakpoint up and stacks every cell full width below it (phones).
-           An inline declaration could not be undone by a media query. */}}
-    <main class="mx-auto flex min-h-screen w-full flex-col px-2 py-2 sm:px-4 sm:py-4"
-          style="max-width: {{if .MaxWidth}}{{.MaxWidth}}{{else}}100%{{end}}; align-items: {{.HAlign}}; justify-content: {{.VAlign}};">
+           An inline declaration could not be undone by a media query.
+           The container's placement (dashboard.PlaceContainer) follows the
+           same rule: its auto margin moves it left/centre/right as variables
+           read by .dashi-container, and justify-content on this full-height
+           column moves the rows top/middle/bottom. */}}
+    <main class="dashi-container flex min-h-screen w-full flex-col px-2 py-2 sm:px-4 sm:py-4"
+          style="max-width: {{if .MaxWidth}}{{.MaxWidth}}{{else}}100%{{end}}; --dashi-container-left-margin: {{.Placement.MarginLeft}}; --dashi-container-right-margin: {{.Placement.MarginRight}}; justify-content: {{.Placement.JustifyContent}};">
         {{- range .Rows}}
-        <div class="dashi-row w-full"{{if .Height}} style="--dashi-row-height: {{.Height}}"{{end}}>
+        <div class="dashi-row w-full"{{if or .Height .MarginTop .MarginBottom}} style="{{if .Height}}--dashi-row-height: {{.Height}};{{end}}{{if .MarginTop}} margin-top: {{.MarginTop}};{{end}}{{if .MarginBottom}} margin-bottom: {{.MarginBottom}};{{end}}"{{end}}>
             {{if .Title}}<h2 class="mb-2 text-lg font-semibold break-words text-[var(--dashi-text)]">{{.Title}}</h2>{{end}}
-            <div class="flex max-w-full flex-wrap items-stretch"{{if .Width}} style="width: {{.Width}}"{{end}}>
+            <div class="mx-auto flex max-w-full flex-wrap items-stretch"{{if .Width}} style="width: {{.Width}}"{{end}}>
                 {{range .Widgets}}
                 <div class="dashi-cell p-2" style="--dashi-cell-width: {{printf "%.4f" .WidthPercent}}%; --dashi-cell-offset: {{printf "%.4f" .MarginLeftPercent}}%">
                     {{.HTML}}
@@ -40,6 +44,17 @@
         {{- end}}
         {{- end}}
     </nav>
+    {{- end}}
+    {{- /* Edit button: opens this dashboard in the editor, same tab. The
+           server only sets EditURL for interactive dashboards with the
+           setting on and an editor public URL (router.editLink). The viewer
+           loads no icon font, so the pencil is inline SVG; print:hidden keeps
+           it off paper. The image/PNG stack (static/master.html) never draws it. */}}
+    {{- if .EditURL}}
+    <a href="{{.EditURL}}" aria-label="Edit dashboard" title="Edit dashboard"
+       class="fixed right-3 bottom-3 z-50 rounded-full border border-[var(--dashi-border)] bg-[var(--dashi-surface)] p-2 text-[var(--dashi-text)] opacity-40 hover:opacity-100 focus-visible:opacity-100 print:hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    </a>
     {{- end}}
     {{range .WidgetTypes}}
     <script type="module" src="/_dashi/widgets/{{.}}.js"></script>

@@ -9,6 +9,7 @@ import (
 
 	"github.com/andresbott/dashi/internal/providers/sysinfo"
 	"github.com/andresbott/dashi/internal/widgets"
+	"github.com/andresbott/dashi/internal/widgetthemes"
 )
 
 //go:embed browser.html
@@ -21,6 +22,25 @@ var browserCSS []byte
 var browserJS []byte
 
 var browserTmpl = template.Must(template.New("sysinfo-browser").Parse(browserHTML))
+
+// Tabler code points, painted with the default widget theme's icon font
+// (a pack's own icon font would map them to unrelated glyphs).
+const (
+	diskGlyph   = ""      // ti-device-floppy
+	memoryGlyph = "\uefa5" // ti-components
+	uptimeGlyph = ""      // ti-clock
+)
+
+var iconFontFamily = widgetthemes.IconFontFamily(widgetthemes.DefaultName)
+
+// browserData adds the item icons to the shared template data.
+type browserData struct {
+	sysinfoData
+	IconFontFamily string
+	DiskIcon       string
+	MemoryIcon     string
+	UptimeIcon     string
+}
 
 // RenderBrowser renders the sysinfo skeleton with current values filled
 // in. One slot per configured disk: the slot count comes from config, so
@@ -49,7 +69,14 @@ func (m *Module) RenderBrowser(config json.RawMessage, _ widgets.RenderContext) 
 	}
 
 	var buf bytes.Buffer
-	if err := browserTmpl.Execute(&buf, data); err != nil {
+	view := browserData{
+		sysinfoData:    data,
+		IconFontFamily: iconFontFamily,
+		DiskIcon:       diskGlyph,
+		MemoryIcon:     memoryGlyph,
+		UptimeIcon:     uptimeGlyph,
+	}
+	if err := browserTmpl.Execute(&buf, view); err != nil {
 		return "", fmt.Errorf("sysinfo browser render: %w", err)
 	}
 	return template.HTML(buf.String()), nil
