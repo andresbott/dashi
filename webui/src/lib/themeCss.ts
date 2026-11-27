@@ -87,14 +87,10 @@ const refUrl = (themeId: string, ref: string): string | null => {
     const scheme = ref.slice(0, idx)
     const path = ref.slice(idx + 1)
     if (!path) return null
-    if (scheme === 'asset') {
-        const segments = path.split('/').map(urlSegment).join('/')
-        return withBase(`/api/v0/themes/${urlSegment(themeId)}/assets/${segments}`)
-    }
-    if (scheme === 'shared') {
-        return withBase(`/api/v0/data/backgrounds/${urlSegment(path)}`)
-    }
-    return null
+    // Only asset: exists: a theme references nothing but its own uploads.
+    if (scheme !== 'asset') return null
+    const segments = path.split('/').map(urlSegment).join('/')
+    return withBase(`/api/v0/themes/${urlSegment(themeId)}/assets/${segments}`)
 }
 
 const cssSize = (fit: ImageFit | undefined): string => {

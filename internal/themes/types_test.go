@@ -147,7 +147,7 @@ func TestValidateImageEnums(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			th := testTheme("I")
 			th.Background.Image = &Image{
-				Light: "shared:a.png", Fit: tt.fit, Position: tt.pos, Repeat: tt.rep,
+				Light: "asset:a.png", Fit: tt.fit, Position: tt.pos, Repeat: tt.rep,
 			}
 			err := th.Validate()
 			if tt.valid && err != nil {
@@ -166,7 +166,7 @@ func TestValidateImageRefs(t *testing.T) {
 		valid bool
 	}{
 		{"asset:sunset.jpg", true},
-		{"shared:night.png", true},
+		{"shared:night.png", false}, // the shared pool was removed
 		{"asset:nested/deep.png", true},
 		{"theme:default/bg.png", false}, // deliberately unsupported
 		{"dashboard:bg.png", false},     // deliberately unsupported
@@ -195,7 +195,7 @@ func TestValidateImageRefs(t *testing.T) {
 func TestValidateDarkImageRef(t *testing.T) {
 	th := testTheme("I")
 	th.Background.Image = &Image{
-		Light: "shared:a.png", Dark: "asset:../x.png", Fit: "cover", Position: "center", Repeat: "no-repeat",
+		Light: "asset:a.png", Dark: "asset:../x.png", Fit: "cover", Position: "center", Repeat: "no-repeat",
 	}
 	if err := th.Validate(); err == nil {
 		t.Fatal("expected the dark image ref to be validated too")

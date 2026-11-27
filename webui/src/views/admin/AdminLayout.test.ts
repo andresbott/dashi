@@ -4,7 +4,7 @@ import { nextTick, reactive } from 'vue'
 import AdminLayout from './AdminLayout.vue'
 
 const { route, push } = vi.hoisted(() => ({
-    route: { name: 'admin-background-images', fullPath: '/admin/background-images' },
+    route: { name: 'admin-widget-themes', fullPath: '/admin/widget-themes' },
     push: vi.fn(),
 }))
 
@@ -28,8 +28,8 @@ function sidebar() {
 
 beforeEach(() => {
     push.mockClear()
-    reactiveRoute.name = 'admin-background-images'
-    reactiveRoute.fullPath = '/admin/background-images'
+    reactiveRoute.name = 'admin-widget-themes'
+    reactiveRoute.fullPath = '/admin/widget-themes'
 })
 
 describe('AdminLayout sidebar', () => {
@@ -37,19 +37,19 @@ describe('AdminLayout sidebar', () => {
         const { groups } = sidebar()
         expect(groups).toEqual([
             { label: 'Dashboards', items: ['Dashboards'] },
-            { label: 'Theming', items: ['Themes', 'Background images', 'Widget themes'] },
+            { label: 'Theming', items: ['Themes', 'Widget themes'] },
             { label: 'Content', items: ['Notes', 'Images'] },
             { label: 'Documentation', items: ['Dashboards', 'Widgets', 'Theming'] },
         ])
     })
 
-    it('highlights the background images entry and navigates by route name', async () => {
+    it('highlights the current entry and navigates by route name', async () => {
         const { wrapper } = sidebar()
         const active = wrapper.find('.admin-nav-item.active')
-        expect(active.text()).toBe('Background images')
+        expect(active.text()).toBe('Widget themes')
         expect(active.attributes('aria-current')).toBe('page')
         await active.trigger('click')
-        expect(push).toHaveBeenCalledWith({ name: 'admin-background-images' })
+        expect(push).toHaveBeenCalledWith({ name: 'admin-widget-themes' })
     })
 
     it('keeps Widgets highlighted on a single widget doc page', () => {

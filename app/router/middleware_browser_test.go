@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/andresbott/dashi/internal/dashboard"
-	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/themes"
 )
 
@@ -46,17 +45,13 @@ func newTestViewerWithDashboards(t *testing.T) (http.Handler, map[string]string)
 
 		// Create theme entities using the themes Store so they are properly
 		// indexed and persisted where newSharedDeps will look for them.
-		sharedBgImages, err := images.NewStore(filepath.Join(dir, "data", "shared-background-images"))
-		if err != nil {
-			panic("create shared bg images store: " + err.Error())
-		}
-		tempThemeStore := themes.NewStore(filepath.Join(dir, "data", "themes"), sharedBgImages)
+		tempThemeStore := themes.NewStore(filepath.Join(dir, "data", "themes"))
 
 		themeImageBG, err := tempThemeStore.Create(themes.Theme{
-			Name:   "Shared Image",
+			Name:   "Theme Image",
 			Colors: themes.DefaultTheme().Colors,
 			Background: themes.Background{Image: &themes.Image{
-				Light:    "shared:bg.jpg",
+				Light:    "asset:bg.jpg",
 				Fit:      "cover",
 				Position: "center",
 				Repeat:   "no-repeat",
@@ -297,12 +292,13 @@ func TestBrowserImageBackgroundIsAURLNotInlinedBytes(t *testing.T) {
 	cssRec := httptest.NewRecorder()
 	h.ServeHTTP(cssRec, httptest.NewRequest(http.MethodGet, link, nil))
 	// browserValue builds the shorthand with position/size/repeat. The image
-	// is from the shared pool, so it references /api/v0/data/backgrounds/{name}.
-	if css := cssRec.Body.String(); !strings.Contains(css, `url('/api/v0/data/backgrounds/bg.jpg') center/cover no-repeat`) {
-		t.Errorf("expected a background URL in the theme stylesheet:\n%s", css)
+	// is the theme's own asset, so it references /api/v0/themes/{id}/assets/{name}.
+	want := `url('/api/v0/themes/` + ids["imageTheme"] + `/assets/bg.jpg') center/cover no-repeat`
+	if css := cssRec.Body.String(); !strings.Contains(css, want) {
+		t.Errorf("expected %s in the theme stylesheet:\n%s", want, css)
 	}
-	// We don't test the route here because the image file doesn't actually exist
-	// in the shared pool - we only created the background entity, not the image file itself.
+	// The route itself is not exercised: only the theme was created, not the
+	// image file.
 }
 
 func TestBrowserGradientBackgroundReachesThePage(t *testing.T) {

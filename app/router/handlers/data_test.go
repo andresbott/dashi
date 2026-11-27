@@ -24,11 +24,7 @@ func newDataHandler(t *testing.T) (*DataHandler, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bs, err := images.NewStore(dir + "/backgrounds")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return NewDataHandler(ns, is, bs, nil), dir
+	return NewDataHandler(ns, is, nil), dir
 }
 
 func doReq(t *testing.T, h *DataHandler, method, path string, body io.Reader) *httptest.ResponseRecorder {

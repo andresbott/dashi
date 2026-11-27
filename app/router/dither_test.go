@@ -13,7 +13,6 @@ import (
 	"github.com/andresbott/dashi/internal/dashboard/browser"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
-	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/andresbott/dashi/internal/widgetthemes"
@@ -73,11 +72,10 @@ func newDitherMiddleware(t *testing.T, dashboards ...dashboard.Dashboard) http.H
 			`<div style="background:#3a6ea5;height:30px"></div>` +
 			`<div style="background:#c08040;height:30px"></div>`, nil
 	})
-	bs, _ := images.NewStore(t.TempDir())
 	mid := NewDashboardMiddleware(store,
 		browser.NewRenderer(reg, browser.NewAssets(nil).JSTypes()),
 		dashstatic.NewRenderer(reg), dashimage.NewRenderer(),
-		themes.NewStore(t.TempDir(), bs), widgetthemes.NewStore(""), "")
+		themes.NewStore(t.TempDir()), widgetthemes.NewStore(""), "")
 	return mid(http.NotFoundHandler())
 }
 

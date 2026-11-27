@@ -14,9 +14,8 @@ import Slider from 'primevue/slider'
 import ToggleSwitch from 'primevue/toggleswitch'
 import { useToast } from 'primevue/usetoast'
 
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useThemeAssets } from '@/composables/useThemes'
-import { useDataItems } from '@/composables/useDataItems'
-import { dataUrl } from '@/lib/api/data'
 import { themeAssetUrl } from '@/lib/api/themes'
 import { isValidStopColor, previewStyle } from '@/lib/themeCss'
 import type {
@@ -42,8 +41,7 @@ const props = withDefaults(
 const background = defineModel<ThemeBackground>('background', { required: true })
 
 const toast = useToast()
-const { assets, uploadAsset, isUploadingAsset } = useThemeAssets(() => props.themeId)
-const { items: poolItems } = useDataItems('backgrounds')
+const { assets, uploadAsset, isUploadingAsset, deleteAsset } = useThemeAssets(() => props.themeId)
 
 type Mode = 'light' | 'dark'
 
@@ -214,33 +212,21 @@ interface ImageChoice {
     url: string
 }
 
-// Two sources: this theme's own uploads (asset:, copied along with the theme)
-// and the shared background-images pool (shared:).
+// A theme is self-contained: its images are its own uploads (asset:), which a
+// copy of the theme carries along. There is no shared pool.
 const ownImages = computed<ImageChoice[]>(() =>
     (assets.value ?? [])
         .filter(a => IMAGE_EXT.test(a))
         .map(a => ({ ref: `asset:${a}`, label: a, url: themeAssetUrl(props.themeId, a) })),
 )
 
-const poolImages = computed<ImageChoice[]>(() =>
-    (poolItems.value ?? [])
-        .filter(i => IMAGE_EXT.test(i.name))
-        .map(i => ({ ref: `shared:${i.name}`, label: i.name, url: dataUrl('backgrounds', i.name) })),
-)
+const knownRefs = computed(() => new Set(ownImages.value.map(c => c.ref)))
 
-const imageGroups = computed(() =>
-    [
-        { key: 'own', label: 'This theme', items: ownImages.value },
-        { key: 'pool', label: 'Shared background images', items: poolImages.value },
-    ].filter(g => g.items.length),
-)
-
-const knownRefs = computed(() => new Set([...ownImages.value, ...poolImages.value].map(c => c.ref)))
-
-// A reference to an image that was deleted after being picked: still valid to
-// save, but it renders nothing, so it is called out once both lists loaded.
+// A reference to an image that no longer exists in the theme (deleted after
+// being picked, or a leftover from the removed shared pool): it renders
+// nothing, so it is called out once the asset list has loaded.
 const isMissing = (ref: string | undefined): boolean =>
-    !!ref && assets.value !== undefined && poolItems.value !== undefined && !knownRefs.value.has(ref)
+    !!ref && assets.value !== undefined && !knownRefs.value.has(ref)
 
 const refLabel = (ref: string): string => ref.slice(ref.indexOf(':') + 1)
 
@@ -301,6 +287,42 @@ const handleUpload = async (event: Event) => {
         toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to upload image', life: 5000 })
     } finally {
         input.value = ''
+    }
+}
+
+// Deleting removes the file from the theme's assets. A background still
+// pointing at it keeps the reference and shows the "no longer exists"
+// warning, so the confirmation says when the image is in use.
+const pendingDelete = ref<ImageChoice | null>(null)
+const deleteDialogVisible = ref(false)
+
+const isInUse = (ref: string): boolean => {
+    const img = background.value.image
+    return !!img && (img.light === ref || img.dark === ref)
+}
+
+const deleteMessage = computed(() =>
+    pendingDelete.value && isInUse(pendingDelete.value.ref)
+        ? 'This image is used by the background and will show as missing. Delete it from the theme?'
+        : 'Delete this image from the theme?',
+)
+
+const askDelete = (choice: ImageChoice) => {
+    if (props.disabled) return
+    pendingDelete.value = choice
+    deleteDialogVisible.value = true
+}
+
+const confirmDelete = async () => {
+    const choice = pendingDelete.value
+    deleteDialogVisible.value = false
+    pendingDelete.value = null
+    if (!choice) return
+    try {
+        await deleteAsset(choice.label)
+        toast.add({ severity: 'success', summary: 'Deleted', detail: choice.label, life: 3000 })
+    } catch {
+        toast.add({ severity: 'error', summary: 'Error', detail: 'Failed to delete image', life: 5000 })
     }
 }
 
@@ -467,22 +489,20 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
         <!-- Image layer, painted over the base -->
         <div class="flex flex-wrap align-items-center justify-content-between gap-2 mt-2">
             <label class="font-semibold text-sm">Image</label>
-            <div class="flex flex-wrap align-items-center gap-2">
-                <router-link :to="{ name: 'admin-background-images' }" class="pool-link text-sm">
-                    Manage shared images
-                </router-link>
-                <Button
-                    label="Remove image"
-                    icon="ti ti-x"
-                    severity="secondary"
-                    size="small"
-                    text
-                    :disabled="disabled || !background.image"
-                    data-testid="image-clear"
-                    @click="clearImage"
-                />
-            </div>
+            <Button
+                label="Remove image"
+                icon="ti ti-x"
+                severity="secondary"
+                size="small"
+                text
+                :disabled="disabled || !background.image"
+                data-testid="image-clear"
+                @click="clearImage"
+            />
         </div>
+        <small class="edit-hint">
+            Images are stored in the theme itself and copied along with it.
+        </small>
 
         <div v-if="background.image" class="flex align-items-center gap-2">
             <ToggleSwitch
@@ -514,15 +534,12 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
             <small v-else-if="isMissing(slot.selected)" class="image-warning">
                 “{{ refLabel(slot.selected) }}” no longer exists. Pick another image.
             </small>
-            <div v-if="!imageGroups.length" class="edit-hint text-sm">
-                No images yet. Upload one, or add some to the shared background images.
+            <div v-if="!ownImages.length" class="edit-hint text-sm">
+                No images in this theme yet. Upload one.
             </div>
-            <div v-for="group in imageGroups" :key="group.key" class="flex flex-column gap-1">
-                <span class="image-group-label">{{ group.label }}</span>
-                <div class="image-grid">
+            <div v-else class="image-grid">
+                <div v-for="choice in ownImages" :key="choice.ref" class="image-tile-wrap">
                     <button
-                        v-for="choice in group.items"
-                        :key="choice.ref"
                         type="button"
                         class="image-tile"
                         :class="{ selected: slot.selected === choice.ref }"
@@ -535,9 +552,28 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
                         <img :src="choice.url" :alt="choice.label" loading="lazy" />
                         <span class="image-tile-name">{{ choice.label }}</span>
                     </button>
+                    <Button
+                        v-if="!disabled"
+                        icon="ti ti-trash"
+                        severity="danger"
+                        size="small"
+                        rounded
+                        class="image-tile-delete"
+                        :aria-label="`Delete ${choice.label}`"
+                        :data-testid="`image-delete-${slot.mode}-${choice.ref}`"
+                        @click="askDelete(choice)"
+                    />
                 </div>
             </div>
         </div>
+
+        <ConfirmDialog
+            v-model:visible="deleteDialogVisible"
+            :name="pendingDelete?.label ?? ''"
+            title="Delete image"
+            :message="deleteMessage"
+            @confirm="confirmDelete"
+        />
 
         <input
             ref="uploadInput"
@@ -668,11 +704,6 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
     color: var(--p-red-500);
 }
 
-.image-group-label {
-    font-size: 0.75rem;
-    color: var(--p-text-muted-color);
-}
-
 .image-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
@@ -681,7 +712,23 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
     overflow-y: auto;
 }
 
+.image-tile-wrap {
+    position: relative;
+}
+
+/* Overlaid on the thumbnail's corner; kept small so the tile stays the click
+   target for selecting the image. */
+.image-tile-delete {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.35rem;
+    width: 1.6rem;
+    height: 1.6rem;
+    padding: 0;
+}
+
 .image-tile {
+    width: 100%;
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
@@ -720,10 +767,6 @@ const swatches: PaletteRole[] = ['primary', 'secondary', 'success', 'warning', '
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.pool-link {
-    color: var(--p-primary-color);
 }
 
 /* The colour swatch is unbordered by default, so a white or near-white value

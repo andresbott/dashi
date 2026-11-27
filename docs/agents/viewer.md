@@ -297,8 +297,10 @@ page is simply `--dashi-bg`.
 
 Image backgrounds reach the browser as a **URL**, not inlined bytes:
 `themes.RefURL` maps `asset:<path>` (a file in the theme's own `assets/`) to
-`/api/v0/themes/{id}/assets/{path}` and `shared:<name>` to
-`/api/v0/data/backgrounds/{name}`. The litehtml stack uses `themes.ImageCSS`,
+`/api/v0/themes/{id}/assets/{path}`. `asset:` is the only scheme: a theme is
+self-contained and references nothing outside its own folder (the former
+`shared:` pool and `/api/v0/data/backgrounds` were removed, and leftover
+`shared:` refs fail validation and render no image). The litehtml stack uses `themes.ImageCSS`,
 which returns the CSS plus the image ref so the bytes can be loaded
 (`Store.LoadImage`) and drawn on the canvas - litehtml fetches nothing over
 the network, so that path must not be "modernised".
@@ -319,12 +321,13 @@ component offers is bounded by the model in `internal/themes/types.go`:
   positions and no radial gradients in the model. Stops can be added (copy of
   the last), removed (never below two), reordered, typed as hex or picked
   (the picker keeps a stop's alpha); optional separate dark stops.
-- **Image**: a thumbnail grid of this theme's own assets (`asset:`) and the
-  shared pool (`shared:`), filtered to the extensions `ValidateRef` accepts.
-  **Upload goes into the theme's own assets** (copied with the theme) and
-  selects the file; the pool is managed on its own page (Theming → Background
-  images). A deleted image still referenced is flagged in the picker. Optional
-  separate dark image; fit/position/repeat are shared by both modes.
+- **Image**: a thumbnail grid of this theme's own assets (`asset:`),
+  filtered to the extensions `ValidateRef` accepts. The editor is the only
+  place theme images are managed: **Upload goes into the theme's own assets**
+  (copied with the theme) and selects the file; each tile has a delete button
+  (confirmation warns when the background uses the image). A deleted image
+  still referenced is flagged in the picker. Optional separate dark image;
+  fit/position/repeat are shared by both modes.
 - **Preview**: light and dark tiles built with `previewStyle` from
   `webui/src/lib/themeCss.ts` (the TS mirror of `BrowserCSS`), compositing
   `--dashi-page-bg` over `--dashi-bg` the way `<body>` over `<html>` does in

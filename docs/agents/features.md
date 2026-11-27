@@ -41,12 +41,13 @@ static picture of the bar in PNGs.
 | Image dashboards viewed in browser | Implemented | Image-type dashboards with no display headers render through the browser stack (see [viewer.md](viewer.md)); `serveImageHTMLPreview` was removed |
 | Themes (background + light/dark palette) | Implemented | `internal/themes`; `{dataDir}/data/themes/{name}/theme.json` + `assets/`; builtin read-only `default` and `ember` (registry in `internal/themes/builtin.go`; `GET /themes/{id}` flags them `builtin`); copy (`POST /themes/{id}/copy`); dashboards select via `themeId`; editor `AdminThemeEdit.vue` with the background section in `webui/src/components/admin/ThemeBackgroundEditor.vue` (see [viewer.md](viewer.md#editing-a-background)) |
 | Mobile layout (~375px phones) | Implemented (2026-11-21) | Viewer: below 640px every row stacks into one full-width column (CSS variables in `page.html` + rules in `webui/viewer/viewer.css`). Editor SPA: below 768px the admin sidebar is a hamburger drawer, dialogs are capped to the viewport, list tables drop secondary columns, the drag grid keeps 12 columns and scrolls sideways. Breakpoints and details: [viewer.md](viewer.md#responsive-layout-mobile) |
-| Admin sidebar grouping | Implemented | `AdminLayout.vue`: **Theming** = Themes, Background images (the shared `shared:` pool), Widget themes; **Content** = user data widgets show (Notes, Images). Route names and paths unchanged (`/admin/background-images`) |
+| Admin sidebar grouping | Implemented | `AdminLayout.vue`: **Theming** = Themes, Widget themes; **Content** = user data widgets show (Notes, Images). There is no background-images section: each theme holds its own images, managed in the theme editor |
 | Widget themes (fonts + icons) | Implemented | `internal/widgetthemes`; embedded default (Inter + Tabler); user packs `{dataDir}/data/widget_themes/{name}/widget_theme.yaml`; zip upload/download; uploads and deletes take effect without a restart in both stacks (PNG fonts re-synced via `Store.OnChange`, see [rendering.md](rendering.md#fonts)); hand-placed or CLI-created packs still need a restart; dashboards select via `widgetTheme`; old `theme.yaml` packs are rejected on upload |
 | Widget theme bootstrap CLI | Implemented | `dashi widget-theme create [name] --type image|font` (`app/cmd/widget_theme.go`) |
 
-No migration: old `data/backgrounds`, `{dataDir}/themes` packs and the dashboard
-keys `theme`, `backgroundId`, `accentColor` are ignored; dangling references
+No migration: old `data/backgrounds`, `data/shared-background-images`,
+`{dataDir}/themes` packs, theme image refs using the removed `shared:` scheme
+and the dashboard keys `theme`, `backgroundId`, `accentColor` are ignored; dangling references
 fall back to `default`. Details: [viewer.md](viewer.md#theming-two-entities-css-variables-and-concrete-values).
 
 ## Data sources (all in-memory cached, warmup at startup for weather/market)

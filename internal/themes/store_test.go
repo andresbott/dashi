@@ -6,18 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/andresbott/dashi/internal/data/images"
 )
 
 func newTestStore(t *testing.T) (*Store, string) {
 	t.Helper()
 	dir := t.TempDir()
-	pool, err := images.NewStore(filepath.Join(dir, "pool"))
-	if err != nil {
-		t.Fatalf("create pool: %v", err)
-	}
-	return NewStore(filepath.Join(dir, "themes"), pool), dir
+	return NewStore(filepath.Join(dir, "themes")), dir
 }
 
 // mustCreate creates a valid theme named name and fails the test on error.
@@ -359,14 +353,12 @@ func TestListSkipsStoredThemeClaimingBuiltinID(t *testing.T) {
 }
 
 func TestIndexIsRebuiltOnStartup(t *testing.T) {
-	dir := t.TempDir()
-	pool, _ := images.NewStore(filepath.Join(dir, "pool"))
-	themesDir := filepath.Join(dir, "themes")
+	themesDir := filepath.Join(t.TempDir(), "themes")
 
-	first := NewStore(themesDir, pool)
+	first := NewStore(themesDir)
 	created := mustCreate(t, first, "Persisted")
 
-	second := NewStore(themesDir, pool)
+	second := NewStore(themesDir)
 	if _, err := second.Get(created.ID); err != nil {
 		t.Fatalf("a fresh store must find the theme by id: %v", err)
 	}
@@ -432,13 +424,8 @@ func TestListAssetsExcludesThemeJSON(t *testing.T) {
 	}
 }
 
-func TestLoadImageFromAssetAndPool(t *testing.T) {
-	dir := t.TempDir()
-	pool, _ := images.NewStore(filepath.Join(dir, "pool"))
-	if err := pool.Save("shared.png", []byte("pool-bytes")); err != nil {
-		t.Fatalf("seed pool: %v", err)
-	}
-	s := NewStore(filepath.Join(dir, "themes"), pool)
+func TestLoadImageFromAsset(t *testing.T) {
+	s, _ := newTestStore(t)
 	created := mustCreate(t, s, "Loader")
 	_ = s.SaveAsset(created.ID, "own.png", []byte("own-bytes"))
 
@@ -446,12 +433,10 @@ func TestLoadImageFromAssetAndPool(t *testing.T) {
 	if err != nil || string(own) != "own-bytes" {
 		t.Fatalf("asset ref: %q, %v", own, err)
 	}
-	shared, err := s.LoadImage(created.ID, "shared:shared.png")
-	if err != nil || string(shared) != "pool-bytes" {
-		t.Fatalf("shared ref: %q, %v", shared, err)
-	}
-	if _, err := s.LoadImage(created.ID, "theme:default/x.png"); err == nil {
-		t.Fatal("theme refs must be rejected")
+	for _, ref := range []string{"shared:own.png", "theme:default/x.png"} {
+		if _, err := s.LoadImage(created.ID, ref); err == nil {
+			t.Fatalf("%s must be rejected: a theme only loads its own assets", ref)
+		}
 	}
 }
 

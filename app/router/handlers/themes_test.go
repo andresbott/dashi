@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/andresbott/dashi/internal/dashboard"
-	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/gorilla/mux"
 )
@@ -20,11 +19,7 @@ import (
 func newThemeTestRouter(t *testing.T) (*mux.Router, *themes.Store, *dashboard.Store) {
 	t.Helper()
 	dir := t.TempDir()
-	pool, err := images.NewStore(filepath.Join(dir, "pool"))
-	if err != nil {
-		t.Fatalf("pool: %v", err)
-	}
-	themeStore := themes.NewStore(filepath.Join(dir, "themes"), pool)
+	themeStore := themes.NewStore(filepath.Join(dir, "themes"))
 	dashStore := dashboard.NewStore(filepath.Join(dir, "dashboards"))
 
 	h := NewThemeHandler(themeStore, dashStore, slog.Default())

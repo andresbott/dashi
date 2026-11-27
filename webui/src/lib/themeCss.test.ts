@@ -84,13 +84,13 @@ describe('browserCss', () => {
 
     it('drops an image whose enum fields are not recognised', () => {
         const css = browserCss(withImage({
-            light: 'shared:a.png', fit: 'cover', position: 'center;}' as ThemeImage['position'], repeat: 'no-repeat',
+            light: 'asset:a.png', fit: 'cover', position: 'center;}' as ThemeImage['position'], repeat: 'no-repeat',
         }))
         expect(css).not.toContain('--dashi-page-bg')
     })
 
     it('percent-encodes a single quote in a reference', () => {
-        const css = browserCss(withImage({ light: "shared:it's.png", fit: 'cover', position: 'center', repeat: 'no-repeat' }))
+        const css = browserCss(withImage({ light: "asset:it's.png", fit: 'cover', position: 'center', repeat: 'no-repeat' }))
         expect(css).toContain('it%27s.png')
     })
 })
@@ -105,7 +105,7 @@ describe('isValidBackground', () => {
         ['a single stop', { gradient: { direction: '90deg', light: ['#000'] } }, false],
         ['an invalid dark stop', { gradient: { direction: '90deg', light: ['#000', '#fff'], dark: ['#000', 'x'] } }, false],
         ['an empty dark list (falls back to light)', { gradient: { direction: '90deg', light: ['#000', '#fff'], dark: [] } }, true],
-        ['a chosen image', { image: { light: 'shared:a.png', ...img } }, true],
+        ['a chosen image', { image: { light: 'asset:a.png', ...img } }, true],
         ['an image layer with no image', { image: { light: '', ...img } }, false],
     ])('%s → %s', (_name, bg, want) => {
         expect(isValidBackground(bg)).toBe(want)
@@ -182,11 +182,11 @@ describe('pageBgValue', () => {
         const css = browserCss(theme({
             background: {
                 gradient: { direction: 'to right', light: ['#000000', '#ffffff'] },
-                image: { light: 'shared:a.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+                image: { light: 'asset:a.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
             },
         }))
         expect(pageBgValue(css)).toBe(
-            "url('/api/v0/data/backgrounds/a.png') center/cover no-repeat,linear-gradient(to right,#000000,#ffffff)",
+            "url('/api/v0/themes/a1/assets/a.png') center/cover no-repeat,linear-gradient(to right,#000000,#ffffff)",
         )
     })
 })

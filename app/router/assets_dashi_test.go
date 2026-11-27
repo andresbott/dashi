@@ -14,7 +14,7 @@ import (
 
 func dashiAssetRouter() *mux.Router {
 	r := mux.NewRouter()
-	attachDashiAssets(r, browser.NewAssets(nil), themes.NewStore("", nil), widgetthemes.NewStore(""))
+	attachDashiAssets(r, browser.NewAssets(nil), themes.NewStore(""), widgetthemes.NewStore(""))
 	return r
 }
 

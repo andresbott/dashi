@@ -21,13 +21,11 @@ vi.mock('@/composables/useThemes', () => ({
     useGetTheme: () => ({ data: theme, isLoading: ref(false), isError: ref(false) }),
     useUpdateTheme: () => ({ updateTheme, isUpdating: ref(false) }),
     useThemeAssets: () => ({
-        assets: ref([]),
+        assets: ref(['sky.png']),
         uploadAsset: vi.fn(),
+        deleteAsset: vi.fn(),
         isUploadingAsset: ref(false),
     }),
-}))
-vi.mock('@/composables/useDataItems', () => ({
-    useDataItems: () => ({ items: ref([{ name: 'sky.png', size: 1, modTime: '' }]) }),
 }))
 vi.mock('vue-router', () => ({
     useRoute: () => ({ params: routeParams }),
@@ -127,15 +125,15 @@ describe('AdminThemeEdit', () => {
         expect(wrapper.text()).toContain('Pick an image')
     })
 
-    it('saves a background image picked from the shared pool', async () => {
+    it('saves a background image picked from the theme\'s own images', async () => {
         const wrapper = mountView()
         await flushPromises()
 
-        await wrapper.find('[data-testid="image-light-shared:sky.png"]').trigger('click')
+        await wrapper.find('[data-testid="image-light-asset:sky.png"]').trigger('click')
         await settle()
         expect(updateTheme).toHaveBeenCalledTimes(1)
         expect(updateTheme.mock.calls[0][0].payload.background.image).toEqual({
-            light: 'shared:sky.png', fit: 'cover', position: 'center', repeat: 'no-repeat',
+            light: 'asset:sky.png', fit: 'cover', position: 'center', repeat: 'no-repeat',
         })
     })
 

@@ -16,7 +16,6 @@ import (
 	"github.com/andresbott/dashi/internal/dashboard/browser"
 	dashimage "github.com/andresbott/dashi/internal/dashboard/image"
 	dashstatic "github.com/andresbott/dashi/internal/dashboard/static"
-	"github.com/andresbott/dashi/internal/data/images"
 	"github.com/andresbott/dashi/internal/themes"
 	"github.com/andresbott/dashi/internal/widgets"
 	"github.com/andresbott/dashi/internal/widgetthemes"
@@ -56,8 +55,7 @@ func newTestMiddlewareWithEditor(t *testing.T, editorBase string, dashboards ...
 		_, _ = w.Write([]byte("SPA"))
 	})
 
-	bs, _ := images.NewStore(t.TempDir())
-	themeStore := themes.NewStore(t.TempDir(), bs)
+	themeStore := themes.NewStore(t.TempDir())
 	mid := NewDashboardMiddleware(store, browserRenderer, staticRenderer, imageRenderer, themeStore, widgetthemes.NewStore(""), editorBase)
 	return mid(spaHandler)
 }
@@ -801,7 +799,7 @@ func TestImageDashboard_OversizedDisplayAnswers400WithLimit(t *testing.T) {
 func TestResolveImageBackgroundWithGradientOnly(t *testing.T) {
 	// When the background has a gradient but no image, resolveImageBackground
 	// should return the gradient CSS and nil bytes.
-	themeStore := themes.NewStore(t.TempDir(), nil)
+	themeStore := themes.NewStore(t.TempDir())
 	theme := themes.Theme{
 		ID:         "gradientonly",
 		Name:       "Gradient Only",
@@ -823,25 +821,24 @@ func TestResolveImageBackgroundWithImagePresent(t *testing.T) {
 	// When an image is present and loads successfully, resolveImageBackground
 	// must return "transparent" (not empty string) to prevent the template's
 	// else-branch from painting opaque theme colour over the pre-composited image.
-	imageStore, err := images.NewStore(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	themeStore := themes.NewStore(t.TempDir(), imageStore)
-
-	// Save a small test image
-	testPNG := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A} // PNG signature
-	if err := imageStore.Save("test.png", testPNG); err != nil {
-		t.Fatal(err)
-	}
+	themeStore := themes.NewStore(t.TempDir())
 
 	theme := themes.Theme{
 		ID:     "withimage",
 		Name:   "With Image",
 		Colors: themes.DefaultTheme().Colors,
 		Background: themes.Background{Image: &themes.Image{
-			Light: "shared:test.png", Fit: "cover", Position: "center", Repeat: "no-repeat",
+			Light: "asset:test.png", Fit: "cover", Position: "center", Repeat: "no-repeat",
 		}},
+	}
+	if _, err := themeStore.Create(theme); err != nil {
+		t.Fatal(err)
+	}
+
+	// Save a small test image into the theme's own assets
+	testPNG := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A} // PNG signature
+	if err := themeStore.SaveAsset(theme.ID, "test.png", testPNG); err != nil {
+		t.Fatal(err)
 	}
 
 	css, imageData := resolveImageBackground(theme, "light", themeStore)
@@ -928,32 +925,25 @@ func TestImageDashboardBackgroundImageRendersOnCanvas(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Set up stores - use same imageStore for both saving and themeStore
 	dashStore := dashboard.NewStore(t.TempDir())
-	imageStore, err := images.NewStore(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	themeStore := themes.NewStore(t.TempDir(), imageStore)
+	themeStore := themes.NewStore(t.TempDir())
 
-	// Save the red image to the shared image store
-	if err := imageStore.Save("red.png", redBuf.Bytes()); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create a background entity referencing it
+	// Create a theme whose background references its own red asset
 	bg := themes.Theme{
 		ID:     "redbg",
 		Name:   "Red Background",
 		Colors: themes.DefaultTheme().Colors,
 		Background: themes.Background{Image: &themes.Image{
-			Light:    "shared:red.png",
+			Light:    "asset:red.png",
 			Fit:      "cover",
 			Position: "center",
 			Repeat:   "no-repeat",
 		}},
 	}
 	if _, err := themeStore.Create(bg); err != nil {
+		t.Fatal(err)
+	}
+	if err := themeStore.SaveAsset(bg.ID, "red.png", redBuf.Bytes()); err != nil {
 		t.Fatal(err)
 	}
 

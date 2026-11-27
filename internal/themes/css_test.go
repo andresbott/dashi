@@ -97,13 +97,13 @@ func TestBrowserCSSImageOverGradient(t *testing.T) {
 			Dark:      []string{"#1e1b4b", "#0f172a"},
 		},
 		Image: &Image{
-			Light: "asset:sunset.jpg", Dark: "shared:night.png",
+			Light: "asset:sunset.jpg", Dark: "asset:night.png",
 			Fit: "cover", Position: "center", Repeat: "no-repeat",
 		},
 	}
 	got := string(BrowserCSS(th))
 	wantLight := "--dashi-page-bg:url('/api/v0/themes/abc123/assets/sunset.jpg') center/cover no-repeat,linear-gradient(to bottom right,#667eea,#764ba2);}"
-	wantDark := "--dashi-page-bg:url('/api/v0/data/backgrounds/night.png') center/cover no-repeat,linear-gradient(to bottom right,#1e1b4b,#0f172a);}"
+	wantDark := "--dashi-page-bg:url('/api/v0/themes/abc123/assets/night.png') center/cover no-repeat,linear-gradient(to bottom right,#1e1b4b,#0f172a);}"
 	if !strings.Contains(lightRule(t, got), wantLight) {
 		t.Errorf("missing light page-bg\ngot:  %s\nwant: %s", got, wantLight)
 	}
@@ -132,7 +132,7 @@ func TestBrowserCSSFitMapping(t *testing.T) {
 		t.Run(fit, func(t *testing.T) {
 			th := testTheme("I")
 			th.ID = "abc123"
-			th.Background.Image = &Image{Light: "shared:a.png", Fit: fit, Position: "center", Repeat: "no-repeat"}
+			th.Background.Image = &Image{Light: "asset:a.png", Fit: fit, Position: "center", Repeat: "no-repeat"}
 			if got := string(BrowserCSS(th)); !strings.Contains(got, want) {
 				t.Fatalf("got %s, want substring %s", got, want)
 			}
@@ -144,7 +144,7 @@ func TestBrowserCSSEscapesQuoteInRef(t *testing.T) {
 	// A single quote would terminate url('…'). It must be percent-encoded.
 	th := testTheme("I")
 	th.ID = "abc123"
-	th.Background.Image = &Image{Light: "shared:it's.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
+	th.Background.Image = &Image{Light: "asset:it's.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
 	got := string(BrowserCSS(th))
 	if strings.Contains(got, "it's") {
 		t.Fatalf("raw single quote leaked into url(): %s", got)
@@ -176,7 +176,7 @@ func TestBrowserCSSDropsImageWithBadEnums(t *testing.T) {
 	// A hand-edited theme.json can carry any string in fit/position/repeat;
 	// those are written into the CSS verbatim, so the layer is dropped.
 	th := testTheme("X")
-	th.Background.Image = &Image{Light: "shared:a.png", Fit: "cover", Position: "center;}body{x", Repeat: "no-repeat"}
+	th.Background.Image = &Image{Light: "asset:a.png", Fit: "cover", Position: "center;}body{x", Repeat: "no-repeat"}
 	got := string(BrowserCSS(th))
 	if strings.Contains(got, "body{") || strings.Contains(got, "--dashi-page-bg") {
 		t.Fatalf("unvalidated image enums reached the CSS: %s", got)
@@ -195,13 +195,13 @@ func TestImageCSSPrefersImage(t *testing.T) {
 	th := testTheme("S")
 	th.Background = Background{
 		Gradient: &Gradient{Direction: "to right", Light: []string{"#000000", "#ffffff"}},
-		Image:    &Image{Light: "shared:a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"},
+		Image:    &Image{Light: "asset:a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"},
 	}
 	css, ref := ImageCSS(th, "light")
 	if css != "" {
 		t.Errorf("expected no CSS when an image is present, got %q", css)
 	}
-	if ref != "shared:a.png" {
+	if ref != "asset:a.png" {
 		t.Errorf("got ref %q", ref)
 	}
 }
@@ -254,9 +254,9 @@ func TestImageCSSAutoResolvesToLight(t *testing.T) {
 
 func TestImageCSSDarkImageFallsBackToLight(t *testing.T) {
 	th := testTheme("I")
-	th.Background.Image = &Image{Light: "shared:a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
+	th.Background.Image = &Image{Light: "asset:a.png", Fit: "cover", Position: "center", Repeat: "no-repeat"}
 	_, ref := ImageCSS(th, "dark")
-	if ref != "shared:a.png" {
+	if ref != "asset:a.png" {
 		t.Fatalf("got %q", ref)
 	}
 }
@@ -269,7 +269,7 @@ func TestRefURL(t *testing.T) {
 	}{
 		{"asset:sunset.jpg", "/api/v0/themes/abc123/assets/sunset.jpg", true},
 		{"asset:deep/a b.png", "/api/v0/themes/abc123/assets/deep/a%20b.png", true},
-		{"shared:night.png", "/api/v0/data/backgrounds/night.png", true},
+		{"shared:night.png", "", false}, // the shared pool was removed
 		{"theme:default/x.png", "", false},
 		{"nonsense", "", false},
 	}

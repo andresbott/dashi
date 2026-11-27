@@ -15,7 +15,6 @@ import (
 	"sync"
 	"unicode"
 
-	"github.com/andresbott/dashi/internal/data/images"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -34,13 +33,12 @@ const assetsDir = "assets"
 // would hold a stale index.
 type Store struct {
 	dir   string
-	pool  *images.Store
 	mu    sync.RWMutex
 	index map[string]string // id -> folder
 }
 
-func NewStore(dir string, pool *images.Store) *Store {
-	s := &Store{dir: dir, pool: pool, index: make(map[string]string)}
+func NewStore(dir string) *Store {
+	s := &Store{dir: dir, index: make(map[string]string)}
 	s.buildIndex()
 	return s
 }
@@ -543,16 +541,9 @@ func (s *Store) LoadImage(id, ref string) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("%w: reference %q has no scheme", ErrInvalidConfig, ref)
 	}
-	switch scheme {
-	case "asset":
-		data, _, err := s.GetAsset(id, path)
-		return data, err
-	case "shared":
-		if s.pool == nil {
-			return nil, fmt.Errorf("shared image pool not configured")
-		}
-		data, _, err := s.pool.Get(path)
-		return data, err
+	if scheme != "asset" {
+		return nil, fmt.Errorf("%w: unsupported reference scheme %q", ErrInvalidConfig, scheme)
 	}
-	return nil, fmt.Errorf("%w: unsupported reference scheme %q", ErrInvalidConfig, scheme)
+	data, _, err := s.GetAsset(id, path)
+	return data, err
 }

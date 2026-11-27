@@ -45,12 +45,12 @@ describe('useDataItems', () => {
         vi.mocked(dataApi.uploadData).mockResolvedValue(undefined)
         let result: ReturnType<typeof useDataItems>
         withQueryClient(() => {
-            result = useDataItems('backgrounds')
+            result = useDataItems('notes')
         })
         await flushPromises()
         const bytes = new ArrayBuffer(4)
-        await result!.uploadItem({ name: 'bg.png', bytes })
-        expect(dataApi.uploadData).toHaveBeenCalledWith('backgrounds', 'bg.png', bytes)
+        await result!.uploadItem({ name: 'a.md', bytes })
+        expect(dataApi.uploadData).toHaveBeenCalledWith('notes', 'a.md', bytes)
     })
 
     it('deleteItem calls deleteData with the kind', async () => {

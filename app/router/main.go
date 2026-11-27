@@ -97,7 +97,6 @@ type sharedDeps struct {
 	widgetThemeStore *widgetthemes.Store
 	notesStore       *notes.Store
 	imagesStore      *images.Store
-	sharedBgImages   *images.Store
 	staticRenderer   *dashstatic.Renderer
 	imageRenderer    *dashimage.Renderer
 	browserRenderer  *browser.Renderer
@@ -133,11 +132,7 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create images store: %w", err)
 	}
-	sharedBgImages, err := images.NewStore(filepath.Join(cfg.DataDir, "data", "shared-background-images"))
-	if err != nil {
-		return nil, fmt.Errorf("create shared background images store: %w", err)
-	}
-	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "data", "themes"), sharedBgImages)
+	themeStore := themes.NewStore(filepath.Join(cfg.DataDir, "data", "themes"))
 
 	// Static dashboard rendering
 	registry := widgets.NewRegistry()
@@ -198,7 +193,6 @@ func newSharedDeps(cfg Cfg) (*sharedDeps, error) {
 		widgetThemeStore: widgetThemeStore,
 		notesStore:       notesStore,
 		imagesStore:      imagesStore,
-		sharedBgImages:   sharedBgImages,
 		staticRenderer:   staticRenderer,
 		imageRenderer:    imageRenderer,
 		browserRenderer:  browserRenderer,
@@ -235,7 +229,6 @@ func newAPIDeps(deps *sharedDeps, logger *slog.Logger) apiDeps {
 		widgetThemeStore: deps.widgetThemeStore,
 		notesStore:       deps.notesStore,
 		imagesStore:      deps.imagesStore,
-		sharedBgImages:   deps.sharedBgImages,
 		logger:           logger,
 		modules:          deps.modules,
 		publicViewer:     deps.publicViewer,

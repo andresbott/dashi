@@ -50,7 +50,7 @@
     "browserCss": ":root{--dashi-bg:#ffffff;--dashi-surface:#f5f5f7;--dashi-border:#e0e0e5;--dashi-text:#333333;--dashi-text-muted:#666666;--dashi-primary:#0a84ff;--dashi-on-primary:#ffffff;--dashi-secondary:#8b5cf6;--dashi-success:#16a34a;--dashi-warning:#d97706;--dashi-danger:#dc2626;--dashi-page-bg:linear-gradient(135deg,#000000,#888888,#ffffff);}\n:root[data-color-mode=\"dark\"]{--dashi-bg:#1a1a2e;--dashi-surface:#23233d;--dashi-border:#33334d;--dashi-text:#e0e0e0;--dashi-text-muted:#999999;--dashi-primary:#4a90d9;--dashi-on-primary:#ffffff;--dashi-secondary:#a78bfa;--dashi-success:#22c55e;--dashi-warning:#f59e0b;--dashi-danger:#ef4444;--dashi-page-bg:linear-gradient(135deg,#000000,#888888,#ffffff);}\n"
   },
   {
-    "name": "image over gradient, dark image from the shared pool",
+    "name": "image over gradient, different dark image",
     "theme": {
       "id": "abc123",
       "name": "Sunset",
@@ -62,7 +62,7 @@
         },
         "image": {
           "light": "asset:sunset.jpg",
-          "dark": "shared:night.png",
+          "dark": "asset:night.png",
           "fit": "cover",
           "position": "center",
           "repeat": "no-repeat"
@@ -73,7 +73,7 @@
         "dark": { "bg": "#1a1a2e", "surface": "#23233d", "border": "#33334d", "text": "#e0e0e0", "textMuted": "#999999", "primary": "#4a90d9", "onPrimary": "#ffffff", "secondary": "#a78bfa", "success": "#22c55e", "warning": "#f59e0b", "danger": "#ef4444" }
       }
     },
-    "browserCss": ":root{--dashi-bg:#ffffff;--dashi-surface:#f5f5f7;--dashi-border:#e0e0e5;--dashi-text:#333333;--dashi-text-muted:#666666;--dashi-primary:#0a84ff;--dashi-on-primary:#ffffff;--dashi-secondary:#8b5cf6;--dashi-success:#16a34a;--dashi-warning:#d97706;--dashi-danger:#dc2626;--dashi-page-bg:url('/api/v0/themes/abc123/assets/sunset.jpg') center/cover no-repeat,linear-gradient(to bottom right,#667eea,#764ba2);}\n:root[data-color-mode=\"dark\"]{--dashi-bg:#1a1a2e;--dashi-surface:#23233d;--dashi-border:#33334d;--dashi-text:#e0e0e0;--dashi-text-muted:#999999;--dashi-primary:#4a90d9;--dashi-on-primary:#ffffff;--dashi-secondary:#a78bfa;--dashi-success:#22c55e;--dashi-warning:#f59e0b;--dashi-danger:#ef4444;--dashi-page-bg:url('/api/v0/data/backgrounds/night.png') center/cover no-repeat,linear-gradient(to bottom right,#1e1b4b,#0f172a);}\n"
+    "browserCss": ":root{--dashi-bg:#ffffff;--dashi-surface:#f5f5f7;--dashi-border:#e0e0e5;--dashi-text:#333333;--dashi-text-muted:#666666;--dashi-primary:#0a84ff;--dashi-on-primary:#ffffff;--dashi-secondary:#8b5cf6;--dashi-success:#16a34a;--dashi-warning:#d97706;--dashi-danger:#dc2626;--dashi-page-bg:url('/api/v0/themes/abc123/assets/sunset.jpg') center/cover no-repeat,linear-gradient(to bottom right,#667eea,#764ba2);}\n:root[data-color-mode=\"dark\"]{--dashi-bg:#1a1a2e;--dashi-surface:#23233d;--dashi-border:#33334d;--dashi-text:#e0e0e0;--dashi-text-muted:#999999;--dashi-primary:#4a90d9;--dashi-on-primary:#ffffff;--dashi-secondary:#a78bfa;--dashi-success:#22c55e;--dashi-warning:#f59e0b;--dashi-danger:#ef4444;--dashi-page-bg:url('/api/v0/themes/abc123/assets/night.png') center/cover no-repeat,linear-gradient(to bottom right,#1e1b4b,#0f172a);}\n"
   },
   {
     "name": "image over the palette bg, contain top left, repeat",
@@ -82,7 +82,7 @@
       "name": "Tile",
       "background": {
         "image": {
-          "light": "shared:pattern.png",
+          "light": "asset:pattern.png",
           "fit": "contain",
           "position": "top left",
           "repeat": "repeat"
@@ -93,7 +93,7 @@
         "dark": { "bg": "#1a1a2e", "surface": "#23233d", "border": "#33334d", "text": "#e0e0e0", "textMuted": "#999999", "primary": "#4a90d9", "onPrimary": "#ffffff", "secondary": "#a78bfa", "success": "#22c55e", "warning": "#f59e0b", "danger": "#ef4444" }
       }
     },
-    "browserCss": ":root{--dashi-bg:#ffffff;--dashi-surface:#f5f5f7;--dashi-border:#e0e0e5;--dashi-text:#333333;--dashi-text-muted:#666666;--dashi-primary:#0a84ff;--dashi-on-primary:#ffffff;--dashi-secondary:#8b5cf6;--dashi-success:#16a34a;--dashi-warning:#d97706;--dashi-danger:#dc2626;--dashi-page-bg:url('/api/v0/data/backgrounds/pattern.png') top left/contain repeat;}\n:root[data-color-mode=\"dark\"]{--dashi-bg:#1a1a2e;--dashi-surface:#23233d;--dashi-border:#33334d;--dashi-text:#e0e0e0;--dashi-text-muted:#999999;--dashi-primary:#4a90d9;--dashi-on-primary:#ffffff;--dashi-secondary:#a78bfa;--dashi-success:#22c55e;--dashi-warning:#f59e0b;--dashi-danger:#ef4444;--dashi-page-bg:url('/api/v0/data/backgrounds/pattern.png') top left/contain repeat;}\n"
+    "browserCss": ":root{--dashi-bg:#ffffff;--dashi-surface:#f5f5f7;--dashi-border:#e0e0e5;--dashi-text:#333333;--dashi-text-muted:#666666;--dashi-primary:#0a84ff;--dashi-on-primary:#ffffff;--dashi-secondary:#8b5cf6;--dashi-success:#16a34a;--dashi-warning:#d97706;--dashi-danger:#dc2626;--dashi-page-bg:url('/api/v0/themes/abc123/assets/pattern.png') top left/contain repeat;}\n:root[data-color-mode=\"dark\"]{--dashi-bg:#1a1a2e;--dashi-surface:#23233d;--dashi-border:#33334d;--dashi-text:#e0e0e0;--dashi-text-muted:#999999;--dashi-primary:#4a90d9;--dashi-on-primary:#ffffff;--dashi-secondary:#a78bfa;--dashi-success:#22c55e;--dashi-warning:#f59e0b;--dashi-danger:#ef4444;--dashi-page-bg:url('/api/v0/themes/abc123/assets/pattern.png') top left/contain repeat;}\n"
   },
   {
     "name": "image only, stretch",

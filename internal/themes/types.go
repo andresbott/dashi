@@ -227,16 +227,16 @@ func validateStops(stops []string) error {
 	return nil
 }
 
-// ValidateRef checks an image reference. Only two schemes exist: asset:
-// (this theme's own uploads) and shared: (the admin pool). theme: and
-// dashboard: are deliberately unsupported — a theme is global and cannot
-// reach into one dashboard's assets.
+// ValidateRef checks an image reference. Only one scheme exists: asset:,
+// this theme's own uploads, so a theme is self-contained and a copy carries
+// every image it uses. theme:, dashboard: and the former shared: pool are
+// deliberately unsupported.
 func ValidateRef(ref string) error {
 	scheme, path, ok := strings.Cut(ref, ":")
 	if !ok {
 		return fmt.Errorf("%w: reference %q has no scheme", ErrInvalidConfig, ref)
 	}
-	if scheme != "asset" && scheme != "shared" {
+	if scheme != "asset" {
 		return fmt.Errorf("%w: unsupported reference scheme %q", ErrInvalidConfig, scheme)
 	}
 	if path == "" {
@@ -248,9 +248,6 @@ func ValidateRef(ref string) error {
 	cleaned := filepath.Clean(path)
 	if strings.HasPrefix(cleaned, "..") || strings.Contains(cleaned, string(filepath.Separator)+"..") {
 		return fmt.Errorf("%w: path traversal not allowed", ErrInvalidConfig)
-	}
-	if scheme == "shared" && strings.ContainsAny(path, `/\`) {
-		return fmt.Errorf("%w: the shared pool is flat", ErrInvalidConfig)
 	}
 	if !imageExts[strings.ToLower(filepath.Ext(cleaned))] {
 		return fmt.Errorf("%w: %q is not an image", ErrInvalidConfig, filepath.Ext(cleaned))

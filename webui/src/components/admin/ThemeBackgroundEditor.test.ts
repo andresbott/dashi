@@ -4,6 +4,7 @@ import { reactive, ref } from 'vue'
 import PrimeVue from 'primevue/config'
 import ColorPicker from 'primevue/colorpicker'
 import ThemeBackgroundEditor from './ThemeBackgroundEditor.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import type { Palette, ThemeBackground } from '@/types/theme'
 
 const palette: Palette = {
@@ -14,14 +15,13 @@ const palette: Palette = {
 const darkPalette: Palette = { ...palette, bg: '#101010' }
 
 const assets = ref<string[] | undefined>([])
-const poolItems = ref<{ name: string; size: number; modTime: string }[] | undefined>([])
 const uploadAsset = vi.fn()
+const deleteAsset = vi.fn()
 const toastAdd = vi.fn()
 
 vi.mock('@/composables/useThemes', () => ({
-    useThemeAssets: () => ({ assets, uploadAsset, isUploadingAsset: ref(false) }),
+    useThemeAssets: () => ({ assets, uploadAsset, deleteAsset, isUploadingAsset: ref(false) }),
 }))
-vi.mock('@/composables/useDataItems', () => ({ useDataItems: () => ({ items: poolItems }) }))
 vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: toastAdd }) }))
 
 function mountEditor(background: ThemeBackground, disabled = false) {
@@ -54,11 +54,7 @@ describe('ThemeBackgroundEditor', () => {
             removeEventListener: vi.fn(),
         }))
         vi.clearAllMocks()
-        assets.value = ['own.png', 'notes.txt']
-        poolItems.value = [
-            { name: 'sky.jpg', size: 1, modTime: '' },
-            { name: 'anim.gif', size: 1, modTime: '' },
-        ]
+        assets.value = ['own.png', 'sky.jpg', 'notes.txt', 'anim.gif']
     })
 
     afterEach(() => {
@@ -138,21 +134,29 @@ describe('ThemeBackgroundEditor', () => {
     })
 
     describe('image', () => {
-        it('offers this theme\'s images and the shared pool, image files only', () => {
+        it('offers only this theme\'s own images, image files only', () => {
             const { wrapper } = mountEditor({})
             expect(wrapper.find('[data-testid="image-light-asset:own.png"]').exists()).toBe(true)
-            expect(wrapper.find('[data-testid="image-light-shared:sky.jpg"]').exists()).toBe(true)
+            expect(wrapper.find('[data-testid="image-light-asset:sky.jpg"]').exists()).toBe(true)
             expect(wrapper.find('[data-testid="image-light-asset:notes.txt"]').exists()).toBe(false)
-            expect(wrapper.find('[data-testid="image-light-shared:anim.gif"]').exists()).toBe(false)
-            const img = wrapper.find('[data-testid="image-light-shared:sky.jpg"] img')
-            expect(img.attributes('src')).toContain('/api/v0/data/backgrounds/sky.jpg')
+            expect(wrapper.find('[data-testid="image-light-asset:anim.gif"]').exists()).toBe(false)
+            const img = wrapper.find('[data-testid="image-light-asset:sky.jpg"] img')
+            expect(img.attributes('src')).toContain('/api/v0/themes/abc123/assets/sky.jpg')
+            expect(wrapper.html()).not.toContain('/api/v0/data/backgrounds')
+        })
+
+        it('prompts for an upload when the theme has no images', () => {
+            assets.value = []
+            const { wrapper } = mountEditor({})
+            expect(wrapper.text()).toContain('No images in this theme yet. Upload one.')
+            expect(wrapper.find('[data-testid="image-upload-light"]').exists()).toBe(true)
         })
 
         it('picking an image creates the image layer with defaults, clearing removes it', async () => {
             const { wrapper, bg } = mountEditor({})
-            await wrapper.find('[data-testid="image-light-shared:sky.jpg"]').trigger('click')
-            expect(bg.image).toEqual({ light: 'shared:sky.jpg', fit: 'cover', position: 'center', repeat: 'no-repeat' })
-            expect(wrapper.find('[data-testid="image-light-shared:sky.jpg"]').classes()).toContain('selected')
+            await wrapper.find('[data-testid="image-light-asset:sky.jpg"]').trigger('click')
+            expect(bg.image).toEqual({ light: 'asset:sky.jpg', fit: 'cover', position: 'center', repeat: 'no-repeat' })
+            expect(wrapper.find('[data-testid="image-light-asset:sky.jpg"]').classes()).toContain('selected')
 
             await wrapper.find('[data-testid="image-light-asset:own.png"]').trigger('click')
             expect(bg.image?.light).toBe('asset:own.png')
@@ -163,13 +167,13 @@ describe('ThemeBackgroundEditor', () => {
 
         it('picks a separate dark image', async () => {
             const { wrapper, bg } = mountEditor({
-                image: { light: 'shared:sky.jpg', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+                image: { light: 'asset:sky.jpg', fit: 'cover', position: 'center', repeat: 'no-repeat' },
             })
             await wrapper.find('[data-testid="image-dark-toggle"] input').setValue(true)
-            expect(bg.image?.dark).toBe('shared:sky.jpg')
+            expect(bg.image?.dark).toBe('asset:sky.jpg')
             await wrapper.find('[data-testid="image-dark-asset:own.png"]').trigger('click')
             expect(bg.image?.dark).toBe('asset:own.png')
-            expect(bg.image?.light).toBe('shared:sky.jpg')
+            expect(bg.image?.light).toBe('asset:sky.jpg')
         })
 
         it('uploads into the theme and selects the upload', async () => {
@@ -200,9 +204,49 @@ describe('ThemeBackgroundEditor', () => {
 
         it('calls out an image that no longer exists', () => {
             const { wrapper } = mountEditor({
-                image: { light: 'shared:gone.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+                image: { light: 'asset:gone.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
             })
             expect(wrapper.text()).toContain('“gone.png” no longer exists')
+        })
+
+        it('calls out a leftover reference to the removed shared pool', () => {
+            const { wrapper } = mountEditor({
+                image: { light: 'shared:old.png', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+            })
+            expect(wrapper.text()).toContain('“old.png” no longer exists')
+        })
+
+        it('deletes an image from the theme after confirmation', async () => {
+            deleteAsset.mockResolvedValue(undefined)
+            const { wrapper, bg } = mountEditor({})
+            await wrapper.find('[data-testid="image-delete-light-asset:own.png"]').trigger('click')
+            const dialog = wrapper.findComponent(ConfirmDialog)
+            expect(dialog.props('name')).toBe('own.png')
+            expect(dialog.props('message')).toBe('Delete this image from the theme?')
+            expect(deleteAsset).not.toHaveBeenCalled()
+
+            dialog.vm.$emit('confirm')
+            await flushPromises()
+            expect(deleteAsset).toHaveBeenCalledWith('own.png')
+            expect(bg.image).toBeUndefined()
+            expect(toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'success' }))
+        })
+
+        it('warns when the image to delete is used by the background', async () => {
+            const { wrapper } = mountEditor({
+                image: { light: 'asset:sky.jpg', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+            })
+            await wrapper.find('[data-testid="image-delete-light-asset:sky.jpg"]').trigger('click')
+            expect(wrapper.findComponent(ConfirmDialog).props('message')).toContain('used by the background')
+        })
+
+        it('reports a failed delete', async () => {
+            deleteAsset.mockRejectedValue(new Error('nope'))
+            const { wrapper } = mountEditor({})
+            await wrapper.find('[data-testid="image-delete-light-asset:own.png"]').trigger('click')
+            wrapper.findComponent(ConfirmDialog).vm.$emit('confirm')
+            await flushPromises()
+            expect(toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }))
         })
     })
 
@@ -232,10 +276,12 @@ describe('ThemeBackgroundEditor', () => {
             const { wrapper, bg } = mountEditor(
                 {
                     gradient: { direction: '90deg', light: ['#000000', '#ff0000', '#ffffff'] },
-                    image: { light: 'shared:sky.jpg', fit: 'cover', position: 'center', repeat: 'no-repeat' },
+                    image: { light: 'asset:sky.jpg', fit: 'cover', position: 'center', repeat: 'no-repeat' },
                 },
                 true,
             )
+            // A read-only theme offers no delete at all.
+            expect(wrapper.find('[data-testid="image-delete-light-asset:own.png"]').exists()).toBe(false)
             const before = JSON.parse(JSON.stringify(bg))
 
             for (const sel of [

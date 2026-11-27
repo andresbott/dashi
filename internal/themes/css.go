@@ -67,17 +67,14 @@ func RefURL(themeID, ref string) (string, bool) {
 	if !ok || path == "" {
 		return "", false
 	}
-	switch scheme {
-	case "asset":
-		segments := strings.Split(path, "/")
-		for i, s := range segments {
-			segments[i] = urlSegment(s)
-		}
-		return "/api/v0/themes/" + urlSegment(themeID) + "/assets/" + strings.Join(segments, "/"), true
-	case "shared":
-		return "/api/v0/data/backgrounds/" + urlSegment(path), true
+	if scheme != "asset" {
+		return "", false
 	}
-	return "", false
+	segments := strings.Split(path, "/")
+	for i, s := range segments {
+		segments[i] = urlSegment(s)
+	}
+	return "/api/v0/themes/" + urlSegment(themeID) + "/assets/" + strings.Join(segments, "/"), true
 }
 
 // urlSegment percent-encodes one path segment and additionally escapes the

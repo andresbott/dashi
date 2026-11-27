@@ -8,7 +8,7 @@ const router = useRouter()
 
 // Sections are grouped by what they hold: Content is user data that widgets
 // display (notes, images), Theming is how dashboards look. Background images
-// sit under Theming because only theme backgrounds use them.
+// have no section: each theme holds its own, uploaded in the theme editor.
 const groups = [
     {
         label: 'Dashboards',
@@ -19,9 +19,8 @@ const groups = [
     {
         label: 'Theming',
         items: [
-            { key: 'admin-themes',            label: 'Themes',            icon: 'ti ti-palette' },
-            { key: 'admin-background-images', label: 'Background images', icon: 'ti ti-library-photo' },
-            { key: 'admin-widget-themes',     label: 'Widget themes',     icon: 'ti ti-typography' },
+            { key: 'admin-themes',        label: 'Themes',        icon: 'ti ti-palette' },
+            { key: 'admin-widget-themes', label: 'Widget themes', icon: 'ti ti-typography' },
         ],
     },
     {

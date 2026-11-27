@@ -3,7 +3,7 @@
   "version": 9,
   "refs": {
     "last": {
-      "DASHI": 3
+      "DASHI": 4
     }
   },
   "view": {
@@ -21,6 +21,11 @@
       "id": "vs7kjg0",
       "ref": "DASHI-003",
       "name": "Next iteration: mixed work"
+    },
+    {
+      "id": "5bwgs6s",
+      "ref": "DASHI-004",
+      "name": "Theme editor"
     }
   ],
   "categories": [
@@ -382,6 +387,46 @@
       "sprint": "hf63v17",
       "title": "remove background images from content",
       "status": "done"
+    },
+    {
+      "id": "z9t8tnk",
+      "category": "xr10s6x",
+      "sprint": "5bwgs6s",
+      "title": "Theme editor: optional dark mode with Light/Dark tabs",
+      "status": "ready",
+      "description": "New layout of Edit theme, top to bottom: (1) Name; (2) checkbox 'Enable dark mode'; (3) tabs [Light | Dark]. By default a theme has only one mode (light): the checkbox is off and no tabs are shown, just the single set of sections. Enabling dark mode shows the Light / Dark tabs. Each tab contains the sections Colours and Background, so dark mode has its own full set of colour AND background parameters. Today the editor always shows a Light/Dark switch above the colour fields only.\n\n[qualify-sprint 2026-11-27]\nSize: complex\nScope: Editor only; the darkMode flag, per-mode background model and its rendering come from task 56. In webui/src/views/admin/AdminThemeEdit.vue: Name, then a Checkbox bound to darkMode, then PrimeVue Tabs (Tabs/TabList/Tab/TabPanels/TabPanel, as in views/docs/DocWidget.vue, non-lazy) only when ticked; when unticked a single light set of sections, no tabs. Extract a per-mode component (colour grid as ThemeColorsEditor with a mode prop) and make ThemeBackgroundEditor edit one mode's background (mode prop or per-mode model): remove its internal dark toggles, dual stop lists, shared fit/position/repeat and its colors prop. Replace the asset grid with one slot per mode in that mode's Background section: thumbnail of the current file, Upload/Replace and Remove (keep ConfirmDialog for Remove); Replace swaps the ref so task 57 pruning removes the old file. isValid checks dark only when darkMode is on; update previewStyle/isValidBackground in themeCss.ts. Rewrite AdminThemeEdit.test.ts and ThemeBackgroundEditor.test.ts (testids bg-preview-*, stop-dark-*, image-dark-* change). Acceptance: vitest - checkbox off shows no tabs and only light fields; ticking shows Light and Dark tabs each with its own Colours and Background; autosave payload carries darkMode and the dark values; unticking hides the Dark tab and keeps the values; first tick seeds dark from light without the image.\nDepends on: 78xtfae (task 56), xypr9ns (task 57)\nBreaking changes: allowed (follows the task 56 schema change; no further break here)\nDecided: the model/rendering side of the flag lives in task 56, this task is the editor - one schema change and one migration for the sprint.\nDecided: unticking hides the Dark tab and keeps the values, no confirm dialog - the backend keeps dormant dark data, so nothing is destroyed and re-ticking restores it.\nDecided: first tick seeds dark colours and background from a copy of light, without the image ref - matches the existing setGradientDark/setImageDark copy behaviour and stays valid for autosave; no shared image ref so removing the dark image never touches the light one.\nDecided: one upload slot per mode replaces the asset grid - with one file per mode a picker grid offers a choice that no longer exists.\nDecided: the editor always opens on the Light tab, nothing remembered - the project uses no local/session storage.\nAnswer: \"Restructure, allow break (Recommended)\""
+    },
+    {
+      "id": "cw22m3d",
+      "category": "xr10s6x",
+      "sprint": "5bwgs6s",
+      "title": "Theme editor: make Colours and Background collapsible sections",
+      "status": "ready",
+      "description": "In the theme editor, Colours and Background become expandable/collapsible sections. They live inside each mode (and inside each Light/Dark tab when dark mode is enabled).\n\n[qualify-sprint 2026-11-27]\nSize: easy\nScope: Wrap the Colours and Background sections of the per-mode editor component (from task 53) in PrimeVue Panel with toggleable, one Panel per section, open by default. Collapse state is a local ref per mode component instance (each tab has its own), not persisted. Files: webui/src/views/admin/AdminThemeEdit.vue and the per-mode component(s) from task 53, plus their tests. Acceptance: vitest - each section toggles independently in light-only mode and in each tab; collapse state survives switching tabs; both start expanded.\nDepends on: z9t8tnk (task 53)\nBreaking changes: not allowed (none expected)\nDecided: PrimeVue Panel toggleable, not Accordion or custom - gives aria-expanded and keyboard handling, each section stays self-contained; Accordion ties separate components into one value-keyed group for no gain.\nDecided: all sections open by default, state not remembered, per tab - project uses no local/session storage; small choice.\nAnswer: \"Restructure, allow break (Recommended)\" (sprint-wide schema answer; no effect on this task)"
+    },
+    {
+      "id": "vk24c77",
+      "category": "xr10s6x",
+      "sprint": "5bwgs6s",
+      "title": "Theme editor: move the preview into a section and widen the editor",
+      "status": "ready",
+      "description": "Move the live preview (currently a right-hand column with its own Light/Dark toggle) into a section of the editor, and make the editor wider now that it no longer shares its width with the preview column.\n\n[qualify-sprint 2026-11-27]\nSize: medium\nScope: In webui/src/views/admin/AdminThemeEdit.vue remove the .edit-grid/.edit-preview right-hand column and its Light/Dark SelectButton. Add a Preview section inside each mode, after Colours and Background, showing that mode (light when dark mode is off), as a collapsible PrimeVue Panel like task 54, open by default. Remove the Light/Dark preview tiles inside ThemeBackgroundEditor (the main preview already composites the background via previewStyle); move the bg-preview-* assertions to the main preview. The editor uses the full .admin-panel width inside the existing 1200px .admin-view limit; the colour grid repeat(auto-fill, minmax(220px, 1fr)) needs no change. Acceptance: vitest - no side column, a preview section per mode reflecting that mode's colours and background; visual check that the form spans the admin panel width.\nDepends on: z9t8tnk (task 53), cw22m3d (task 54)\nBreaking changes: not allowed (none expected)\nDecided: preview inside each mode after Colours and Background - keeps the user's top-to-bottom order and each mode self-contained.\nDecided: preview follows the mode it sits in, no own toggle - a second toggle brings back the two-controls-one-ref coupling; side by side has no dark side when dark is off.\nDecided: preview section is collapsible like the others, open by default - consistency with task 54.\nDecided: remove the background editor's own preview tiles - duplicated by the main preview, and drops the palette dependency from ThemeBackgroundEditor.\nDecided: full .admin-panel width inside the existing 1200px limit, no page-specific max-width - keeps admin pages consistent; small choice.\nAnswer: \"Restructure, allow break (Recommended)\" (sprint-wide schema answer; no effect on this task)"
+    },
+    {
+      "id": "78xtfae",
+      "category": "xr10s6x",
+      "sprint": "5bwgs6s",
+      "title": "Theme backgrounds: separate background parameters for dark mode",
+      "status": "ready",
+      "description": "Background settings (gradients, image, etc.) become per-mode parameters: dark mode gets its own background values instead of sharing the light ones. Backend theme model, CSS generation and editor all need the new dark background fields.\n\n[qualify-sprint 2026-11-27]\nSize: complex\nScope: Restructure the stored theme into background: {light: {gradient: {direction, stops}, image: {ref, fit, position, repeat}}, dark: {...}} (mirrors colors.light/dark) and add an explicit darkMode bool to Theme and Meta. This task owns the whole schema change and the rendering of the flag. Files: internal/themes types.go (validation: dark palette required only when darkMode), store.go (readThemeFile decodes the legacy shape through a legacy struct and converts it; plain json.Unmarshal would silently drop old keys), css.go (one bgFor(mode), no per-field fallback; Palette/background return light for every colorMode when darkMode is false; Meta.PreviewCSS too), builtins default and ember (darkMode true), testdata/theme_css_fixture.json, webui/src/types/theme.ts and webui/src/lib/themeCss.ts (mirror). Editor fields are wired in task 53. Precondition: the uncommitted shared-image-pool removal in the working tree (asset: becomes the only ref scheme) is committed before this starts. Update docs/agents/viewer.md (Editing a background) and docs/agents/features.md. Acceptance: new Go and TS fixture cases pass (dark-only gradient, different dark fit, light image with plain dark, darkMode off gives identical light and dark rules); a migration test loads a legacy theme with background.image.light and no darkMode key (the Banana case) and gets darkMode true with the light background copied into dark.\nDepends on: none\nBreaking changes: allowed (theme.json shape and the GET/PUT /themes API body change; old files are migrated on load and rewritten on next save; older binaries would drop backgrounds)\nDecided: explicit darkMode bool, not implicit presence of dark data - zero value matches light-only by default and lets dark data stay stored while off.\nDecided: themes without the darkMode key load with darkMode true, builtins set it in code - defaulting off would silently turn existing dark dashboards light.\nDecided: an empty dark background renders the plain dark palette, no fallback to light - the task asks for its own values instead of sharing; the migration copies the light background into dark so today's rendering is kept.\nDecided: turning dark mode off keeps the dark colours, background and file stored but unused - reversible, no data loss on an accidental click.\nDecided: with darkMode off every colorMode renders the light palette and background - a light-only theme has nothing else to show.\nDecided: light and dark may reference the same file - lets the migration copy the light ref without duplicating files.\nAnswer: \"Restructure, allow break (Recommended)\""
+    },
+    {
+      "id": "xypr9ns",
+      "category": "xr10s6x",
+      "sprint": "5bwgs6s",
+      "title": "Theme backgrounds: only one background file per mode",
+      "status": "ready",
+      "description": "A theme allows at most one background image file per mode: one for light and, if dark mode is enabled, one for dark.\n\n[qualify-sprint 2026-11-27]\nSize: medium\nScope: References already allow one image per mode (light.image.ref, dark.image.ref from task 56); enforce the rule in storage: themes Store.Update deletes every file in the theme assets/ folder that neither light.image.ref nor dark.image.ref references (a dark ref kept while darkMode is off still counts). Keep the existing upload endpoint and content-addressed/uploaded names, no fixed names and no new endpoint. Pruning happens on save only, never on load or startup. Files: internal/themes/store.go (+ store_test.go), app/router/handlers/themes.go if needed, webui useThemeAssets if its contract changes. The per-mode upload slot in the editor is built in task 53. Acceptance: Go store test - upload two light images, save referencing the second: exactly one file remains; a file referenced by dark survives; a theme with extra legacy files keeps them after load and loses them after the next save.\nDepends on: 78xtfae (task 56)\nBreaking changes: allowed (unreferenced files in existing themes are deleted on their next save)\nDecided: storage enforces the rule by pruning unreferenced assets on save, not fixed file names - overwriting a stable URL leaves stale browser and render caches and needs a new endpoint; editor-only enforcement lets the folder fill up again.\nDecided: light and dark may reference the same file - pruning just counts references.\nDecided: an image behind a gradient stays allowed as today - the task does not ask to change it.\nAnswer: \"Prune on save (Recommended)\""
     }
   ]
 }
