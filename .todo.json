@@ -118,26 +118,36 @@
       "category": "qyds6ns",
       "sprint": "vs7kjg0",
       "title": "Improve the Add Widget dialog",
-      "status": "ready",
-      "description": "Dashboard editor's Add Widget dialog: currently a narrow plain list of widgets with a close button\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: webui/src/components/dashboards/AddWidgetDialog.vue (used by DashboardRow.vue and widgets/stack/Widget.vue with exclude=['stack']); reuse components/docs/WidgetPreview.vue.\nDecided: preview uses the docs mocks (wrap in a child component calling provideDocQueryClient) - no network traffic, identical to the docs pages.\nDecided: Insert keeps today's empty/default config, not the docs sample config - sample configs (e.g. stack children) would leak into the dashboard.\nDecided: filter matches label, description and type; double-click inserts directly.\nDecided: layout list left / preview right, ~48rem wide, stacked below md breakpoint.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: preview renders the docs sample config (getWidgetDocs(type)?.preview.config, as DocWidgets.vue) with a small 'Sample data' caption; Insert still adds the empty/default config - an empty config shows an empty/no-fixture state, defeating the preview.\nDecided: preview wrapper component calls provideDocQueryClient(allDocMocks()), is mounted with v-if and :key=selectedType, and re-provides EDITING_MODE=false - otherwise the stack preview shows its drag editor.\nDecided: widget themes/icons still hit the local API via the docs client - documented behaviour (docQueryClient.ts:9-10), admin page.",
+      "status": "done",
+      "description": "Dashboard editor's Add Widget dialog: currently a narrow plain list of widgets with a close button\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: webui/src/components/dashboards/AddWidgetDialog.vue (used by DashboardRow.vue and widgets/stack/Widget.vue with exclude=['stack']); reuse components/docs/WidgetPreview.vue.\nDecided: preview uses the docs mocks (wrap in a child component calling provideDocQueryClient) - no network traffic, identical to the docs pages.\nDecided: Insert keeps today's empty/default config, not the docs sample config - sample configs (e.g. stack children) would leak into the dashboard.\nDecided: filter matches label, description and type; double-click inserts directly.\nDecided: layout list left / preview right, ~48rem wide, stacked below md breakpoint.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: preview renders the docs sample config (getWidgetDocs(type)?.preview.config, as DocWidgets.vue) with a small 'Sample data' caption; Insert still adds the empty/default config - an empty config shows an empty/no-fixture state, defeating the preview.\nDecided: preview wrapper component calls provideDocQueryClient(allDocMocks()), is mounted with v-if and :key=selectedType, and re-provides EDITING_MODE=false - otherwise the stack preview shows its drag editor.\nDecided: widget themes/icons still hit the local API via the docs client - documented behaviour (docQueryClient.ts:9-10), admin page.\n\n[next-iteration 2026-11-27]\nBuilt: 20d7377 (AddWidgetDialog.vue, new AddWidgetPreview.vue, 15 tests). Review passed.\nDecided: selection survives a filter that hides it (preview and Insert stay consistent); selected items use --p-highlight-* tokens like PrimeVue Listbox; items are buttons with aria-pressed; Insert before Cancel as in WidgetSettingsDialog; filter focused on open.\nFollow-up closed as not needed: undocumented widget type (registry test guarantees docs).",
       "subtasks": [
         {
           "id": "twjb7r6",
-          "title": "Filter input at the top to narrow the widget list"
+          "title": "Filter input at the top to narrow the widget list",
+          "done": true
         },
         {
           "id": "3jqbnhe",
-          "title": "Make the dialog wider"
+          "title": "Make the dialog wider",
+          "done": true
         },
         {
           "id": "c9gd7ab",
           "title": "Show a preview of the clicked widget",
+          "done": true,
           "description": "Same approach as the live preview in the widget docs pages (/admin/docs/widgets)"
         },
         {
           "id": "xxsce4q",
           "title": "Insert / Cancel buttons",
+          "done": true,
           "description": "Clicking a widget selects it (and shows the preview); Insert adds it, Cancel closes without adding"
+        },
+        {
+          "id": "f3gejh9",
+          "title": "Follow-up: test the Add Widget preview for a widget type without a docs entry",
+          "done": true,
+          "description": "From review: getWidgetDocs(type) can be undefined; WidgetPreview falls back to title=type with an undefined config. Checked by reading only - no test covers it.\n\n[next-iteration 2026-11-27]\nNot needed: every type the dialog lists comes from the same registry as the docs, and widgetDocs.test.ts 'documents every registered widget' already fails make ui-test for an undocumented widget; an undefined config is already a safe, exercised path (DocWidgets.vue)."
         }
       ]
     },
@@ -160,12 +170,19 @@
         {
           "id": "db3pbze",
           "title": "Move the delete control into the widget's top bar",
+          "done": true,
           "description": "Next to the edit (pencil) button"
         },
         {
           "id": "bk4erjd",
           "title": "Duplicate widget feature + button in the top bar",
+          "done": true,
           "description": "Copies the widget with its config and inserts it next to the original"
+        },
+        {
+          "id": "h69yk6z",
+          "title": "Follow-up: WidgetSettingsDialog structuredClone fails on reactive stack children",
+          "description": "From implementer: WidgetSettingsDialog.vue ~:44 uses structuredClone(toRaw(config)); toRaw is shallow, so nested reactive proxies (e.g. a stack's config.widgets after reordering) throw DataCloneError. The duplicate feature hit the same issue and used a JSON round-trip (lib/duplicateWidget.ts), as useDashboardDraft does."
         }
       ]
     },
@@ -175,7 +192,14 @@
       "sprint": "vs7kjg0",
       "title": "Preview button in the dashboard edit view",
       "status": "ready",
-      "description": "Edit view header, left of Settings, chosen by dashboard type like the dashboards list (AdminDashboards.vue). Image dashboards: keep the existing 'E-ink preview' button (DashboardEditView.vue, already there). Interactive dashboards: add the missing button, an eye icon that opens the live viewer (dashboardViewUrl) in a new tab, as the list does.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: DashboardEditView.vue:224-237, lib/serverInfo.ts (dashboardViewUrl), AdminDashboards.vue:209-218.\nDecided: labelled 'Preview' with the eye icon, matching the labelled E-ink preview button.\nDecided: opens the dashboard root like the list does (no ?page= deep link).\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: on click open a blank window synchronously (window.open('', '_blank'), opener=null), await flush(), then set its location to dashboardViewUrl(id); navigate even if the save failed (toolbar already shows 'Save failed') - keeps the flush-before-navigate rule and avoids popup blocking; icon ti ti-eye."
+      "description": "Edit view header, left of Settings, chosen by dashboard type like the dashboards list (AdminDashboards.vue). Image dashboards: keep the existing 'E-ink preview' button (DashboardEditView.vue, already there). Interactive dashboards: add the missing button, an eye icon that opens the live viewer (dashboardViewUrl) in a new tab, as the list does.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: DashboardEditView.vue:224-237, lib/serverInfo.ts (dashboardViewUrl), AdminDashboards.vue:209-218.\nDecided: labelled 'Preview' with the eye icon, matching the labelled E-ink preview button.\nDecided: opens the dashboard root like the list does (no ?page= deep link).\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: on click open a blank window synchronously (window.open('', '_blank'), opener=null), await flush(), then set its location to dashboardViewUrl(id); navigate even if the save failed (toolbar already shows 'Save failed') - keeps the flush-before-navigate rule and avoids popup blocking; icon ti ti-eye.",
+      "subtasks": [
+        {
+          "id": "cexxf4g",
+          "title": "Follow-up: tidy Preview tests (rename e-ink helper, drop redundant assert, cover blocked popup)",
+          "description": "From review: DashboardEditView.test.ts helper previewButton finds the e-ink button (rename to einkButton next to viewerButton); the assertion at ~line 117 duplicates the type-switch test; the blocked-popup path (window.open returns null) has no test."
+        }
+      ]
     },
     {
       "id": "cxyme2w",
@@ -183,7 +207,14 @@
       "sprint": "vs7kjg0",
       "title": "Max Width: preset options plus manual input",
       "status": "ready",
-      "description": "Dashboard settings > Container > Max Width is a plain text field today. Offer sensible presets (e.g. 100%, 1600px, and a few common widths) in an editable dropdown, while still allowing a custom value to be typed.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: DashboardSettingsView.vue:302. Value is a free CSS string written raw into page.html / master.html, no server validation (unchanged).\nDecided: PrimeVue AutoComplete with dropdown (or editable Select) - whichever the codebase already uses for free-text+suggestions.\nDecided: presets 100%, 1920px, 1600px, 1440px, 1280px, 1024px, 800px.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: PrimeVue Select with editable and plain string options; keep the existing placeholder - neither component is used yet, Select is already used throughout DashboardSettingsView and editable mode writes the typed string to the model. Presets stay as decided above."
+      "description": "Dashboard settings > Container > Max Width is a plain text field today. Offer sensible presets (e.g. 100%, 1600px, and a few common widths) in an editable dropdown, while still allowing a custom value to be typed.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: DashboardSettingsView.vue:302. Value is a free CSS string written raw into page.html / master.html, no server validation (unchanged).\nDecided: PrimeVue AutoComplete with dropdown (or editable Select) - whichever the codebase already uses for free-text+suggestions.\nDecided: presets 100%, 1920px, 1600px, 1440px, 1280px, 1024px, 800px.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: PrimeVue Select with editable and plain string options; keep the existing placeholder - neither component is used yet, Select is already used throughout DashboardSettingsView and editable mode writes the typed string to the model. Presets stay as decided above.",
+      "subtasks": [
+        {
+          "id": "m327rc9",
+          "title": "Follow-up: test that a stored non-preset max width displays",
+          "description": "From review: no test covers a saved non-preset value (e.g. 1200px or 75%) showing in the editable Select input; only a preset (1600px) is tested."
+        }
+      ]
     },
     {
       "id": "2zrzpp6",
@@ -199,7 +230,19 @@
       "sprint": "vs7kjg0",
       "title": "Icon picker trigger doesn't look like a button",
       "status": "ready",
-      "description": "In widget config forms (e.g. Bookmark > Icon), the icon select trigger is just the icon glyph next to its name (ti-bookmark), with no affordance. Make it clearly clickable: bordered/outlined button or input-like field with the icon, its name and a 'choose' hint.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: components/dashboards/IconSelector.vue:45-52 (text rounded Button, icon only), widgets/bookmark/WidgetConfig.vue:129-133 (separate name span; bookmark is the only user).\nDecided: input-like outlined trigger inside IconSelector showing icon + name + chevron/'Choose' hint; drop the separate name span in the bookmark form.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: empty state shows muted 'Select icon' (existing tooltip wording) + ti-chevron-down, styled like an InputText; with an icon set: icon, name without the ti- prefix, chevron."
+      "description": "In widget config forms (e.g. Bookmark > Icon), the icon select trigger is just the icon glyph next to its name (ti-bookmark), with no affordance. Make it clearly clickable: bordered/outlined button or input-like field with the icon, its name and a 'choose' hint.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: components/dashboards/IconSelector.vue:45-52 (text rounded Button, icon only), widgets/bookmark/WidgetConfig.vue:129-133 (separate name span; bookmark is the only user).\nDecided: input-like outlined trigger inside IconSelector showing icon + name + chevron/'Choose' hint; drop the separate name span in the bookmark form.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: empty state shows muted 'Select icon' (existing tooltip wording) + ti-chevron-down, styled like an InputText; with an icon set: icon, name without the ti- prefix, chevron.",
+      "subtasks": [
+        {
+          "id": "536k1kk",
+          "title": "Follow-up: label/accessibility of the bookmark Icon field",
+          "description": "From review: bookmark WidgetConfig.vue has two labels both reading 'Icon' (~lines 119 and 130, pre-existing); the label is not tied to the trigger button (for/id); the trigger's aria-label replaces the field label for screen readers."
+        },
+        {
+          "id": "bpj191h",
+          "title": "Follow-up: icon popover keyboard focus",
+          "description": "From review (pre-existing): opening the icon popover does not move keyboard focus into its search field; popover uses inline style for width/max-height; the ti- strip is duplicated in the tooltip."
+        }
+      ]
     },
     {
       "id": "tkgv9yd",
@@ -212,7 +255,7 @@
       "category": "22nmgta",
       "sprint": "vs7kjg0",
       "title": "Implement the Search widget",
-      "status": "ready",
+      "status": "working",
       "description": "Search widget doesn't work. Backend renderer (internal/widgets/search/module.go) only emits an empty placeholder div, so the server-rendered viewer shows nothing; only an editor-side Vue component exists (webui/src/widgets/search). Implement real rendering: a search input that submits to the configured search engine in interactive dashboards; decide what image dashboards show.\n\n[next-iteration 2026-11-27]\nReadiness audit: info complete. Files: internal/widgets/search/module.go (NoopModule) -> add browser.go/browser.html, run make viewer-css; editor side webui/src/widgets/search/{Widget.vue,types.ts,docs.ts}. Config {engine: google|duckduckgo|bing, placeholder}.\nDecided: plain GET <form> with input name=q, no JS.\nDecided: opens results in a new tab (matches the Vue component and docs).\nDecided: engine allowlisted in Go, unknown values fall back to google - the form never posts to an arbitrary URL.\nDecided: image dashboards draw a static search bar with the placeholder text, matching the editor preview.\n\n[next-iteration 2026-11-27]\nAnswer (breaking changes): \"Allowed\".\nDecided: both renders show the engine label small and right-aligned under the bar, as webui/src/widgets/search/Widget.vue:50; label derived from the same allowlist map as the URL so they cannot drift."
     },
     {
