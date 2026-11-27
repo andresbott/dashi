@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import PrimeVue from 'primevue/config'
 import AdminThemes from './AdminThemes.vue'
+import { emptyPalette } from '@/lib/themeEditor'
 import type { Palette, ThemeMeta } from '@/types/theme'
 
 const palette: Palette = {
@@ -68,14 +69,26 @@ describe('AdminThemes', () => {
         expect(own.find('button[aria-label="Delete"]').exists()).toBe(true)
     })
 
-    it('creates a new theme with the darkMode flag the server requires', async () => {
+    it('creates a new single-mode theme: dark mode off, light palette from the builtin, dark unset', async () => {
+        const darkPalette: Palette = { ...palette, bg: '#000000', text: '#eeeeee' }
+        themes.value = [
+            meta({ id: 'default', name: 'Default', builtin: true, colors: { light: palette, dark: darkPalette } }),
+        ]
         createTheme.mockResolvedValue({ id: 'new123', name: 'New theme' })
         const wrapper = mountView()
 
         await wrapper.find('.admin-section-header button').trigger('click')
         await flushPromises()
 
-        expect(createTheme).toHaveBeenCalledWith(expect.objectContaining({ name: 'New theme', darkMode: true }))
+        expect(createTheme).toHaveBeenCalledWith({
+            name: 'New theme',
+            darkMode: false,
+            background: { light: {}, dark: {} },
+            colors: { light: palette, dark: emptyPalette() },
+        })
+        const sent = createTheme.mock.calls[0][0]
+        // A plain copy, not the query data itself.
+        expect(sent.colors.light).not.toBe(themes.value[0].colors.light)
         expect(push).toHaveBeenCalledWith({ name: 'admin-theme-edit', params: { id: 'new123' } })
     })
 

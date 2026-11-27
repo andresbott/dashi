@@ -279,6 +279,22 @@ describe('DashboardSettingsView', () => {
         })
     })
 
+    // Pinning: the server reports in meta.colors what renders, so with dark
+    // mode off its dark entry already holds the light palette. The swatch
+    // must read meta.colors.dark as given and not second-guess darkMode.
+    it('shows meta.colors.dark for a dark dashboard even when the theme has dark mode off', async () => {
+        const reported: Palette = { ...palette, primary: '#123456', secondary: '#654321' }
+        draft.value!.themeId = 'abc123'
+        draft.value!.colorMode = 'dark'
+        themes.value = [
+            meta('default', 'Default'),
+            { ...meta('abc123', 'Mine'), darkMode: false, colors: { light: palette, dark: reported } },
+        ]
+        const wrapper = await mountAppearance()
+        expect(wrapper.find('.color-chip[title="Primary"]').attributes('style')).toContain('rgb(18, 52, 86)')
+        expect(wrapper.find('.color-chip[title="Secondary"]').attributes('style')).toContain('rgb(101, 67, 33)')
+    })
+
     it('shows a known theme and widget theme as stored', async () => {
         draft.value!.themeId = 'abc123'
         draft.value!.widgetTheme = 'retro'
