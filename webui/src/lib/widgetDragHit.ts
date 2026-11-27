@@ -15,6 +15,20 @@ export interface Rect {
     bottom: number
 }
 
+// clipRect is the part of rect visible through clip (a scroll container's
+// box), or null when nothing is left (a touching edge counts as nothing).
+// Without a clip the rect is returned as it is.
+export function clipRect(rect: Rect, clip: Rect | null): Rect | null {
+    if (!clip) return rect
+    const out = {
+        left: Math.max(rect.left, clip.left),
+        top: Math.max(rect.top, clip.top),
+        right: Math.min(rect.right, clip.right),
+        bottom: Math.min(rect.bottom, clip.bottom),
+    }
+    return out.right > out.left && out.bottom > out.top ? out : null
+}
+
 // A pointer this close (px) above or below a row still targets it, so the
 // margin between two rows is not a dead zone.
 export const ROW_SNAP_PX = 24

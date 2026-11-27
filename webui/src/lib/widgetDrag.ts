@@ -1,7 +1,14 @@
 import { reactive, readonly } from 'vue'
 import type { Widget } from '@/types/dashboard'
 import { beginDragGuard, endDragGuard } from '@/lib/dragGuard'
-import { resolveDropTarget, type DragSnapshot, type RowSnapshot, type StackZoneSnapshot } from '@/lib/widgetDragHit'
+import {
+    clipRect,
+    resolveDropTarget,
+    type DragSnapshot,
+    type Rect,
+    type RowSnapshot,
+    type StackZoneSnapshot,
+} from '@/lib/widgetDragHit'
 import type { DragSource, DropTarget, WidgetMove } from '@/lib/widgetMove'
 
 // ---------------------------------------------------------------------------
@@ -129,17 +136,28 @@ function measureRows(): RowSnapshot[] {
     return out
 }
 
+// The row's sideways scroll container (DashboardRow.vue, below md). A stack
+// scrolled out of it must not be hit, so its zone is clipped to this box.
+const ZONE_CLIP_SELECTOR = '.grid-scroll'
+
+function measureRect(el: Element): Rect {
+    const { left, top, right, bottom } = el.getBoundingClientRect()
+    return { left, top, right, bottom }
+}
+
 function measureZones(): StackZoneSnapshot[] {
     const out: StackZoneSnapshot[] = []
     for (const [id, entry] of zoneRegistry) {
         const el = entry.zone()
         if (!el) continue
-        const { left, top, right, bottom } = el.getBoundingClientRect()
+        const clip = el.closest(ZONE_CLIP_SELECTOR)
+        const rect = clipRect(measureRect(el), clip ? measureRect(clip) : null)
+        if (!rect) continue // scrolled fully out of view
         const childMidYs = entry.children().map((c) => {
             const r = c.getBoundingClientRect()
             return (r.top + r.bottom) / 2
         })
-        out.push({ id, rect: { left, top, right, bottom }, childMidYs })
+        out.push({ id, rect, childMidYs })
     }
     return out
 }

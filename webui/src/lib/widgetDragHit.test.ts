@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { Widget } from '@/types/dashboard'
 import {
     ROW_SNAP_PX,
+    clipRect,
     hitStackZone,
     nearestRow,
     resolveDropTarget,
@@ -58,6 +59,33 @@ describe('hitStackZone', () => {
 
     it('ignores every zone while a stack is dragged', () => {
         expect(hitStackZone(zones, 50, 50, 'stack')).toBeNull()
+    })
+})
+
+describe('clipRect', () => {
+    const rect = { left: 100, top: 50, right: 300, bottom: 150 }
+
+    it('keeps a rect inside the clip as it is', () => {
+        expect(clipRect(rect, { left: 0, top: 0, right: 400, bottom: 200 })).toEqual(rect)
+    })
+
+    it('keeps the rect when there is no clip', () => {
+        expect(clipRect(rect, null)).toEqual(rect)
+    })
+
+    it('cuts a rect partly scrolled out of the clip', () => {
+        expect(clipRect(rect, { left: 200, top: 0, right: 250, bottom: 100 })).toEqual({
+            left: 200,
+            top: 50,
+            right: 250,
+            bottom: 100,
+        })
+    })
+
+    it('is null once the rect is scrolled fully out, or only touches the edge', () => {
+        expect(clipRect(rect, { left: 400, top: 0, right: 800, bottom: 200 })).toBeNull()
+        expect(clipRect(rect, { left: 300, top: 0, right: 800, bottom: 200 })).toBeNull()
+        expect(clipRect(rect, { left: 0, top: 150, right: 400, bottom: 300 })).toBeNull()
     })
 })
 

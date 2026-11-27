@@ -83,6 +83,25 @@ describe('widget drag session', () => {
         })
     })
 
+    it('clips a stack zone to its scrolled row', () => {
+        // Below md the row scrolls sideways: only x 0..500 of it is visible,
+        // so the zone (x 400..800) is cut to 400..500.
+        const scroller = box(0, 0, 500, 110)
+        scroller.className = 'grid-scroll'
+        const zone = box(400, 40, 400, 60)
+        scroller.appendChild(zone)
+        cleanups.push(
+            registerRow('r1', { root: box(0, 0, 1200, 110), grid: () => box(0, 30, 1200, 80), widgets: () => [] }),
+            registerRow('r2', { root: box(0, 150, 1200, 100), grid: () => box(0, 180, 1200, 70), widgets: () => [w('b', 3, 1)] }),
+            registerStackZone('s1', { zone: () => zone, children: () => [] }),
+        )
+        startRowDrag()
+        pointerTo(450, 70)
+        expect(dragState).toMatchObject({ targetKind: 'stack', targetStackId: 's1' })
+        pointerTo(600, 70) // inside the zone's box, but scrolled out of view
+        expect(dragState).toMatchObject({ targetKind: 'row', targetRowId: 'r1', targetStackId: null })
+    })
+
     it('returns the row move on release', () => {
         setup()
         startRowDrag()
