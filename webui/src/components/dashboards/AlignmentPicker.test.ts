@@ -81,9 +81,27 @@ describe('AlignmentPicker', () => {
         await buttons[2].trigger('keydown', { key: 'ArrowDown' })
         await buttons[5].trigger('keydown', { key: 'ArrowLeft' })
         expect(focused()).toBe('Center')
-        // Non-arrow keys do nothing.
-        await buttons[4].trigger('keydown', { key: 'a' })
+        wrapper.unmount()
+    })
+
+    it('ignores keys other than the arrows: no focus move, no selection', async () => {
+        // Start mid-grid so a wrongful move in any direction would show.
+        const wrapper = mountPicker('center', 'center')
+        const buttons = options(wrapper)
+        ;(buttons[4].element as HTMLElement).focus()
+        const focused = () => document.activeElement?.getAttribute('aria-label')
         expect(focused()).toBe('Center')
+
+        // Home/End/PageUp/PageDown are not part of this picker's key handling.
+        for (const key of ['a', 'Home', 'End', 'PageUp', 'PageDown']) {
+            await buttons[4].trigger('keydown', { key })
+            await flushPromises()
+            expect(focused(), key).toBe('Center')
+        }
+        expect(wrapper.emitted('update:vertical')).toBeUndefined()
+        expect(wrapper.emitted('update:horizontal')).toBeUndefined()
+        expect(checked(wrapper).map(o => o.attributes('aria-label'))).toEqual(['Center'])
+        expect(buttons.map(b => b.attributes('tabindex'))).toEqual(['-1', '-1', '-1', '-1', '0', '-1', '-1', '-1', '-1'])
         wrapper.unmount()
     })
 
